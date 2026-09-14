@@ -51,8 +51,10 @@ class TimelineMessage {
     this.replyToBody,
     TimelineSendState sendState = TimelineSendState.sent,
     bool edited = false,
+    bool redacted = false,
   }) : bodyText = signal(body),
        editedState = signal(edited),
+       redactedState = signal(redacted),
        sendState = signal(sendState);
 
   factory TimelineMessage.fromFixture(BenchmarkMessage message, int index) {
@@ -77,10 +79,12 @@ class TimelineMessage {
   final String? replyToSender;
   final String? replyToBody;
   final Signal<bool> editedState;
+  final Signal<bool> redactedState;
   final Signal<TimelineSendState> sendState;
 
   String get body => bodyText.value;
   bool get edited => editedState.value;
+  bool get redacted => redactedState.value;
   bool get isReply => replyToMessageId != null;
 }
 
@@ -140,11 +144,20 @@ class TimelineController {
   }
 
   void editText(TimelineMessage message, String rawBody) {
-    if (!message.mine) return;
+    if (!message.mine || message.redacted) return;
     final body = rawBody.trim();
     if (body.isEmpty || body == message.body) return;
     message.bodyText.value = body;
     message.editedState.value = true;
+  }
+
+  void redactText(TimelineMessage message) {
+    if (!message.mine || message.redacted) return;
+    batch(() {
+      message.bodyText.value = '';
+      message.editedState.value = false;
+      message.redactedState.value = true;
+    });
   }
 
   void retry(String roomId, TimelineMessage message) {

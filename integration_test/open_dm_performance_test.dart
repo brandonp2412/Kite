@@ -158,6 +158,112 @@ void main() {
     };
   });
 
+  testWidgets('copy message action has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-copy')), findsOneWidget);
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('message-action-copy')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.text('Message copied'), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['copy_message'] = <String, dynamic>{
+      'journey': 'copy_message_text',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('delete confirmation transition has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-delete')), findsOneWidget);
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('message-action-delete')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('delete-message-dialog')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['delete_confirmation'] = <String, dynamic>{
+      'journey': 'open_delete_confirmation',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('delete redaction commit has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-action-delete')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('delete-message-confirm')), findsOneWidget);
+    final message = timelineController.messagesFor('alice').value.last;
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('delete-message-confirm')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(message.redacted, isTrue);
+    expect(find.byKey(const Key('message-redacted-alice-99')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['delete_message'] = <String, dynamic>{
+      'journey': 'confirm_message_redaction',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('edit message commit has zero late Flutter frames', (
     tester,
   ) async {

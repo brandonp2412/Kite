@@ -71,6 +71,68 @@ void main() {
       );
     });
 
+    testWidgets('delete confirmation ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-delete')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('delete-message-dialog')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/timeline_delete_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('redacted message ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      timelineController.redactText(
+        timelineController.messagesFor('alice').value.last,
+      );
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-composer-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Message deleted'), findsOneWidget);
+      await expectLater(
+        find.byKey(const Key('timeline-composer-golden')),
+        matchesGoldenFile('goldens/timeline_redacted_${variant.name}.png'),
+      );
+    });
+
     testWidgets('reply composer ${variant.name} reference render', (
       tester,
     ) async {
