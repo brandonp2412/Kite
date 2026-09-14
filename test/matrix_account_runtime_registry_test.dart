@@ -103,6 +103,18 @@ void main() {
         'Cached Alice room',
       );
       expect(registry.activeCache?.lastSyncCursor, 'persisted-cursor');
+      expect(
+        boundaries['@alice:example.org']!
+            .lastSyncConfiguration
+            ?.resumeFromCursor,
+        'persisted-cursor',
+      );
+      expect(
+        boundaries['@alice:example.org']!
+            .lastSyncConfiguration
+            ?.initialRoomListLimit,
+        200,
+      );
 
       startGate.complete();
       final cache = await activation;
@@ -204,6 +216,9 @@ void main() {
 
       await registry.updateNetworkState(MatrixNetworkState.online);
       expect(alice.startCalls, 2);
+      expect(alice.syncConfigurations, hasLength(2));
+      expect(alice.syncConfigurations.first.resumeFromCursor, isNull);
+      expect(alice.syncConfigurations.last.resumeFromCursor, 'alice-start-1');
     },
   );
 
@@ -278,6 +293,10 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
   MatrixSdkStoreConfiguration? openedStore;
+  final List<MatrixSdkSyncConfiguration> syncConfigurations =
+      <MatrixSdkSyncConfiguration>[];
+  MatrixSdkSyncConfiguration? get lastSyncConfiguration =>
+      syncConfigurations.isEmpty ? null : syncConfigurations.last;
   int startCalls = 0;
   int stopCalls = 0;
   int closeCalls = 0;
@@ -291,8 +310,9 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> startSync() async {
+  Future<void> startSync(MatrixSdkSyncConfiguration configuration) async {
     startCalls += 1;
+    syncConfigurations.add(configuration);
     if (failStart) throw StateError('deterministic start failure');
     await startGate?.future;
     final localpart = accountId.substring(1, accountId.indexOf(':'));

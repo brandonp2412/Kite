@@ -82,6 +82,10 @@ void main() {
 
     expect(restoredBoundary.openCalls, 1);
     expect(restoredBoundary.startCalls, 1);
+    expect(
+      restoredBoundary.lastSyncConfiguration?.resumeFromCursor,
+      'alice-start-1',
+    );
     expect(secondRegistry.activeCache?.lastSyncCursor, 'alice-start-1');
   });
 
@@ -156,6 +160,7 @@ final class _FakeBoundary implements MatrixSdkBoundary {
 
   int openCalls = 0;
   int startCalls = 0;
+  MatrixSdkSyncConfiguration? lastSyncConfiguration;
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -174,8 +179,9 @@ final class _FakeBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> startSync() async {
+  Future<void> startSync(MatrixSdkSyncConfiguration configuration) async {
     startCalls += 1;
+    lastSyncConfiguration = configuration;
     final localpart = accountId.substring(1, accountId.indexOf(':'));
     _sync.add(
       MatrixSyncBatch(

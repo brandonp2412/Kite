@@ -81,6 +81,9 @@ void main() {
       expect(boundary.openCalls, 1);
       expect(boundary.openedStore, same(_store));
       expect(boundary.startCalls, 1);
+      expect(boundary.lastSyncConfiguration?.initialRoomListLimit, 200);
+      expect(boundary.lastSyncConfiguration?.timelineEventLimit, 20);
+      expect(boundary.lastSyncConfiguration?.resumeFromCursor, isNull);
       expect(boundary.stopCalls, 1);
       expect(boundary.paginatedRooms, <String>['!alpha:kite.test']);
       expect(boundary.closeCalls, 1);
@@ -522,6 +525,7 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   int stopCalls = 0;
   int closeCalls = 0;
   MatrixSdkStoreConfiguration? openedStore;
+  MatrixSdkSyncConfiguration? lastSyncConfiguration;
   final List<String> paginatedRooms = <String>[];
 
   @override
@@ -534,8 +538,9 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> startSync() async {
+  Future<void> startSync(MatrixSdkSyncConfiguration configuration) async {
     startCalls += 1;
+    lastSyncConfiguration = configuration;
     final batch = startBatch;
     if (batch != null) _sync.add(batch);
   }

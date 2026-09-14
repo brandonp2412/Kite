@@ -20,6 +20,19 @@ final class MatrixSdkStoreConfiguration {
   final String encryptionKeyId;
 }
 
+final class MatrixSdkSyncConfiguration {
+  const MatrixSdkSyncConfiguration({
+    this.initialRoomListLimit = 200,
+    this.timelineEventLimit = 20,
+    this.resumeFromCursor,
+  }) : assert(initialRoomListLimit > 0),
+       assert(timelineEventLimit > 0);
+
+  final int initialRoomListLimit;
+  final int timelineEventLimit;
+  final String? resumeFromCursor;
+}
+
 abstract interface class MatrixSdkBoundary {
   Set<MatrixSdkCapability> get capabilities;
 
@@ -27,7 +40,7 @@ abstract interface class MatrixSdkBoundary {
 
   Future<void> open(MatrixSdkStoreConfiguration store);
 
-  Future<void> startSync();
+  Future<void> startSync(MatrixSdkSyncConfiguration configuration);
 
   Future<void> stopSync();
 
@@ -49,6 +62,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
   factory MatrixBoundaryEngine({
     required MatrixSdkBoundary boundary,
     required MatrixSdkStoreConfiguration store,
+    MatrixSdkSyncConfiguration Function()? syncConfigurationProvider,
   }) {
     _requireBoundaryCapability(boundary, MatrixSdkCapability.auditedEncryption);
     _requireBoundaryCapability(
@@ -56,13 +70,22 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       MatrixSdkCapability.encryptedPersistentStore,
     );
     _requireBoundaryCapability(boundary, MatrixSdkCapability.slidingSync);
-    return MatrixBoundaryEngine._(boundary, store);
+    return MatrixBoundaryEngine._(
+      boundary,
+      store,
+      syncConfigurationProvider ?? () => const MatrixSdkSyncConfiguration(),
+    );
   }
 
-  MatrixBoundaryEngine._(this._boundary, this._store);
+  MatrixBoundaryEngine._(
+    this._boundary,
+    this._store,
+    this._syncConfigurationProvider,
+  );
 
   final MatrixSdkBoundary _boundary;
   final MatrixSdkStoreConfiguration _store;
+  final MatrixSdkSyncConfiguration Function() _syncConfigurationProvider;
 
   bool _opened = false;
   bool _started = false;
@@ -74,7 +97,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
   Future<void> start() async {
     await _ensureOpen();
     if (_started) return;
-    await _boundary.startSync();
+    await _boundary.startSync(_syncConfigurationProvider());
     _started = true;
   }
 

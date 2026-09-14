@@ -171,6 +171,8 @@ final class MatrixAccountRuntimeRegistry {
     final engine = MatrixBoundaryEngine(
       boundary: boundaryFactory(accountId),
       store: storeRegistry.forAccount(accountId),
+      syncConfigurationProvider: () =>
+          MatrixSdkSyncConfiguration(resumeFromCursor: cache.lastSyncCursor),
     );
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
