@@ -156,7 +156,35 @@ class _RoomList extends StatelessWidget {
 
 typedef _ComposerAction = void Function(String roomId, TimelineMessage message);
 
-enum _MessageAction { reply, edit, copy, redact }
+enum _MessageAction { reply, edit, copy, redact, reactionPicker }
+
+const List<String> _quickReactions = <String>['👍', '❤️', '😂', '🎉', '😮'];
+const List<String> _reactionPickerEmoji = <String>[
+  '👍',
+  '👎',
+  '❤️',
+  '😂',
+  '🎉',
+  '😮',
+  '😢',
+  '😡',
+  '🔥',
+  '👏',
+  '🙌',
+  '🤔',
+  '👀',
+  '✅',
+  '💯',
+  '🚀',
+  '🥳',
+  '🙏',
+  '🤝',
+  '💡',
+  '⭐',
+  '💜',
+  '✨',
+  '🤯',
+];
 
 enum _ComposerMode { reply, edit }
 
@@ -335,6 +363,21 @@ class _MessageRow extends StatelessWidget {
               duration: Duration(seconds: 2),
             ),
           );
+      case _MessageAction.reactionPicker:
+        final emoji = await showModalBottomSheet<String>(
+          context: context,
+          useSafeArea: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (pickerContext) => const _ReactionPickerSheet(),
+        );
+        if (!context.mounted || emoji == null) return;
+        timelineController.toggleReaction(message, emoji);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -419,6 +462,30 @@ class _MessageRow extends StatelessWidget {
                     key: Key('message-body-${message.id}'),
                     style: KiteTypography.body.copyWith(
                       color: colors.onSurface,
+                    ),
+                  );
+                },
+              ),
+              SignalBuilder(
+                builder: (context) {
+                  final reactions = message.reactions.entries.toList(
+                    growable: false,
+                  );
+                  if (reactions.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: KiteSpacing.xs),
+                    child: Wrap(
+                      key: Key('message-reactions-${message.id}'),
+                      spacing: KiteSpacing.xs,
+                      runSpacing: KiteSpacing.xs,
+                      children: <Widget>[
+                        for (final reaction in reactions)
+                          _ReactionPill(
+                            message: message,
+                            emoji: reaction.key,
+                            reactors: reaction.value,
+                          ),
+                      ],
                     ),
                   );
                 },
@@ -553,6 +620,269 @@ class _MessageReplyPreview extends StatelessWidget {
   }
 }
 
+class _ReactionPill extends StatelessWidget {
+  const _ReactionPill({
+    required this.message,
+    required this.emoji,
+    required this.reactors,
+  });
+
+  final TimelineMessage message;
+  final String emoji;
+  final List<String> reactors;
+
+  Future<void> _showReactors(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (sheetContext) =>
+          _ReactionDetailsSheet(emoji: emoji, reactors: reactors),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final selected = reactors.contains('You');
+    return Semantics(
+      button: true,
+      selected: selected,
+      label:
+          '$emoji reaction, ${reactors.length} ${reactors.length == 1 ? 'person' : 'people'}',
+      child: InkWell(
+        key: Key('reaction-$emoji-${message.id}'),
+        onTap: () => _showReactors(context),
+        borderRadius: BorderRadius.circular(KiteRadii.pill),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: selected
+                ? colors.primaryContainer
+                : colors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(KiteRadii.pill),
+            border: Border.all(
+              color: selected
+                  ? colors.primary.withValues(alpha: 0.42)
+                  : colors.outlineVariant,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: KiteSpacing.sm,
+              vertical: KiteSpacing.xxs,
+            ),
+            child: Text(
+              '$emoji  ${reactors.length}',
+              style: KiteTypography.metadata.copyWith(
+                color: selected
+                    ? colors.onPrimaryContainer
+                    : colors.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactionDetailsSheet extends StatelessWidget {
+  const _ReactionDetailsSheet({required this.emoji, required this.reactors});
+
+  final String emoji;
+  final List<String> reactors;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('reaction-details-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.outlineVariant,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.lg),
+          Text(
+            '$emoji  ${reactors.length}',
+            style: KiteTypography.title.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.sm),
+          for (final reactor in reactors)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: KiteSpacing.xs),
+              child: Row(
+                children: <Widget>[
+                  _MessageAvatar(sender: reactor),
+                  const SizedBox(width: KiteSpacing.sm),
+                  Text(
+                    reactor,
+                    style: KiteTypography.body.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickReactionRow extends StatelessWidget {
+  const _QuickReactionRow({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      key: const Key('quick-reaction-row'),
+      children: <Widget>[
+        for (
+          var index = 0;
+          index < _quickReactions.length;
+          index++
+        ) ...<Widget>[
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: 'React with ${_quickReactions[index]}',
+              child: InkWell(
+                key: Key('quick-reaction-$index'),
+                onTap: () {
+                  timelineController.toggleReaction(
+                    message,
+                    _quickReactions[index],
+                  );
+                  Navigator.of(context).pop();
+                },
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+                child: SizedBox(
+                  height: 44,
+                  child: Center(
+                    child: Text(
+                      _quickReactions[index],
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (index != _quickReactions.length - 1)
+            const SizedBox(width: KiteSpacing.xxs),
+        ],
+        const SizedBox(width: KiteSpacing.xxs),
+        Tooltip(
+          message: 'More reactions',
+          child: InkWell(
+            key: const Key('message-action-more-reactions'),
+            onTap: () =>
+                Navigator.of(context).pop(_MessageAction.reactionPicker),
+            borderRadius: BorderRadius.circular(KiteRadii.pill),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(Icons.add_rounded, color: colors.onSurfaceVariant),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReactionPickerSheet extends StatelessWidget {
+  const _ReactionPickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('reaction-picker-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.outlineVariant,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.lg),
+          Text(
+            'Choose a reaction',
+            style: KiteTypography.title.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _reactionPickerEmoji.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 6,
+              mainAxisSpacing: KiteSpacing.xs,
+              crossAxisSpacing: KiteSpacing.xs,
+            ),
+            itemBuilder: (context, index) {
+              final emoji = _reactionPickerEmoji[index];
+              return InkWell(
+                key: Key('reaction-picker-$index'),
+                onTap: () => Navigator.of(context).pop(emoji),
+                borderRadius: BorderRadius.circular(KiteRadii.md),
+                child: Center(
+                  child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MessageActionSheet extends StatelessWidget {
   const _MessageActionSheet({required this.message});
 
@@ -594,6 +924,8 @@ class _MessageActionSheet extends StatelessWidget {
           ),
           const SizedBox(height: KiteSpacing.sm),
           if (!message.redacted) ...<Widget>[
+            _QuickReactionRow(message: message),
+            const SizedBox(height: KiteSpacing.sm),
             _MessageActionButton(
               key: const Key('message-action-reply'),
               icon: Icons.reply_rounded,

@@ -429,4 +429,114 @@ void main() {
     expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'reaction actions keep the reverse-list anchor stable at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final messages = timelineController.messagesFor('alice').value;
+      final targetMessage = messages[messages.length - 2];
+      expect(targetMessage.id, 'alice-98');
+      final target = find.byKey(const Key('message-bubble-alice-98'));
+      final anchoredLatest = find.byKey(const Key('message-row-alice-99'));
+      final messageList = find.byKey(const Key('message-list'));
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final initialLatest = _rectOf(tester, anchoredLatest);
+      final initialList = _rectOf(tester, messageList);
+      final initialPanel = _rectOf(tester, chatPanel);
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('quick-reaction-row')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('quick-reaction-0')));
+
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        _expectSameRect(
+          initialLatest,
+          _rectOf(tester, anchoredLatest),
+          'anchored latest row',
+        );
+        _expectSameRect(
+          initialList,
+          _rectOf(tester, messageList),
+          'message list',
+        );
+        _expectSameRect(initialPanel, _rectOf(tester, chatPanel), 'chat panel');
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+
+      expect(targetMessage.reactions['👍'], <String>['You']);
+      final reactionPill = find.byKey(const Key('reaction-👍-alice-98'));
+      expect(reactionPill, findsOneWidget);
+      await tester.tap(reactionPill);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reaction-details-sheet')), findsOneWidget);
+      expect(find.text('👍  1'), findsWidgets);
+      expect(find.text('You'), findsOneWidget);
+      Navigator.of(
+        tester.element(find.byKey(const Key('reaction-details-sheet'))),
+      ).pop();
+      await tester.pumpAndSettle();
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-more-reactions')));
+
+      double? previousPickerTop;
+      var pickerFrames = 0;
+      for (
+        var index = 0;
+        index < PerformanceContract.motionSamples * 3;
+        index++
+      ) {
+        await tester.pump(PerformanceContract.motionFrame);
+        final picker = find.byKey(const Key('reaction-picker-sheet'));
+        if (picker.evaluate().isEmpty) continue;
+        pickerFrames += 1;
+        final rect = _rectOf(tester, picker);
+        expect(rect.width, lessThanOrEqualTo(440));
+        if (previousPickerTop != null) {
+          expect(
+            rect.top,
+            lessThanOrEqualTo(previousPickerTop + 0.01),
+            reason: 'reaction picker must move monotonically into view',
+          );
+        }
+        previousPickerTop = rect.top;
+        _expectSameRect(
+          initialLatest,
+          _rectOf(tester, anchoredLatest),
+          'anchored latest row while picker opens',
+        );
+      }
+      expect(pickerFrames, greaterThan(0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('reaction-picker-5')));
+      await tester.pumpAndSettle();
+
+      expect(targetMessage.reactions['😮'], <String>['You']);
+      expect(find.byKey(const Key('reaction-😮-alice-98')), findsOneWidget);
+      _expectSameRect(
+        initialLatest,
+        _rectOf(tester, anchoredLatest),
+        'anchored latest row after full-picker reaction',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

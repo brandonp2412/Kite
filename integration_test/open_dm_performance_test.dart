@@ -314,4 +314,49 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets('reaction picker and commit have zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('message-action-more-reactions')),
+      findsOneWidget,
+    );
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(
+          find.byKey(const Key('message-action-more-reactions')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('reaction-picker-sheet')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('reaction-picker-5')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final target = timelineController.messagesFor('alice').value[98];
+    expect(target.id, 'alice-98');
+    expect(target.reactions['😮'], <String>['You']);
+    expect(find.byKey(const Key('reaction-😮-alice-98')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['react_message'] = <String, dynamic>{
+      'journey': 'open_reaction_picker_and_react',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
 }

@@ -71,6 +71,72 @@ void main() {
       );
     });
 
+    testWidgets('reaction picker ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-more-reactions')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('reaction-picker-sheet')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile(
+          'goldens/timeline_reaction_picker_${variant.name}.png',
+        ),
+      );
+    });
+
+    testWidgets('reaction summary ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      final target = timelineController.messagesFor('alice').value[98];
+      timelineController.toggleReaction(target, '👍', reactor: 'Alice');
+      timelineController.toggleReaction(target, '👍');
+      timelineController.toggleReaction(target, '🎉', reactor: 'Bob');
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-composer-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('reaction-👍-alice-98')), findsOneWidget);
+      expect(find.byKey(const Key('reaction-🎉-alice-98')), findsOneWidget);
+      await expectLater(
+        find.byKey(const Key('timeline-composer-golden')),
+        matchesGoldenFile('goldens/timeline_reactions_${variant.name}.png'),
+      );
+    });
+
     testWidgets('delete confirmation ${variant.name} reference render', (
       tester,
     ) async {

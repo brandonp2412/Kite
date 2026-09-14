@@ -52,9 +52,11 @@ class TimelineMessage {
     TimelineSendState sendState = TimelineSendState.sent,
     bool edited = false,
     bool redacted = false,
+    Map<String, List<String>> reactions = const <String, List<String>>{},
   }) : bodyText = signal(body),
        editedState = signal(edited),
        redactedState = signal(redacted),
+       reactionsState = signal(_freezeReactions(reactions)),
        sendState = signal(sendState);
 
   factory TimelineMessage.fromFixture(BenchmarkMessage message, int index) {
@@ -80,12 +82,23 @@ class TimelineMessage {
   final String? replyToBody;
   final Signal<bool> editedState;
   final Signal<bool> redactedState;
+  final Signal<Map<String, List<String>>> reactionsState;
   final Signal<TimelineSendState> sendState;
 
   String get body => bodyText.value;
   bool get edited => editedState.value;
   bool get redacted => redactedState.value;
+  Map<String, List<String>> get reactions => reactionsState.value;
   bool get isReply => replyToMessageId != null;
+
+  static Map<String, List<String>> _freezeReactions(
+    Map<String, List<String>> source,
+  ) {
+    return Map<String, List<String>>.unmodifiable(<String, List<String>>{
+      for (final entry in source.entries)
+        entry.key: List<String>.unmodifiable(entry.value),
+    });
+  }
 }
 
 class TimelineController {
@@ -157,7 +170,32 @@ class TimelineController {
       message.bodyText.value = '';
       message.editedState.value = false;
       message.redactedState.value = true;
+      message.reactionsState.value = const <String, List<String>>{};
     });
+  }
+
+  void toggleReaction(
+    TimelineMessage message,
+    String emoji, {
+    String reactor = 'You',
+  }) {
+    if (message.redacted || emoji.trim().isEmpty) return;
+    final next = <String, List<String>>{
+      for (final entry in message.reactions.entries)
+        entry.key: List<String>.of(entry.value),
+    };
+    final reactors = next.putIfAbsent(emoji, () => <String>[]);
+    if (reactors.contains(reactor)) {
+      reactors.remove(reactor);
+      if (reactors.isEmpty) next.remove(emoji);
+    } else {
+      reactors.add(reactor);
+    }
+    message.reactionsState.value = TimelineMessage._freezeReactions(next);
+  }
+
+  List<String> reactorsFor(TimelineMessage message, String emoji) {
+    return message.reactions[emoji] ?? const <String>[];
   }
 
   void retry(String roomId, TimelineMessage message) {
