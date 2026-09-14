@@ -254,6 +254,91 @@ void main() {
     ]);
   });
 
+  testWidgets('reports a member with the optional reason preserved', (
+    tester,
+  ) async {
+    const member = RoomMember(
+      userId: '@spam:example.org',
+      displayName: 'Spam account',
+      membership: RoomMembership.joined,
+      powerLevel: 0,
+    );
+    final mutations = FakeRoomMemberMutationPort();
+    await pumpScreen(
+      tester,
+      coordinator: coordinator(
+        directory: FakeRoomMemberDirectoryPort(
+          members: const <RoomMember>[member],
+        ),
+        mutations: mutations,
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('member-@spam:example.org')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-report')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('room-report-reason')),
+      '  repeated spam  ',
+    );
+    await tester.tap(find.byKey(const Key('room-report-submit')));
+    await tester.pumpAndSettle();
+
+    expect(
+      mutations.userReports,
+      <({String roomId, String userId, String? reason})>[
+        (roomId: roomId, userId: member.userId, reason: 'repeated spam'),
+      ],
+    );
+  });
+
+  testWidgets('room safety menu reports, leaves, and forgets explicitly', (
+    tester,
+  ) async {
+    final mutations = FakeRoomMemberMutationPort();
+    await pumpScreen(
+      tester,
+      coordinator: coordinator(
+        directory: FakeRoomMemberDirectoryPort(),
+        mutations: mutations,
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('room-safety-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report room'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('room-report-reason')),
+      '  abusive room  ',
+    );
+    await tester.tap(find.byKey(const Key('room-report-submit')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('room-safety-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leave room'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-moderation-confirm-Leave')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('room-safety-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove local room data'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('member-moderation-confirm-Remove data')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(mutations.roomReports, <({String roomId, String? reason})>[
+      (roomId: roomId, reason: 'abusive room'),
+    ]);
+    expect(mutations.leaves, <String>[roomId]);
+    expect(mutations.forgottenRooms, <String>[roomId]);
+  });
+
   testWidgets('denied invite surfaces the SDK reason without mutating', (
     tester,
   ) async {
