@@ -93,6 +93,145 @@ void main() {
     });
   });
 
+  group('notification presentation', () {
+    test(
+      'locked presentation redacts message content but preserves routing',
+      () {
+        const policy = NotificationPresentationPolicy();
+        const notification = KiteNotification(
+          id: 'private-message',
+          kind: KiteNotificationKind.message,
+          destination: AppDestination.event(
+            accountId: 'work',
+            roomId: '!team:example.org',
+            eventId: r'$secret',
+          ),
+        );
+
+        final presentation = policy.present(
+          notification: notification,
+          content: const KiteNotificationContent(
+            title: 'Alice in Launch room',
+            body: 'The recovery key is on my desk',
+          ),
+          hideContents: true,
+        );
+
+        expect(presentation.title, NotificationPresentationPolicy.privateTitle);
+        expect(presentation.body, NotificationPresentationPolicy.privateBody);
+        expect(presentation.contentsHidden, isTrue);
+        expect(presentation.notification, same(notification));
+        expect(presentation.notification.destination.eventId, r'$secret');
+        expect(presentation.title, isNot(contains('Alice')));
+        expect(presentation.body, isNot(contains('recovery key')));
+      },
+    );
+
+    test('unlocked presentation keeps exact notification content', () {
+      const policy = NotificationPresentationPolicy();
+      const notification = KiteNotification(
+        id: 'visible-message',
+        kind: KiteNotificationKind.mention,
+        destination: AppDestination.event(
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$mention',
+        ),
+      );
+
+      final presentation = policy.present(
+        notification: notification,
+        content: const KiteNotificationContent(
+          title: 'Alice',
+          body: 'Mentioned you in Launch room',
+        ),
+        hideContents: false,
+      );
+
+      expect(presentation.title, 'Alice');
+      expect(presentation.body, 'Mentioned you in Launch room');
+      expect(presentation.contentsHidden, isFalse);
+    });
+
+    test(
+      'summaries group by account and room without merging account state',
+      () {
+        const policy = NotificationPresentationPolicy();
+        KiteNotificationPresentation presentation({
+          required String id,
+          required String accountId,
+          required String roomId,
+          bool hidden = false,
+        }) {
+          return policy.present(
+            notification: KiteNotification(
+              id: id,
+              kind: KiteNotificationKind.message,
+              destination: AppDestination.event(
+                accountId: accountId,
+                roomId: roomId,
+                eventId: '\$$id',
+              ),
+            ),
+            content: KiteNotificationContent(title: id, body: 'body-$id'),
+            hideContents: hidden,
+          );
+        }
+
+        final summaries = policy.summaries(<KiteNotificationPresentation>[
+          presentation(
+            id: 'one',
+            accountId: 'work',
+            roomId: '!team:example.org',
+          ),
+          presentation(
+            id: 'two',
+            accountId: 'work',
+            roomId: '!team:example.org',
+            hidden: true,
+          ),
+          presentation(
+            id: 'personal',
+            accountId: 'personal',
+            roomId: '!team:example.org',
+          ),
+          presentation(
+            id: 'other-room',
+            accountId: 'work',
+            roomId: '!other:example.org',
+          ),
+        ]);
+
+        expect(summaries, hasLength(3));
+        final workTeam = summaries.singleWhere(
+          (summary) =>
+              summary.accountId == 'work' &&
+              summary.roomId == '!team:example.org',
+        );
+        expect(workTeam.count, 2);
+        expect(workTeam.contentsHidden, isTrue);
+        expect(
+          summaries
+              .singleWhere((summary) => summary.accountId == 'personal')
+              .count,
+          1,
+        );
+        expect(
+          () => summaries.add(
+            const KiteNotificationSummary(
+              groupKey: 'invalid',
+              accountId: 'work',
+              roomId: '!invalid:example.org',
+              count: 1,
+              contentsHidden: false,
+            ),
+          ),
+          throwsUnsupportedError,
+        );
+      },
+    );
+  });
+
   group('notification reconciliation', () {
     test('marking a room read clears message, mention and thread only', () {
       AppDestination destination(String accountId, String eventId) =>
