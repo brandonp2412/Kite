@@ -167,6 +167,90 @@ void main() {
         await engine.close();
       },
     );
+
+    test(
+      'back-pagination flows through the SDK boundary into the cache',
+      () async {
+        const roomId = '!alpha:kite.test';
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.slidingSync,
+            MatrixSdkCapability.backPagination,
+          },
+          paginationBatches: <String, MatrixSyncBatch>{
+            roomId: MatrixSyncBatch(
+              cursor: 'history-1',
+              rooms: <MatrixRoomDelta>[
+                MatrixRoomDelta(
+                  roomId: roomId,
+                  timelineEvents: <MatrixTimelineEvent>[
+                    MatrixTimelineEvent(
+                      eventId: r'$older:kite.test',
+                      roomId: roomId,
+                      senderId: '@alice:kite.test',
+                      type: 'm.room.message',
+                      originServerTimestamp: DateTime.utc(2026, 9, 15, 1),
+                      streamPosition: 1,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          },
+        );
+        final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+        final cache = MatrixPresentationCache(
+          initialSnapshot: MatrixPresentationSnapshot(
+            rooms: <MatrixRoomSummary>[
+              MatrixRoomSummary(
+                roomId: roomId,
+                displayName: 'Alpha',
+                lastActivity: DateTime.utc(2026, 9, 15, 2),
+                streamPosition: 2,
+              ),
+            ],
+            timelines: <String, List<MatrixTimelineEvent>>{
+              roomId: <MatrixTimelineEvent>[
+                MatrixTimelineEvent(
+                  eventId: r'$newer:kite.test',
+                  roomId: roomId,
+                  senderId: '@bob:kite.test',
+                  type: 'm.room.message',
+                  originServerTimestamp: DateTime.utc(2026, 9, 15, 2),
+                  streamPosition: 2,
+                ),
+              ],
+            },
+          ),
+        );
+        final roomOrderBefore = cache.roomOrder.value;
+        final summaryBefore = cache.roomSummarySignal(roomId).value;
+        final sync = MatrixSyncCoordinator(
+          engine: engine,
+          applyBatch: cache.applySync,
+        );
+
+        await sync.start();
+        await engine.paginateBackwards(roomId);
+
+        expect(boundary.paginatedRooms, <String>[roomId]);
+        expect(cache.lastSyncCursor, 'history-1');
+        expect(
+          cache.timelineSignal(roomId).value.map((event) => event.eventId),
+          <String>[r'$older:kite.test', r'$newer:kite.test'],
+        );
+        expect(identical(cache.roomOrder.value, roomOrderBefore), isTrue);
+        expect(
+          identical(cache.roomSummarySignal(roomId).value, summaryBefore),
+          isTrue,
+        );
+
+        await sync.stop();
+        await engine.close();
+      },
+    );
   });
 
   test(
@@ -380,6 +464,37 @@ void main() {
       await engine.close();
     },
   );
+
+  test(
+    'failed near-edge pagination clears in-flight state for retry',
+    () async {
+      final engine = _FakeMatrixEngine();
+      final controller = MatrixBackPaginationController(engine: engine);
+
+      final failed = controller.maybePaginate(
+        roomId: '!alpha:kite.test',
+        firstVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(controller.isPaginating('!alpha:kite.test'), isTrue);
+      engine.failPagination();
+      await expectLater(failed, throwsA(isA<StateError>()));
+      expect(controller.isPaginating('!alpha:kite.test'), isFalse);
+
+      final retry = controller.maybePaginate(
+        roomId: '!alpha:kite.test',
+        firstVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(engine.paginationCalls, <String>[
+        '!alpha:kite.test',
+        '!alpha:kite.test',
+      ]);
+      engine.completePagination();
+      await retry;
+      await engine.close();
+    },
+  );
 }
 
 const _store = MatrixSdkStoreConfiguration(
@@ -389,11 +504,16 @@ const _store = MatrixSdkStoreConfiguration(
 );
 
 final class _FakeSdkBoundary implements MatrixSdkBoundary {
-  _FakeSdkBoundary({required this.capabilities, this.startBatch});
+  _FakeSdkBoundary({
+    required this.capabilities,
+    this.startBatch,
+    this.paginationBatches = const <String, MatrixSyncBatch>{},
+  });
 
   @override
   final Set<MatrixSdkCapability> capabilities;
   final MatrixSyncBatch? startBatch;
+  final Map<String, MatrixSyncBatch> paginationBatches;
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
@@ -428,6 +548,8 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   @override
   Future<void> paginateBackwards(String roomId) async {
     paginatedRooms.add(roomId);
+    final batch = paginationBatches[roomId];
+    if (batch != null) _sync.add(batch);
   }
 
   @override
@@ -483,6 +605,11 @@ final class _FakeMatrixEngine implements MatrixEngine {
 
   void completePagination() {
     _pagination!.complete();
+    _pagination = null;
+  }
+
+  void failPagination() {
+    _pagination!.completeError(StateError('deterministic pagination failure'));
     _pagination = null;
   }
 
