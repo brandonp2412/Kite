@@ -80,6 +80,30 @@ void main() {
     await engine.close();
   });
 
+  test('synchronous pagination failure still leaves retryable state', () async {
+    final failure = StateError('synchronous pagination failure');
+    final engine = _PaginationFakeMatrixEngine(syncFailure: failure);
+    final controller = MatrixBackPaginationController(engine: engine);
+    final state = controller.stateSignal('!room:kite.test');
+
+    await expectLater(
+      controller.maybePaginate(
+        roomId: '!room:kite.test',
+        firstVisibleIndex: 0,
+        hasMoreHistory: true,
+      ),
+      throwsA(same(failure)),
+    );
+
+    expect(controller.isPaginating('!room:kite.test'), isFalse);
+    expect(state.value.phase, MatrixPaginationPhase.failed);
+    expect(state.value.error, same(failure));
+
+    controller.clearFailure('!room:kite.test');
+    expect(state.value.phase, MatrixPaginationPhase.idle);
+    await engine.close();
+  });
+
   test(
     'pagination remains idle when history is exhausted or edge is distant',
     () async {
@@ -109,6 +133,9 @@ void main() {
 }
 
 final class _PaginationFakeMatrixEngine implements MatrixEngine {
+  _PaginationFakeMatrixEngine({this.syncFailure});
+
+  final Object? syncFailure;
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast();
   final List<String> paginationCalls = <String>[];
@@ -126,6 +153,8 @@ final class _PaginationFakeMatrixEngine implements MatrixEngine {
   @override
   Future<void> paginateBackwards(String roomId) {
     paginationCalls.add(roomId);
+    final failure = syncFailure;
+    if (failure != null) throw failure;
     final pagination = Completer<void>();
     _pagination = pagination;
     return pagination.future;
