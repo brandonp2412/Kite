@@ -83,6 +83,10 @@ void main() {
       expect(message.body, 'Message from Kite');
       expect(message.sendState.value, TimelineSendState.sending);
       expect(find.text('Message from Kite'), findsOneWidget);
+      final messageBubble = find.byKey(Key('message-bubble-${message.id}'));
+      final sendState = find.byKey(Key('send-state-${message.id}'));
+      final sendingBubbleRect = _rectOf(tester, messageBubble);
+      final sendingStateRect = _rectOf(tester, sendState);
 
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
@@ -104,6 +108,16 @@ void main() {
       await tester.pump();
       expect(message.sendState.value, TimelineSendState.failed);
       expect(find.byKey(Key('retry-${message.id}')), findsOneWidget);
+      _expectSameRect(
+        sendingBubbleRect,
+        _rectOf(tester, messageBubble),
+        'message bubble',
+      );
+      _expectSameRect(
+        sendingStateRect,
+        _rectOf(tester, sendState),
+        'send-state slot',
+      );
       _expectSameRect(initialComposer, _rectOf(tester, composer), 'composer');
       _expectSameRect(
         initialMessageList,
@@ -120,6 +134,16 @@ void main() {
       await tester.pump();
       expect(message.sendState.value, TimelineSendState.sent);
       expect(find.byIcon(Icons.done_rounded), findsWidgets);
+      _expectSameRect(
+        sendingBubbleRect,
+        _rectOf(tester, messageBubble),
+        'message bubble',
+      );
+      _expectSameRect(
+        sendingStateRect,
+        _rectOf(tester, sendState),
+        'send-state slot',
+      );
       _expectSameRect(initialComposer, _rectOf(tester, composer), 'composer');
       _expectSameRect(
         initialMessageList,
