@@ -62,6 +62,12 @@ void main() {
       await runtime.updateNetworkState(MatrixNetworkState.offline);
       expect(runtime.isSyncing, isFalse);
       expect(runtime.syncState.value.phase, MatrixSyncPhase.idle);
+      await runtime.onTimelineViewportChanged(
+        roomId: '!room:kite.test',
+        oldestVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(engine.paginationCalls, isEmpty);
 
       await runtime.updateNetworkState(MatrixNetworkState.online);
       expect(runtime.isSyncing, isTrue);

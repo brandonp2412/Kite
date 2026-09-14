@@ -46,6 +46,7 @@ final class MatrixRuntimeCoordinator {
     required int oldestVisibleIndex,
     required bool hasMoreHistory,
   }) {
+    if (!shouldSync) return Future<void>.value();
     return _pagination.maybePaginate(
       roomId: roomId,
       firstVisibleIndex: oldestVisibleIndex,

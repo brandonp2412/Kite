@@ -36,7 +36,11 @@ final class MatrixBackPaginationController {
 
   bool isPaginating(String roomId) => _inFlight.containsKey(roomId);
 
-  Signal<MatrixPaginationState> stateSignal(String roomId) {
+  ReadonlySignal<MatrixPaginationState> stateSignal(String roomId) {
+    return _stateSignal(roomId);
+  }
+
+  Signal<MatrixPaginationState> _stateSignal(String roomId) {
     return _states.putIfAbsent(
       roomId,
       () => signal<MatrixPaginationState>(const MatrixPaginationState.idle()),
@@ -63,25 +67,30 @@ final class MatrixBackPaginationController {
     final existing = _inFlight[roomId];
     if (existing != null) return existing;
 
-    final state = stateSignal(roomId);
+    final state = _stateSignal(roomId);
     state.value = const MatrixPaginationState.loading();
 
     late final Future<void> pagination;
-    pagination = engine
-        .paginateBackwards(roomId)
-        .then<void>(
-          (_) {
-            if (identical(_inFlight[roomId], pagination)) {
-              state.value = const MatrixPaginationState.idle();
-            }
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            if (identical(_inFlight[roomId], pagination)) {
-              state.value = MatrixPaginationState.failed(error, stackTrace);
-            }
-            Error.throwWithStackTrace(error, stackTrace);
-          },
-        );
+    late final Future<void> request;
+    try {
+      request = engine.paginateBackwards(roomId);
+    } catch (error, stackTrace) {
+      state.value = MatrixPaginationState.failed(error, stackTrace);
+      return Future<void>.error(error, stackTrace);
+    }
+    pagination = request.then<void>(
+      (_) {
+        if (identical(_inFlight[roomId], pagination)) {
+          state.value = const MatrixPaginationState.idle();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (identical(_inFlight[roomId], pagination)) {
+          state.value = MatrixPaginationState.failed(error, stackTrace);
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      },
+    );
     _inFlight[roomId] = pagination;
     return pagination.whenComplete(() {
       if (identical(_inFlight[roomId], pagination)) {
