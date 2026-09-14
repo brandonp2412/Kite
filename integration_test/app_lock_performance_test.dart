@@ -110,7 +110,9 @@ void main() {
     },
   );
 
-  testWidgets('warm app unlock has zero late Flutter frames', (tester) async {
+  testWidgets('warm biometric app unlock has zero late Flutter frames', (
+    tester,
+  ) async {
     final credentials = _BenchmarkAppLockCredentials();
     final controller = AppLockController(credentials, _BenchmarkBiometrics());
     addTearDown(controller.dispose);
@@ -127,17 +129,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(await controller.unlockWithPin('1234'), isTrue);
+    final biometricUnlock = find.byKey(const Key('app-unlock-biometrics'));
+    expect(biometricUnlock, findsOneWidget);
+    await tester.tap(biometricUnlock);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('protected-app-content')), findsOneWidget);
 
     controller.lock();
     await tester.pumpAndSettle();
+    expect(biometricUnlock, findsOneWidget);
 
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        expect(await controller.unlockWithPin('1234'), isTrue);
+        await tester.tap(biometricUnlock);
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
@@ -146,8 +151,8 @@ void main() {
     expect(controller.isLocked.value, isFalse);
     expect(find.byKey(const Key('protected-app-content')), findsOneWidget);
     binding.reportData ??= <String, dynamic>{};
-    binding.reportData!['app_unlock'] = <String, dynamic>{
-      'journey': 'app_unlock',
+    binding.reportData!['biometric_app_unlock'] = <String, dynamic>{
+      'journey': 'biometric_app_unlock',
       'fixture': 'deterministic_app_lock_v1',
       ...result,
       'result': 'PASS',

@@ -67,6 +67,16 @@ final class _NoBiometrics implements BiometricAuthenticationGateway {
   Future<bool> isAvailable() async => false;
 }
 
+final class _DeferredBiometrics implements BiometricAuthenticationGateway {
+  final authentication = Completer<bool>();
+
+  @override
+  Future<bool> authenticate() => authentication.future;
+
+  @override
+  Future<bool> isAvailable() async => true;
+}
+
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
   final topLeft = renderObject.localToGlobal(Offset.zero);
@@ -126,6 +136,42 @@ void main() {
       expect(controller.settings.value.hideNotificationContents, isFalse);
     },
   );
+
+  testWidgets('biometric verification keeps unlock geometry stable at 120 Hz', (
+    tester,
+  ) async {
+    _configure120Hz(tester);
+    addTearDown(() => _reset120Hz(tester));
+
+    final credentials = _DeferredUnlockCredentials();
+    final biometrics = _DeferredBiometrics();
+    final controller = AppLockController(credentials, biometrics);
+    addTearDown(controller.dispose);
+    await controller.load();
+    await controller.setBiometricsEnabled(true);
+    await tester.pumpWidget(
+      MaterialApp(home: AppUnlockScreen(controller: controller)),
+    );
+
+    final heading = find.byKey(const Key('app-unlock-heading'));
+    final subtitle = find.byKey(const Key('app-unlock-subtitle'));
+    final initialHeading = _rectOf(tester, heading);
+    final initialSubtitle = _rectOf(tester, subtitle);
+
+    await tester.tap(find.byKey(const Key('app-unlock-biometrics')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, heading), initialHeading);
+      expect(_rectOf(tester, subtitle), initialSubtitle);
+      expect(tester.takeException(), isNull);
+    }
+
+    biometrics.authentication.complete(true);
+    await tester.pump();
+    expect(_rectOf(tester, heading), initialHeading);
+    expect(_rectOf(tester, subtitle), initialSubtitle);
+    expect(controller.isLocked.value, isFalse);
+  });
 
   testWidgets('PIN verification keeps unlock geometry stable at 120 Hz', (
     tester,
