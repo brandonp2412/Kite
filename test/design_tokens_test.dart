@@ -163,8 +163,20 @@ void main() {
     expect(bars.systemNavigationBarColor, Colors.black);
     expect(bars.systemNavigationBarIconBrightness, Brightness.light);
 
+    final darkBars = KiteSystemBars.forTheme(KiteTheme.dark);
+    expect(darkBars.statusBarIconBrightness, Brightness.light);
+    expect(
+      darkBars.systemNavigationBarColor,
+      KiteTheme.dark.scaffoldBackgroundColor,
+    );
+    expect(darkBars.systemNavigationBarIconBrightness, Brightness.light);
+
     final lightBars = KiteSystemBars.forTheme(KiteTheme.light);
     expect(lightBars.statusBarIconBrightness, Brightness.dark);
+    expect(
+      lightBars.systemNavigationBarColor,
+      KiteTheme.light.scaffoldBackgroundColor,
+    );
     expect(lightBars.systemNavigationBarIconBrightness, Brightness.dark);
   });
 
@@ -266,6 +278,26 @@ void main() {
         KiteTheme.light.pageTransitionsTheme,
       ),
       KiteMotion.reducedPageTransitions,
+    );
+
+    late BuildContext accessibleNavigationContext;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(accessibleNavigation: true),
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              accessibleNavigationContext = context;
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    expect(KiteMotion.reducedMotion(accessibleNavigationContext), isTrue);
+    expect(
+      KiteMotion.duration(accessibleNavigationContext, KiteMotion.fast),
+      Duration.zero,
     );
   });
 }
