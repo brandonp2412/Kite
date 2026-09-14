@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/matrix_pagination_controller.dart';
+import 'package:signals/signals.dart';
 
 enum MatrixAppActivity { foreground, background }
 
@@ -14,10 +16,12 @@ final class MatrixRuntimeCoordinator {
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
   }) : _sync = MatrixSyncCoordinator(engine: engine, applyBatch: applyBatch),
+       _pagination = MatrixBackPaginationController(engine: engine),
        _activity = initialActivity,
        _networkState = initialNetworkState;
 
   final MatrixSyncCoordinator _sync;
+  final MatrixBackPaginationController _pagination;
 
   MatrixAppActivity _activity;
   MatrixNetworkState _networkState;
@@ -30,6 +34,24 @@ final class MatrixRuntimeCoordinator {
       _networkState == MatrixNetworkState.online;
 
   bool get isSyncing => _sync.isRunning;
+
+  ReadonlySignal<MatrixSyncState> get syncState => _sync.state;
+
+  ReadonlySignal<MatrixPaginationState> paginationState(String roomId) {
+    return _pagination.stateSignal(roomId);
+  }
+
+  Future<void> onTimelineViewportChanged({
+    required String roomId,
+    required int oldestVisibleIndex,
+    required bool hasMoreHistory,
+  }) {
+    return _pagination.maybePaginate(
+      roomId: roomId,
+      firstVisibleIndex: oldestVisibleIndex,
+      hasMoreHistory: hasMoreHistory,
+    );
+  }
 
   Future<void> start() async {
     if (_started) {
