@@ -389,6 +389,8 @@ This milestone is not optional cleanup; it is a product feature.
 
 ## Milestone 14 — Full parity audit against current Element X `develop`
 
+Current capability-audit evidence is recorded in `PARITY_AUDIT.md`; visual/reference evidence is recorded in `VISUAL_PARITY.md`.
+
 - [x] Re-scan current upstream feature modules, release notes, screenshots, and Labs flags.
 - [x] Build a screen-by-screen parity matrix with `Element X behaviour`, `Kite behaviour`, `test`, and `status` columns.
 - [ ] Run through every Element X settings entry and verify Kite has the corresponding capability or a documented intentional difference.
