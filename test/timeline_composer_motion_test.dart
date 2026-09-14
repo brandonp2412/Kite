@@ -152,4 +152,139 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'message actions preserve width while reply composer expands and collapses',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final composer = find.byKey(const Key('composer'));
+      final initialChatPanel = _rectOf(tester, chatPanel);
+      final initialComposer = _rectOf(tester, composer);
+      expect(initialComposer.height, 76);
+
+      await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+      await tester.pump();
+      expect(find.byKey(const Key('message-action-sheet')), findsOneWidget);
+
+      double? previousSheetTop;
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        final sheetRect = _rectOf(
+          tester,
+          find.byKey(const Key('message-action-sheet')),
+        );
+        expect(sheetRect.width, lessThanOrEqualTo(440));
+        if (previousSheetTop != null) {
+          expect(
+            sheetRect.top,
+            lessThanOrEqualTo(previousSheetTop + 0.01),
+            reason: 'action sheet must move monotonically into view',
+          );
+        }
+        previousSheetTop = sheetRect.top;
+        expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('message-action-reply')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer-context')), findsOneWidget);
+      expect(find.text('Replying to Alice'), findsOneWidget);
+      final expandedComposer = _rectOf(tester, composer);
+      expect(expandedComposer.height, 136);
+      expect(expandedComposer.width, initialComposer.width);
+      expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
+
+      await tester.enterText(
+        find.byKey(const Key('composer-field')),
+        'Reply from Kite',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('composer-send')));
+      await tester.pumpAndSettle();
+
+      final reply = timelineController.messagesFor('alice').value.last;
+      expect(reply.body, 'Reply from Kite');
+      expect(reply.replyToMessageId, 'alice-98');
+      expect(find.byKey(Key('reply-preview-${reply.id}')), findsOneWidget);
+      expect(find.byKey(const Key('composer-context')), findsNothing);
+      _expectSameRect(
+        initialComposer,
+        _rectOf(tester, composer),
+        'collapsed composer',
+      );
+      expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
+    },
+  );
+
+  testWidgets('edit action updates only the target message leaf state', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final beforeCount = timelineController.messagesFor('alice').value.length;
+    final chatPanel = find.byKey(const Key('chat-panel'));
+    final initialChatPanel = _rectOf(tester, chatPanel);
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-edit')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('message-action-edit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Editing message'), findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const Key('composer-field')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .controller
+          .text,
+      'Deterministic message 100 in Alice',
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('composer-field')),
+      'Edited message 100 in Alice',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('composer-send')));
+    await tester.pumpAndSettle();
+
+    final target = timelineController.messagesFor('alice').value.last;
+    expect(target.id, 'alice-99');
+    expect(target.body, 'Edited message 100 in Alice');
+    expect(target.edited, isTrue);
+    expect(timelineController.messagesFor('alice').value.length, beforeCount);
+    expect(find.byKey(const Key('edited-alice-99')), findsOneWidget);
+    expect(find.byKey(const Key('composer-context')), findsNothing);
+    expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -122,4 +122,90 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets('reply composer transition has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-reply')), findsOneWidget);
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('message-action-reply')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('composer-context')), findsOneWidget);
+    expect(find.text('Replying to Alice'), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['reply_composer'] = <String, dynamic>{
+      'journey': 'open_reply_composer',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('edit message commit has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-action-edit')));
+    await tester.pumpAndSettle();
+
+    final editable = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('composer-field')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    editable.controller.text = 'Profile edited message 100 in Alice';
+    await tester.pump();
+    final sendButton = tester.widget<IconButton>(
+      find.byKey(const Key('composer-send')),
+    );
+    expect(sendButton.onPressed, isNotNull);
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        sendButton.onPressed!();
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final edited = timelineController.messagesFor('alice').value.last;
+    expect(edited.id, 'alice-99');
+    expect(edited.body, 'Profile edited message 100 in Alice');
+    expect(edited.edited, isTrue);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['edit_message'] = <String, dynamic>{
+      'journey': 'commit_message_edit',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
 }

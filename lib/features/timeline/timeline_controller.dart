@@ -43,11 +43,17 @@ class TimelineMessage {
   TimelineMessage({
     required this.id,
     required this.sender,
-    required this.body,
+    required String body,
     required this.mine,
     required this.timeLabel,
+    this.replyToMessageId,
+    this.replyToSender,
+    this.replyToBody,
     TimelineSendState sendState = TimelineSendState.sent,
-  }) : sendState = signal(sendState);
+    bool edited = false,
+  }) : bodyText = signal(body),
+       editedState = signal(edited),
+       sendState = signal(sendState);
 
   factory TimelineMessage.fromFixture(BenchmarkMessage message, int index) {
     final minute = (index * 7) % 60;
@@ -64,10 +70,18 @@ class TimelineMessage {
 
   final String id;
   final String sender;
-  final String body;
+  final Signal<String> bodyText;
   final bool mine;
   final String timeLabel;
+  final String? replyToMessageId;
+  final String? replyToSender;
+  final String? replyToBody;
+  final Signal<bool> editedState;
   final Signal<TimelineSendState> sendState;
+
+  String get body => bodyText.value;
+  bool get edited => editedState.value;
+  bool get isReply => replyToMessageId != null;
 }
 
 class TimelineController {
@@ -94,7 +108,11 @@ class TimelineController {
     });
   }
 
-  TimelineMessage sendText(String roomId, String rawBody) {
+  TimelineMessage sendText(
+    String roomId,
+    String rawBody, {
+    TimelineMessage? replyTo,
+  }) {
     final body = rawBody.trim();
     if (body.isEmpty) {
       throw ArgumentError.value(rawBody, 'rawBody', 'Message cannot be empty');
@@ -107,6 +125,9 @@ class TimelineController {
       body: body,
       mine: true,
       timeLabel: 'now',
+      replyToMessageId: replyTo?.id,
+      replyToSender: replyTo?.sender,
+      replyToBody: replyTo?.body,
       sendState: TimelineSendState.sending,
     );
     final roomMessages = messagesFor(roomId);
@@ -116,6 +137,14 @@ class TimelineController {
     ]);
     unawaited(_settle(roomId, message));
     return message;
+  }
+
+  void editText(TimelineMessage message, String rawBody) {
+    if (!message.mine) return;
+    final body = rawBody.trim();
+    if (body.isEmpty || body == message.body) return;
+    message.bodyText.value = body;
+    message.editedState.value = true;
   }
 
   void retry(String roomId, TimelineMessage message) {
