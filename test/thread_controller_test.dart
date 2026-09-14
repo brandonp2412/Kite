@@ -51,6 +51,68 @@ void main() {
     );
   });
 
+  test('thread unread state advances to the latest reply when marked read', () {
+    final controller = ThreadController();
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final replies = controller
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value;
+
+    expect(controller.unreadCountFor(roomId: 'alice', parent: parent).value, 2);
+    expect(
+      controller.latestReadReplyIdFor(roomId: 'alice', parent: parent).value,
+      replies.first.id,
+    );
+
+    controller.markRead(roomId: 'alice', parent: parent);
+
+    expect(controller.unreadCountFor(roomId: 'alice', parent: parent).value, 0);
+    expect(
+      controller.latestReadReplyIdFor(roomId: 'alice', parent: parent).value,
+      replies.last.id,
+    );
+  });
+
+  test('thread pagination prepends older replies exactly once', () async {
+    final controller = ThreadController(
+      paginationPort: const DeterministicThreadPaginationPort(
+        latency: Duration.zero,
+      ),
+    );
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final replies = controller.repliesFor(roomId: 'alice', parent: parent);
+    final initialIds = replies.value.map((reply) => reply.id).toList();
+
+    expect(
+      controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+      isTrue,
+    );
+    await controller.loadOlder(roomId: 'alice', parent: parent);
+
+    expect(replies.value, hasLength(initialIds.length + 2));
+    expect(replies.value.first.id, 'alice-98-thread-older-0');
+    expect(replies.value.skip(2).map((reply) => reply.id), initialIds);
+    expect(
+      controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+      isFalse,
+    );
+
+    await controller.loadOlder(roomId: 'alice', parent: parent);
+    expect(replies.value, hasLength(initialIds.length + 2));
+  });
+
   test(
     'thread reply stays scoped to its parent and settles through the port',
     () async {

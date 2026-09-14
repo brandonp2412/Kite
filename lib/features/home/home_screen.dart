@@ -551,10 +551,14 @@ class _ThreadSummaryButton extends StatelessWidget {
             .value;
         final count = replies.length;
         if (count == 0) return const SizedBox.shrink();
+        final unread = threadController
+            .unreadCountFor(roomId: roomId, parent: parent)
+            .value;
         final latest = replies.last;
         return Semantics(
           button: true,
-          label: 'Open thread with $count replies',
+          label:
+              'Open thread with $count replies${unread > 0 ? ', $unread unread' : ''}',
           child: InkWell(
             key: Key('thread-summary-${parent.id}'),
             onTap: () => _open(context),
@@ -576,7 +580,40 @@ class _ThreadSummaryButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Icon(Icons.forum_outlined, size: 17, color: colors.primary),
+                  SizedBox.square(
+                    dimension: 20,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: <Widget>[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Icon(
+                            Icons.forum_outlined,
+                            size: 17,
+                            color: colors.primary,
+                          ),
+                        ),
+                        if (unread > 0)
+                          Positioned(
+                            key: Key('thread-unread-${parent.id}'),
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: colors.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colors.surfaceContainerHighest,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(width: KiteSpacing.xs),
                   Flexible(
                     child: Column(

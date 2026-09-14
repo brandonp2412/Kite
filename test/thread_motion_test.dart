@@ -45,6 +45,7 @@ void main() {
 
     final summary = find.byKey(const Key('thread-summary-alice-98'));
     expect(summary, findsOneWidget);
+    expect(find.byKey(const Key('thread-unread-alice-98')), findsOneWidget);
     final initialOffset = scrollState.position.pixels;
     expect(initialOffset, 0);
     final initialSummary = _rectOf(tester, summary);
@@ -80,6 +81,21 @@ void main() {
     final threadReplyList = find.byKey(const Key('thread-reply-list'));
     final composerRect = _rectOf(tester, threadComposer);
     final replyListRect = _rectOf(tester, threadReplyList);
+    final newestReply = find.byKey(const Key('thread-reply-alice-98-thread-2'));
+    final newestReplyRect = _rectOf(tester, newestReply);
+
+    await tester.tap(find.byKey(const Key('thread-load-older')));
+    await tester.pump();
+    expect(find.text('Loading…'), findsOneWidget);
+    expect(_rectOf(tester, newestReply), newestReplyRect);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    expect(find.text('Start of thread'), findsOneWidget);
+    expect(find.text('5 replies'), findsOneWidget);
+    expect(_rectOf(tester, panel), threadPanelRect);
+    expect(_rectOf(tester, threadComposer), composerRect);
+    expect(_rectOf(tester, threadReplyList), replyListRect);
+    expect(_rectOf(tester, newestReply), newestReplyRect);
 
     await tester.enterText(
       find.byKey(const Key('thread-composer-field')),
@@ -89,7 +105,7 @@ void main() {
     await tester.tap(find.byKey(const Key('thread-composer-send')));
     await tester.pump();
 
-    expect(find.text('4 replies'), findsOneWidget);
+    expect(find.text('6 replies'), findsOneWidget);
     expect(find.text('A deterministic thread reply'), findsOneWidget);
     for (var index = 0; index < PerformanceContract.motionSamples; index++) {
       await tester.pump(PerformanceContract.motionFrame);
@@ -106,7 +122,8 @@ void main() {
     expect(scrollState.position.pixels, initialOffset);
     expect(_rectOf(tester, messageList), initialMessageList);
     expect(_rectOf(tester, summary), initialSummary);
-    expect(find.text('4 replies'), findsOneWidget);
+    expect(find.text('6 replies'), findsOneWidget);
+    expect(find.byKey(const Key('thread-unread-alice-98')), findsNothing);
   });
 
   testWidgets('thread route preserves a nonzero main timeline scroll anchor', (

@@ -50,6 +50,15 @@ class _ThreadViewState extends State<ThreadView> {
   final FocusNode _composerFocusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      threadController.markRead(roomId: widget.roomId, parent: widget.parent);
+    });
+  }
+
+  @override
   void dispose() {
     _composerController.dispose();
     _composerFocusNode.dispose();
@@ -179,21 +188,79 @@ class _ThreadViewState extends State<ThreadView> {
                   final replies = threadController
                       .repliesFor(roomId: widget.roomId, parent: widget.parent)
                       .value;
-                  return ListView.builder(
-                    key: const Key('thread-reply-list'),
-                    reverse: true,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: KiteSpacing.md,
-                      vertical: KiteSpacing.sm,
-                    ),
-                    itemCount: replies.length,
-                    itemBuilder: (context, index) {
-                      final reply = replies[replies.length - 1 - index];
-                      return _ThreadReplyRow(
-                        key: ValueKey<String>(reply.id),
-                        reply: reply,
-                      );
-                    },
+                  final hasMore = threadController
+                      .hasMoreFor(roomId: widget.roomId, parent: widget.parent)
+                      .value;
+                  final loading = threadController
+                      .isLoadingOlderFor(
+                        roomId: widget.roomId,
+                        parent: widget.parent,
+                      )
+                      .value;
+                  return Stack(
+                    children: <Widget>[
+                      ListView.builder(
+                        key: const Key('thread-reply-list'),
+                        reverse: true,
+                        padding: const EdgeInsets.fromLTRB(
+                          KiteSpacing.md,
+                          52,
+                          KiteSpacing.md,
+                          KiteSpacing.sm,
+                        ),
+                        itemCount: replies.length,
+                        itemBuilder: (context, index) {
+                          final reply = replies[replies.length - 1 - index];
+                          return _ThreadReplyRow(
+                            key: ValueKey<String>(reply.id),
+                            reply: reply,
+                          );
+                        },
+                      ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        child: SizedBox(
+                          key: const Key('thread-pagination'),
+                          height: 44,
+                          child: Center(
+                            child: hasMore
+                                ? TextButton.icon(
+                                    key: const Key('thread-load-older'),
+                                    onPressed: loading
+                                        ? null
+                                        : () => threadController.loadOlder(
+                                            roomId: widget.roomId,
+                                            parent: widget.parent,
+                                          ),
+                                    icon: loading
+                                        ? const SizedBox.square(
+                                            dimension: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.history_rounded,
+                                            size: 18,
+                                          ),
+                                    label: Text(
+                                      loading
+                                          ? 'Loading…'
+                                          : 'Load older replies',
+                                    ),
+                                  )
+                                : Text(
+                                    'Start of thread',
+                                    style: KiteTypography.metadata.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),

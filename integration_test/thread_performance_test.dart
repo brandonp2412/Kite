@@ -48,6 +48,43 @@ void main() {
     };
   });
 
+  testWidgets('loading older thread replies stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-load-older')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(
+      threadController.repliesFor(roomId: 'alice', parent: parent).value,
+      hasLength(5),
+    );
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_pagination'] = <String, dynamic>{
+      'journey': 'paginate_thread',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('sending a thread reply stays within the frame contract', (
     tester,
   ) async {
