@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:kite/matrix/matrix_models.dart';
+import 'package:signals/signals.dart';
 
 abstract interface class MatrixEngine {
   Stream<MatrixSyncBatch> get syncBatches;
@@ -12,24 +13,66 @@ abstract interface class MatrixEngine {
   Future<void> paginateBackwards(String roomId);
 }
 
+enum MatrixSyncPhase { idle, starting, running, failed }
+
+final class MatrixSyncState {
+  const MatrixSyncState._(this.phase, this.error, this.stackTrace);
+
+  const MatrixSyncState.idle() : this._(MatrixSyncPhase.idle, null, null);
+
+  const MatrixSyncState.starting()
+    : this._(MatrixSyncPhase.starting, null, null);
+
+  const MatrixSyncState.running() : this._(MatrixSyncPhase.running, null, null);
+
+  MatrixSyncState.failed(Object error, StackTrace stackTrace)
+    : this._(MatrixSyncPhase.failed, error, stackTrace);
+
+  final MatrixSyncPhase phase;
+  final Object? error;
+  final StackTrace? stackTrace;
+}
+
 final class MatrixSyncCoordinator {
   MatrixSyncCoordinator({required this.engine, required this.applyBatch});
 
   final MatrixEngine engine;
   final void Function(MatrixSyncBatch) applyBatch;
+  final Signal<MatrixSyncState> state = signal<MatrixSyncState>(
+    const MatrixSyncState.idle(),
+  );
   StreamSubscription<MatrixSyncBatch>? _subscription;
 
   bool get isRunning => _subscription != null;
 
   Future<void> start() async {
     if (_subscription != null) return;
-    final subscription = engine.syncBatches.listen(applyBatch);
+    state.value = const MatrixSyncState.starting();
+    late final StreamSubscription<MatrixSyncBatch> subscription;
+    subscription = engine.syncBatches.listen(
+      (batch) {
+        applyBatch(batch);
+        if (identical(_subscription, subscription)) {
+          state.value = const MatrixSyncState.running();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (identical(_subscription, subscription)) {
+          state.value = MatrixSyncState.failed(error, stackTrace);
+        }
+      },
+    );
     _subscription = subscription;
     try {
       await engine.start();
-    } catch (_) {
+      if (identical(_subscription, subscription) &&
+          state.value.phase == MatrixSyncPhase.starting) {
+        state.value = const MatrixSyncState.running();
+      }
+    } catch (error, stackTrace) {
       if (identical(_subscription, subscription)) {
         _subscription = null;
+        state.value = MatrixSyncState.failed(error, stackTrace);
       }
       await subscription.cancel();
       rethrow;
@@ -42,5 +85,6 @@ final class MatrixSyncCoordinator {
     _subscription = null;
     await subscription.cancel();
     await engine.stop();
+    state.value = const MatrixSyncState.idle();
   }
 }
