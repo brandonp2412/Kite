@@ -7,6 +7,15 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
+class _RecordingModerationPort implements TimelineModerationPort {
+  final List<TimelineReportRequest> requests = <TimelineReportRequest>[];
+
+  @override
+  Future<void> reportMessage(TimelineReportRequest request) async {
+    requests.add(request);
+  }
+}
+
 class _ControlledSendPort implements TimelineSendPort {
   final List<Completer<TimelineSendOutcome>> attempts =
       <Completer<TimelineSendOutcome>>[];
@@ -40,7 +49,10 @@ void _expectSameRect(Rect expected, Rect actual, String label) {
 
 void main() {
   tearDown(() {
-    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      moderationPort: DeterministicTimelineModerationPort(),
+    );
     selectRoom('kite');
   });
 
@@ -428,6 +440,178 @@ void main() {
     expect(find.byKey(const Key('composer-context')), findsNothing);
     expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'forward action keeps the source timeline anchored while sending to rooms',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final target = find.byKey(const Key('message-bubble-alice-98'));
+      final anchoredLatest = find.byKey(const Key('message-row-alice-99'));
+      final messageList = find.byKey(const Key('message-list'));
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final initialLatest = _rectOf(tester, anchoredLatest);
+      final initialList = _rectOf(tester, messageList);
+      final initialPanel = _rectOf(tester, chatPanel);
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-forward')));
+
+      double? previousSheetTop;
+      var sheetFrames = 0;
+      for (
+        var index = 0;
+        index < PerformanceContract.motionSamples * 3;
+        index++
+      ) {
+        await tester.pump(PerformanceContract.motionFrame);
+        final sheet = find.byKey(const Key('forward-message-sheet'));
+        if (sheet.evaluate().isEmpty) continue;
+        sheetFrames += 1;
+        final rect = _rectOf(tester, sheet);
+        expect(rect.width, lessThanOrEqualTo(440));
+        if (previousSheetTop != null) {
+          expect(
+            rect.top,
+            lessThanOrEqualTo(previousSheetTop + 0.01),
+            reason: 'forward sheet must move monotonically into view',
+          );
+        }
+        previousSheetTop = rect.top;
+        _expectSameRect(
+          initialLatest,
+          _rectOf(tester, anchoredLatest),
+          'latest row',
+        );
+        _expectSameRect(
+          initialList,
+          _rectOf(tester, messageList),
+          'message list',
+        );
+        _expectSameRect(initialPanel, _rectOf(tester, chatPanel), 'chat panel');
+      }
+      expect(sheetFrames, greaterThan(0));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('forward-room-search')),
+        'Bob',
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('forward-room-bob')), findsOneWidget);
+      expect(find.byKey(const Key('forward-room-kite')), findsNothing);
+      await tester.enterText(find.byKey(const Key('forward-room-search')), '');
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('forward-room-bob')));
+      await tester.tap(find.byKey(const Key('forward-room-kite')));
+      await tester.pump();
+      expect(find.text('Forward to 2'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('forward-message-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(
+        timelineController.messagesFor('bob').value.last.body,
+        'Deterministic message 99 in Alice',
+      );
+      expect(
+        timelineController.messagesFor('kite').value.last.body,
+        'Deterministic message 99 in Alice',
+      );
+      expect(find.text('Forwarded to 2 rooms'), findsOneWidget);
+      _expectSameRect(
+        initialLatest,
+        _rectOf(tester, anchoredLatest),
+        'latest row',
+      );
+      _expectSameRect(
+        initialList,
+        _rectOf(tester, messageList),
+        'message list',
+      );
+      _expectSameRect(initialPanel, _rectOf(tester, chatPanel), 'chat panel');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('report action submits reason without moving the timeline', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final moderationPort = _RecordingModerationPort();
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      moderationPort: moderationPort,
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final target = find.byKey(const Key('message-bubble-alice-98'));
+    final anchoredLatest = find.byKey(const Key('message-row-alice-99'));
+    final messageList = find.byKey(const Key('message-list'));
+    final initialLatest = _rectOf(tester, anchoredLatest);
+    final initialList = _rectOf(tester, messageList);
+
+    await tester.longPress(target);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-report')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('message-action-report')));
+
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      _expectSameRect(
+        initialLatest,
+        _rectOf(tester, anchoredLatest),
+        'latest row',
+      );
+      _expectSameRect(
+        initialList,
+        _rectOf(tester, messageList),
+        'message list',
+      );
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('report-message-sheet')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('report-reason-1')));
+    await tester.pumpAndSettle();
+
+    expect(moderationPort.requests, hasLength(1));
+    final request = moderationPort.requests.single;
+    expect(request.roomId, 'alice');
+    expect(request.eventId, 'alice-98');
+    expect(request.reason, 'Harassment or abuse');
+    expect(find.text('Report sent'), findsOneWidget);
+    _expectSameRect(
+      initialLatest,
+      _rectOf(tester, anchoredLatest),
+      'latest row',
+    );
+    _expectSameRect(initialList, _rectOf(tester, messageList), 'message list');
   });
 
   testWidgets(

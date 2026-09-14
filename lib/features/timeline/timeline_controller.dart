@@ -8,6 +8,38 @@ enum TimelineSendState { sending, sent, failed }
 
 enum TimelineSendOutcome { sent, failed }
 
+@immutable
+class TimelineReportRequest {
+  const TimelineReportRequest({
+    required this.roomId,
+    required this.eventId,
+    required this.reason,
+  });
+
+  final String roomId;
+  final String eventId;
+  final String reason;
+}
+
+abstract interface class TimelineModerationPort {
+  Future<void> reportMessage(TimelineReportRequest request);
+}
+
+class DeterministicTimelineModerationPort implements TimelineModerationPort {
+  DeterministicTimelineModerationPort({
+    this.latency = const Duration(milliseconds: 120),
+  });
+
+  final Duration latency;
+  final List<TimelineReportRequest> reports = <TimelineReportRequest>[];
+
+  @override
+  Future<void> reportMessage(TimelineReportRequest request) async {
+    await Future<void>.delayed(latency);
+    reports.add(request);
+  }
+}
+
 abstract interface class TimelineSendPort {
   Future<TimelineSendOutcome> sendText({
     required String roomId,
@@ -102,12 +134,17 @@ class TimelineMessage {
 }
 
 class TimelineController {
-  TimelineController({TimelineSendPort? sendPort})
-    : _sendPort = sendPort ?? DeterministicTimelineSendPort() {
+  TimelineController({
+    TimelineSendPort? sendPort,
+    TimelineModerationPort? moderationPort,
+  }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
+       _moderationPort =
+           moderationPort ?? DeterministicTimelineModerationPort() {
     reset();
   }
 
   TimelineSendPort _sendPort;
+  TimelineModerationPort _moderationPort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
   int _transactionCounter = 0;
@@ -198,14 +235,44 @@ class TimelineController {
     return message.reactions[emoji] ?? const <String>[];
   }
 
+  List<TimelineMessage> forwardText(
+    TimelineMessage source,
+    Iterable<String> roomIds,
+  ) {
+    if (source.redacted) return const <TimelineMessage>[];
+    final destinations = roomIds.toSet().toList(growable: false);
+    return List<TimelineMessage>.unmodifiable(<TimelineMessage>[
+      for (final roomId in destinations) sendText(roomId, source.body),
+    ]);
+  }
+
+  Future<void> reportMessage(
+    String roomId,
+    TimelineMessage message,
+    String reason,
+  ) {
+    if (message.redacted || reason.trim().isEmpty) return Future<void>.value();
+    return _moderationPort.reportMessage(
+      TimelineReportRequest(
+        roomId: roomId,
+        eventId: message.id,
+        reason: reason.trim(),
+      ),
+    );
+  }
+
   void retry(String roomId, TimelineMessage message) {
     if (message.sendState.value != TimelineSendState.failed) return;
     message.sendState.value = TimelineSendState.sending;
     unawaited(_settle(roomId, message));
   }
 
-  void reset({TimelineSendPort? sendPort}) {
+  void reset({
+    TimelineSendPort? sendPort,
+    TimelineModerationPort? moderationPort,
+  }) {
     if (sendPort != null) _sendPort = sendPort;
+    if (moderationPort != null) _moderationPort = moderationPort;
     _transactionCounter = 0;
     _messages.clear();
   }

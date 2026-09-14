@@ -71,6 +71,71 @@ void main() {
       );
     });
 
+    testWidgets('forward message ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-forward')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('forward-room-bob')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('forward-message-sheet')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/timeline_forward_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('report message ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(
+        sendPort: DeterministicTimelineSendPort(),
+        moderationPort: DeterministicTimelineModerationPort(),
+      );
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-report')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('report-message-sheet')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/timeline_report_${variant.name}.png'),
+      );
+    });
+
     testWidgets('reaction picker ${variant.name} reference render', (
       tester,
     ) async {

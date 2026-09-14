@@ -156,9 +156,24 @@ class _RoomList extends StatelessWidget {
 
 typedef _ComposerAction = void Function(String roomId, TimelineMessage message);
 
-enum _MessageAction { reply, edit, copy, redact, reactionPicker }
+enum _MessageAction {
+  reply,
+  edit,
+  copy,
+  forward,
+  report,
+  redact,
+  reactionPicker,
+}
 
 const List<String> _quickReactions = <String>['👍', '❤️', '😂', '🎉', '😮'];
+const List<String> _reportReasons = <String>[
+  'Spam or scam',
+  'Harassment or abuse',
+  'Inappropriate content',
+  'Other',
+];
+
 const List<String> _reactionPickerEmoji = <String>[
   '👍',
   '👎',
@@ -359,6 +374,61 @@ class _MessageRow extends StatelessWidget {
           ..showSnackBar(
             const SnackBar(
               content: Text('Message copied'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.forward:
+        final destinations = await showModalBottomSheet<List<String>>(
+          context: context,
+          useSafeArea: true,
+          isScrollControlled: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (sheetContext) =>
+              _ForwardMessageSheet(currentRoomId: roomId, message: message),
+        );
+        if (!context.mounted || destinations == null || destinations.isEmpty) {
+          return;
+        }
+        final forwarded = timelineController.forwardText(message, destinations);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Forwarded to ${forwarded.length} ${forwarded.length == 1 ? 'room' : 'rooms'}',
+              ),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.report:
+        final reason = await showModalBottomSheet<String>(
+          context: context,
+          useSafeArea: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (sheetContext) => _ReportMessageSheet(message: message),
+        );
+        if (!context.mounted || reason == null) return;
+        await timelineController.reportMessage(roomId, message, reason);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Report sent'),
               behavior: SnackBarBehavior.floating,
               duration: Duration(seconds: 2),
             ),
@@ -938,6 +1008,19 @@ class _MessageActionSheet extends StatelessWidget {
               label: 'Copy text',
               onTap: () => Navigator.of(context).pop(_MessageAction.copy),
             ),
+            _MessageActionButton(
+              key: const Key('message-action-forward'),
+              icon: Icons.forward_to_inbox_rounded,
+              label: 'Forward',
+              onTap: () => Navigator.of(context).pop(_MessageAction.forward),
+            ),
+            if (!message.mine)
+              _MessageActionButton(
+                key: const Key('message-action-report'),
+                icon: Icons.flag_outlined,
+                label: 'Report',
+                onTap: () => Navigator.of(context).pop(_MessageAction.report),
+              ),
             if (message.mine)
               _MessageActionButton(
                 key: const Key('message-action-edit'),
@@ -954,6 +1037,245 @@ class _MessageActionSheet extends StatelessWidget {
                 onTap: () => Navigator.of(context).pop(_MessageAction.redact),
               ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ForwardMessageSheet extends StatefulWidget {
+  const _ForwardMessageSheet({
+    required this.currentRoomId,
+    required this.message,
+  });
+
+  final String currentRoomId;
+  final TimelineMessage message;
+
+  @override
+  State<_ForwardMessageSheet> createState() => _ForwardMessageSheetState();
+}
+
+class _ForwardMessageSheetState extends State<_ForwardMessageSheet> {
+  final Set<String> _selectedRoomIds = <String>{};
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final normalizedQuery = _query.trim().toLowerCase();
+    final rooms = BenchmarkFixture.rooms
+        .where((room) => room.id != widget.currentRoomId)
+        .where(
+          (room) =>
+              normalizedQuery.isEmpty ||
+              room.name.toLowerCase().contains(normalizedQuery) ||
+              room.subtitle.toLowerCase().contains(normalizedQuery),
+        )
+        .toList(growable: false);
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        key: const Key('forward-message-sheet'),
+        height: 560,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.lg,
+            KiteSpacing.sm,
+            KiteSpacing.lg,
+            KiteSpacing.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.outlineVariant,
+                    borderRadius: BorderRadius.circular(KiteRadii.pill),
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.lg),
+              Text(
+                'Forward message',
+                style: KiteTypography.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.xs),
+              Text(
+                widget.message.body,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: KiteTypography.body.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.md),
+              TextField(
+                key: const Key('forward-room-search'),
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Search rooms',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: context.kiteColors.field,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: KiteSpacing.md,
+                    vertical: KiteSpacing.sm,
+                  ),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.circular(KiteRadii.lg),
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              Expanded(
+                child: ListView.builder(
+                  key: const Key('forward-room-list'),
+                  itemCount: rooms.length,
+                  itemExtent: 56,
+                  itemBuilder: (context, index) {
+                    final room = rooms[index];
+                    final selected = _selectedRoomIds.contains(room.id);
+                    return InkWell(
+                      key: Key('forward-room-${room.id}'),
+                      onTap: () {
+                        setState(() {
+                          if (!_selectedRoomIds.add(room.id)) {
+                            _selectedRoomIds.remove(room.id);
+                          }
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(KiteRadii.md),
+                      child: Row(
+                        children: <Widget>[
+                          CircleAvatar(
+                            radius: 17,
+                            child: Text(room.name.characters.first),
+                          ),
+                          const SizedBox(width: KiteSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              room.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KiteTypography.body.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Checkbox(
+                            value: selected,
+                            onChanged: (_) {
+                              setState(() {
+                                if (!_selectedRoomIds.add(room.id)) {
+                                  _selectedRoomIds.remove(room.id);
+                                }
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const Key('forward-message-confirm'),
+                  onPressed: _selectedRoomIds.isEmpty
+                      ? null
+                      : () =>
+                            Navigator.of(context)
+                                .pop(_selectedRoomIds.toList(growable: false)),
+                  child: Text(
+                    _selectedRoomIds.isEmpty
+                        ? 'Select rooms'
+                        : 'Forward to ${_selectedRoomIds.length}',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportMessageSheet extends StatelessWidget {
+  const _ReportMessageSheet({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('report-message-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.outlineVariant,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.lg),
+          Text(
+            'Report message',
+            style: KiteTypography.title.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.xs),
+          Text(
+            message.body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: KiteTypography.body.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: KiteSpacing.sm),
+          for (var index = 0; index < _reportReasons.length; index++)
+            _MessageActionButton(
+              key: Key('report-reason-$index'),
+              icon: index == _reportReasons.length - 1
+                  ? Icons.more_horiz_rounded
+                  : Icons.flag_outlined,
+              label: _reportReasons[index],
+              onTap: () => Navigator.of(context).pop(_reportReasons[index]),
+            ),
         ],
       ),
     );
