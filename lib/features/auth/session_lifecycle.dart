@@ -30,6 +30,8 @@ abstract interface class SessionLifecycleGateway {
 
   Future<void> persist(AuthenticatedSession session);
 
+  Future<void> logout(AuthenticatedSession session);
+
   Future<void> clear();
 }
 
@@ -72,29 +74,50 @@ final class SessionLifecycleController {
 
   void markSoftLoggedOut() {
     final current = state.value;
-    if (current is! SessionAuthenticated) return;
-    errorMessage.value = null;
-    state.value = SessionSoftLoggedOut(current.session);
+    if (current is SessionAuthenticated) {
+      errorMessage.value = null;
+      state.value = SessionSoftLoggedOut(current.session);
+    }
   }
 
   Future<void> resumeAfterSoftLogout(AuthenticatedSession session) async {
     final current = state.value;
-    if (current is! SessionSoftLoggedOut) return;
-    if (session.userId != current.session.userId ||
-        session.homeserver.uri != current.session.homeserver.uri) {
+    if (current is SessionSoftLoggedOut) {
+      final sameAccount = session.userId == current.session.userId;
+      final sameHomeserver =
+          session.homeserver.uri == current.session.homeserver.uri;
+      if (sameAccount && sameHomeserver) {
+        await acceptAuthenticatedSession(session);
+        return;
+      }
       errorMessage.value = 'Sign in again with the same account to continue.';
-      return;
     }
-    await acceptAuthenticatedSession(session);
   }
 
   Future<void> signOut() async {
     errorMessage.value = null;
+    final current = state.value;
+
+    if (current is SessionAuthenticated) {
+      try {
+        await _gateway.logout(current.session);
+      } catch (_) {
+        errorMessage.value = 'Kite could not sign out this Matrix session.';
+        return;
+      }
+    }
+
     try {
       await _gateway.clear();
       state.value = const SessionSignedOut();
     } catch (_) {
-      errorMessage.value = 'Kite could not finish signing out securely.';
+      if (current is SessionAuthenticated) {
+        state.value = const SessionSignedOut();
+        errorMessage.value =
+            'Signed out, but Kite could not clear all local session data.';
+      } else {
+        errorMessage.value = 'Kite could not clear the local session securely.';
+      }
     }
   }
 
