@@ -13,11 +13,13 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
     ),
   };
   Set<String> ignored = <String>{};
+  Set<String> blocked = <String>{};
   Object? loadOwnError;
   Object? loadProfileError;
   Object? updateError;
   Object? dmError;
   Object? ignoreError;
+  Object? blockError;
   String? updatedDisplayName;
   Uri? updatedAvatar;
   bool avatarWasCleared = false;
@@ -25,6 +27,9 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignored};
+
+  @override
+  Future<Set<String>> loadBlockedUserIds() async => <String>{...blocked};
 
   @override
   Future<MatrixUserProfile> loadOwnProfile() async {
@@ -43,6 +48,19 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
     if (dmError case final error?) throw error;
     openedDmUserId = userId;
     return '!dm:example.org';
+  }
+
+  @override
+  Future<void> setUserBlocked({
+    required String userId,
+    required bool blocked,
+  }) async {
+    if (blockError case final error?) throw error;
+    if (blocked) {
+      this.blocked.add(userId);
+    } else {
+      this.blocked.remove(userId);
+    }
   }
 
   @override
@@ -171,6 +189,30 @@ void main() {
       expect(
         controller.errorMessage.value,
         'Kite could not stop ignoring that user.',
+      );
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+    },
+  );
+
+  test(
+    'block state changes only after a successful Matrix gateway update',
+    () async {
+      final gateway = _FakeUserProfileGateway()
+        ..blocked = {'@spam:example.org'};
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+      await controller.loadOwnProfile();
+
+      expect(controller.isBlocked('@spam:example.org'), isTrue);
+      expect(await controller.setBlocked('@alice:example.org', true), isTrue);
+      expect(controller.isBlocked('@alice:example.org'), isTrue);
+
+      gateway.blockError = StateError('access_token=secret');
+      expect(await controller.setBlocked('@alice:example.org', false), isFalse);
+      expect(controller.isBlocked('@alice:example.org'), isTrue);
+      expect(
+        controller.errorMessage.value,
+        'Kite could not unblock that user.',
       );
       expect(controller.errorMessage.value, isNot(contains('secret')));
     },

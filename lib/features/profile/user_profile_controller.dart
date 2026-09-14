@@ -37,7 +37,11 @@ abstract interface class UserProfileGateway {
 
   Future<Set<String>> loadIgnoredUserIds();
 
+  Future<Set<String>> loadBlockedUserIds();
+
   Future<void> setUserIgnored({required String userId, required bool ignored});
+
+  Future<void> setUserBlocked({required String userId, required bool blocked});
 }
 
 final class UserProfileController {
@@ -48,11 +52,14 @@ final class UserProfileController {
   final ownProfile = signal<MatrixUserProfile?>(null);
   final viewedProfile = signal<MatrixUserProfile?>(null);
   final ignoredUserIds = signal<Set<String>>(const <String>{});
+  final blockedUserIds = signal<Set<String>>(const <String>{});
   final isLoading = signal(false);
   final isSaving = signal(false);
   final errorMessage = signal<String?>(null);
 
   bool isIgnored(String userId) => ignoredUserIds.value.contains(userId);
+
+  bool isBlocked(String userId) => blockedUserIds.value.contains(userId);
 
   Future<void> loadOwnProfile() async {
     if (isLoading.value) return;
@@ -61,9 +68,10 @@ final class UserProfileController {
     errorMessage.value = null;
     try {
       ownProfile.value = await _gateway.loadOwnProfile();
-      ignoredUserIds.value = Set<String>.unmodifiable(
-        await _gateway.loadIgnoredUserIds(),
-      );
+      final ignored = await _gateway.loadIgnoredUserIds();
+      final blocked = await _gateway.loadBlockedUserIds();
+      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
+      blockedUserIds.value = Set<String>.unmodifiable(blocked);
     } catch (_) {
       errorMessage.value = 'Kite could not load your profile.';
     } finally {
@@ -184,6 +192,36 @@ final class UserProfileController {
     }
   }
 
+  Future<bool> setBlocked(String userId, bool blocked) async {
+    if (!_isValidUserId(userId) || isSaving.value) {
+      if (!_isValidUserId(userId)) {
+        errorMessage.value = 'That Matrix user ID is not valid.';
+      }
+      return false;
+    }
+
+    isSaving.value = true;
+    errorMessage.value = null;
+    try {
+      await _gateway.setUserBlocked(userId: userId, blocked: blocked);
+      final next = <String>{...blockedUserIds.value};
+      if (blocked) {
+        next.add(userId);
+      } else {
+        next.remove(userId);
+      }
+      blockedUserIds.value = Set<String>.unmodifiable(next);
+      return true;
+    } catch (_) {
+      errorMessage.value = blocked
+          ? 'Kite could not block that user.'
+          : 'Kite could not unblock that user.';
+      return false;
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
   bool _isValidUserId(String userId) {
     final trimmed = userId.trim();
     return trimmed.startsWith('@') &&
@@ -195,6 +233,7 @@ final class UserProfileController {
     ownProfile.dispose();
     viewedProfile.dispose();
     ignoredUserIds.dispose();
+    blockedUserIds.dispose();
     isLoading.dispose();
     isSaving.dispose();
     errorMessage.dispose();
