@@ -14,7 +14,8 @@ abstract interface class NotificationDeliveryPort {
   Future<void> cancelSummary(String groupKey);
 }
 
-final class NotificationDeliveryCoordinator {
+final class NotificationDeliveryCoordinator
+    implements NotificationCancellationPort {
   factory NotificationDeliveryCoordinator({
     required NotificationPrivacyPort privacy,
     required NotificationDeliveryPort delivery,
@@ -62,6 +63,7 @@ final class NotificationDeliveryCoordinator {
     return presentation;
   }
 
+  @override
   Future<bool> cancel(String notificationId) async {
     final current = _active[notificationId];
     if (current == null) return false;

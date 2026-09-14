@@ -25,6 +25,7 @@ void main() {
         final navigation = FakeAppNavigationPort();
         final coordinator = NotificationCoordinator(
           notifications: notifications,
+          cancellations: FakeNotificationCancellationPort(),
           accounts: accounts,
           navigation: navigation,
         );
@@ -36,46 +37,54 @@ void main() {
       },
     );
 
-    test(
-      'tap preserves exact event and thread targets without account churn',
-      () async {
-        final event = AppDestination.event(
-          accountId: 'work',
-          roomId: '!team:example.org',
-          eventId: r'$event',
-        );
-        final thread = AppDestination.thread(
-          accountId: 'work',
-          roomId: '!team:example.org',
-          eventId: r'$reply',
-          threadRootEventId: r'$root',
-        );
-        final notifications = FakeNotificationRepository(<KiteNotification>[
-          KiteNotification(
-            id: 'event',
-            kind: KiteNotificationKind.mention,
-            destination: event,
-          ),
-          KiteNotification(
-            id: 'thread',
-            kind: KiteNotificationKind.thread,
-            destination: thread,
-          ),
-        ]);
-        final accounts = FakeAccountActivationPort('work');
-        final navigation = FakeAppNavigationPort();
-        final coordinator = NotificationCoordinator(
-          notifications: notifications,
-          accounts: accounts,
-          navigation: navigation,
-        );
+    test('tap preserves exact room, event and thread targets without account churn', () async {
+      const room = AppDestination.room(
+        accountId: 'work',
+        roomId: '!invite:example.org',
+      );
+      final event = AppDestination.event(
+        accountId: 'work',
+        roomId: '!team:example.org',
+        eventId: r'$event',
+      );
+      final thread = AppDestination.thread(
+        accountId: 'work',
+        roomId: '!team:example.org',
+        eventId: r'$reply',
+        threadRootEventId: r'$root',
+      );
+      final notifications = FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'room',
+          kind: KiteNotificationKind.invite,
+          destination: room,
+        ),
+        KiteNotification(
+          id: 'event',
+          kind: KiteNotificationKind.mention,
+          destination: event,
+        ),
+        KiteNotification(
+          id: 'thread',
+          kind: KiteNotificationKind.thread,
+          destination: thread,
+        ),
+      ]);
+      final accounts = FakeAccountActivationPort('work');
+      final navigation = FakeAppNavigationPort();
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
+        accounts: accounts,
+        navigation: navigation,
+      );
 
-        expect(await coordinator.tap('event'), isTrue);
-        expect(await coordinator.tap('thread'), isTrue);
-        expect(accounts.activations, isEmpty);
-        expect(navigation.opened, <AppDestination>[event, thread]);
-      },
-    );
+      expect(await coordinator.tap('room'), isTrue);
+      expect(await coordinator.tap('event'), isTrue);
+      expect(await coordinator.tap('thread'), isTrue);
+      expect(accounts.activations, isEmpty);
+      expect(navigation.opened, <AppDestination>[room, event, thread]);
+    });
 
     test('unknown notification is ignored without navigation', () async {
       final notifications = FakeNotificationRepository();
@@ -83,6 +92,7 @@ void main() {
       final navigation = FakeAppNavigationPort();
       final coordinator = NotificationCoordinator(
         notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
         accounts: accounts,
         navigation: navigation,
       );
@@ -233,84 +243,94 @@ void main() {
   });
 
   group('notification reconciliation', () {
-    test('marking a room read clears message, mention and thread only', () {
-      AppDestination destination(String accountId, String eventId) =>
-          AppDestination.event(
-            accountId: accountId,
-            roomId: '!team:example.org',
-            eventId: eventId,
-          );
+    test(
+      'marking a room read clears message, mention and thread only',
+      () async {
+        AppDestination destination(String accountId, String eventId) =>
+            AppDestination.event(
+              accountId: accountId,
+              roomId: '!team:example.org',
+              eventId: eventId,
+            );
 
-      final notifications = FakeNotificationRepository(<KiteNotification>[
-        KiteNotification(
-          id: 'message',
-          kind: KiteNotificationKind.message,
-          destination: destination('work', r'$message'),
-        ),
-        KiteNotification(
-          id: 'mention',
-          kind: KiteNotificationKind.mention,
-          destination: destination('work', r'$mention'),
-        ),
-        KiteNotification(
-          id: 'thread',
-          kind: KiteNotificationKind.thread,
-          destination: AppDestination.thread(
-            accountId: 'work',
-            roomId: '!team:example.org',
-            eventId: r'$reply',
-            threadRootEventId: r'$root',
+        final notifications = FakeNotificationRepository(<KiteNotification>[
+          KiteNotification(
+            id: 'message',
+            kind: KiteNotificationKind.message,
+            destination: destination('work', r'$message'),
           ),
-        ),
-        KiteNotification(
-          id: 'invite',
-          kind: KiteNotificationKind.invite,
-          destination: const AppDestination.room(
-            accountId: 'work',
-            roomId: '!team:example.org',
+          KiteNotification(
+            id: 'mention',
+            kind: KiteNotificationKind.mention,
+            destination: destination('work', r'$mention'),
           ),
-        ),
-        KiteNotification(
-          id: 'call',
-          kind: KiteNotificationKind.call,
-          destination: const AppDestination.call(
-            accountId: 'work',
-            roomId: '!team:example.org',
-            callId: 'call-1',
+          KiteNotification(
+            id: 'thread',
+            kind: KiteNotificationKind.thread,
+            destination: AppDestination.thread(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$reply',
+              threadRootEventId: r'$root',
+            ),
           ),
-        ),
-        KiteNotification(
-          id: 'other-account',
-          kind: KiteNotificationKind.message,
-          destination: destination('personal', r'$personal'),
-        ),
-      ]);
-      final coordinator = NotificationCoordinator(
-        notifications: notifications,
-        accounts: FakeAccountActivationPort('work'),
-        navigation: FakeAppNavigationPort(),
-      );
+          KiteNotification(
+            id: 'invite',
+            kind: KiteNotificationKind.invite,
+            destination: const AppDestination.room(
+              accountId: 'work',
+              roomId: '!team:example.org',
+            ),
+          ),
+          KiteNotification(
+            id: 'call',
+            kind: KiteNotificationKind.call,
+            destination: const AppDestination.call(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              callId: 'call-1',
+            ),
+          ),
+          KiteNotification(
+            id: 'other-account',
+            kind: KiteNotificationKind.message,
+            destination: destination('personal', r'$personal'),
+          ),
+        ]);
+        final cancellations = FakeNotificationCancellationPort();
+        final coordinator = NotificationCoordinator(
+          notifications: notifications,
+          cancellations: cancellations,
+          accounts: FakeAccountActivationPort('work'),
+          navigation: FakeAppNavigationPort(),
+        );
 
-      expect(
-        coordinator.markRoomRead(
-          accountId: 'work',
-          roomId: '!team:example.org',
-        ),
-        3,
-      );
-      expect(notifications.removedIds, <String>[
-        'message',
-        'mention',
-        'thread',
-      ]);
-      expect(notifications.notification('invite'), isNotNull);
-      expect(notifications.notification('call'), isNotNull);
-      expect(notifications.notification('other-account'), isNotNull);
-    });
+        expect(
+          await coordinator.markRoomRead(
+            accountId: 'work',
+            roomId: '!team:example.org',
+          ),
+          3,
+        );
+        expect(cancellations.cancelledIds, <String>[
+          'message',
+          'mention',
+          'thread',
+        ]);
+        expect(notifications.removedIds, <String>[
+          'message',
+          'mention',
+          'thread',
+        ]);
+        expect(notifications.notification('invite'), isNotNull);
+        expect(notifications.notification('call'), isNotNull);
+        expect(notifications.notification('other-account'), isNotNull);
+      },
+    );
 
     test(
       'remote read reconciliation removes only matching event notifications',
-      () {
+      () async {
         final notifications = FakeNotificationRepository(<KiteNotification>[
           KiteNotification(
             id: 'read',
@@ -340,19 +360,22 @@ void main() {
             ),
           ),
         ]);
+        final cancellations = FakeNotificationCancellationPort();
         final coordinator = NotificationCoordinator(
           notifications: notifications,
+          cancellations: cancellations,
           accounts: FakeAccountActivationPort('work'),
           navigation: FakeAppNavigationPort(),
         );
 
         expect(
-          coordinator.reconcileReadEvents(
+          await coordinator.reconcileReadEvents(
             accountId: 'work',
             eventIds: const <String>[r'$read'],
           ),
           1,
         );
+        expect(cancellations.cancelledIds, <String>['read']);
         expect(notifications.notification('read'), isNull);
         expect(notifications.notification('unread'), isNotNull);
         expect(notifications.notification('other-account'), isNotNull);

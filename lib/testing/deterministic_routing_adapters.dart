@@ -33,6 +33,21 @@ final class FakeNotificationRepository implements NotificationRepository {
   }
 }
 
+final class FakeNotificationCancellationPort
+    implements NotificationCancellationPort {
+  final List<String> cancelledIds = <String>[];
+  Object? failNextWith;
+
+  @override
+  Future<bool> cancel(String notificationId) async {
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
+    cancelledIds.add(notificationId);
+    return true;
+  }
+}
+
 final class FakeNotificationPrivacyPort implements NotificationPrivacyPort {
   FakeNotificationPrivacyPort({this.hideNotificationContents = false});
 

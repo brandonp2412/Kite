@@ -119,20 +119,32 @@ abstract interface class NotificationRepository {
   void remove(String id);
 }
 
+abstract interface class NotificationCancellationPort {
+  Future<bool> cancel(String notificationId);
+}
+
 final class NotificationCoordinator {
   factory NotificationCoordinator({
     required NotificationRepository notifications,
+    required NotificationCancellationPort cancellations,
     required AccountActivationPort accounts,
     required AppNavigationPort navigation,
-  }) => NotificationCoordinator._(notifications, accounts, navigation);
+  }) => NotificationCoordinator._(
+    notifications,
+    cancellations,
+    accounts,
+    navigation,
+  );
 
   const NotificationCoordinator._(
     this._notifications,
+    this._cancellations,
     this._accounts,
     this._navigation,
   );
 
   final NotificationRepository _notifications;
+  final NotificationCancellationPort _cancellations;
   final AccountActivationPort _accounts;
   final AppNavigationPort _navigation;
 
@@ -148,7 +160,10 @@ final class NotificationCoordinator {
     return true;
   }
 
-  int markRoomRead({required String accountId, required String roomId}) {
+  Future<int> markRoomRead({
+    required String accountId,
+    required String roomId,
+  }) async {
     final idsToRemove = _notifications
         .activeForAccount(accountId)
         .where(
@@ -159,16 +174,13 @@ final class NotificationCoordinator {
         .map((notification) => notification.id)
         .toList(growable: false);
 
-    for (final id in idsToRemove) {
-      _notifications.remove(id);
-    }
-    return idsToRemove.length;
+    return _cancelAndRemove(idsToRemove);
   }
 
-  int reconcileReadEvents({
+  Future<int> reconcileReadEvents({
     required String accountId,
     required Iterable<String> eventIds,
-  }) {
+  }) async {
     final readEventIds = eventIds.toSet();
     if (readEventIds.isEmpty) return 0;
 
@@ -183,9 +195,16 @@ final class NotificationCoordinator {
         .map((notification) => notification.id)
         .toList(growable: false);
 
-    for (final id in idsToRemove) {
+    return _cancelAndRemove(idsToRemove);
+  }
+
+  Future<int> _cancelAndRemove(Iterable<String> notificationIds) async {
+    var removed = 0;
+    for (final id in notificationIds) {
+      await _cancellations.cancel(id);
       _notifications.remove(id);
+      removed += 1;
     }
-    return idsToRemove.length;
+    return removed;
   }
 }

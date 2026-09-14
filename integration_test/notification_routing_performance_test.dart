@@ -68,17 +68,32 @@ void main() {
           ),
         ),
       ]);
-      final coordinator = NotificationCoordinator(
-        notifications: notifications,
-        accounts: accounts,
-        navigation: navigation,
-      );
       final notificationPrivacy = FakeNotificationPrivacyPort();
       final notificationDelivery = FakeNotificationDeliveryPort();
       final deliveryCoordinator = NotificationDeliveryCoordinator(
         privacy: notificationPrivacy,
         delivery: notificationDelivery,
       );
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: deliveryCoordinator,
+        accounts: accounts,
+        navigation: navigation,
+      );
+      for (final notificationId in <String>[
+        'thread',
+        'message',
+        'remote-read',
+      ]) {
+        final notification = notifications.notification(notificationId)!;
+        await deliveryCoordinator.upsert(
+          notification: notification,
+          content: KiteNotificationContent(
+            title: 'Sender $notificationId',
+            body: 'Deterministic $notificationId notification',
+          ),
+        );
+      }
 
       await tester.pumpWidget(
         MaterialApp(
@@ -102,7 +117,7 @@ void main() {
           await tester.pump();
 
           expect(
-            coordinator.markRoomRead(
+            await coordinator.markRoomRead(
               accountId: 'work',
               roomId: '!team:example.org',
             ),
@@ -112,7 +127,7 @@ void main() {
           await tester.pump();
 
           expect(
-            coordinator.reconcileReadEvents(
+            await coordinator.reconcileReadEvents(
               accountId: 'work',
               eventIds: const <String>[r'$remoteRead'],
             ),
@@ -158,6 +173,11 @@ void main() {
       expect(notifications.notification('thread'), isNull);
       expect(notifications.notification('message'), isNull);
       expect(notifications.notification('remote-read'), isNull);
+      expect(notificationDelivery.cancelledIds.take(3), <String>[
+        'thread',
+        'message',
+        'remote-read',
+      ]);
 
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['notification_routing_reconciliation'] =

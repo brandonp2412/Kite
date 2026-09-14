@@ -333,11 +333,11 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Invite notifications.
 - [ ] Thread notifications.
 - [ ] Call notifications with full-screen/incoming-call semantics where platform allows.
-- [ ] Grouping and summary notifications.
-- [ ] Notification privacy when app locked.
-- [ ] Tapping a notification lands on the exact room/event/thread/call.
-- [ ] Reading in Kite clears the corresponding notification promptly.
-- [ ] Reading elsewhere reconciles stale notifications.
+- [x] Grouping and summary notifications.
+- [x] Notification privacy when app locked.
+- [x] Tapping a notification lands on the exact room/event/thread/call.
+- [x] Reading in Kite clears the corresponding notification promptly.
+- [x] Reading elsewhere reconciles stale notifications.
 - [ ] Account-aware notification routing for multi-account support.
 
 ## Milestone 12 — Accessibility, localisation, and adaptive layouts
