@@ -99,7 +99,7 @@ void main() {
     );
     expect(sendButton.onPressed, isNotNull);
 
-    final result = await _measureFrames(
+    final result = await measureFrames(
       binding: binding,
       action: () async {
         sendButton.onPressed!();
@@ -135,7 +135,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('message-action-reply')), findsOneWidget);
 
-    final result = await _measureFrames(
+    final result = await measureFrames(
       binding: binding,
       action: () async {
         await tester.tap(find.byKey(const Key('message-action-reply')));
@@ -170,7 +170,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('message-action-copy')), findsOneWidget);
 
-    final result = await _measureFrames(
+    final result = await measureFrames(
       binding: binding,
       action: () async {
         await tester.tap(find.byKey(const Key('message-action-copy')));
@@ -204,7 +204,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('message-action-delete')), findsOneWidget);
 
-    final result = await _measureFrames(
+    final result = await measureFrames(
       binding: binding,
       action: () async {
         await tester.tap(find.byKey(const Key('message-action-delete')));
@@ -241,7 +241,7 @@ void main() {
     expect(find.byKey(const Key('delete-message-confirm')), findsOneWidget);
     final message = timelineController.messagesFor('alice').value.last;
 
-    final result = await _measureFrames(
+    final result = await measureFrames(
       binding: binding,
       action: () async {
         await tester.tap(find.byKey(const Key('delete-message-confirm')));
@@ -290,7 +290,7 @@ void main() {
     );
     expect(sendButton.onPressed, isNotNull);
 
-    final result = await _measureFrames(
+    final result = await measureFrames(
       binding: binding,
       action: () async {
         sendButton.onPressed!();
