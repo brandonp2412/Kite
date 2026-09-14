@@ -17,10 +17,10 @@ These rules apply to every milestone and cannot be traded away to ship a feature
 - [ ] Every new primary interaction gets a deterministic motion test and a profile-mode frame benchmark before its milestone is complete.
 - [ ] Every roadmap checkbox that changes UI or runtime behaviour must pass `tool/quality_gate.sh` before it is marked complete.
 - [ ] Physical-device release candidates must additionally pass the Android Macrobenchmark with zero build, raster, and end-to-end frame-budget violations.
-- [ ] Never implement Matrix cryptography ourselves. Use audited Matrix SDK primitives.
-- [ ] Offline-first rendering: cached UI renders immediately; network/sync work must never blank an already-known screen.
+- [x] Never implement Matrix cryptography ourselves. Use audited Matrix SDK primitives.
+- [x] Offline-first rendering: cached UI renders immediately; network/sync work must never blank an already-known screen.
 - [ ] No visible loading-induced layout shift. Skeletons/placeholders reserve final geometry.
-- [ ] No broad reactive rebuilds when a leaf signal can express the dependency.
+- [x] No broad reactive rebuilds when a leaf signal can express the dependency.
 - [ ] No blocking disk, crypto, image decode, JSON parsing, database migration, or Matrix sync work on the Flutter UI isolate.
 
 ## Definition of Element X parity
@@ -82,7 +82,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Integrate the Matrix Rust SDK through a minimal Dart/Flutter boundary, or document a demonstrably equivalent SDK choice before implementation.
 - [x] Homeserver discovery and `.well-known` handling.
 - [ ] Simplified Sliding Sync / current Matrix SDK sync path with fast initial room-list population.
-- [ ] Incremental sync without full-screen refreshes.
+- [x] Incremental sync without full-screen refreshes.
 - [ ] Encrypted persistent SDK stores.
 - [x] Local presentation cache designed for immediate room-list/timeline rendering.
 - [ ] Back-pagination and automatic pagination near timeline edges.

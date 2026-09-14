@@ -27,13 +27,15 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final contents = await file.readAsString();
     if (contents.trim().isEmpty) return null;
 
-    try {
-      final decoded = await Isolate.run<Object?>(() => jsonDecode(contents));
-      if (decoded is! Map<String, dynamic>) return null;
-      return _decodeSnapshot(decoded);
-    } on FormatException {
-      return null;
-    }
+    return Isolate.run<MatrixPresentationSnapshot?>(() {
+      try {
+        final decoded = jsonDecode(contents);
+        if (decoded is! Map<String, dynamic>) return null;
+        return _decodeSnapshot(decoded);
+      } on FormatException {
+        return null;
+      }
+    });
   }
 
   @override
@@ -44,8 +46,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final file = _fileFor(accountId);
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
-    final document = _encodeSnapshot(snapshot);
-    final payload = await Isolate.run<String>(() => jsonEncode(document));
+    final payload = await Isolate.run<String>(
+      () => jsonEncode(_encodeSnapshot(snapshot)),
+    );
 
     await temporary.writeAsString(payload, flush: true);
     if (await file.exists()) await file.delete();

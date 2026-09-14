@@ -37,41 +37,45 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
     final contents = await file.readAsString();
     if (contents.trim().isEmpty) return null;
 
-    try {
-      final decoded = await Isolate.run<Object?>(() => jsonDecode(contents));
-      if (decoded is! Map<String, dynamic>) return null;
-      if (decoded['version'] != _schemaVersion) return null;
+    return Isolate.run<MatrixRestorationSnapshot?>(() {
+      try {
+        final decoded = jsonDecode(contents);
+        if (decoded is! Map<String, dynamic>) return null;
+        if (decoded['version'] != _schemaVersion) return null;
 
-      final accountId = decoded['accountId'];
-      final target = decoded['navigationTarget'];
-      if (accountId is! String || accountId.isEmpty || target is! Map) {
+        final accountId = decoded['accountId'];
+        final target = decoded['navigationTarget'];
+        if (accountId is! String || accountId.isEmpty || target is! Map) {
+          return null;
+        }
+
+        final navigationTarget = _decodeNavigationTarget(
+          Map<String, dynamic>.from(target),
+        );
+        if (navigationTarget == null) return null;
+
+        return MatrixRestorationSnapshot(
+          accountId: accountId,
+          navigationTarget: navigationTarget,
+        );
+      } on FormatException {
         return null;
       }
-
-      final navigationTarget = _decodeNavigationTarget(
-        Map<String, dynamic>.from(target),
-      );
-      if (navigationTarget == null) return null;
-
-      return MatrixRestorationSnapshot(
-        accountId: accountId,
-        navigationTarget: navigationTarget,
-      );
-    } on FormatException {
-      return null;
-    }
+    });
   }
 
   @override
   Future<void> save(MatrixRestorationSnapshot snapshot) async {
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
-    final document = <String, Object?>{
-      'version': _schemaVersion,
-      'accountId': snapshot.accountId,
-      'navigationTarget': _encodeNavigationTarget(snapshot.navigationTarget),
-    };
-    final payload = await Isolate.run<String>(() => jsonEncode(document));
+    final payload = await Isolate.run<String>(() {
+      final document = <String, Object?>{
+        'version': _schemaVersion,
+        'accountId': snapshot.accountId,
+        'navigationTarget': _encodeNavigationTarget(snapshot.navigationTarget),
+      };
+      return jsonEncode(document);
+    });
 
     await temporary.writeAsString(payload, flush: true);
     if (await file.exists()) await file.delete();
