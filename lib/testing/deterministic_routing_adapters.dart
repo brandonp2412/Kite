@@ -1,4 +1,5 @@
 import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 
 final class FakeNotificationRepository implements NotificationRepository {
@@ -29,6 +30,52 @@ final class FakeNotificationRepository implements NotificationRepository {
     if (_notifications.remove(id) != null) {
       removedIds.add(id);
     }
+  }
+}
+
+final class FakeNotificationPrivacyPort implements NotificationPrivacyPort {
+  FakeNotificationPrivacyPort({this.hideNotificationContents = false});
+
+  @override
+  bool hideNotificationContents;
+}
+
+final class FakeNotificationDeliveryPort implements NotificationDeliveryPort {
+  final List<KiteNotificationPresentation> shown =
+      <KiteNotificationPresentation>[];
+  final List<KiteNotificationSummary> summaries = <KiteNotificationSummary>[];
+  final List<String> cancelledIds = <String>[];
+  final List<String> cancelledSummaryGroupKeys = <String>[];
+  Object? failNextWith;
+
+  @override
+  Future<void> show(KiteNotificationPresentation presentation) async {
+    _throwIfNeeded();
+    shown.add(presentation);
+  }
+
+  @override
+  Future<void> cancel(String notificationId) async {
+    _throwIfNeeded();
+    cancelledIds.add(notificationId);
+  }
+
+  @override
+  Future<void> showSummary(KiteNotificationSummary summary) async {
+    _throwIfNeeded();
+    summaries.add(summary);
+  }
+
+  @override
+  Future<void> cancelSummary(String groupKey) async {
+    _throwIfNeeded();
+    cancelledSummaryGroupKeys.add(groupKey);
+  }
+
+  void _throwIfNeeded() {
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
   }
 }
 

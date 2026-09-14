@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
@@ -72,7 +73,12 @@ void main() {
         accounts: accounts,
         navigation: navigation,
       );
-      const presentationPolicy = NotificationPresentationPolicy();
+      final notificationPrivacy = FakeNotificationPrivacyPort();
+      final notificationDelivery = FakeNotificationDeliveryPort();
+      final deliveryCoordinator = NotificationDeliveryCoordinator(
+        privacy: notificationPrivacy,
+        delivery: notificationDelivery,
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -112,28 +118,33 @@ void main() {
             ),
             1,
           );
-          final summaries = presentationPolicy.summaries(
-            <KiteNotificationPresentation>[
-              for (var index = 0; index < 48; index += 1)
-                presentationPolicy.present(
-                  notification: KiteNotification(
-                    id: 'summary-$index',
-                    kind: KiteNotificationKind.message,
-                    destination: AppDestination.event(
-                      accountId: index.isEven ? 'work' : 'personal',
-                      roomId: '!room${index % 4}:example.org',
-                      eventId: '\$summary-$index',
-                    ),
-                  ),
-                  content: KiteNotificationContent(
-                    title: 'Sender $index',
-                    body: 'Deterministic notification body $index',
-                  ),
-                  hideContents: index % 3 == 0,
+          for (var index = 0; index < 48; index += 1) {
+            await deliveryCoordinator.upsert(
+              notification: KiteNotification(
+                id: 'summary-$index',
+                kind: KiteNotificationKind.message,
+                destination: AppDestination.event(
+                  accountId: index.isEven ? 'work' : 'personal',
+                  roomId: '!room${index % 4}:example.org',
+                  eventId: '\$summary-$index',
                 ),
-            ],
+              ),
+              content: KiteNotificationContent(
+                title: 'Sender $index',
+                body: 'Deterministic notification body $index',
+              ),
+            );
+          }
+          notificationPrivacy.hideNotificationContents = true;
+          await deliveryCoordinator.refreshPrivacy();
+          expect(deliveryCoordinator.activePresentations, hasLength(48));
+          expect(
+            deliveryCoordinator.activePresentations.every(
+              (presentation) => presentation.contentsHidden,
+            ),
+            isTrue,
           );
-          expect(summaries, hasLength(4));
+          expect(notificationDelivery.summaries, isNotEmpty);
           revision.value += 1;
           await tester.pump();
         },
