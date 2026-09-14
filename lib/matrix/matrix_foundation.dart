@@ -321,6 +321,14 @@ typedef MatrixSendOperation = Future<SendAttemptResult> Function(
 /// enter [OfflineSendState.retryWaiting] and require an explicit [retryNow], so
 /// tests and UI state never depend on wall-clock timer races.
 final class OfflineSendQueue {
+  OfflineSendQueue([Iterable<PendingSend> restored = const <PendingSend>[]]) {
+    for (final send in restored) {
+      _sends[send.transactionId] = send.state == OfflineSendState.sending
+          ? send.copyWith(state: OfflineSendState.queued)
+          : send;
+    }
+  }
+
   final Map<String, PendingSend> _sends = <String, PendingSend>{};
   bool _online = true;
   bool _draining = false;
@@ -328,6 +336,8 @@ final class OfflineSendQueue {
   bool get isOnline => _online;
 
   List<PendingSend> get sends => List<PendingSend>.unmodifiable(_sends.values);
+
+  List<PendingSend> snapshot() => List<PendingSend>.unmodifiable(_sends.values);
 
   void setOnline(bool online) {
     _online = online;

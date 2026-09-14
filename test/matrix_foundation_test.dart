@@ -296,6 +296,31 @@ void main() {
       },
     );
 
+    test('restores pending state and safely requeues interrupted sends', () {
+      final queue = OfflineSendQueue(<PendingSend>[
+        const PendingSend(
+          transactionId: 'sending',
+          roomId: '!room:test',
+          body: 'interrupted',
+          state: OfflineSendState.sending,
+          attempts: 1,
+        ),
+        const PendingSend(
+          transactionId: 'retry',
+          roomId: '!room:test',
+          body: 'retry later',
+          state: OfflineSendState.retryWaiting,
+          attempts: 2,
+        ),
+      ]);
+
+      expect(queue.sends, hasLength(2));
+      expect(queue.sends[0].state, OfflineSendState.queued);
+      expect(queue.sends[0].attempts, 1);
+      expect(queue.sends[1].state, OfflineSendState.retryWaiting);
+      expect(queue.snapshot(), queue.sends);
+    });
+
     test('enqueue is idempotent by transaction id', () {
       final queue = OfflineSendQueue();
 
