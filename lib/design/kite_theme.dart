@@ -34,6 +34,33 @@ abstract final class KiteTheme {
         backgroundColor: Colors.transparent,
         foregroundColor: scheme.onSurface,
       ),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          minimumSize: const WidgetStatePropertyAll(
+            Size.square(KiteSizes.minimumTouchTarget),
+          ),
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: ButtonStyle(
+          minimumSize: const WidgetStatePropertyAll(
+            Size(0, KiteSizes.minimumTouchTarget),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(KiteRadii.lg),
+            ),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: ButtonStyle(
+          minimumSize: const WidgetStatePropertyAll(
+            Size(0, KiteSizes.minimumTouchTarget),
+          ),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: tokens.field,
@@ -45,6 +72,9 @@ abstract final class KiteTheme {
           borderRadius: BorderRadius.circular(KiteRadii.lg),
           borderSide: BorderSide.none,
         ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        minVerticalPadding: KiteSpacing.xs,
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: tokens.navigation,
