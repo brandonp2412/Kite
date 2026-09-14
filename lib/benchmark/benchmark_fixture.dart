@@ -7,11 +7,19 @@ class BenchmarkRoom {
     required this.id,
     required this.name,
     required this.subtitle,
+    this.isDirect = false,
+    this.isUnread = false,
+    this.isFavourite = false,
+    this.spaceId,
   });
 
   final String id;
   final String name;
   final String subtitle;
+  final bool isDirect;
+  final bool isUnread;
+  final bool isFavourite;
+  final String? spaceId;
 }
 
 enum BenchmarkMessageKind {
@@ -65,6 +73,10 @@ abstract final class BenchmarkFixture {
           id: 'room-${index + 3}',
           name: 'User ${index + 3}',
           subtitle: 'Fixture room ${index + 3}',
+          isDirect: index % 3 == 0,
+          isUnread: index % 4 == 0,
+          isFavourite: index % 10 == 0,
+          spaceId: 'space-${index % 5}',
         ),
       ),
     ],
@@ -96,6 +108,10 @@ abstract final class BenchmarkFixture {
             id: 'scroll-room-$index',
             name: 'Benchmark room ${index + 1}',
             subtitle: 'Deterministic room-list benchmark ${index + 1}',
+            isDirect: index % 3 == 0,
+            isUnread: index % 4 == 0,
+            isFavourite: index % 10 == 0,
+            spaceId: 'space-${index % 5}',
           ),
         ),
       );
