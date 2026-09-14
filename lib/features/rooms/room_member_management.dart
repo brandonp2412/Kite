@@ -18,6 +18,21 @@ final class RoomMember {
   final RoomMembership membership;
   final int powerLevel;
   final Uri? avatarUrl;
+
+  RoomMember copyWith({
+    String? displayName,
+    RoomMembership? membership,
+    int? powerLevel,
+    Uri? avatarUrl,
+  }) {
+    return RoomMember(
+      userId: userId,
+      displayName: displayName ?? this.displayName,
+      membership: membership ?? this.membership,
+      powerLevel: powerLevel ?? this.powerLevel,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
 }
 
 final class RoomPowerLevelSummary {
@@ -141,6 +156,21 @@ final class RoomMemberManagementCoordinator {
   Future<RoomPowerLevelSummary> powerLevels(String roomId) =>
       _directory.powerLevels(roomId);
 
+  Future<RoomMemberActionAuthorization> authorization({
+    required String roomId,
+    required RoomMemberAction action,
+    String? targetUserId,
+    int? requestedPowerLevel,
+  }) {
+    return _authorization.authorize(
+      roomId: roomId,
+      actorUserId: _actorUserId,
+      action: action,
+      targetUserId: targetUserId,
+      requestedPowerLevel: requestedPowerLevel,
+    );
+  }
+
   Future<void> invite({required String roomId, required String userId}) async {
     await _requireAuthorization(
       roomId: roomId,
@@ -233,9 +263,8 @@ final class RoomMemberManagementCoordinator {
     String? targetUserId,
     int? requestedPowerLevel,
   }) async {
-    final authorization = await _authorization.authorize(
+    final authorization = await this.authorization(
       roomId: roomId,
-      actorUserId: _actorUserId,
       action: action,
       targetUserId: targetUserId,
       requestedPowerLevel: requestedPowerLevel,

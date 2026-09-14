@@ -1,5 +1,10 @@
 import 'package:kite/features/rooms/room_member_management.dart';
 
+typedef RoomMemberAuthorizationResolver =
+    RoomMemberActionAuthorization Function(
+      RoomMemberAuthorizationRequest request,
+    );
+
 final class RoomMemberAuthorizationRequest {
   const RoomMemberAuthorizationRequest({
     required this.roomId,
@@ -59,11 +64,13 @@ final class FakeRoomMemberAuthorizationPort
   factory FakeRoomMemberAuthorizationPort({
     RoomMemberActionAuthorization fallback =
         const RoomMemberActionAuthorization.allowed(),
-  }) => FakeRoomMemberAuthorizationPort._(fallback);
+    RoomMemberAuthorizationResolver? resolver,
+  }) => FakeRoomMemberAuthorizationPort._(fallback, resolver);
 
-  FakeRoomMemberAuthorizationPort._(this._fallback);
+  FakeRoomMemberAuthorizationPort._(this._fallback, this._resolver);
 
   final RoomMemberActionAuthorization _fallback;
+  final RoomMemberAuthorizationResolver? _resolver;
   final Map<RoomMemberAction, RoomMemberActionAuthorization> decisions =
       <RoomMemberAction, RoomMemberActionAuthorization>{};
   final List<RoomMemberAuthorizationRequest> requests =
@@ -77,16 +84,15 @@ final class FakeRoomMemberAuthorizationPort
     String? targetUserId,
     int? requestedPowerLevel,
   }) async {
-    requests.add(
-      RoomMemberAuthorizationRequest(
-        roomId: roomId,
-        actorUserId: actorUserId,
-        action: action,
-        targetUserId: targetUserId,
-        requestedPowerLevel: requestedPowerLevel,
-      ),
+    final request = RoomMemberAuthorizationRequest(
+      roomId: roomId,
+      actorUserId: actorUserId,
+      action: action,
+      targetUserId: targetUserId,
+      requestedPowerLevel: requestedPowerLevel,
     );
-    return decisions[action] ?? _fallback;
+    requests.add(request);
+    return _resolver?.call(request) ?? decisions[action] ?? _fallback;
   }
 }
 
