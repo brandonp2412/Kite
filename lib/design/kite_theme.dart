@@ -23,16 +23,6 @@ abstract final class KiteTheme {
         alpha: KiteOpacity.divider,
       ),
       extensions: <ThemeExtension<dynamic>>[tokens],
-      textTheme: ThemeData(brightness: brightness).textTheme.copyWith(
-        headlineSmall: KiteTypography.headline.copyWith(
-          color: scheme.onSurface,
-        ),
-        titleMedium: KiteTypography.title.copyWith(color: scheme.onSurface),
-        bodyMedium: KiteTypography.body.copyWith(color: scheme.onSurface),
-        bodySmall: KiteTypography.metadata.copyWith(
-          color: scheme.onSurfaceVariant,
-        ),
-      ),
       appBarTheme: AppBarTheme(
         elevation: KiteElevation.flat,
         scrolledUnderElevation: KiteElevation.flat,

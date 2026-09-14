@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/app/kite_app.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/design/kite_tokens.dart';
 
@@ -32,6 +33,20 @@ void main() {
     );
 
     expect(resolved, Duration.zero);
+  });
+
+  testWidgets('KiteApp removes theme motion when reduced motion is requested', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MediaQuery(
+        data: MediaQueryData(disableAnimations: true),
+        child: KiteApp(themeMode: ThemeMode.light),
+      ),
+    );
+
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.themeAnimationDuration, Duration.zero);
   });
 
   testWidgets('motion duration is retained under normal motion settings', (

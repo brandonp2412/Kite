@@ -53,7 +53,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Build a Flutter golden-gallery equivalent to Element X's screenshot gallery.
 - [ ] Every reusable component has golden coverage in light/dark and representative edge states.
 - [ ] Every top-level screen has phone portrait, phone landscape, tablet, and desktop-width reference renders where layout differs.
-- [ ] Golden diffs are a merge gate; visual changes require an explicitly approved golden update.
+- [x] Golden diffs are a merge gate; visual changes require an explicitly approved golden update.
 - [ ] Maintain a manual side-by-side review checklist against current Element X reference screenshots for every major UI milestone.
 
 ## Milestone 0 — Foundation and reproducible quality gates
