@@ -315,6 +315,124 @@ void main() {
       expect(queue.sends.single.body, 'first');
     });
   });
+
+  group('MatrixConnectivityCoordinator', () {
+    test(
+      'keeps cached screens while offline then merges incremental recovery',
+      () async {
+        final cache = MatrixPresentationCache(
+          PresentationSnapshot(
+            rooms: const <RoomPresentation>[
+              RoomPresentation(roomId: '!one:test', name: 'One'),
+              RoomPresentation(roomId: '!two:test', name: 'Two'),
+            ],
+            timelines: <String, List<MatrixEventEnvelope>>{
+              '!one:test': <MatrixEventEnvelope>[
+                event('one-old', roomId: '!one:test', order: 1),
+              ],
+              '!two:test': <MatrixEventEnvelope>[
+                event('two-old', roomId: '!two:test', order: 1),
+              ],
+            },
+          ),
+        );
+        final queue = OfflineSendQueue();
+        queue.enqueue(transactionId: 't1', roomId: '!one:test', body: 'queued');
+        final recovery = Completer<IncrementalSyncBatch>();
+        var sendCalls = 0;
+        final coordinator = MatrixConnectivityCoordinator(
+          cache: cache,
+          sendQueue: queue,
+          loadRecoveryBatch: () => recovery.future,
+          sendOperation: (send) async {
+            sendCalls += 1;
+            return const SendAttemptResult.sent(r'$sent');
+          },
+        );
+
+        await coordinator.setOnline(false);
+        expect(cache.rooms.map((room) => room.roomId), <String>[
+          '!one:test',
+          '!two:test',
+        ]);
+        expect(cache.timeline('!one:test').single.eventId, 'one-old');
+        expect(cache.timeline('!two:test').single.eventId, 'two-old');
+        expect(queue.sends.single.state, OfflineSendState.queued);
+
+        final reconnect = coordinator.setOnline(true);
+        expect(coordinator.isRecovering, isTrue);
+        expect(cache.timeline('!one:test').single.eventId, 'one-old');
+        expect(sendCalls, 0);
+
+        recovery.complete(
+          IncrementalSyncBatch(
+            rooms: const <RoomPresentation>[
+              RoomPresentation(roomId: '!one:test', name: 'One updated'),
+            ],
+            eventsByRoom: <String, List<MatrixEventEnvelope>>{
+              '!one:test': <MatrixEventEnvelope>[
+                event('one-new', roomId: '!one:test', order: 2),
+              ],
+            },
+          ),
+        );
+        await reconnect;
+
+        expect(cache.rooms.map((room) => room.roomId), <String>[
+          '!one:test',
+          '!two:test',
+        ]);
+        expect(cache.room('!one:test')?.name, 'One updated');
+        expect(
+          cache.timeline('!one:test').map((item) => item.eventId),
+          <String>['one-old', 'one-new'],
+        );
+        expect(cache.timeline('!two:test').single.eventId, 'two-old');
+        expect(queue.sends.single.state, OfflineSendState.sent);
+        expect(sendCalls, 1);
+        expect(coordinator.isRecovering, isFalse);
+      },
+    );
+
+    test(
+      'ignores stale recovery completion after connectivity drops',
+      () async {
+        final cache = MatrixPresentationCache(
+          PresentationSnapshot(
+            timelines: <String, List<MatrixEventEnvelope>>{
+              '!room:test': <MatrixEventEnvelope>[event('cached', order: 1)],
+            },
+          ),
+        );
+        final recovery = Completer<IncrementalSyncBatch>();
+        final coordinator = MatrixConnectivityCoordinator(
+          cache: cache,
+          sendQueue: OfflineSendQueue(),
+          loadRecoveryBatch: () => recovery.future,
+          sendOperation: (send) async => const SendAttemptResult.sent(r'$sent'),
+        );
+
+        await coordinator.setOnline(false);
+        final reconnect = coordinator.setOnline(true);
+        await coordinator.setOnline(false);
+
+        recovery.complete(
+          IncrementalSyncBatch(
+            eventsByRoom: <String, List<MatrixEventEnvelope>>{
+              '!room:test': <MatrixEventEnvelope>[event('stale', order: 2)],
+            },
+          ),
+        );
+        await reconnect;
+
+        expect(coordinator.isOnline, isFalse);
+        expect(
+          cache.timeline('!room:test').map((item) => item.eventId),
+          <String>['cached'],
+        );
+      },
+    );
+  });
 }
 
 MatrixEventEnvelope event(

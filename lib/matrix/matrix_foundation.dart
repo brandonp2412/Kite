@@ -166,6 +166,15 @@ final class MatrixPresentationCache {
     }
   }
 
+  void applyIncrementalSync(IncrementalSyncBatch batch) {
+    for (final room in batch.rooms) {
+      upsertRoom(room);
+    }
+    for (final entry in batch.eventsByRoom.entries) {
+      applyEvents(entry.key, entry.value);
+    }
+  }
+
   void applyBackPaginationPage(String roomId, BackPaginationPage page) {
     _backPaginationTokens[roomId] = page.previousToken;
     if (page.events.isEmpty) return;
@@ -382,5 +391,79 @@ final class OfflineSendQueue {
     } finally {
       _draining = false;
     }
+  }
+}
+
+final class IncrementalSyncBatch {
+  const IncrementalSyncBatch({
+    this.rooms = const <RoomPresentation>[],
+    this.eventsByRoom = const <String, List<MatrixEventEnvelope>>{},
+  });
+
+  final List<RoomPresentation> rooms;
+  final Map<String, List<MatrixEventEnvelope>> eventsByRoom;
+}
+
+typedef IncrementalSyncLoader = Future<IncrementalSyncBatch> Function();
+
+/// Coordinates connectivity recovery without replacing presentation state.
+///
+/// Going offline only pauses sends. On recovery, an incremental SDK-provided
+/// batch is loaded and merged into the existing presentation cache, then queued
+/// sends drain. If connectivity drops while a recovery request is in flight,
+/// that stale result is ignored so an obsolete response cannot move visible
+/// room/timeline state after the app is offline again.
+final class MatrixConnectivityCoordinator {
+  MatrixConnectivityCoordinator({
+    required this.cache,
+    required this.sendQueue,
+    required this.loadRecoveryBatch,
+    required this.sendOperation,
+  });
+
+  final MatrixPresentationCache cache;
+  final OfflineSendQueue sendQueue;
+  final IncrementalSyncLoader loadRecoveryBatch;
+  final MatrixSendOperation sendOperation;
+
+  bool _online = true;
+  Future<bool>? _activeRecovery;
+
+  bool get isOnline => _online;
+  bool get isRecovering => _activeRecovery != null;
+
+  Future<bool> setOnline(bool online) async {
+    final changed = online != _online;
+    _online = online;
+    sendQueue.setOnline(online);
+
+    if (!online) return changed;
+
+    final active = _activeRecovery;
+    if (!changed && active != null) {
+      await active;
+      return false;
+    }
+    if (!changed) return false;
+
+    final recovery = _recover();
+    _activeRecovery = recovery;
+    try {
+      await recovery;
+    } finally {
+      if (identical(_activeRecovery, recovery)) {
+        _activeRecovery = null;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _recover() async {
+    final batch = await loadRecoveryBatch();
+    if (!_online) return false;
+
+    cache.applyIncrementalSync(batch);
+    await sendQueue.drain(sendOperation);
+    return true;
   }
 }
