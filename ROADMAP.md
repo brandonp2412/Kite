@@ -54,7 +54,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Every reusable component has golden coverage in light/dark and representative edge states.
 - [x] Every top-level screen has phone portrait, phone landscape, tablet, and desktop-width reference renders where layout differs.
 - [x] Golden diffs are a merge gate; visual changes require an explicitly approved golden update.
-- [ ] Maintain a manual side-by-side review checklist against current Element X reference screenshots for every major UI milestone.
+- [x] Maintain a manual side-by-side review checklist against current Element X reference screenshots for every major UI milestone.
 
 ## Milestone 0 — Foundation and reproducible quality gates
 
@@ -389,8 +389,8 @@ This milestone is not optional cleanup; it is a product feature.
 
 ## Milestone 14 — Full parity audit against current Element X `develop`
 
-- [ ] Re-scan current upstream feature modules, release notes, screenshots, and Labs flags.
-- [ ] Build a screen-by-screen parity matrix with `Element X behaviour`, `Kite behaviour`, `test`, and `status` columns.
+- [x] Re-scan current upstream feature modules, release notes, screenshots, and Labs flags.
+- [x] Build a screen-by-screen parity matrix with `Element X behaviour`, `Kite behaviour`, `test`, and `status` columns.
 - [ ] Run through every Element X settings entry and verify Kite has the corresponding capability or a documented intentional difference.
 - [ ] Run through every Element X room-list action.
 - [ ] Run through every Element X timeline event type.
@@ -399,8 +399,8 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] Run through every Element X notification/deep-link route.
 - [ ] Run through every Element X call flow.
 - [ ] Run through every Element X Space/Thread flow.
-- [ ] Confirm upstream features introduced after this roadmap date have been added or explicitly scheduled.
-- [ ] Confirm known upstream-missing features are not incorrectly called parity blockers simply because Matrix Classic has them.
+- [x] Confirm upstream features introduced after this roadmap date have been added or explicitly scheduled.
+- [x] Confirm known upstream-missing features are not incorrectly called parity blockers simply because Matrix Classic has them.
 
 ## Milestone 15 — Release-grade performance and reliability
 
