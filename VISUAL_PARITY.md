@@ -6,9 +6,9 @@ Kite's visual target is the current Element X Android `develop` branch while ret
 
 Reference branch: `element-hq/element-x-android` `develop`.
 
-Reference commit audited on 2026-09-15: `3d198d8065030820f0ad2ed06fff65d6928112f3`.
+Reference commit audited on 2026-09-15: `ba80abcbf0f5238940fea9b7a6b22f7a8bc518ac`.
 
-The audit re-resolved `refs/heads/develop` immediately before comparison. Since the prior audit SHA (`8cd3750cde65c8bbfc97cb578d00111b6bf62ee8`), upstream advanced by one commit: `3d198d806503` (`Fix flaky test in TimelinePresenterTest`, #7702). The compare touches timeline/controller wiring and tests only, with no screenshot, feature-flag, release, or generally available user-facing feature delta to schedule in this pass. The current home LFS snapshots were fetched again at the new SHA for the rendered comparison below.
+The audit re-resolved `refs/heads/develop` immediately before comparison. Since the previous audited SHA (`3d198d8065030820f0ad2ed06fff65d6928112f3`), upstream advanced by five commits. GitHub's compare reports changes only to `.github/workflows/tests.yml`, `build.gradle.kts`, and `gradle/libs.versions.toml`; the commits are build/test tooling and dependency maintenance, with no screenshot, feature-flag, release, or generally available user-facing feature delta to schedule in this pass. The current home, room-row, and direct-room timeline LFS snapshots were fetched again at the new SHA for the rendered comparisons below.
 
 Current Element X screenshot tests live under `tests/uitests/src/test/snapshots/images/` and are generated from public Composable previews. Relevant home references for this pass:
 
@@ -61,6 +61,16 @@ The current Element X direct-room timeline and composer LFS snapshots were loade
 - Composer hierarchy: both products retain a clear leading attachment affordance, central rounded input and trailing send/media action region, but Element X's composer is more compact and has production voice, expansion and disabled-state treatment. Kite's current composer remains simplified.
 - Golden decision: the four tablet/desktop home gallery baselines are refreshed to the current deterministic Kite render only after this reference review. This accepts the already-merged runtime geometry as the review baseline; it does not close timeline/composer parity or approve the remaining visual gaps.
 
+### Rendered theme, spacing, icon, and avatar review, 2026-09-15
+
+The current Element X `HomeTopBar`, `RoomSummaryRow`, and direct-room timeline day/night snapshots at `ba80abcbf0f5` were visually compared with Kite's freshly generated light/dark phone and desktop gallery renders. This closes the review work only; it does not claim that the gaps below are implemented.
+
+- Theme surfaces: Kite has coherent light/dark semantic surfaces and preserves row geometry between themes. Element X has a more deliberate dark top-region treatment and contextual bloom. Kite still has no true-black theme, so the visual-quality true-black implementation contract remains open.
+- Spacing and radii: Kite repeats a consistent row/avatar rhythm and rounded message/composer geometry, but its wide timeline uses looser vertical spacing and broader bubbles than the Element X direct-room reference. Element X's home header also composes title, actions, and filters more tightly without reducing touch-target size.
+- Icon sizing: the current Kite gallery has very little top-level icon chrome; this avoids inconsistency but also exposes the missing search/filter/profile affordances already recorded by the home parity gap. Existing composer/action icons are visually stable across light/dark renders.
+- Avatar/image treatment: Kite's deterministic room list currently renders circular initial placeholders at stable resolution. Element X demonstrates contextual avatar colour and production image treatment; Kite does not yet exercise high-resolution photo avatars in this gallery, so the visual-quality avatar/bloom and no-upscale implementation contracts remain open.
+- Typography: not closed by this review. Flutter goldens use the deterministic test font, so final hierarchy still requires a real-target render with production typography.
+
 ## Side-by-side review checklist
 
 For each major screen, compare matching light/dark states at representative phone and wide layouts. Record all gaps before changing a visual-parity checkbox.
@@ -79,8 +89,8 @@ For each major screen, compare matching light/dark states at representative phon
 
 | Screen / state | Element X behaviour / hierarchy | Kite behaviour | Test / render | Status |
 | --- | --- | --- | --- | --- |
-| Home header, light | Profile/avatar anchors the left; large `Chats` title; search and filter actions on the right; filter chips below; subtle contextual bloom behind the top region. | Portrait currently shows only the `Chats` title in a fixed header. No profile action, search/filter actions, filter chips or bloom yet. | `home_phone_portrait_light.png`; compare with `HomeTopBar_Day_0_en.png`. | Gap |
-| Home header, dark | Same hierarchy as light with restrained dark surfaces and clear action contrast. | Portrait dark preserves the same minimal title-only hierarchy. | `home_phone_portrait_dark.png`; compare with `HomeTopBar_Night_0_en.png`. | Gap |
+| Home header, light | Profile/avatar anchors the left; large `Chats` title; search and filter actions on the right; filter chips below; subtle contextual bloom behind the top region. | Portrait currently shows only the `Chats` title in a fixed header. No profile action, search/filter actions, filter chips or bloom yet. | `home_phone_portrait_light.png`; compare with `HomeTopBar_Day_0_en.png`. | Reviewed; gaps remain |
+| Home header, dark | Same hierarchy as light with restrained dark surfaces and clear action contrast. | Portrait dark preserves the same minimal title-only hierarchy. | `home_phone_portrait_dark.png`; compare with `HomeTopBar_Night_0_en.png`. | Reviewed; gaps remain |
 | Room-list row | Avatar, strong room name, quiet preview metadata, trailing time/state treatment; invite/loading variants reserve stable row geometry. | Current deterministic room rows provide avatar initial, title and one-line subtitle; timestamps, unread/mention states and richer variants are not implemented. | Home phone/tablet/desktop gallery; compare with `RoomListContentView_*` and `RoomSummaryRow_*`. | Gap |
 | Phone portrait shell | Element X uses a single primary content pane with top-level home navigation. | Kite uses single-pane room navigation and pushes the selected conversation without retaining a split pane. | `adaptive_layout_test.dart`; `home_phone_portrait_*`. | Geometry covered; parity incomplete |
 | Phone landscape shell | Compact layout stays single-pane rather than squeezing a desktop split view into the short axis. | Kite uses the same single-pane rule based on shortest side. | `adaptive_layout_test.dart`; `home_phone_landscape_*`. | Geometry covered; parity incomplete |
@@ -99,7 +109,7 @@ For each major screen, compare matching light/dark states at representative phon
 | Poll / location / media | Element X renders dedicated event, picker/viewer and permission/error states for these content types. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Calls | Element X has incoming, outgoing and in-call states integrated with MatrixRTC/Element Call. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Empty / loading / error / offline | Element X reserves geometry with explicit empty/loading/error/offline states. | Current benchmark home state does not yet expose representative variants. | Home reference comparison only. | Gap |
-| Theme variants | Element X references cover day/night; black theme remains behind an unfinished feature flag in current `develop`. | Kite gallery covers light/dark; true-black is not implemented. | Home light/dark gallery. | Gap |
+| Theme variants | Element X references cover day/night; black theme remains behind an unfinished feature flag in current `develop`. | Kite gallery covers light/dark with stable geometry; true-black is not implemented. | Home light/dark gallery. | Reviewed; true-black gap remains |
 
 ## Current conclusion
 
