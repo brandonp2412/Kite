@@ -18,6 +18,6 @@ The reviewed `pubspec.lock` SHA-256 is:
 
 `cdd8459a752084813f8dbc9b3a33cb3d66d58286b3fe50e21c11eddfe3f978fd`
 
-The lock contains only SDK or hosted packages. The executable audit rejects Git/path dependencies and requires a non-empty license or copying file for every hosted package resolved by the lock. The current baseline contains 36 hosted packages and all 36 must pass that check from the local Pub cache after `flutter pub get`.
+The lock contains only SDK or hosted packages. The executable audit rejects Git/path dependencies and requires a non-empty license or copying file for every hosted package resolved by the lock. It recognizes only the reviewed BSD-family, Apache-2.0, and MIT license texts; unknown license text fails the gate for manual review. The current baseline contains 36 hosted packages: 25 BSD-family, 9 Apache-2.0, and 2 MIT.
 
 Any `pubspec.lock` change deliberately fails the release audit until the changed dependency graph and licenses are reviewed and the pinned digest is updated. This makes dependency/license review an ongoing release gate instead of a one-time document.

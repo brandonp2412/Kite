@@ -64,6 +64,9 @@ fi
 pub_cache="${PUB_CACHE:-$HOME/.pub-cache}"
 license_failures=0
 hosted_count=0
+bsd_count=0
+mit_count=0
+apache_count=0
 while read -r package version; do
   [[ -n "$package" && -n "$version" ]] || continue
   hosted_count=$((hosted_count + 1))
@@ -76,6 +79,18 @@ while read -r package version; do
   license_file="$(find "$package_dir" -maxdepth 1 -type f \( -iname 'LICENSE' -o -iname 'LICENSE.*' -o -iname 'COPYING' -o -iname 'COPYING.*' \) -size +0c -print -quit)"
   if [[ -z "$license_file" ]]; then
     printf 'Missing non-empty license file: %s %s\n' "$package" "$version" >&2
+    license_failures=$((license_failures + 1))
+    continue
+  fi
+
+  if rg -qi 'Apache License.*Version 2\.0' "$license_file"; then
+    apache_count=$((apache_count + 1))
+  elif rg -qi 'Permission is hereby granted, free of charge' "$license_file"; then
+    mit_count=$((mit_count + 1))
+  elif rg -qi 'Redistribution and use in source and binary forms' "$license_file"; then
+    bsd_count=$((bsd_count + 1))
+  else
+    printf 'Unreviewed dependency license text: %s %s (%s)\n' "$package" "$version" "$license_file" >&2
     license_failures=$((license_failures + 1))
   fi
 done < <(
@@ -91,5 +106,6 @@ done < <(
 )
 
 [[ "$hosted_count" -gt 0 ]] || fail 'No hosted dependencies were discovered in pubspec.lock.'
-[[ "$license_failures" == "0" ]] || fail "$license_failures dependency license file checks failed."
-printf 'Kite release audit passed: %s hosted dependency licenses verified.\n' "$hosted_count"
+[[ "$license_failures" == "0" ]] || fail "$license_failures dependency license checks failed."
+printf 'Kite release audit passed: %s hosted dependency licenses verified (%s BSD, %s Apache-2.0, %s MIT).\n' \
+  "$hosted_count" "$bsd_count" "$apache_count" "$mit_count"
