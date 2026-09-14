@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 import 'package:kite/matrix/matrix_navigation.dart';
 import 'package:kite/matrix/matrix_outbox.dart';
 import 'package:kite/matrix/matrix_restoration.dart';
@@ -177,6 +178,55 @@ void main() {
     });
   });
 
+  group('MatrixHomeserverDiscovery', () {
+    test('uses m.homeserver base_url from client well-known', () async {
+      final client = _FakeWellKnownClient(
+        document: <String, Object?>{
+          'm.homeserver': <String, Object?>{
+            'base_url': 'https://matrix.example.org/client',
+          },
+        },
+      );
+      final discovery = MatrixHomeserverDiscovery(client);
+
+      final result = await discovery.discover('example.org');
+
+      expect(client.requestedUris, <Uri>[
+        Uri.parse('https://example.org/.well-known/matrix/client'),
+      ]);
+      expect(result.enteredServer, Uri.parse('https://example.org'));
+      expect(
+        result.homeserverBaseUrl,
+        Uri.parse('https://matrix.example.org/client'),
+      );
+      expect(result.usedWellKnown, isTrue);
+    });
+
+    test('falls back to entered server when well-known is absent', () async {
+      final discovery = MatrixHomeserverDiscovery(_FakeWellKnownClient());
+
+      final result = await discovery.discover('https://matrix.example.org');
+
+      expect(result.homeserverBaseUrl, Uri.parse('https://matrix.example.org'));
+      expect(result.usedWellKnown, isFalse);
+    });
+
+    test('rejects malformed well-known homeserver configuration', () async {
+      final discovery = MatrixHomeserverDiscovery(
+        _FakeWellKnownClient(
+          document: <String, Object?>{
+            'm.homeserver': <String, Object?>{'base_url': 'not a url'},
+          },
+        ),
+      );
+
+      await expectLater(
+        discovery.discover('example.org'),
+        throwsA(isA<MatrixHomeserverDiscoveryException>()),
+      );
+    });
+  });
+
   group('MatrixDeepLinkParser', () {
     const parser = MatrixDeepLinkParser();
 
@@ -228,6 +278,30 @@ void main() {
     });
   });
 
+  test(
+    'deep-link router forwards typed targets and ignores unrelated links',
+    () async {
+      final routed = <MatrixNavigationTarget>[];
+      final router = MatrixDeepLinkRouter(navigate: routed.add);
+
+      expect(
+        await router.route(
+          Uri.parse('https://matrix.to/#/!room:example.org?action=call'),
+        ),
+        isTrue,
+      );
+      expect(routed, <MatrixNavigationTarget>[
+        const MatrixNavigationTarget.call('!room:example.org'),
+      ]);
+
+      expect(
+        await router.route(Uri.parse('https://example.org/room')),
+        isFalse,
+      );
+      expect(routed, hasLength(1));
+    },
+  );
+
   test('restoration persists account and typed navigation state', () async {
     final store = _FakeRestorationStore();
     final coordinator = MatrixRestorationCoordinator(store);
@@ -272,6 +346,19 @@ MatrixOutboxItem _message(
     state: state,
     attempt: attempt,
   );
+}
+
+final class _FakeWellKnownClient implements MatrixWellKnownClient {
+  _FakeWellKnownClient({this.document});
+
+  final Map<String, Object?>? document;
+  final List<Uri> requestedUris = <Uri>[];
+
+  @override
+  Future<Map<String, Object?>?> fetchClientConfiguration(Uri uri) async {
+    requestedUris.add(uri);
+    return document;
+  }
 }
 
 final class _FakeEncryptedOutboxStore implements MatrixEncryptedOutboxStore {

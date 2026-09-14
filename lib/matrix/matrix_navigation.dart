@@ -1,3 +1,5 @@
+import 'dart:async';
+
 enum MatrixNavigationKind { home, room, event, user, invite, call }
 
 final class MatrixNavigationTarget {
@@ -45,6 +47,27 @@ final class MatrixNavigationTarget {
 
   @override
   int get hashCode => Object.hash(kind, roomIdOrAlias, eventId, userId);
+}
+
+typedef MatrixNavigationHandler = FutureOr<void> Function(
+  MatrixNavigationTarget target,
+);
+
+final class MatrixDeepLinkRouter {
+  const MatrixDeepLinkRouter({
+    this.parser = const MatrixDeepLinkParser(),
+    required this.navigate,
+  });
+
+  final MatrixDeepLinkParser parser;
+  final MatrixNavigationHandler navigate;
+
+  Future<bool> route(Uri uri) async {
+    final target = parser.parse(uri);
+    if (target == null) return false;
+    await navigate(target);
+    return true;
+  }
 }
 
 final class MatrixDeepLinkParser {

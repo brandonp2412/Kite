@@ -80,18 +80,18 @@ Kite should not merely contain the same controls. It must have the same level of
 ## Milestone 1 — Matrix engine, storage, sync, and lifecycle
 
 - [ ] Integrate the Matrix Rust SDK through a minimal Dart/Flutter boundary, or document a demonstrably equivalent SDK choice before implementation.
-- [ ] Homeserver discovery and `.well-known` handling.
+- [x] Homeserver discovery and `.well-known` handling.
 - [ ] Simplified Sliding Sync / current Matrix SDK sync path with fast initial room-list population.
 - [ ] Incremental sync without full-screen refreshes.
 - [ ] Encrypted persistent SDK stores.
 - [x] Local presentation cache designed for immediate room-list/timeline rendering.
 - [ ] Back-pagination and automatic pagination near timeline edges.
 - [x] Correct deduplication and ordering of sync events.
-- [ ] Offline send queue and deterministic retry states.
+- [x] Offline send queue and deterministic retry states.
 - [x] Connectivity loss/recovery without room-list or timeline jumps.
 - [x] Background/foreground lifecycle handling.
 - [ ] Process-death restoration to the previous account and sensible navigation state.
-- [ ] Deep-link routing for room, event, user, invite, and call links.
+- [x] Deep-link routing for room, event, user, invite, and call links.
 - [ ] Multiple accounts if present in current Element X baseline, with isolated stores and notification routing.
 
 **Benchmarks:** cold app open, warm app open, account switch, sync update into room list, room pagination, offline-to-online recovery.
