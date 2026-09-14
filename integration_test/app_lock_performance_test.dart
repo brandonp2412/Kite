@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
-import 'package:kite/features/auth/app_unlock_screen.dart';
+import 'package:kite/features/auth/app_lock_gate.dart';
 import 'package:kite/features/settings/app_lock_settings_screen.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -117,12 +117,20 @@ void main() {
     await controller.load();
 
     await tester.pumpWidget(
-      MaterialApp(home: AppUnlockScreen(controller: controller)),
+      MaterialApp(
+        home: AppLockGate(
+          controller: controller,
+          loadOnInit: false,
+          child: const SizedBox.expand(key: Key('protected-app-content')),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
     expect(await controller.unlockWithPin('1234'), isTrue);
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('protected-app-content')), findsOneWidget);
+
     controller.lock();
     await tester.pumpAndSettle();
 
@@ -136,6 +144,7 @@ void main() {
     );
 
     expect(controller.isLocked.value, isFalse);
+    expect(find.byKey(const Key('protected-app-content')), findsOneWidget);
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['app_unlock'] = <String, dynamic>{
       'journey': 'app_unlock',

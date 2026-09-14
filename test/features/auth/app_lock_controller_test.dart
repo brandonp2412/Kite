@@ -4,6 +4,7 @@ import 'package:kite/features/auth/app_lock_controller.dart';
 final class _FakeAppLockCredentials implements AppLockCredentialGateway {
   AppLockSettings stored = const AppLockSettings.disabled();
   String? enrolledPin;
+  Object? loadError;
   int disableCalls = 0;
 
   @override
@@ -23,7 +24,10 @@ final class _FakeAppLockCredentials implements AppLockCredentialGateway {
   }
 
   @override
-  Future<AppLockSettings> loadSettings() async => stored;
+  Future<AppLockSettings> loadSettings() async {
+    if (loadError case final error?) throw error;
+    return stored;
+  }
 
   @override
   Future<void> saveSettings(AppLockSettings settings) async {
@@ -50,6 +54,35 @@ final class _FakeBiometrics implements BiometricAuthenticationGateway {
 }
 
 void main() {
+  test(
+    'app lock restoration fails closed without exposing notification contents',
+    () async {
+      final credentials = _FakeAppLockCredentials()
+        ..loadError = StateError('credential store unavailable');
+      final controller = AppLockController(credentials, _FakeBiometrics());
+      addTearDown(controller.dispose);
+
+      expect(controller.isReady.value, isFalse);
+      expect(controller.shouldHideNotificationContents, isTrue);
+
+      await controller.load();
+
+      expect(controller.isReady.value, isFalse);
+      expect(controller.isLocked.value, isTrue);
+      expect(controller.shouldHideNotificationContents, isTrue);
+      expect(
+        controller.errorMessage.value,
+        'Kite could not load app lock settings.',
+      );
+
+      credentials.loadError = null;
+      await controller.load();
+      expect(controller.isReady.value, isTrue);
+      expect(controller.isLocked.value, isFalse);
+      expect(controller.shouldHideNotificationContents, isFalse);
+    },
+  );
+
   test(
     'PIN app lock validates input and redacts notifications only while locked',
     () async {

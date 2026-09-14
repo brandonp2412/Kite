@@ -60,22 +60,26 @@ final class AppLockController {
   final settings = signal(const AppLockSettings.disabled());
   final isLocked = signal(false);
   final isBusy = signal(false);
+  final isReady = signal(false);
   final errorMessage = signal<String?>(null);
 
   bool get shouldHideNotificationContents =>
-      isLocked.value && settings.value.hideNotificationContents;
+      !isReady.value ||
+      (isLocked.value && settings.value.hideNotificationContents);
 
   Future<void> load() async {
     if (isBusy.value) return;
     isBusy.value = true;
+    isReady.value = false;
     errorMessage.value = null;
     try {
       final loaded = await _credentials.loadSettings();
       settings.value = loaded;
       isLocked.value = loaded.enabled;
+      isReady.value = true;
     } catch (_) {
       settings.value = const AppLockSettings.disabled();
-      isLocked.value = false;
+      isLocked.value = true;
       errorMessage.value = 'Kite could not load app lock settings.';
     } finally {
       isBusy.value = false;
@@ -103,6 +107,7 @@ final class AppLockController {
       await _credentials.enablePin(pin: pin, settings: next);
       settings.value = next;
       isLocked.value = true;
+      isReady.value = true;
     } catch (_) {
       errorMessage.value = 'Kite could not enable app lock securely.';
     } finally {
@@ -214,6 +219,7 @@ final class AppLockController {
       const next = AppLockSettings.disabled();
       settings.value = next;
       isLocked.value = false;
+      isReady.value = true;
     } catch (_) {
       errorMessage.value = 'Kite could not disable app lock securely.';
     } finally {
@@ -227,6 +233,7 @@ final class AppLockController {
     settings.dispose();
     isLocked.dispose();
     isBusy.dispose();
+    isReady.dispose();
     errorMessage.dispose();
   }
 }
