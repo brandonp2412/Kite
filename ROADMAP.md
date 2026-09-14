@@ -418,8 +418,8 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] Call-screen transition benchmark.
 - [ ] App startup benchmark.
 - [x] Offline recovery benchmark.
-- [ ] Memory-growth soak test while switching rooms and paginating.
-- [ ] Image/media cache pressure test.
+- [x] Memory-growth soak test while switching rooms and paginating.
+- [x] Image/media cache pressure test.
 - [ ] Repeated login/logout/account-switch store-cleanup test.
 - [ ] Thermal/low-memory/background-kill testing on physical Android hardware.
 - [ ] Physical Android Macrobenchmark matrix on at least one 60 Hz and one 120 Hz device.
