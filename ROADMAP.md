@@ -363,7 +363,7 @@ Kite should not merely contain the same controls. It must have the same level of
 This milestone is not optional cleanup; it is a product feature.
 
 - [ ] Capture the current Element X Android reference gallery and current Kite gallery for the same representative states.
-- [ ] Home/room list side-by-side review.
+- [x] Home/room list side-by-side review.
 - [x] DM timeline review.
 - [ ] Group-room timeline review.
 - [x] Composer/rich-text review.
@@ -376,10 +376,10 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] Poll/location/media review.
 - [ ] Incoming/outgoing/in-call review.
 - [ ] Empty/loading/error/offline states review.
-- [ ] Light/dark/black themes review.
+- [x] Light/dark/black themes review.
 - [ ] Typography hierarchy review.
-- [ ] Spacing/radius/icon-size consistency review.
-- [ ] Avatar/image quality review.
+- [x] Spacing/radius/icon-size consistency review.
+- [x] Avatar/image quality review.
 - [ ] Motion/easing review at normal speed and frame-by-frame.
 - [ ] Remove all temporary Material defaults that do not match the intended Kite design language.
 - [ ] Remove debug-looking labels, placeholder copy, generic scaffold visuals, and inconsistent icons.
