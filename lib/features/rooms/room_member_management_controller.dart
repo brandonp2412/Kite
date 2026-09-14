@@ -84,6 +84,38 @@ final class RoomMemberManagementController {
     );
   }
 
+  Future<bool> reportUser(RoomMember member, {String? reason}) {
+    return _runMutation(
+      failureMessage: 'Kite could not report that user.',
+      action: () => _coordinator.reportUser(
+        roomId: roomId,
+        userId: member.userId,
+        reason: reason,
+      ),
+    );
+  }
+
+  Future<bool> reportRoom({String? reason}) {
+    return _runMutation(
+      failureMessage: 'Kite could not report this room.',
+      action: () => _coordinator.reportRoom(roomId: roomId, reason: reason),
+    );
+  }
+
+  Future<bool> leaveRoom() {
+    return _runMutation(
+      failureMessage: 'Kite could not leave this room.',
+      action: () => _coordinator.leave(roomId: roomId),
+    );
+  }
+
+  Future<bool> forgetRoom() {
+    return _runMutation(
+      failureMessage: 'Kite could not remove local room data.',
+      action: () => _coordinator.forget(roomId: roomId),
+    );
+  }
+
   Future<RoomMemberPowerOptions> powerOptions(RoomMember member) async {
     if (member.membership != RoomMembership.joined) {
       return const RoomMemberPowerOptions(
