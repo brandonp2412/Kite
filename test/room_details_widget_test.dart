@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/features/rooms/room_details_screen.dart';
 import 'package:kite/features/rooms/room_members.dart';
 
 void main() {
@@ -47,6 +48,12 @@ void main() {
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('member-kick')))
+          .onPressed,
+      isNotNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('member-ban')))
           .onPressed,
       isNotNull,
     );
@@ -106,6 +113,42 @@ void main() {
     expect(find.byKey(const Key('member-search-empty')), findsOneWidget);
   });
 
+  testWidgets('ban confirmation exposes unban without losing member context', (
+    tester,
+  ) async {
+    final store = RoomMembersFixture.forRoom('kite');
+    addTearDown(store.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RoomDetailsScreen(roomId: 'kite', roomName: 'Kite', store: store),
+      ),
+    );
+
+    await tester.enterText(find.byKey(const Key('member-search')), 'bob');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('member-@bob:example.org')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-ban')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('member-ban-confirm')), findsOneWidget);
+    expect(store.member('@bob:example.org').membership, RoomMembership.joined);
+
+    await tester.tap(find.byKey(const Key('member-ban-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(store.member('@bob:example.org').membership, RoomMembership.banned);
+    expect(find.byKey(const Key('member-profile-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('member-unban')), findsOneWidget);
+    expect(find.byKey(const Key('member-@bob:example.org')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('member-unban')));
+    await tester.pumpAndSettle();
+
+    expect(store.member('@bob:example.org').membership, RoomMembership.left);
+    expect(find.byKey(const Key('member-profile-sheet')), findsNothing);
+  });
+
   testWidgets('moderation controls are disabled for self and equal power', (
     tester,
   ) async {
@@ -135,6 +178,12 @@ void main() {
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('member-kick')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('member-ban')))
           .onPressed,
       isNull,
     );

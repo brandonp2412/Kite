@@ -34,9 +34,26 @@ Future<Map<String, dynamic>> _measureFrames({
   final totalSpanViolations = timings
       .where((timing) => timing.totalSpan.inMicroseconds > budgetUs)
       .length;
+  final worstBuildUs = timings
+      .map((timing) => timing.buildDuration.inMicroseconds)
+      .reduce((left, right) => left > right ? left : right);
+  final worstRasterUs = timings
+      .map((timing) => timing.rasterDuration.inMicroseconds)
+      .reduce((left, right) => left > right ? left : right);
+  final worstTotalSpanUs = timings
+      .map((timing) => timing.totalSpan.inMicroseconds)
+      .reduce((left, right) => left > right ? left : right);
 
-  expect(buildViolations, PerformanceContract.maxBuildBudgetViolations);
-  expect(rasterViolations, PerformanceContract.maxRasterBudgetViolations);
+  expect(
+    buildViolations,
+    PerformanceContract.maxBuildBudgetViolations,
+    reason: 'worst build ${worstBuildUs}us, budget ${budgetUs}us',
+  );
+  expect(
+    rasterViolations,
+    PerformanceContract.maxRasterBudgetViolations,
+    reason: 'worst raster ${worstRasterUs}us, budget ${budgetUs}us',
+  );
   if (enforceTotalSpan) {
     expect(
       totalSpanViolations,
@@ -52,6 +69,9 @@ Future<Map<String, dynamic>> _measureFrames({
     'rasterBudgetViolations': rasterViolations,
     'totalSpanBudgetViolations': totalSpanViolations,
     'totalSpanGated': enforceTotalSpan,
+    'worstBuildUs': worstBuildUs,
+    'worstRasterUs': worstRasterUs,
+    'worstTotalSpanUs': worstTotalSpanUs,
   };
 }
 
@@ -194,6 +214,40 @@ void main() {
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['room_member_promote'] = <String, dynamic>{
       'journey': 'promote_room_member',
+      'fixture': 'deterministic_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('ban and unban have zero late Flutter frames', (tester) async {
+    selectRoom('kite');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-details-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-@bob:example.org')));
+    await tester.pumpAndSettle();
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('member-ban')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('member-ban-confirm')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('member-unban')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('member-profile-sheet')), findsNothing);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_member_ban_unban'] = <String, dynamic>{
+      'journey': 'ban_then_unban_room_member',
       'fixture': 'deterministic_v1',
       ...result,
       'result': 'PASS',
