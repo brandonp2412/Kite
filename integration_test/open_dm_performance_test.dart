@@ -123,6 +123,48 @@ void main() {
     };
   });
 
+  testWidgets('formatted send has zero late Flutter frames', (tester) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    final editable = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('composer-field')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    editable.controller.text = 'Profile `inline` text.\n\n> Stable quote.\n\n```dart\nfinal stable = true;\n```';
+    await tester.pump();
+    final sendButton = tester.widget<IconButton>(
+      find.byKey(const Key('composer-send')),
+    );
+    expect(sendButton.onPressed, isNotNull);
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        sendButton.onPressed!();
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('timeline-body-quote')), findsOneWidget);
+    expect(find.byKey(const Key('timeline-body-code')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['send_formatted_message'] = <String, dynamic>{
+      'journey': 'send_formatted_text_message',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('reply composer transition has zero late Flutter frames', (
     tester,
   ) async {

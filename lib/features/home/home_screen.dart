@@ -5,6 +5,7 @@ import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:signals/signals_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -527,12 +528,9 @@ class _MessageRow extends StatelessWidget {
                       ],
                     );
                   }
-                  return Text(
-                    message.body,
+                  return TimelineMessageBody(
                     key: Key('message-body-${message.id}'),
-                    style: KiteTypography.body.copyWith(
-                      color: colors.onSurface,
-                    ),
+                    body: message.body,
                   );
                 },
               ),

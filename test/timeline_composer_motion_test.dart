@@ -723,4 +723,51 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('formatted send keeps primary panel geometry stable at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final chatPanel = find.byKey(const Key('chat-panel'));
+    final messageList = find.byKey(const Key('message-list'));
+    final composer = find.byKey(const Key('composer'));
+    final initialPanel = _rectOf(tester, chatPanel);
+    final initialList = _rectOf(tester, messageList);
+    final initialComposer = _rectOf(tester, composer);
+
+    await tester.enterText(
+      find.byKey(const Key('composer-field')),
+      'Stable `inline` text.\n\n> Fixed quote.\n\n```dart\nfinal stable = true;\n```',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('composer-send')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('timeline-body-quote')), findsOneWidget);
+    expect(find.byKey(const Key('timeline-body-code')), findsOneWidget);
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      _expectSameRect(initialPanel, _rectOf(tester, chatPanel), 'chat panel');
+      _expectSameRect(
+        initialList,
+        _rectOf(tester, messageList),
+        'message list',
+      );
+      _expectSameRect(initialComposer, _rectOf(tester, composer), 'composer');
+      expect(tester.takeException(), isNull);
+    }
+  });
 }

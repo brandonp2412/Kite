@@ -5,6 +5,15 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
+class _ImmediateSendPort implements TimelineSendPort {
+  @override
+  Future<TimelineSendOutcome> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) async => TimelineSendOutcome.sent;
+}
+
 void main() {
   tearDown(() {
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
@@ -294,6 +303,40 @@ void main() {
       await expectLater(
         find.byKey(const Key('timeline-composer-golden')),
         matchesGoldenFile('goldens/timeline_reply_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('formatted message ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: _ImmediateSendPort());
+      timelineController.sendText(
+        'alice',
+        'Plain text with `inline code`.\n\n> Quoted context stays calm.\n\n```dart\nfinal stable = signal(true);\n```',
+      );
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-composer-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('timeline-body-quote')), findsOneWidget);
+      expect(find.byKey(const Key('timeline-body-code')), findsOneWidget);
+      await expectLater(
+        find.byKey(const Key('timeline-composer-golden')),
+        matchesGoldenFile('goldens/timeline_formatted_${variant.name}.png'),
       );
     });
   }
