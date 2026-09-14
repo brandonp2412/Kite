@@ -430,7 +430,7 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] Security review of SDK boundary, tokens, local stores, logs, media files, deep links, and exported Android components.
 - [x] Dependency/license review.
 - [ ] Reproducible signed Android release build.
-- [ ] Linux/desktop release build if included in the first public target.
+- [x] Linux/desktop release build if included in the first public target.
 - [ ] Upgrade/migration tests between app versions.
 - [ ] Clean-install tests.
 - [ ] Backup/recovery disaster tests.
