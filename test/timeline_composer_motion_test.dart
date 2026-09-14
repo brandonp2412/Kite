@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
@@ -229,6 +230,147 @@ void main() {
         'collapsed composer',
       );
       expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
+    },
+  );
+
+  testWidgets(
+    'copy action preserves timeline geometry and confirms completion',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final messageList = find.byKey(const Key('message-list'));
+      final target = find.byKey(const Key('message-bubble-alice-99'));
+      final initialChatPanel = _rectOf(tester, chatPanel);
+      final initialMessageList = _rectOf(tester, messageList);
+      final initialTarget = _rectOf(tester, target);
+      String? copiedText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText =
+                (call.arguments as Map<Object?, Object?>)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(() async {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        );
+      });
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-copy')));
+
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        _expectSameRect(
+          initialChatPanel,
+          _rectOf(tester, chatPanel),
+          'chat panel',
+        );
+        _expectSameRect(
+          initialMessageList,
+          _rectOf(tester, messageList),
+          'message list',
+        );
+        _expectSameRect(
+          initialTarget,
+          _rectOf(tester, target),
+          'copied message',
+        );
+        expect(tester.takeException(), isNull);
+      }
+
+      await tester.pumpAndSettle();
+      expect(copiedText, 'Deterministic message 100 in Alice');
+      expect(find.byKey(const Key('message-action-sheet')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'delete confirmation redacts only the target message leaf state',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final targetMessage = timelineController.messagesFor('alice').value.last;
+      expect(targetMessage.id, 'alice-99');
+      final target = find.byKey(const Key('message-bubble-alice-99'));
+      final adjacentRow = find.byKey(const Key('message-row-alice-98'));
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final initialAdjacent = _rectOf(tester, adjacentRow);
+      final initialChatPanel = _rectOf(tester, chatPanel);
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-delete')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('delete-message-dialog')), findsOneWidget);
+      expect(targetMessage.redacted, isFalse);
+
+      await tester.tap(find.byKey(const Key('delete-message-cancel')));
+      await tester.pumpAndSettle();
+      expect(targetMessage.redacted, isFalse);
+      expect(find.text('Deterministic message 100 in Alice'), findsOneWidget);
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-delete')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('delete-message-confirm')));
+
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        _expectSameRect(
+          initialChatPanel,
+          _rectOf(tester, chatPanel),
+          'chat panel',
+        );
+        _expectSameRect(
+          initialAdjacent,
+          _rectOf(tester, adjacentRow),
+          'adjacent message row',
+        );
+        expect(tester.takeException(), isNull);
+      }
+
+      expect(targetMessage.redacted, isTrue);
+      expect(targetMessage.body, isEmpty);
+      expect(targetMessage.edited, isFalse);
+      expect(
+        find.byKey(const Key('message-redacted-alice-99')),
+        findsOneWidget,
+      );
+      expect(find.text('Message deleted'), findsOneWidget);
+      expect(find.text('Deterministic message 100 in Alice'), findsNothing);
     },
   );
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
@@ -155,7 +156,7 @@ class _RoomList extends StatelessWidget {
 
 typedef _ComposerAction = void Function(String roomId, TimelineMessage message);
 
-enum _MessageAction { reply, edit }
+enum _MessageAction { reply, edit, copy, redact }
 
 enum _ComposerMode { reply, edit }
 
@@ -322,6 +323,32 @@ class _MessageRow extends StatelessWidget {
         onReply(roomId, message);
       case _MessageAction.edit:
         onEdit(roomId, message);
+      case _MessageAction.copy:
+        await Clipboard.setData(ClipboardData(text: message.body));
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Message copied'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.redact:
+        final route = DialogRoute<bool>(
+          context: context,
+          builder: (dialogContext) => const _DeleteMessageDialog(),
+        );
+        final confirmed = await Navigator.of(
+          context,
+          rootNavigator: true,
+        ).push(route);
+        await route.completed;
+        if (!context.mounted) return;
+        if (confirmed == true) {
+          timelineController.redactText(message);
+        }
     }
   }
 
@@ -365,11 +392,36 @@ class _MessageRow extends StatelessWidget {
                 const SizedBox(height: KiteSpacing.xs),
               ],
               SignalBuilder(
-                builder: (context) => Text(
-                  message.body,
-                  key: Key('message-body-${message.id}'),
-                  style: KiteTypography.body.copyWith(color: colors.onSurface),
-                ),
+                builder: (context) {
+                  if (message.redacted) {
+                    return Row(
+                      key: Key('message-redacted-${message.id}'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.block_rounded,
+                          size: 16,
+                          color: colors.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: KiteSpacing.xs),
+                        Text(
+                          'Message deleted',
+                          style: KiteTypography.body.copyWith(
+                            color: colors.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return Text(
+                    message.body,
+                    key: Key('message-body-${message.id}'),
+                    style: KiteTypography.body.copyWith(
+                      color: colors.onSurface,
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: KiteSpacing.xxs),
               Row(
@@ -541,19 +593,35 @@ class _MessageActionSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: KiteSpacing.sm),
-          _MessageActionButton(
-            key: const Key('message-action-reply'),
-            icon: Icons.reply_rounded,
-            label: 'Reply',
-            onTap: () => Navigator.of(context).pop(_MessageAction.reply),
-          ),
-          if (message.mine)
+          if (!message.redacted) ...<Widget>[
             _MessageActionButton(
-              key: const Key('message-action-edit'),
-              icon: Icons.edit_outlined,
-              label: 'Edit message',
-              onTap: () => Navigator.of(context).pop(_MessageAction.edit),
+              key: const Key('message-action-reply'),
+              icon: Icons.reply_rounded,
+              label: 'Reply',
+              onTap: () => Navigator.of(context).pop(_MessageAction.reply),
             ),
+            _MessageActionButton(
+              key: const Key('message-action-copy'),
+              icon: Icons.content_copy_rounded,
+              label: 'Copy text',
+              onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+            ),
+            if (message.mine)
+              _MessageActionButton(
+                key: const Key('message-action-edit'),
+                icon: Icons.edit_outlined,
+                label: 'Edit message',
+                onTap: () => Navigator.of(context).pop(_MessageAction.edit),
+              ),
+            if (message.mine)
+              _MessageActionButton(
+                key: const Key('message-action-delete'),
+                icon: Icons.delete_outline_rounded,
+                label: 'Delete message',
+                destructive: true,
+                onTap: () => Navigator.of(context).pop(_MessageAction.redact),
+              ),
+          ],
         ],
       ),
     );
@@ -566,15 +634,18 @@ class _MessageActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.destructive = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final foreground = destructive ? colors.error : colors.onSurface;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(KiteRadii.md),
@@ -582,19 +653,79 @@ class _MessageActionButton extends StatelessWidget {
         height: 52,
         child: Row(
           children: <Widget>[
-            SizedBox(
-              width: 44,
-              child: Icon(icon, size: 21, color: colors.onSurface),
-            ),
+            SizedBox(width: 44, child: Icon(icon, size: 21, color: foreground)),
             const SizedBox(width: KiteSpacing.xs),
             Text(
               label,
               style: KiteTypography.body.copyWith(
-                color: colors.onSurface,
+                color: foreground,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeleteMessageDialog extends StatelessWidget {
+  const _DeleteMessageDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Dialog(
+      key: const Key('delete-message-dialog'),
+      backgroundColor: context.kiteColors.canvas,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(KiteRadii.lg),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(KiteSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Delete message?',
+                style: KiteTypography.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              Text(
+                'This removes the message for everyone in the room. This action cannot be undone.',
+                style: KiteTypography.body.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.lg),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: <Widget>[
+                  TextButton(
+                    key: const Key('delete-message-cancel'),
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: KiteSpacing.sm),
+                  FilledButton(
+                    key: const Key('delete-message-confirm'),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colors.error,
+                      foregroundColor: colors.onError,
+                    ),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
