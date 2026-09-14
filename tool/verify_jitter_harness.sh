@@ -11,6 +11,16 @@ if [[ -z "$device" ]]; then
   exit 2
 fi
 
+lock_device="${device//[^[:alnum:]._-]/_}"
+lock_file="/tmp/kite-waydroid-${lock_device}.lock"
+exec 9>"$lock_file"
+if ! flock -w 60 9; then
+  printf 'Timed out waiting for exclusive Waydroid benchmark access: %s\n' "$device" >&2
+  exit 3
+fi
+
+printf 'Acquired exclusive Waydroid benchmark access: %s\n' "$device"
+
 common=(
   timeout --signal=TERM --kill-after=10s 5m
   flutter drive

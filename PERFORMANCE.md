@@ -27,7 +27,7 @@ The contract is pinned in `lib/benchmark/performance_contract.dart` and independ
 tool/quality_gate.sh
 ```
 
-The quality gate performs `flutter analyze`, the deterministic Flutter tests, and the Waydroid positive/negative/positive jitter sequence.
+The quality gate performs `flutter analyze`, the deterministic Flutter tests, and the Waydroid positive/negative/positive jitter sequence. The Waydroid harness takes an exclusive per-device `flock` before installing or driving Kite so concurrent quality-gate workers cannot replace the benchmark package mid-run.
 
 The expected jitter-harness sequence is:
 
