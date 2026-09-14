@@ -109,25 +109,27 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
     if (kind == MatrixNavigationKind.home.name) {
       return const MatrixNavigationTarget.home();
     }
-    if (kind == MatrixNavigationKind.room.name && roomId is String) {
-      return MatrixNavigationTarget.room(roomId);
+    if (kind == MatrixNavigationKind.room.name && _isNonEmpty(roomId)) {
+      return MatrixNavigationTarget.room(roomId as String);
     }
     if (kind == MatrixNavigationKind.event.name &&
-        roomId is String &&
-        eventId is String) {
-      return MatrixNavigationTarget.event(roomId, eventId);
+        _isNonEmpty(roomId) &&
+        _isNonEmpty(eventId)) {
+      return MatrixNavigationTarget.event(roomId as String, eventId as String);
     }
-    if (kind == MatrixNavigationKind.user.name && userId is String) {
-      return MatrixNavigationTarget.user(userId);
+    if (kind == MatrixNavigationKind.user.name && _isNonEmpty(userId)) {
+      return MatrixNavigationTarget.user(userId as String);
     }
-    if (kind == MatrixNavigationKind.invite.name && roomId is String) {
-      return MatrixNavigationTarget.invite(roomId);
+    if (kind == MatrixNavigationKind.invite.name && _isNonEmpty(roomId)) {
+      return MatrixNavigationTarget.invite(roomId as String);
     }
-    if (kind == MatrixNavigationKind.call.name && roomId is String) {
-      return MatrixNavigationTarget.call(roomId);
+    if (kind == MatrixNavigationKind.call.name && _isNonEmpty(roomId)) {
+      return MatrixNavigationTarget.call(roomId as String);
     }
     return null;
   }
+
+  static bool _isNonEmpty(Object? value) => value is String && value.isNotEmpty;
 }
 
 final class MatrixRestorationCoordinator {
@@ -145,13 +147,14 @@ final class MatrixRestorationCoordinator {
     required String accountId,
     required MatrixNavigationTarget navigationTarget,
   }) {
-    if (accountId.isEmpty) {
+    final normalizedAccountId = accountId.trim();
+    if (normalizedAccountId.isEmpty) {
       throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
     }
     return _enqueue(() {
       return _store.save(
         MatrixRestorationSnapshot(
-          accountId: accountId,
+          accountId: normalizedAccountId,
           navigationTarget: navigationTarget,
         ),
       );

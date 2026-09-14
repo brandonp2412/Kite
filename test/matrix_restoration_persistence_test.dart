@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -62,6 +63,42 @@ void main() {
         expect(await store.load(), isNull);
       },
     );
+
+    test('rejects persisted targets with empty Matrix identifiers', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-restoration-empty-target-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final file = File('${directory.path}/restoration.json');
+      await file.writeAsString(
+        jsonEncode(<String, Object?>{
+          'version': 1,
+          'accountId': '@alice:example.org',
+          'navigationTarget': <String, Object?>{
+            'kind': MatrixNavigationKind.room.name,
+            'roomIdOrAlias': '',
+          },
+        }),
+      );
+
+      expect(await FileMatrixRestorationStore(file).load(), isNull);
+    });
+  });
+
+  group('MatrixRestorationCoordinator', () {
+    test('normalizes account id before persisting navigation state', () async {
+      final store = _MemoryRestorationStore(null);
+      final coordinator = MatrixRestorationCoordinator(store);
+
+      await coordinator.record(
+        accountId: '  @alice:example.org  ',
+        navigationTarget: const MatrixNavigationTarget.home(),
+      );
+
+      expect(store.snapshot?.accountId, '@alice:example.org');
+    });
   });
 
   group('MatrixProcessRestorationCoordinator', () {
