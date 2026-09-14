@@ -4,6 +4,7 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -11,9 +12,10 @@ import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, this.benchmarkRooms});
+  const HomeScreen({super.key, this.benchmarkRooms, this.roomListStore});
 
   final List<BenchmarkRoom>? benchmarkRooms;
+  final RoomListStateStore? roomListStore;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -24,6 +26,7 @@ class HomeScreen extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final isPhone = size.shortestSide < phoneBreakpoint;
     final rooms = benchmarkRooms ?? BenchmarkFixture.rooms;
+    final roomEntries = deterministicRoomListEntries(rooms);
 
     if (isPhone) {
       return Scaffold(
@@ -35,9 +38,10 @@ class HomeScreen extends StatelessWidget {
                 child: SizedBox.expand(
                   key: const Key('sidebar'),
                   child: _RoomList(
-                    rooms: rooms,
-                    onRoomTap: (room) {
-                      selectRoom(room.id);
+                    rooms: roomEntries,
+                    store: roomListStore,
+                    onRoomTap: (roomId) {
+                      selectRoom(roomId);
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => const _CompactChatScreen(),
@@ -62,7 +66,7 @@ class HomeScreen extends StatelessWidget {
           SizedBox(
             key: const Key('sidebar'),
             width: adaptiveSidebarWidth,
-            child: _RoomList(rooms: rooms),
+            child: _RoomList(rooms: roomEntries, store: roomListStore),
           ),
           const VerticalDivider(width: 1),
           const Expanded(child: _ChatPanel()),
@@ -111,63 +115,32 @@ class _CompactChatScreen extends StatelessWidget {
 }
 
 class _RoomList extends StatelessWidget {
-  const _RoomList({required this.rooms, this.onRoomTap});
+  const _RoomList({required this.rooms, this.store, this.onRoomTap});
 
-  final List<BenchmarkRoom> rooms;
-  final ValueChanged<BenchmarkRoom>? onRoomTap;
+  final List<RoomListEntry> rooms;
+  final RoomListStateStore? store;
+  final ValueChanged<String>? onRoomTap;
 
   @override
   Widget build(BuildContext context) {
+    final ids = store?.roomIds ?? rooms.map((room) => room.id).toList();
     return ListView.builder(
       key: const Key('room-list'),
-      itemCount: rooms.length,
+      itemCount: ids.length,
       itemExtent: 72,
       itemBuilder: (context, index) {
-        final room = rooms[index];
+        final roomId = ids[index];
         return SignalBuilder(
           builder: (context) {
+            final room = store?.roomSignal(roomId).value ?? rooms[index];
             final selected = selectedRoomId.value == room.id;
-            final unreadThreadCount = threadController
-                .unreadThreadCountForRoom(room.id)
-                .value;
-            return ListTile(
-              key: Key('room-${room.id}'),
+            return _RoomListRow(
+              room: room,
               selected: selected,
-              leading: CircleAvatar(child: Text(room.name.characters.first)),
-              title: Text(
-                room.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                room.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: SizedBox.square(
-                dimension: 24,
-                child: Center(
-                  child: unreadThreadCount > 0
-                      ? Semantics(
-                          label:
-                              '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
-                          child: Container(
-                            key: Key('room-thread-unread-${room.id}'),
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: context.kiteColors.unread,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
               onTap: () {
                 final handler = onRoomTap;
                 if (handler != null) {
-                  handler(room);
+                  handler(room.id);
                 } else {
                   selectRoom(room.id);
                 }
@@ -177,6 +150,204 @@ class _RoomList extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _RoomListRow extends StatelessWidget {
+  const _RoomListRow({
+    required this.room,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final RoomListEntry room;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors =
+        theme.extension<KiteSemanticColors>() ??
+        KiteSemanticColors.forBrightness(theme.brightness, theme.colorScheme);
+    final previewStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: room.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+    );
+    final sender = room.latestSender;
+    final preview = sender == null || sender.isEmpty
+        ? room.latestEventBody
+        : '$sender: ${room.latestEventBody}';
+    final semantics = <String>[
+      room.name,
+      preview,
+      if (room.unreadCount > 0) '${room.unreadCount} unread',
+      if (room.hasMention) 'Mention',
+      if (room.hasMutedActivity) 'Muted room has new activity',
+      if (room.hasActiveCall) 'Active call',
+    ].join(', ');
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: semantics,
+      child: Material(
+        color: selected
+            ? colors.selected.withValues(alpha: 0.62)
+            : Colors.transparent,
+        child: InkWell(
+          key: Key('room-${room.id}'),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: KiteSpacing.md,
+              vertical: KiteSpacing.xs,
+            ),
+            child: Row(
+              children: <Widget>[
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: selected
+                      ? theme.colorScheme.primaryContainer
+                      : theme.colorScheme.surfaceContainerHighest,
+                  child: Text(
+                    room.name.characters.first,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: KiteSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              room.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: room.unreadCount > 0
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (room.hasActiveCall)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: KiteSpacing.xs,
+                              ),
+                              child: Icon(
+                                Icons.call_rounded,
+                                key: Key('room-active-call-${room.id}'),
+                                size: 16,
+                                color: colors.unread,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        preview,
+                        key: Key('room-preview-${room.id}'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: previewStyle,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: KiteSpacing.xs),
+                SizedBox(
+                  width: 52,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _RoomIndicators(room: room),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomIndicators extends StatelessWidget {
+  const _RoomIndicators({required this.room});
+
+  final RoomListEntry room;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors =
+        theme.extension<KiteSemanticColors>() ??
+        KiteSemanticColors.forBrightness(theme.brightness, theme.colorScheme);
+    final textTheme = theme.textTheme;
+    if (room.hasMention) {
+      return Container(
+        key: Key('room-mention-${room.id}'),
+        constraints: const BoxConstraints(minWidth: 26, minHeight: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: colors.mention,
+          borderRadius: BorderRadius.circular(KiteRadii.pill),
+        ),
+        child: Text(
+          '@${room.unreadCount > 0 ? room.unreadCount : ''}',
+          style: textTheme.labelSmall?.copyWith(
+            color:
+                ThemeData.estimateBrightnessForColor(colors.mention) ==
+                    Brightness.dark
+                ? Colors.white
+                : Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+    if (room.unreadCount > 0) {
+      return Container(
+        key: Key('room-unread-${room.id}'),
+        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: colors.unread,
+          borderRadius: BorderRadius.circular(KiteRadii.pill),
+        ),
+        child: Text(
+          '${room.unreadCount}',
+          style: textTheme.labelSmall?.copyWith(
+            color:
+                ThemeData.estimateBrightnessForColor(colors.unread) ==
+                    Brightness.dark
+                ? Colors.white
+                : Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+    if (room.hasMutedActivity) {
+      return Container(
+        key: Key('room-muted-activity-${room.id}'),
+        width: 9,
+        height: 9,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurfaceVariant
+              .withValues(alpha: 0.72),
+          shape: BoxShape.circle,
+        ),
+      );
+    }
+    return const SizedBox(width: 24, height: 24);
   }
 }
 
