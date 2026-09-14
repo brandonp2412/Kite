@@ -1,0 +1,176 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/settings/settings_controller.dart';
+
+final class _FakeSettingsGateway implements SettingsGateway {
+  KiteSettings loaded = const KiteSettings.defaults();
+  Object? loadError;
+  Object? saveError;
+  KiteAppearanceMode? savedAppearance;
+  String? savedLanguage;
+  bool savedSystemLanguage = false;
+  bool? savedMaster;
+  final categoryUpdates = <(NotificationCategory, bool)>[];
+
+  @override
+  Future<KiteSettings> load() async {
+    if (loadError case final error?) throw error;
+    return loaded;
+  }
+
+  @override
+  Future<void> saveAppearance(KiteAppearanceMode appearanceMode) async {
+    if (saveError case final error?) throw error;
+    savedAppearance = appearanceMode;
+  }
+
+  @override
+  Future<void> saveLanguage(String? languageTag) async {
+    if (saveError case final error?) throw error;
+    savedLanguage = languageTag;
+    savedSystemLanguage = languageTag == null;
+  }
+
+  @override
+  Future<void> saveNotificationCategory({
+    required NotificationCategory category,
+    required bool enabled,
+  }) async {
+    if (saveError case final error?) throw error;
+    categoryUpdates.add((category, enabled));
+  }
+
+  @override
+  Future<void> saveNotificationMaster(bool enabled) async {
+    if (saveError case final error?) throw error;
+    savedMaster = enabled;
+  }
+}
+
+void main() {
+  test(
+    'loads general settings while preserving known state on failure',
+    () async {
+      final gateway = _FakeSettingsGateway()
+        ..loaded = const KiteSettings(
+          appearanceMode: KiteAppearanceMode.black,
+          languageTag: 'en-NZ',
+          notifications: NotificationPreferences.defaults(),
+        );
+      final controller = SettingsController(gateway);
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      expect(controller.hasLoaded.value, isTrue);
+      expect(
+        controller.settings.value.appearanceMode,
+        KiteAppearanceMode.black,
+      );
+      expect(controller.settings.value.languageTag, 'en-NZ');
+
+      gateway.loadError = StateError('access_token=secret');
+      await controller.load();
+
+      expect(
+        controller.settings.value.appearanceMode,
+        KiteAppearanceMode.black,
+      );
+      expect(
+        controller.errorMessage.value,
+        'Kite could not load your settings.',
+      );
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+    },
+  );
+
+  test('persists system, light, dark, and black appearance modes', () async {
+    final gateway = _FakeSettingsGateway();
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    for (final mode in KiteAppearanceMode.values) {
+      expect(await controller.setAppearance(mode), isTrue);
+      expect(gateway.savedAppearance, mode);
+      expect(controller.settings.value.appearanceMode, mode);
+    }
+  });
+
+  test('normalizes language tags and supports system language', () async {
+    final gateway = _FakeSettingsGateway();
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.setLanguage(' pt_BR '), isTrue);
+    expect(gateway.savedLanguage, 'pt-BR');
+    expect(controller.settings.value.languageTag, 'pt-BR');
+
+    expect(await controller.setLanguage(null), isTrue);
+    expect(gateway.savedSystemLanguage, isTrue);
+    expect(controller.settings.value.languageTag, isNull);
+
+    expect(await controller.setLanguage('not a locale'), isFalse);
+    expect(controller.errorMessage.value, 'Choose a valid language.');
+  });
+
+  test('master notification setting gates category effective state', () async {
+    final gateway = _FakeSettingsGateway();
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(
+      controller.settings.value.notifications.isEnabled(
+        NotificationCategory.messages,
+      ),
+      isTrue,
+    );
+
+    expect(await controller.setNotificationMaster(false), isTrue);
+    expect(gateway.savedMaster, isFalse);
+    expect(
+      controller.settings.value.notifications.isEnabled(
+        NotificationCategory.messages,
+      ),
+      isFalse,
+    );
+  });
+
+  test('persists message, mention, and call notification categories', () async {
+    final gateway = _FakeSettingsGateway();
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    for (final category in NotificationCategory.values) {
+      expect(await controller.setNotificationCategory(category, false), isTrue);
+      expect(
+        controller.settings.value.notifications.enabledCategories,
+        isNot(contains(category)),
+      );
+    }
+
+    expect(gateway.categoryUpdates, <(NotificationCategory, bool)>[
+      (NotificationCategory.messages, false),
+      (NotificationCategory.mentions, false),
+      (NotificationCategory.calls, false),
+    ]);
+  });
+
+  test(
+    'failed saves leave the previous in-memory settings untouched',
+    () async {
+      final gateway = _FakeSettingsGateway()
+        ..saveError = StateError('recovery_key=secret');
+      final controller = SettingsController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(await controller.setAppearance(KiteAppearanceMode.dark), isFalse);
+      expect(
+        controller.settings.value.appearanceMode,
+        KiteAppearanceMode.system,
+      );
+      expect(
+        controller.errorMessage.value,
+        'Kite could not save your appearance setting.',
+      );
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+    },
+  );
+}
