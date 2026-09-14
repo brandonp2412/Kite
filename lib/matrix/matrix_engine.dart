@@ -27,8 +27,9 @@ final class MatrixSyncCoordinator {
 
   Future<void> stop() async {
     final subscription = _subscription;
+    if (subscription == null) return;
     _subscription = null;
-    await subscription?.cancel();
+    await subscription.cancel();
     await engine.stop();
   }
 }
