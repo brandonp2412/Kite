@@ -6,9 +6,9 @@ Kite's visual target is the current Element X Android `develop` branch while ret
 
 Reference branch: `element-hq/element-x-android` `develop`.
 
-Reference commit audited on 2026-09-15: `8cd3750cde65c8bbfc97cb578d00111b6bf62ee8`.
+Reference commit audited on 2026-09-15: `3d198d8065030820f0ad2ed06fff65d6928112f3`.
 
-The audit re-resolved `refs/heads/develop` immediately before comparison and got the same SHA. The GitHub commits API returned no `develop` commits since `2026-09-14T00:00:00Z`, so there is no post-roadmap upstream feature delta to schedule in this pass.
+The audit re-resolved `refs/heads/develop` immediately before comparison. Since the prior audit SHA (`8cd3750cde65c8bbfc97cb578d00111b6bf62ee8`), upstream advanced by one commit: `3d198d806503` (`Fix flaky test in TimelinePresenterTest`, #7702). The compare touches timeline/controller wiring and tests only, with no screenshot, feature-flag, release, or generally available user-facing feature delta to schedule in this pass. The current home LFS snapshots were fetched again at the new SHA for the rendered comparison below.
 
 Current Element X screenshot tests live under `tests/uitests/src/test/snapshots/images/` and are generated from public Composable previews. Relevant home references for this pass:
 
@@ -38,7 +38,7 @@ Current feature flags were also re-read from `FeatureFlags.kt`. Parity-relevant 
 
 ### Rendered home comparison, 2026-09-15
 
-The current Element X `RoomListContentView_Day_0_en.png` and `HomeTopBar_Day_0_en.png` snapshots were loaded directly from `develop` and visually compared with Kite's generated `home_phone_portrait_light.png`.
+The current Element X `RoomListContentView_Day_0_en.png` and `HomeTopBar_Day_0_en.png` LFS snapshots were loaded directly from `develop` at the audited SHA and visually compared with Kite's generated `home_phone_portrait_light.png`.
 
 - Geometry stability: Kite's deterministic list rows and viewport are stable, with no loading-induced shifts in the captured state.
 - Header hierarchy: Element X has avatar/profile anchoring, a prominent `Chats` title, search/filter actions, filter chips, and a restrained contextual bloom. Kite still has only the title, so this remains a parity gap.
