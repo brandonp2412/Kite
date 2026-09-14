@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
+import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -246,9 +247,8 @@ class _Timeline extends StatelessWidget {
         return ListView.builder(
           key: const Key('message-list'),
           reverse: true,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
           itemCount: messages.length,
-          itemExtent: 80,
           itemBuilder: (context, index) {
             final message = messages[messages.length - 1 - index];
             return _MessageRow(
@@ -274,72 +274,126 @@ class _MessageRow extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final mine = message.mine;
+    final bubbleColor = mine
+        ? colors.primaryContainer
+        : colors.surfaceContainerHighest;
+    final bubbleRadius = BorderRadius.only(
+      topLeft: const Radius.circular(KiteRadii.md),
+      topRight: const Radius.circular(KiteRadii.md),
+      bottomLeft: Radius.circular(mine ? KiteRadii.md : KiteRadii.sm),
+      bottomRight: Radius.circular(mine ? KiteRadii.sm : KiteRadii.md),
+    );
 
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+    final bubble = DecoratedBox(
+      key: Key('message-bubble-${message.id}'),
+      decoration: BoxDecoration(color: bubbleColor, borderRadius: bubbleRadius),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: mine
-                  ? colors.primaryContainer
-                  : colors.surfaceContainerHighest,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(mine ? 18 : 6),
-                bottomRight: Radius.circular(mine ? 6 : 18),
-              ),
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.sm,
+          KiteSpacing.xs,
+          KiteSpacing.xs,
+          KiteSpacing.xs,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              message.body,
+              key: Key('message-body-${message.id}'),
+              style: KiteTypography.body.copyWith(color: colors.onSurface),
             ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(13, 8, 11, 7),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  if (!mine)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 1),
-                      child: Text(
-                        message.sender,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  Text(
-                    message.body,
-                    key: Key('message-body-${message.id}'),
-                    maxLines: mine ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.2),
+            const SizedBox(height: KiteSpacing.xxs),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  message.timeLabel,
+                  style: KiteTypography.metadata.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 11,
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        message.timeLabel,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
-                      ),
-                      if (mine) ...<Widget>[
-                        const SizedBox(width: 5),
-                        _MessageSendState(roomId: roomId, message: message),
-                      ],
-                    ],
-                  ),
+                ),
+                if (mine) ...<Widget>[
+                  const SizedBox(width: KiteSpacing.xxs),
+                  _MessageSendState(roomId: roomId, message: message),
                 ],
-              ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Padding(
+      key: Key('message-row-${message.id}'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: KiteSpacing.md,
+        vertical: KiteSpacing.xxs,
+      ),
+      child: Row(
+        mainAxisAlignment: mine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: <Widget>[
+          if (!mine) ...<Widget>[
+            _MessageAvatar(sender: message.sender),
+            const SizedBox(width: KiteSpacing.xs),
+          ],
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: mine
+                  ? bubble
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: KiteSpacing.xxs,
+                            bottom: KiteSpacing.xxs,
+                          ),
+                          child: Text(
+                            message.sender,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: KiteTypography.metadata.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        bubble,
+                      ],
+                    ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageAvatar extends StatelessWidget {
+  const _MessageAvatar({required this.sender});
+
+  final String sender;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      image: true,
+      label: '$sender avatar',
+      child: CircleAvatar(
+        radius: 16,
+        backgroundColor: colors.secondaryContainer,
+        foregroundColor: colors.onSecondaryContainer,
+        child: Text(
+          sender.characters.first.toUpperCase(),
+          style: KiteTypography.metadata.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -360,44 +414,38 @@ class _MessageSendState extends StatelessWidget {
         final colors = Theme.of(context).colorScheme;
         return SizedBox(
           key: Key('send-state-${message.id}'),
-          height: 18,
+          width: 44,
+          height: 24,
           child: switch (state) {
-            TimelineSendState.sending => Icon(
-              Icons.schedule_rounded,
-              size: 13,
-              color: colors.onSurfaceVariant,
-              semanticLabel: 'Sending',
+            TimelineSendState.sending => Center(
+              child: Icon(
+                Icons.schedule_rounded,
+                size: 14,
+                color: colors.onSurfaceVariant,
+                semanticLabel: 'Sending',
+              ),
             ),
-            TimelineSendState.sent => Icon(
-              Icons.done_rounded,
-              size: 14,
-              color: colors.onSurfaceVariant,
-              semanticLabel: 'Sent',
+            TimelineSendState.sent => Center(
+              child: Icon(
+                Icons.done_rounded,
+                size: 15,
+                color: colors.onSurfaceVariant,
+                semanticLabel: 'Sent',
+              ),
             ),
-            TimelineSendState.failed => InkWell(
-              key: Key('retry-${message.id}'),
-              borderRadius: BorderRadius.circular(9),
-              onTap: () => timelineController.retry(roomId, message),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      Icons.error_outline_rounded,
-                      size: 13,
-                      color: colors.error,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      'Retry',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.error,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+            TimelineSendState.failed => Tooltip(
+              message: 'Retry sending',
+              child: InkWell(
+                key: Key('retry-${message.id}'),
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+                onTap: () => timelineController.retry(roomId, message),
+                child: Center(
+                  child: Icon(
+                    Icons.error_rounded,
+                    size: 16,
+                    color: colors.error,
+                    semanticLabel: 'Message failed. Retry sending',
+                  ),
                 ),
               ),
             ),
@@ -437,62 +485,72 @@ class _ComposerState extends State<_Composer> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return SizedBox(
-      key: const Key('composer'),
-      height: 76,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
-        child: Row(
-          children: <Widget>[
-            IconButton(
-              key: const Key('composer-attach'),
-              tooltip: 'Add attachment',
-              onPressed: () {},
-              icon: const Icon(Icons.add_circle_outline_rounded),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: TextField(
-                key: const Key('composer-field'),
-                controller: _controller,
-                focusNode: _focusNode,
-                minLines: 1,
-                maxLines: 2,
-                textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  hintText: 'Message',
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+    return ColoredBox(
+      color: context.kiteColors.canvas,
+      child: SizedBox(
+        key: const Key('composer'),
+        height: 76,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.sm,
+            KiteSpacing.xs,
+            KiteSpacing.md,
+            KiteSpacing.xs,
+          ),
+          child: Row(
+            children: <Widget>[
+              IconButton(
+                key: const Key('composer-attach'),
+                tooltip: 'Add attachment',
+                onPressed: () {},
+                icon: const Icon(Icons.add_circle_outline_rounded),
+              ),
+              const SizedBox(width: KiteSpacing.xxs),
+              Expanded(
+                child: TextField(
+                  key: const Key('composer-field'),
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  minLines: 1,
+                  maxLines: 2,
+                  textInputAction: TextInputAction.newline,
+                  style: KiteTypography.body,
+                  decoration: const InputDecoration(
+                    hintText: 'Message…',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                      vertical: KiteSpacing.sm,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _controller,
-              builder: (context, value, child) {
-                final enabled = value.text.trim().isNotEmpty;
-                return IconButton.filled(
-                  key: const Key('composer-send'),
-                  tooltip: 'Send message',
-                  onPressed: enabled ? _send : null,
-                  style: IconButton.styleFrom(
-                    backgroundColor: enabled
-                        ? colors.primary
-                        : colors.surfaceContainerHighest,
-                    foregroundColor: enabled
-                        ? colors.onPrimary
-                        : colors.onSurfaceVariant,
-                    disabledBackgroundColor: colors.surfaceContainerHighest,
-                    disabledForegroundColor: colors.onSurfaceVariant,
-                  ),
-                  icon: const Icon(Icons.arrow_upward_rounded),
-                );
-              },
-            ),
-          ],
+              const SizedBox(width: KiteSpacing.xs),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _controller,
+                builder: (context, value, child) {
+                  final enabled = value.text.trim().isNotEmpty;
+                  return IconButton.filled(
+                    key: const Key('composer-send'),
+                    tooltip: 'Send message',
+                    onPressed: enabled ? _send : null,
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size.square(44),
+                      backgroundColor: enabled
+                          ? colors.primary
+                          : colors.surfaceContainerHighest,
+                      foregroundColor: enabled
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant,
+                      disabledBackgroundColor: colors.surfaceContainerHighest,
+                      disabledForegroundColor: colors.onSurfaceVariant,
+                    ),
+                    icon: const Icon(Icons.arrow_upward_rounded),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
