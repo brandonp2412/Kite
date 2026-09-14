@@ -84,9 +84,9 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Simplified Sliding Sync / current Matrix SDK sync path with fast initial room-list population.
 - [ ] Incremental sync without full-screen refreshes.
 - [ ] Encrypted persistent SDK stores.
-- [ ] Local presentation cache designed for immediate room-list/timeline rendering.
+- [x] Local presentation cache designed for immediate room-list/timeline rendering.
 - [ ] Back-pagination and automatic pagination near timeline edges.
-- [ ] Correct deduplication and ordering of sync events.
+- [x] Correct deduplication and ordering of sync events.
 - [ ] Offline send queue and deterministic retry states.
 - [ ] Connectivity loss/recovery without room-list or timeline jumps.
 - [ ] Background/foreground lifecycle handling.
