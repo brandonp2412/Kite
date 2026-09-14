@@ -164,6 +164,142 @@ void main() {
     expect(fixture.coordinator.session.value?.roomId, '!first:example.org');
   });
 
+  test(
+    'microphone mute delegates only real state changes to MatrixRTC',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+
+      await fixture.coordinator.setMicrophoneMuted(true);
+      await fixture.coordinator.setMicrophoneMuted(true);
+      await fixture.coordinator.setMicrophoneMuted(false);
+
+      expect(fixture.coordinator.isMicrophoneMuted.value, isFalse);
+      expect(
+        fixture.gateway.invocations
+            .where(
+              (entry) =>
+                  entry.type == MatrixRtcInvocationType.setMicrophoneMuted,
+            )
+            .map((entry) => entry.enabled),
+        <bool?>[true, false],
+      );
+    },
+  );
+
+  test('failed microphone mute preserves the last confirmed state', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+    fixture.gateway.failNextWith = StateError('media failed');
+
+    await expectLater(
+      fixture.coordinator.setMicrophoneMuted(true),
+      throwsStateError,
+    );
+
+    expect(fixture.coordinator.isMicrophoneMuted.value, isFalse);
+  });
+
+  test(
+    'video controls delegate enable and camera switching to MatrixRTC',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+
+      expect(fixture.coordinator.isCameraEnabled.value, isTrue);
+      expect(fixture.coordinator.cameraFacing.value, KiteCameraFacing.front);
+
+      await fixture.coordinator.setCameraEnabled(false);
+      expect(fixture.coordinator.isCameraEnabled.value, isFalse);
+      await expectLater(fixture.coordinator.switchCamera(), throwsStateError);
+
+      await fixture.coordinator.setCameraEnabled(true);
+      await fixture.coordinator.switchCamera();
+
+      expect(fixture.coordinator.isCameraEnabled.value, isTrue);
+      expect(fixture.coordinator.cameraFacing.value, KiteCameraFacing.rear);
+      expect(
+        fixture.gateway.invocations
+            .where(
+              (entry) =>
+                  entry.type == MatrixRtcInvocationType.setCameraEnabled ||
+                  entry.type == MatrixRtcInvocationType.switchCamera,
+            )
+            .map((entry) => entry.type),
+        <MatrixRtcInvocationType>[
+          MatrixRtcInvocationType.setCameraEnabled,
+          MatrixRtcInvocationType.setCameraEnabled,
+          MatrixRtcInvocationType.switchCamera,
+        ],
+      );
+    },
+  );
+
+  test(
+    'camera controls reject voice calls before touching MatrixRTC',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+      final invocationCount = fixture.gateway.invocations.length;
+
+      await expectLater(
+        fixture.coordinator.setCameraEnabled(true),
+        throwsStateError,
+      );
+      await expectLater(fixture.coordinator.switchCamera(), throwsStateError);
+
+      expect(fixture.gateway.invocations, hasLength(invocationCount));
+    },
+  );
+
+  test(
+    'audio routes refresh and selection preserve platform route identity',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+
+      final routes = await fixture.coordinator.refreshAudioRoutes();
+      expect(routes.map((route) => route.id), <String>['system', 'speaker']);
+      expect(
+        () => routes.add(
+          const KiteAudioRoute(
+            id: 'invalid',
+            label: 'Invalid',
+            kind: KiteAudioRouteKind.other,
+          ),
+        ),
+        throwsUnsupportedError,
+      );
+
+      await fixture.coordinator.selectAudioRoute('speaker');
+      await fixture.coordinator.selectAudioRoute('speaker');
+      expect(fixture.coordinator.selectedAudioRouteId.value, 'speaker');
+      expect(
+        fixture.gateway.invocations
+            .where(
+              (entry) => entry.type == MatrixRtcInvocationType.selectAudioRoute,
+            )
+            .map((entry) => entry.routeId),
+        <String?>['speaker'],
+      );
+
+      await expectLater(
+        fixture.coordinator.selectAudioRoute('missing'),
+        throwsStateError,
+      );
+
+      fixture.gateway.audioRoutes = const <KiteAudioRoute>[
+        KiteAudioRoute(
+          id: 'system',
+          label: 'System default',
+          kind: KiteAudioRouteKind.systemDefault,
+        ),
+      ];
+      await fixture.coordinator.refreshAudioRoutes();
+      expect(fixture.coordinator.selectedAudioRouteId.value, isNull);
+    },
+  );
+
   test('gateway failures restore deterministic idle state and emit safe trace data', () async {
     final fixture = _fixture();
     fixture.gateway.failNextWith = StateError('transport failed');

@@ -11,6 +11,29 @@ enum KiteCallPhase { idle, ringing, connecting, active, ended }
 
 enum KiteCallEndReason { declined, hungUp }
 
+enum KiteCameraFacing { front, rear }
+
+enum KiteAudioRouteKind {
+  systemDefault,
+  earpiece,
+  speaker,
+  bluetooth,
+  wired,
+  other,
+}
+
+final class KiteAudioRoute {
+  const KiteAudioRoute({
+    required this.id,
+    required this.label,
+    required this.kind,
+  });
+
+  final String id;
+  final String label;
+  final KiteAudioRouteKind kind;
+}
+
 final class MatrixRtcSessionDescriptor {
   const MatrixRtcSessionDescriptor({
     required this.callId,
@@ -87,6 +110,25 @@ abstract interface class MatrixRtcGateway {
   Future<void> declineCall(String callId);
 
   Future<void> hangUp(String callId);
+
+  Future<void> setMicrophoneMuted({
+    required String callId,
+    required bool muted,
+  });
+
+  Future<void> setCameraEnabled({
+    required String callId,
+    required bool enabled,
+  });
+
+  Future<KiteCameraFacing> switchCamera(String callId);
+
+  Future<List<KiteAudioRoute>> availableAudioRoutes(String callId);
+
+  Future<void> selectAudioRoute({
+    required String callId,
+    required String routeId,
+  });
 }
 
 final class KiteCallCoordinator {
@@ -106,6 +148,15 @@ final class KiteCallCoordinator {
   final Signal<KiteCallPhase> phase = signal<KiteCallPhase>(KiteCallPhase.idle);
   final Signal<bool> isVideo = signal<bool>(false);
   final Signal<bool> isGroupCall = signal<bool>(false);
+  final Signal<bool> isMicrophoneMuted = signal<bool>(false);
+  final Signal<bool> isCameraEnabled = signal<bool>(false);
+  final Signal<KiteCameraFacing> cameraFacing = signal<KiteCameraFacing>(
+    KiteCameraFacing.front,
+  );
+  final Signal<List<KiteAudioRoute>> audioRoutes = signal<List<KiteAudioRoute>>(
+    const <KiteAudioRoute>[],
+  );
+  final Signal<String?> selectedAudioRouteId = signal<String?>(null);
 
   Future<void> startDirectVoiceCall(String roomId) {
     return _startOutgoing(
@@ -164,6 +215,7 @@ final class KiteCallCoordinator {
 
   void registerIncomingCall(MatrixRtcSessionDescriptor descriptor) {
     _ensureAvailable();
+    _resetCallControls();
     session.value = KiteCallSession.fromDescriptor(
       descriptor,
       direction: KiteCallDirection.incoming,
@@ -212,6 +264,56 @@ final class KiteCallCoordinator {
     }
   }
 
+  Future<void> setMicrophoneMuted(bool muted) async {
+    final current = _requireActiveSession();
+    if (isMicrophoneMuted.value == muted) return;
+
+    await _gateway.setMicrophoneMuted(callId: current.callId, muted: muted);
+    isMicrophoneMuted.value = muted;
+  }
+
+  Future<void> setCameraEnabled(bool enabled) async {
+    final current = _requireActiveVideoSession();
+    if (isCameraEnabled.value == enabled) return;
+
+    await _gateway.setCameraEnabled(callId: current.callId, enabled: enabled);
+    isCameraEnabled.value = enabled;
+  }
+
+  Future<void> switchCamera() async {
+    final current = _requireActiveVideoSession();
+    if (!isCameraEnabled.value) {
+      throw StateError('Camera must be enabled before switching cameras.');
+    }
+
+    cameraFacing.value = await _gateway.switchCamera(current.callId);
+  }
+
+  Future<List<KiteAudioRoute>> refreshAudioRoutes() async {
+    final current = _requireActiveSession();
+    final routes = List<KiteAudioRoute>.unmodifiable(
+      await _gateway.availableAudioRoutes(current.callId),
+    );
+    audioRoutes.value = routes;
+    if (selectedAudioRouteId.value != null &&
+        !routes.any((route) => route.id == selectedAudioRouteId.value)) {
+      selectedAudioRouteId.value = null;
+    }
+    return routes;
+  }
+
+  Future<void> selectAudioRoute(String routeId) async {
+    final current = _requireActiveSession();
+    final knownRoute = audioRoutes.value.any((route) => route.id == routeId);
+    if (!knownRoute) {
+      throw StateError('Audio route is not available for this call.');
+    }
+    if (selectedAudioRouteId.value == routeId) return;
+
+    await _gateway.selectAudioRoute(callId: current.callId, routeId: routeId);
+    selectedAudioRouteId.value = routeId;
+  }
+
   Future<void> hangUp() async {
     final current = session.value;
     if (current == null ||
@@ -244,6 +346,7 @@ final class KiteCallCoordinator {
     session.value = null;
     isVideo.value = false;
     isGroupCall.value = false;
+    _resetCallControls();
     phase.value = KiteCallPhase.idle;
   }
 
@@ -282,6 +385,7 @@ final class KiteCallCoordinator {
     session.value = null;
     isVideo.value = kind == KiteCallKind.video;
     isGroupCall.value = scope == KiteCallScope.group;
+    _resetCallControls();
     phase.value = KiteCallPhase.connecting;
   }
 
@@ -295,7 +399,24 @@ final class KiteCallCoordinator {
     );
     isVideo.value = descriptor.kind == KiteCallKind.video;
     isGroupCall.value = descriptor.scope == KiteCallScope.group;
+    isCameraEnabled.value = descriptor.kind == KiteCallKind.video;
     phase.value = KiteCallPhase.active;
+  }
+
+  KiteCallSession _requireActiveSession() {
+    final current = session.value;
+    if (current == null || phase.value != KiteCallPhase.active) {
+      throw StateError('No active call is available.');
+    }
+    return current;
+  }
+
+  KiteCallSession _requireActiveVideoSession() {
+    final current = _requireActiveSession();
+    if (current.kind != KiteCallKind.video) {
+      throw StateError('Camera controls require an active video call.');
+    }
+    return current;
   }
 
   KiteCallSession _requireIncomingRingingSession() {
@@ -319,6 +440,15 @@ final class KiteCallCoordinator {
     session.value = null;
     isVideo.value = false;
     isGroupCall.value = false;
+    _resetCallControls();
     phase.value = KiteCallPhase.idle;
+  }
+
+  void _resetCallControls() {
+    isMicrophoneMuted.value = false;
+    isCameraEnabled.value = false;
+    cameraFacing.value = KiteCameraFacing.front;
+    audioRoutes.value = const <KiteAudioRoute>[];
+    selectedAudioRouteId.value = null;
   }
 }
