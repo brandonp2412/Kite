@@ -61,6 +61,8 @@ See [ROADMAP.md](ROADMAP.md).
 
 Kite should look deliberately designed next to Element X, not like a generic Flutter approximation. The roadmap treats design tokens, golden tests, responsive layouts, typography hierarchy, avatar/media quality, motion, light/dark/black themes, and side-by-side visual review as first-class product work.
 
+See [VISUAL_PARITY.md](VISUAL_PARITY.md) for the pinned upstream reference commit, rendered comparison checklist, and current parity matrix.
+
 The kite mark in this repository is original Kite branding and is not derived from Element trademarks or assets.
 
 ## Development
