@@ -70,10 +70,10 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Android Macrobenchmark module compiles.
 - [x] Pinned `PerformanceContract` and independent pin test.
 - [x] Repository quality-gate script.
-- [ ] Establish golden-test infrastructure and approved first baseline images.
-- [ ] Add deterministic clocks, IDs, image fixtures, permission adapters, connectivity adapters, and fake Matrix event streams for all integration tests.
-- [ ] Add structured logging and trace IDs for sync, timeline, media, encryption, notification, and call flows.
-- [ ] Define crash/error reporting abstraction with no secrets or decrypted message contents in diagnostics.
+- [x] Establish golden-test infrastructure and approved first baseline images.
+- [x] Add deterministic clocks, IDs, image fixtures, permission adapters, connectivity adapters, and fake Matrix event streams for all integration tests.
+- [x] Add structured logging and trace IDs for sync, timeline, media, encryption, notification, and call flows.
+- [x] Define crash/error reporting abstraction with no secrets or decrypted message contents in diagnostics.
 
 **Exit:** the app cannot accidentally weaken its performance contract, every test fixture is reproducible, and visual diffs can be reviewed mechanically.
 
