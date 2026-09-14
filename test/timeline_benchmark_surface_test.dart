@@ -29,6 +29,35 @@ void main() {
     expect(find.byKey(const Key('benchmark-typing')), findsOneWidget);
   });
 
+  testWidgets('timeline benchmark scrolls toward older events first', (
+    tester,
+  ) async {
+    final controller = TimelineBenchmarkController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(home: TimelineBenchmarkSurface(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(
+        of: find.byKey(const Key('benchmark-message-list')),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    expect(scrollable.position.pixels, 0);
+
+    await tester.fling(
+      find.byKey(const Key('benchmark-message-list')),
+      const Offset(0, 1400),
+      5200,
+    );
+    await tester.pumpAndSettle();
+
+    expect(scrollable.position.pixels, greaterThan(0));
+  });
+
   testWidgets('timeline benchmark mutations are deterministic', (tester) async {
     final controller = TimelineBenchmarkController();
     addTearDown(controller.dispose);

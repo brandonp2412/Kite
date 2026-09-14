@@ -533,11 +533,11 @@ void main() {
       binding: binding,
       action: () async {
         final list = find.byKey(const Key('benchmark-message-list'));
-        await tester.fling(list, const Offset(0, -1400), 5200);
-        await tester.pumpAndSettle();
-        await tester.fling(list, const Offset(0, -1400), 5200);
+        await tester.fling(list, const Offset(0, 1400), 5200);
         await tester.pumpAndSettle();
         await tester.fling(list, const Offset(0, 1400), 5200);
+        await tester.pumpAndSettle();
+        await tester.fling(list, const Offset(0, -1400), 5200);
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
