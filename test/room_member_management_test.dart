@@ -218,5 +218,112 @@ void main() {
       );
       expect(mutations.kicks, isEmpty);
     });
+
+    test(
+      'ban checks SDK authorization and preserves a trimmed reason',
+      () async {
+        final authorization = FakeRoomMemberAuthorizationPort();
+        final mutations = FakeRoomMemberMutationPort();
+        final subject = coordinator(
+          authorization: authorization,
+          mutations: mutations,
+        );
+
+        await subject.ban(
+          roomId: roomId,
+          userId: '@abusive:example.org',
+          reason: '  repeated abuse  ',
+        );
+
+        final request = authorization.requests.single;
+        expect(request.action, RoomMemberAction.ban);
+        expect(request.targetUserId, '@abusive:example.org');
+        expect(
+          mutations.bans,
+          <({String roomId, String userId, String? reason})>[
+            (
+              roomId: roomId,
+              userId: '@abusive:example.org',
+              reason: 'repeated abuse',
+            ),
+          ],
+        );
+      },
+    );
+
+    test('denied ban and unban never reach mutation ports', () async {
+      final authorization = FakeRoomMemberAuthorizationPort();
+      authorization.decisions[RoomMemberAction.ban] =
+          const RoomMemberActionAuthorization.denied('Ban not permitted.');
+      authorization.decisions[RoomMemberAction.unban] =
+          const RoomMemberActionAuthorization.denied('Unban not permitted.');
+      final mutations = FakeRoomMemberMutationPort();
+      final subject = coordinator(
+        authorization: authorization,
+        mutations: mutations,
+      );
+
+      await expectLater(
+        subject.ban(roomId: roomId, userId: '@member:example.org'),
+        throwsA(isA<RoomMemberActionDenied>()),
+      );
+      await expectLater(
+        subject.unban(roomId: roomId, userId: '@member:example.org'),
+        throwsA(isA<RoomMemberActionDenied>()),
+      );
+
+      expect(mutations.bans, isEmpty);
+      expect(mutations.unbans, isEmpty);
+    });
+
+    test('authorised unban delegates exact room and user identity', () async {
+      final mutations = FakeRoomMemberMutationPort();
+      final subject = coordinator(mutations: mutations);
+
+      await subject.unban(roomId: roomId, userId: '@former:example.org');
+
+      expect(mutations.unbans, <({String roomId, String userId})>[
+        (roomId: roomId, userId: '@former:example.org'),
+      ]);
+    });
+
+    test(
+      'user and room reports preserve target while normalising reason',
+      () async {
+        final mutations = FakeRoomMemberMutationPort();
+        final subject = coordinator(mutations: mutations);
+
+        await subject.reportUser(
+          roomId: roomId,
+          userId: '@spam:example.org',
+          reason: '  spam  ',
+        );
+        await subject.reportRoom(roomId: roomId, reason: '   ');
+
+        expect(
+          mutations.userReports,
+          <({String roomId, String userId, String? reason})>[
+            (roomId: roomId, userId: '@spam:example.org', reason: 'spam'),
+          ],
+        );
+        expect(mutations.roomReports, <({String roomId, String? reason})>[
+          (roomId: roomId, reason: null),
+        ]);
+      },
+    );
+
+    test(
+      'leave and forget remain explicit SDK-owned lifecycle mutations',
+      () async {
+        final mutations = FakeRoomMemberMutationPort();
+        final subject = coordinator(mutations: mutations);
+
+        await subject.leave(roomId: roomId);
+        await subject.forget(roomId: roomId);
+
+        expect(mutations.leaves, <String>[roomId]);
+        expect(mutations.forgottenRooms, <String>[roomId]);
+      },
+    );
   });
 }

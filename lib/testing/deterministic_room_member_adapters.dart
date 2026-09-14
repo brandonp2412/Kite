@@ -97,6 +97,16 @@ final class FakeRoomMemberMutationPort implements RoomMemberMutationPort {
   powerLevelChanges = <({String roomId, String userId, int powerLevel})>[];
   final List<({String roomId, String userId})> kicks =
       <({String roomId, String userId})>[];
+  final List<({String roomId, String userId, String? reason})> bans =
+      <({String roomId, String userId, String? reason})>[];
+  final List<({String roomId, String userId})> unbans =
+      <({String roomId, String userId})>[];
+  final List<({String roomId, String userId, String? reason})> userReports =
+      <({String roomId, String userId, String? reason})>[];
+  final List<({String roomId, String? reason})> roomReports =
+      <({String roomId, String? reason})>[];
+  final List<String> leaves = <String>[];
+  final List<String> forgottenRooms = <String>[];
 
   @override
   Future<void> invite({required String roomId, required String userId}) async {
@@ -106,6 +116,44 @@ final class FakeRoomMemberMutationPort implements RoomMemberMutationPort {
   @override
   Future<void> kick({required String roomId, required String userId}) async {
     kicks.add((roomId: roomId, userId: userId));
+  }
+
+  @override
+  Future<void> ban({
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) async {
+    bans.add((roomId: roomId, userId: userId, reason: reason));
+  }
+
+  @override
+  Future<void> unban({required String roomId, required String userId}) async {
+    unbans.add((roomId: roomId, userId: userId));
+  }
+
+  @override
+  Future<void> reportUser({
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) async {
+    userReports.add((roomId: roomId, userId: userId, reason: reason));
+  }
+
+  @override
+  Future<void> reportRoom({required String roomId, String? reason}) async {
+    roomReports.add((roomId: roomId, reason: reason));
+  }
+
+  @override
+  Future<void> leave({required String roomId}) async {
+    leaves.add(roomId);
+  }
+
+  @override
+  Future<void> forget({required String roomId}) async {
+    forgottenRooms.add(roomId);
   }
 
   @override

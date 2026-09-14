@@ -2,7 +2,7 @@ import 'dart:collection';
 
 enum RoomMembership { joined, invited, knocked, left, banned }
 
-enum RoomMemberAction { invite, changePowerLevel, kick }
+enum RoomMemberAction { invite, changePowerLevel, kick, ban, unban }
 
 final class RoomMember {
   const RoomMember({
@@ -80,6 +80,26 @@ abstract interface class RoomMemberMutationPort {
   });
 
   Future<void> kick({required String roomId, required String userId});
+
+  Future<void> ban({
+    required String roomId,
+    required String userId,
+    String? reason,
+  });
+
+  Future<void> unban({required String roomId, required String userId});
+
+  Future<void> reportUser({
+    required String roomId,
+    required String userId,
+    String? reason,
+  });
+
+  Future<void> reportRoom({required String roomId, String? reason});
+
+  Future<void> leave({required String roomId});
+
+  Future<void> forget({required String roomId});
 }
 
 final class RoomMemberManagementCoordinator {
@@ -155,6 +175,56 @@ final class RoomMemberManagementCoordinator {
       targetUserId: userId,
     );
     await _mutations.kick(roomId: roomId, userId: userId);
+  }
+
+  Future<void> ban({
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) async {
+    await _requireAuthorization(
+      roomId: roomId,
+      action: RoomMemberAction.ban,
+      targetUserId: userId,
+    );
+    await _mutations.ban(
+      roomId: roomId,
+      userId: userId,
+      reason: _trimOptional(reason),
+    );
+  }
+
+  Future<void> unban({required String roomId, required String userId}) async {
+    await _requireAuthorization(
+      roomId: roomId,
+      action: RoomMemberAction.unban,
+      targetUserId: userId,
+    );
+    await _mutations.unban(roomId: roomId, userId: userId);
+  }
+
+  Future<void> reportUser({
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) => _mutations.reportUser(
+    roomId: roomId,
+    userId: userId,
+    reason: _trimOptional(reason),
+  );
+
+  Future<void> reportRoom({required String roomId, String? reason}) =>
+      _mutations.reportRoom(roomId: roomId, reason: _trimOptional(reason));
+
+  Future<void> leave({required String roomId}) =>
+      _mutations.leave(roomId: roomId);
+
+  Future<void> forget({required String roomId}) =>
+      _mutations.forget(roomId: roomId);
+
+  String? _trimOptional(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   Future<void> _requireAuthorization({
