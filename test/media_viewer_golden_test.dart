@@ -21,7 +21,11 @@ void main() {
         theme: KiteTheme.light,
         darkTheme: KiteTheme.dark,
         themeMode: themeMode,
-        home: MediaViewer(items: fixture.items),
+        home: MediaViewer(
+          items: fixture.items,
+          onSave: (_) async {},
+          onShare: (_) async {},
+        ),
       ),
     );
     await tester.pump();

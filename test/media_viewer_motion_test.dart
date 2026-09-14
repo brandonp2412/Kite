@@ -52,6 +52,57 @@ void main() {
     }
   });
 
+  testWidgets('flick-to-dismiss reset is stable at 120 Hz', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final fixture = MediaViewerFixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.dark,
+        home: MediaViewer(items: fixture.items),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final pageView = find.byKey(const Key('media-page-view'));
+    final topControls = find.byKey(const Key('media-top-controls'));
+    final initialPageView = _rectOf(tester, pageView);
+    final gesture = await tester.startGesture(tester.getCenter(pageView));
+    await gesture.moveBy(const Offset(0, 48));
+    await tester.pump(PerformanceContract.motionFrame);
+    await gesture.moveBy(const Offset(0, 48));
+    await tester.pump(PerformanceContract.motionFrame);
+
+    final draggedPageView = _rectOf(tester, pageView);
+    expect(draggedPageView.size, initialPageView.size);
+    final draggedDistance = draggedPageView.top - initialPageView.top;
+    expect(draggedDistance, greaterThan(0));
+    expect(tester.widget<AnimatedOpacity>(topControls).opacity, 0);
+
+    await gesture.up();
+    var previousDistance = draggedDistance;
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      final frameRect = _rectOf(tester, pageView);
+      expect(frameRect.size, initialPageView.size);
+      final distance = (frameRect.top - initialPageView.top).abs();
+      expect(distance, lessThanOrEqualTo(previousDistance + 0.01));
+      previousDistance = distance;
+      expect(tester.takeException(), isNull);
+    }
+
+    await tester.pumpAndSettle();
+    expect(_rectOf(tester, pageView), initialPageView);
+  });
+
   testWidgets('adjacent-media swipe keeps fixed chrome geometry', (
     tester,
   ) async {

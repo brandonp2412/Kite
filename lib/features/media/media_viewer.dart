@@ -4,6 +4,7 @@ import 'package:signals/signals_flutter.dart';
 
 typedef MediaVisualBuilder = Widget Function(BuildContext context);
 typedef MediaFullResolutionLoader = Future<MediaVisualBuilder> Function();
+typedef MediaViewerActionHandler = Future<void> Function(MediaViewerItem item);
 
 @immutable
 class MediaViewerItem {
@@ -29,6 +30,8 @@ class MediaViewerRoute extends PageRouteBuilder<void> {
     required List<MediaViewerItem> items,
     int initialIndex = 0,
     ValueChanged<int>? onIndexChanged,
+    MediaViewerActionHandler? onSave,
+    MediaViewerActionHandler? onShare,
   }) : super(
          opaque: true,
          barrierDismissible: false,
@@ -38,6 +41,8 @@ class MediaViewerRoute extends PageRouteBuilder<void> {
            items: items,
            initialIndex: initialIndex,
            onIndexChanged: onIndexChanged,
+           onSave: onSave,
+           onShare: onShare,
          ),
          transitionsBuilder: (context, animation, secondaryAnimation, child) {
            final reducedMotion = KiteMotion.prefersReducedMotion(context);
@@ -63,12 +68,16 @@ class MediaViewer extends SignalStatefulWidget {
     required this.items,
     this.initialIndex = 0,
     this.onIndexChanged,
+    this.onSave,
+    this.onShare,
   }) : assert(items.length > 0),
        assert(initialIndex >= 0 && initialIndex < items.length);
 
   final List<MediaViewerItem> items;
   final int initialIndex;
   final ValueChanged<int>? onIndexChanged;
+  final MediaViewerActionHandler? onSave;
+  final MediaViewerActionHandler? onShare;
 
   @override
   State<MediaViewer> createState() => _MediaViewerState();
@@ -82,10 +91,14 @@ class _ResolvedMedia {
 }
 
 class _MediaViewerState extends State<MediaViewer> {
+  static const double _dismissThreshold = 112;
+
   late final PageController _pageController;
   late final Signal<int> _currentIndex;
   final Signal<_ResolvedMedia?> _resolvedMedia = signal(null);
   final Signal<bool> _controlsVisible = signal(true);
+  final Signal<double> _dismissOffset = signal(0);
+  final Signal<bool> _isDismissDragging = signal(false);
   int _loadGeneration = 0;
 
   @override
@@ -125,7 +138,33 @@ class _MediaViewerState extends State<MediaViewer> {
   }
 
   void _toggleControls() {
+    if (_isDismissDragging.peek()) return;
     _controlsVisible.value = !_controlsVisible.peek();
+  }
+
+  void _onVerticalDragStart(DragStartDetails details) {
+    _isDismissDragging.value = true;
+    _controlsVisible.value = false;
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details) {
+    final nextOffset = _dismissOffset.peek() + details.delta.dy;
+    _dismissOffset.value = nextOffset.clamp(-240.0, 240.0);
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    _isDismissDragging.value = false;
+    final offset = _dismissOffset.peek();
+    final velocity = details.primaryVelocity ?? 0;
+    final shouldDismiss =
+        offset.abs() >= _dismissThreshold || velocity.abs() >= 850;
+    if (shouldDismiss) {
+      _dismissOffset.value = offset.isNegative ? -320 : 320;
+      _dismiss();
+      return;
+    }
+    _dismissOffset.value = 0;
+    _controlsVisible.value = true;
   }
 
   void _dismiss() {
@@ -145,23 +184,42 @@ class _MediaViewerState extends State<MediaViewer> {
             key: const Key('media-gesture-surface'),
             behavior: HitTestBehavior.opaque,
             onTap: _toggleControls,
-            child: PageView.builder(
-              key: const Key('media-page-view'),
-              controller: _pageController,
-              onPageChanged: _onPageChanged,
-              itemCount: widget.items.length,
-              itemBuilder: (context, index) => _MediaPage(
-                item: widget.items[index],
-                index: index,
-                resolvedMedia: _resolvedMedia,
-              ),
+            onVerticalDragStart: _onVerticalDragStart,
+            onVerticalDragUpdate: _onVerticalDragUpdate,
+            onVerticalDragEnd: _onVerticalDragEnd,
+            child: SignalBuilder(
+              builder: (context) {
+                final offset = _dismissOffset.value;
+                final isDragging = _isDismissDragging.value;
+                return AnimatedSlide(
+                  key: const Key('media-dismiss-slide'),
+                  offset: Offset(0, offset / MediaQuery.sizeOf(context).height),
+                  duration: isDragging
+                      ? Duration.zero
+                      : KiteMotion.resolve(context, KiteMotion.standard),
+                  curve: KiteMotion.standardCurve,
+                  child: PageView.builder(
+                    key: const Key('media-page-view'),
+                    controller: _pageController,
+                    onPageChanged: _onPageChanged,
+                    itemCount: widget.items.length,
+                    itemBuilder: (context, index) => _MediaPage(
+                      item: widget.items[index],
+                      index: index,
+                      resolvedMedia: _resolvedMedia,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           _MediaTopControls(
             currentIndex: _currentIndex,
             visible: _controlsVisible,
-            itemCount: widget.items.length,
+            items: widget.items,
             onDismiss: _dismiss,
+            onSave: widget.onSave,
+            onShare: widget.onShare,
           ),
           _MediaCaptionOverlay(
             currentIndex: _currentIndex,
@@ -230,14 +288,18 @@ class _MediaTopControls extends StatelessWidget {
   const _MediaTopControls({
     required this.currentIndex,
     required this.visible,
-    required this.itemCount,
+    required this.items,
     required this.onDismiss,
+    required this.onSave,
+    required this.onShare,
   });
 
   final ReadonlySignal<int> currentIndex;
   final ReadonlySignal<bool> visible;
-  final int itemCount;
+  final List<MediaViewerItem> items;
   final VoidCallback onDismiss;
+  final MediaViewerActionHandler? onSave;
+  final MediaViewerActionHandler? onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -245,6 +307,7 @@ class _MediaTopControls extends StatelessWidget {
       builder: (context) {
         final isVisible = visible.value;
         final index = currentIndex.value;
+        final item = items[index];
         return IgnorePointer(
           ignoring: !isVisible,
           child: AnimatedOpacity(
@@ -263,38 +326,67 @@ class _MediaTopControls extends StatelessWidget {
                     KiteSpacing.sm,
                     0,
                   ),
-                  child: Row(
-                    children: <Widget>[
-                      _MediaControlButton(
-                        key: const Key('media-close'),
-                        tooltip: 'Close media viewer',
-                        icon: Icons.close_rounded,
-                        onPressed: onDismiss,
-                      ),
-                      const Spacer(),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.58),
-                          borderRadius: BorderRadius.circular(KiteRadii.pill),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: KiteSpacing.sm,
-                            vertical: KiteSpacing.xs,
+                  child: SizedBox(
+                    height: 48,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: <Widget>[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _MediaControlButton(
+                            key: const Key('media-close'),
+                            tooltip: 'Close media viewer',
+                            icon: Icons.close_rounded,
+                            onPressed: onDismiss,
                           ),
-                          child: Text(
-                            '${index + 1} of $itemCount',
-                            key: const Key('media-counter'),
-                            style: KiteTypography.metadata.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.58),
+                            borderRadius: BorderRadius.circular(KiteRadii.pill),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: KiteSpacing.sm,
+                              vertical: KiteSpacing.xs,
+                            ),
+                            child: Text(
+                              '${index + 1} of ${items.length}',
+                              key: const Key('media-counter'),
+                              style: KiteTypography.metadata.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const Spacer(),
-                      const SizedBox(width: 48, height: 48),
-                    ],
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              if (onSave != null)
+                                _MediaControlButton(
+                                  key: const Key('media-save'),
+                                  tooltip: 'Save media',
+                                  icon: Icons.download_rounded,
+                                  onPressed: () => onSave!(item),
+                                ),
+                              if (onShare != null) ...<Widget>[
+                                if (onSave != null)
+                                  const SizedBox(width: KiteSpacing.xs),
+                                _MediaControlButton(
+                                  key: const Key('media-share'),
+                                  tooltip: 'Share media',
+                                  icon: Icons.share_rounded,
+                                  onPressed: () => onShare!(item),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

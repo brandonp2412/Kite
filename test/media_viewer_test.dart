@@ -5,12 +5,20 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/media/media_viewer.dart';
 
 void main() {
-  Future<MediaViewerFixture> pumpViewer(WidgetTester tester) async {
+  Future<MediaViewerFixture> pumpViewer(
+    WidgetTester tester, {
+    MediaViewerActionHandler? onSave,
+    MediaViewerActionHandler? onShare,
+  }) async {
     final fixture = MediaViewerFixture();
     await tester.pumpWidget(
       MaterialApp(
         theme: KiteTheme.light,
-        home: MediaViewer(items: fixture.items),
+        home: MediaViewer(
+          items: fixture.items,
+          onSave: onSave,
+          onShare: onShare,
+        ),
       ),
     );
     await tester.pump();
@@ -73,6 +81,35 @@ void main() {
       find.byKey(const Key('media-caption')),
     );
     expect(secondCaption.text.toPlainText(), contains('Weekend'));
+  });
+
+  testWidgets('save and share actions target the currently visible media', (
+    tester,
+  ) async {
+    final savedIds = <String>[];
+    final sharedIds = <String>[];
+    await pumpViewer(
+      tester,
+      onSave: (item) async => savedIds.add(item.id),
+      onShare: (item) async => sharedIds.add(item.id),
+    );
+
+    expect(find.byKey(const Key('media-save')), findsOneWidget);
+    expect(find.byKey(const Key('media-share')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('media-save')));
+    await tester.pump();
+    expect(savedIds, <String>['fixture-0']);
+
+    await tester.drag(
+      find.byKey(const Key('media-page-view')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('media-share')));
+    await tester.pump();
+
+    expect(sharedIds, <String>['fixture-1']);
   });
 
   testWidgets('single tap hides chrome without removing media', (tester) async {
