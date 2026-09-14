@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:signals/signals.dart';
 
 final selectedRoomId = signal('kite');
@@ -17,10 +18,12 @@ class KiteApp extends StatelessWidget {
     super.key,
     this.themeMode = ThemeMode.system,
     this.darkThemeVariant = KiteDarkThemeVariant.standard,
+    this.locale,
   });
 
   final ThemeMode themeMode;
   final KiteDarkThemeVariant darkThemeVariant;
+  final Locale? locale;
 
   @override
   Widget build(BuildContext context) {

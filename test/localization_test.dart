@@ -1,0 +1,62 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/app/kite_app.dart';
+import 'package:kite/l10n/generated/app_localizations.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
+
+void main() {
+  testWidgets('Kite exposes translated UI strings and plural rules', (
+    tester,
+  ) async {
+    selectRoom('kite');
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const KiteApp(themeMode: ThemeMode.light, locale: Locale('de')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nachricht'), findsOneWidget);
+    final context = tester.element(find.byKey(const Key('two-pane-home')));
+    final l10n = AppLocalizations.of(context);
+    expect(l10n.roomCount(0), 'Keine Räume');
+    expect(l10n.roomCount(1), '1 Raum');
+    expect(l10n.roomCount(12), '12 Räume');
+  });
+
+  testWidgets('date time and number formatting follow the active locale', (
+    tester,
+  ) async {
+    final values = <String, List<String>>{};
+
+    Future<void> capture(Locale locale) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              final instant = DateTime(2026, 4, 7, 21, 5);
+              values[locale.languageCode] = <String>[
+                KiteLocalFormats.shortDate(context, instant),
+                KiteLocalFormats.shortTime(context, instant),
+                KiteLocalFormats.decimal(context, 1234.5),
+              ];
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await capture(const Locale('en'));
+    await capture(const Locale('de'));
+
+    expect(values['en'], isNot(values['de']));
+    expect(values['en']![2], '1,234.5');
+    expect(values['de']![2], '1.234,5');
+  });
+}

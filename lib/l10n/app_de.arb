@@ -1,0 +1,10 @@
+{
+  "@@locale": "de",
+  "messageHint": "Nachricht",
+  "roomCount": "{count, plural, =0{Keine Räume} =1{1 Raum} other{{count} Räume}}",
+  "@roomCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  }
+}
