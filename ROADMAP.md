@@ -50,9 +50,9 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Consistent sheets, dialogs, menus, snackbars, tooltips, empty states, error states, and destructive confirmations.
 - [ ] Deliberate motion system: room changes, new messages, reactions, sheets, navigation, image viewer, composer expansion, and call transitions use consistent curves and durations.
 - [x] Respect reduced-motion accessibility settings.
-- [ ] Build a Flutter golden-gallery equivalent to Element X's screenshot gallery.
+- [x] Build a Flutter golden-gallery equivalent to Element X's screenshot gallery.
 - [ ] Every reusable component has golden coverage in light/dark and representative edge states.
-- [ ] Every top-level screen has phone portrait, phone landscape, tablet, and desktop-width reference renders where layout differs.
+- [x] Every top-level screen has phone portrait, phone landscape, tablet, and desktop-width reference renders where layout differs.
 - [x] Golden diffs are a merge gate; visual changes require an explicitly approved golden update.
 - [ ] Maintain a manual side-by-side review checklist against current Element X reference screenshots for every major UI milestone.
 

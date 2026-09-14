@@ -8,15 +8,50 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   static const double sidebarWidth = 320;
+  static const double tabletSidebarWidth = 300;
+  static const double phoneBreakpoint = 600;
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final isPhone = size.shortestSide < phoneBreakpoint;
+
+    if (isPhone) {
+      return Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: <Widget>[
+              const _CompactHomeHeader(),
+              Expanded(
+                child: SizedBox.expand(
+                  key: const Key('sidebar'),
+                  child: _RoomList(
+                    onRoomTap: (room) {
+                      selectRoom(room.id);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const _CompactChatScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final adaptiveSidebarWidth = size.width < 1024
+        ? tabletSidebarWidth
+        : sidebarWidth;
     return Scaffold(
       body: Row(
         children: <Widget>[
           SizedBox(
             key: const Key('sidebar'),
-            width: sidebarWidth,
+            width: adaptiveSidebarWidth,
             child: const _RoomList(),
           ),
           const VerticalDivider(width: 1),
@@ -27,8 +62,48 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _CompactHomeHeader extends StatelessWidget {
+  const _CompactHomeHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 72,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Chats',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactChatScreen extends StatelessWidget {
+  const _CompactChatScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: SignalBuilder(
+          builder: (context) =>
+              Text(BenchmarkFixture.room(selectedRoomId.value).name),
+        ),
+      ),
+      body: const _ChatPanel(showHeader: false),
+    );
+  }
+}
+
 class _RoomList extends StatelessWidget {
-  const _RoomList();
+  const _RoomList({this.onRoomTap});
+
+  final ValueChanged<BenchmarkRoom>? onRoomTap;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +130,14 @@ class _RoomList extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              onTap: () => selectRoom(room.id),
+              onTap: () {
+                final handler = onRoomTap;
+                if (handler != null) {
+                  handler(room);
+                } else {
+                  selectRoom(room.id);
+                }
+              },
             );
           },
         );
@@ -65,7 +147,9 @@ class _RoomList extends StatelessWidget {
 }
 
 class _ChatPanel extends StatelessWidget {
-  const _ChatPanel();
+  const _ChatPanel({this.showHeader = true});
+
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -79,22 +163,24 @@ class _ChatPanel extends StatelessWidget {
         return Column(
           key: const Key('chat-panel'),
           children: <Widget>[
-            SizedBox(
-              key: const Key('chat-header'),
-              height: 64,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    room.name,
-                    key: const Key('chat-title'),
-                    style: Theme.of(context).textTheme.titleLarge,
+            if (showHeader) ...<Widget>[
+              SizedBox(
+                key: const Key('chat-header'),
+                height: 64,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      room.name,
+                      key: const Key('chat-title'),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const Divider(height: 1),
+              const Divider(height: 1),
+            ],
             Expanded(
               child: ListView.builder(
                 key: const Key('message-list'),
