@@ -55,6 +55,18 @@ final class MatrixAccountStoreRegistry {
     return configuration;
   }
 
+  bool removeAccount(String accountId) {
+    final normalizedAccountId = accountId.trim();
+    if (normalizedAccountId.isEmpty) {
+      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    }
+
+    final removed = _stores.remove(normalizedAccountId);
+    if (removed == null) return false;
+    _accountByEncryptionKeyId.remove(removed.encryptionKeyId);
+    return true;
+  }
+
   Iterable<MatrixSdkStoreConfiguration> get stores =>
       List<MatrixSdkStoreConfiguration>.unmodifiable(_stores.values);
 }

@@ -82,23 +82,25 @@ abstract final class BenchmarkFixture {
     ],
   );
 
-  static final Map<String, List<BenchmarkMessage>> messages =
-      Map<String, List<BenchmarkMessage>>.unmodifiable(
-        <String, List<BenchmarkMessage>>{
-          for (final room in rooms)
-            room.id: List<BenchmarkMessage>.unmodifiable(
-              List<BenchmarkMessage>.generate(
-                PerformanceContract.fixtureMessagesPerRoom,
-                (index) => BenchmarkMessage(
-                  id: '${room.id}-$index',
-                  sender: index.isEven ? room.name : 'You',
-                  body: 'Deterministic message ${index + 1} in ${room.name}',
-                  mine: index.isOdd,
-                ),
-              ),
-            ),
-        },
+  static final Map<String, List<BenchmarkMessage>> _messagesByRoom =
+      <String, List<BenchmarkMessage>>{};
+
+  static List<BenchmarkMessage> messagesFor(String roomId) {
+    return _messagesByRoom.putIfAbsent(roomId, () {
+      final selectedRoom = room(roomId);
+      return List<BenchmarkMessage>.unmodifiable(
+        List<BenchmarkMessage>.generate(
+          PerformanceContract.fixtureMessagesPerRoom,
+          (index) => BenchmarkMessage(
+            id: '${selectedRoom.id}-$index',
+            sender: index.isEven ? selectedRoom.name : 'You',
+            body: 'Deterministic message ${index + 1} in ${selectedRoom.name}',
+            mine: index.isOdd,
+          ),
+        ),
       );
+    });
+  }
 
   static final List<BenchmarkRoom> largeRoomListRooms =
       List<BenchmarkRoom>.unmodifiable(

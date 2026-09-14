@@ -105,6 +105,27 @@ final class MatrixAccountRuntimeRegistry {
     });
   }
 
+  Future<bool> removeAccount(String accountId) {
+    final normalizedAccountId = accountId.trim();
+    if (normalizedAccountId.isEmpty) {
+      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    }
+    _ensureNotDisposed();
+
+    return _enqueue<bool>(() async {
+      final runtime = _runtimes[normalizedAccountId];
+      if (runtime != null) {
+        await runtime.engine.close();
+        _runtimes.remove(normalizedAccountId);
+      }
+      if (activeAccountId.value == normalizedAccountId) {
+        activeAccountId.value = null;
+      }
+      final removedStore = storeRegistry.removeAccount(normalizedAccountId);
+      return runtime != null || removedStore;
+    });
+  }
+
   Future<void> dispose() {
     if (_disposed) return Future<void>.value();
     _disposed = true;

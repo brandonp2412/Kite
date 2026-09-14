@@ -1,7 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 
 void main() {
+  test('canonical message fixture is deterministic and generated per room', () {
+    final kiteMessages = BenchmarkFixture.messagesFor('kite');
+    final sameKiteMessages = BenchmarkFixture.messagesFor('kite');
+    final aliceMessages = BenchmarkFixture.messagesFor('alice');
+
+    expect(
+      BenchmarkFixture.rooms,
+      hasLength(PerformanceContract.fixtureRoomCount),
+    );
+    expect(kiteMessages, hasLength(PerformanceContract.fixtureMessagesPerRoom));
+    expect(identical(kiteMessages, sameKiteMessages), isTrue);
+    expect(identical(kiteMessages, aliceMessages), isFalse);
+    expect(kiteMessages.first.id, 'kite-0');
+    expect(kiteMessages.last.id, 'kite-99');
+    expect(aliceMessages.first.id, 'alice-0');
+  });
+
   test('zero-jitter performance contract is pinned', () {
     expect(PerformanceContract.fixtureRoomCount, 200);
     expect(PerformanceContract.fixtureMessagesPerRoom, 100);

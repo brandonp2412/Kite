@@ -222,6 +222,46 @@ void main() {
     },
   );
 
+  test(
+    'repeated login logout and account switching releases runtimes and stores',
+    () async {
+      final stores = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+      );
+      final boundaries = <_FakeAccountBoundary>[];
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: stores,
+        boundaryFactory: (accountId) {
+          final boundary = _FakeAccountBoundary(accountId: accountId);
+          boundaries.add(boundary);
+          return boundary;
+        },
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      for (var cycle = 0; cycle < 12; cycle++) {
+        await registry.activate('@alice:example.org');
+        await registry.activate('@bob:example.org');
+
+        expect(registry.loadedAccountIds, hasLength(2));
+        expect(stores.stores, hasLength(2));
+
+        expect(await registry.removeAccount('@alice:example.org'), isTrue);
+        expect(await registry.removeAccount('@bob:example.org'), isTrue);
+        expect(registry.loadedAccountIds, isEmpty);
+        expect(stores.stores, isEmpty);
+        expect(registry.activeAccountId.value, isNull);
+      }
+
+      expect(boundaries, hasLength(24));
+      expect(boundaries.every((boundary) => boundary.closeCalls == 1), isTrue);
+      expect(await registry.removeAccount('@missing:example.org'), isFalse);
+    },
+  );
+
   test('dispose closes every loaded SDK boundary exactly once', () async {
     final boundaries = <String, _FakeAccountBoundary>{};
     final registry = _registry(boundaries);

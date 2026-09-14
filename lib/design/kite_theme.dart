@@ -4,8 +4,13 @@ import 'package:kite/design/kite_tokens.dart';
 abstract final class KiteTheme {
   static const _seed = Color(0xFF0B7A6B);
 
-  static ThemeData get light => _build(Brightness.light);
-  static ThemeData get dark => _build(Brightness.dark);
+  static final ThemeData light = _build(Brightness.light);
+  static final ThemeData dark = _build(Brightness.dark);
+
+  static void warmUp() {
+    light;
+    dark;
+  }
 
   static ThemeData _build(Brightness brightness) {
     final scheme = ColorScheme.fromSeed(
