@@ -95,4 +95,105 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets('warmed member profile open has zero late Flutter frames', (
+    tester,
+  ) async {
+    selectRoom('kite');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-details-button')));
+    await tester.pumpAndSettle();
+
+    final bob = find.byKey(const Key('member-@bob:example.org'));
+    await tester.tap(bob);
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byKey(const Key('member-profile-sheet'))))
+        .pop();
+    await tester.pumpAndSettle();
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(bob);
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('member-profile-sheet')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_member_profile'] = <String, dynamic>{
+      'journey': 'open_member_profile',
+      'fixture': 'deterministic_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('promoting a room member has zero late Flutter frames', (
+    tester,
+  ) async {
+    selectRoom('kite');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-details-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-@bob:example.org')));
+    await tester.pumpAndSettle();
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('member-promote')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.text('Power 50'), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_member_promote'] = <String, dynamic>{
+      'journey': 'promote_room_member',
+      'fixture': 'deterministic_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('kicking a room member has zero late Flutter frames', (
+    tester,
+  ) async {
+    selectRoom('kite');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-details-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-@bob:example.org')));
+    await tester.pumpAndSettle();
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('member-kick')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('member-profile-sheet')), findsNothing);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_member_kick'] = <String, dynamic>{
+      'journey': 'kick_room_member',
+      'fixture': 'deterministic_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
 }
