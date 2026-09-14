@@ -495,6 +495,130 @@ void main() {
     );
   });
 
+  test('participant snapshots drive stable local spotlight state', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startGroupCall('!group:example.org');
+    fixture.gateway.callParticipants = const <KiteCallParticipant>[
+      KiteCallParticipant(
+        participantId: 'alice-device',
+        userId: '@alice:example.org',
+        displayName: 'Alice',
+        isLocal: false,
+        isMicrophoneMuted: false,
+        isCameraEnabled: true,
+        isSpeaking: true,
+      ),
+      KiteCallParticipant(
+        participantId: 'local-device',
+        userId: '@me:example.org',
+        displayName: 'Me',
+        isLocal: true,
+        isMicrophoneMuted: true,
+        isCameraEnabled: true,
+        isSpeaking: false,
+      ),
+    ];
+
+    final participants = await fixture.coordinator.refreshParticipants();
+    expect(
+      participants.map((participant) => participant.participantId),
+      <String>['alice-device', 'local-device'],
+    );
+    expect(
+      () => participants.add(
+        const KiteCallParticipant(
+          participantId: 'extra',
+          userId: '@extra:example.org',
+          displayName: 'Extra',
+          isLocal: false,
+          isMicrophoneMuted: false,
+          isCameraEnabled: false,
+          isSpeaking: false,
+        ),
+      ),
+      throwsUnsupportedError,
+    );
+
+    fixture.coordinator.spotlightParticipant('alice-device');
+    expect(fixture.coordinator.spotlightParticipantId.value, 'alice-device');
+    expect(
+      () => fixture.coordinator.spotlightParticipant('missing-device'),
+      throwsStateError,
+    );
+
+    fixture.gateway.callParticipants = const <KiteCallParticipant>[
+      KiteCallParticipant(
+        participantId: 'local-device',
+        userId: '@me:example.org',
+        displayName: 'Me',
+        isLocal: true,
+        isMicrophoneMuted: true,
+        isCameraEnabled: true,
+        isSpeaking: false,
+      ),
+    ];
+    await fixture.coordinator.refreshParticipants();
+    expect(fixture.coordinator.spotlightParticipantId.value, isNull);
+    expect(
+      fixture.gateway.invocations
+          .where((entry) => entry.type == MatrixRtcInvocationType.participants)
+          .map((entry) => entry.callId),
+      <String?>['call-1', 'call-1'],
+    );
+  });
+
+  test(
+    'picture-in-picture records only platform-confirmed transitions',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+
+      expect(
+        await fixture.coordinator.refreshPictureInPictureSupport(),
+        isTrue,
+      );
+      await fixture.coordinator.enterPictureInPicture();
+      await fixture.coordinator.enterPictureInPicture();
+      expect(fixture.coordinator.isInPictureInPicture.value, isTrue);
+
+      fixture.pictureInPicture.failNextWith = StateError('pip exit failed');
+      await expectLater(
+        fixture.coordinator.exitPictureInPicture(),
+        throwsStateError,
+      );
+      expect(fixture.coordinator.isInPictureInPicture.value, isTrue);
+
+      await fixture.coordinator.exitPictureInPicture();
+      expect(fixture.coordinator.isInPictureInPicture.value, isFalse);
+      expect(
+        fixture.pictureInPicture.invocations.map((entry) => entry.type),
+        <PictureInPictureInvocationType>[
+          PictureInPictureInvocationType.support,
+          PictureInPictureInvocationType.enter,
+          PictureInPictureInvocationType.exit,
+          PictureInPictureInvocationType.exit,
+        ],
+      );
+    },
+  );
+
+  test('unsupported picture-in-picture never invokes platform entry', () async {
+    final fixture = _fixture();
+    fixture.pictureInPicture.supported = false;
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+
+    expect(await fixture.coordinator.refreshPictureInPictureSupport(), isFalse);
+    await expectLater(
+      fixture.coordinator.enterPictureInPicture(),
+      throwsStateError,
+    );
+    expect(fixture.coordinator.isInPictureInPicture.value, isFalse);
+    expect(
+      fixture.pictureInPicture.invocations.map((entry) => entry.type),
+      <PictureInPictureInvocationType>[PictureInPictureInvocationType.support],
+    );
+  });
+
   test('gateway failures restore deterministic idle state and emit safe trace data', () async {
     final fixture = _fixture();
     fixture.gateway.failNextWith = StateError('transport failed');
@@ -521,25 +645,34 @@ void main() {
 
 _CallFixture _fixture({int seed = 0}) {
   final gateway = DeterministicMatrixRtcGateway(seed: seed);
+  final pictureInPicture = DeterministicPictureInPicturePort();
   final logs = MemoryStructuredLogSink();
   final coordinator = KiteCallCoordinator(
     gateway: gateway,
+    pictureInPicture: pictureInPicture,
     logger: StructuredLogger(
       sink: logs,
       traceIds: SequenceTraceIdGenerator(seed: 100),
     ),
   );
-  return _CallFixture(gateway: gateway, logs: logs, coordinator: coordinator);
+  return _CallFixture(
+    gateway: gateway,
+    pictureInPicture: pictureInPicture,
+    logs: logs,
+    coordinator: coordinator,
+  );
 }
 
 final class _CallFixture {
   const _CallFixture({
     required this.gateway,
+    required this.pictureInPicture,
     required this.logs,
     required this.coordinator,
   });
 
   final DeterministicMatrixRtcGateway gateway;
+  final DeterministicPictureInPicturePort pictureInPicture;
   final MemoryStructuredLogSink logs;
   final KiteCallCoordinator coordinator;
 }

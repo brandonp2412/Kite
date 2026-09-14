@@ -17,6 +17,7 @@ enum MatrixRtcInvocationType {
   continuationCapabilities,
   setAppState,
   reconnect,
+  participants,
 }
 
 final class MatrixRtcInvocation {
@@ -68,6 +69,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       kind: KiteAudioRouteKind.speaker,
     ),
   ];
+  List<KiteCallParticipant> callParticipants = const <KiteCallParticipant>[];
 
   @override
   Future<MatrixRtcSessionDescriptor> startCall({
@@ -283,6 +285,18 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
     _throwIfRequested();
   }
 
+  @override
+  Future<List<KiteCallParticipant>> participants(String callId) async {
+    invocations.add(
+      MatrixRtcInvocation(
+        type: MatrixRtcInvocationType.participants,
+        callId: callId,
+      ),
+    );
+    _throwIfRequested();
+    return List<KiteCallParticipant>.unmodifiable(callParticipants);
+  }
+
   bool get hasHeldStart => _heldStart != null;
 
   void completeHeldStart() {
@@ -294,6 +308,62 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
     _heldStart = null;
     _heldStartDescriptor = null;
     completer.complete(descriptor);
+  }
+
+  void _throwIfRequested() {
+    final error = failNextWith;
+    failNextWith = null;
+    if (error != null) throw error;
+  }
+}
+
+enum PictureInPictureInvocationType { support, enter, exit }
+
+final class PictureInPictureInvocation {
+  const PictureInPictureInvocation({required this.type, this.callId});
+
+  final PictureInPictureInvocationType type;
+  final String? callId;
+}
+
+final class DeterministicPictureInPicturePort
+    implements CallPictureInPicturePort {
+  bool supported = true;
+  Object? failNextWith;
+  final List<PictureInPictureInvocation> invocations =
+      <PictureInPictureInvocation>[];
+
+  @override
+  Future<bool> isSupported() async {
+    invocations.add(
+      const PictureInPictureInvocation(
+        type: PictureInPictureInvocationType.support,
+      ),
+    );
+    _throwIfRequested();
+    return supported;
+  }
+
+  @override
+  Future<void> enter(String callId) async {
+    invocations.add(
+      PictureInPictureInvocation(
+        type: PictureInPictureInvocationType.enter,
+        callId: callId,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<void> exit(String callId) async {
+    invocations.add(
+      PictureInPictureInvocation(
+        type: PictureInPictureInvocationType.exit,
+        callId: callId,
+      ),
+    );
+    _throwIfRequested();
   }
 
   void _throwIfRequested() {

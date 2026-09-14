@@ -60,6 +60,28 @@ final class KiteAudioRoute {
   final KiteAudioRouteKind kind;
 }
 
+final class KiteCallParticipant {
+  const KiteCallParticipant({
+    required this.participantId,
+    required this.userId,
+    required this.displayName,
+    required this.isLocal,
+    required this.isMicrophoneMuted,
+    required this.isCameraEnabled,
+    required this.isSpeaking,
+    this.avatarUrl,
+  });
+
+  final String participantId;
+  final String userId;
+  final String displayName;
+  final bool isLocal;
+  final bool isMicrophoneMuted;
+  final bool isCameraEnabled;
+  final bool isSpeaking;
+  final Uri? avatarUrl;
+}
+
 final class KiteCallContinuationCapabilities {
   const KiteCallContinuationCapabilities({
     required this.background,
@@ -289,19 +311,31 @@ abstract interface class MatrixRtcGateway {
   });
 
   Future<void> reconnect(String callId);
+
+  Future<List<KiteCallParticipant>> participants(String callId);
+}
+
+abstract interface class CallPictureInPicturePort {
+  Future<bool> isSupported();
+
+  Future<void> enter(String callId);
+
+  Future<void> exit(String callId);
 }
 
 final class KiteCallCoordinator {
   factory KiteCallCoordinator({
     required MatrixRtcGateway gateway,
+    required CallPictureInPicturePort pictureInPicture,
     required StructuredLogger logger,
   }) {
-    return KiteCallCoordinator._(gateway, logger);
+    return KiteCallCoordinator._(gateway, pictureInPicture, logger);
   }
 
-  KiteCallCoordinator._(this._gateway, this._logger);
+  KiteCallCoordinator._(this._gateway, this._pictureInPicture, this._logger);
 
   final MatrixRtcGateway _gateway;
+  final CallPictureInPicturePort _pictureInPicture;
   final StructuredLogger _logger;
 
   final Signal<KiteCallSession?> session = signal<KiteCallSession?>(null);
@@ -326,6 +360,11 @@ final class KiteCallCoordinator {
     KiteCallAppState.foreground,
   );
   final Signal<KiteCallActivity?> activity = signal<KiteCallActivity?>(null);
+  final Signal<List<KiteCallParticipant>> participants =
+      signal<List<KiteCallParticipant>>(const <KiteCallParticipant>[]);
+  final Signal<String?> spotlightParticipantId = signal<String?>(null);
+  final Signal<bool> isPictureInPictureSupported = signal<bool>(false);
+  final Signal<bool> isInPictureInPicture = signal<bool>(false);
 
   Future<void> startDirectVoiceCall(String roomId) {
     return _startOutgoing(
@@ -538,6 +577,62 @@ final class KiteCallCoordinator {
     }
   }
 
+  Future<List<KiteCallParticipant>> refreshParticipants() async {
+    final current = _requireActiveSession();
+    final nextParticipants = List<KiteCallParticipant>.unmodifiable(
+      await _gateway.participants(current.callId),
+    );
+    participants.value = nextParticipants;
+    final spotlight = spotlightParticipantId.value;
+    if (spotlight != null &&
+        !nextParticipants.any(
+          (participant) => participant.participantId == spotlight,
+        )) {
+      spotlightParticipantId.value = null;
+    }
+    return nextParticipants;
+  }
+
+  void spotlightParticipant(String? participantId) {
+    _requireActiveSession();
+    if (participantId != null &&
+        !participants.value.any(
+          (participant) => participant.participantId == participantId,
+        )) {
+      throw StateError('Participant is not present in the current call.');
+    }
+    spotlightParticipantId.value = participantId;
+  }
+
+  Future<bool> refreshPictureInPictureSupport() async {
+    _requireActiveSession();
+    final supported = await _pictureInPicture.isSupported();
+    isPictureInPictureSupported.value = supported;
+    if (!supported) {
+      isInPictureInPicture.value = false;
+    }
+    return supported;
+  }
+
+  Future<void> enterPictureInPicture() async {
+    final current = _requireActiveSession();
+    if (!isPictureInPictureSupported.value) {
+      throw StateError('Picture-in-picture is not supported on this platform.');
+    }
+    if (isInPictureInPicture.value) return;
+
+    await _pictureInPicture.enter(current.callId);
+    isInPictureInPicture.value = true;
+  }
+
+  Future<void> exitPictureInPicture() async {
+    final current = _requireActiveSession();
+    if (!isInPictureInPicture.value) return;
+
+    await _pictureInPicture.exit(current.callId);
+    isInPictureInPicture.value = false;
+  }
+
   Future<void> hangUp() async {
     final current = session.value;
     if (current == null ||
@@ -558,6 +653,7 @@ final class KiteCallCoordinator {
     try {
       await _gateway.hangUp(current.callId);
       session.value = current.copyWith(endReason: KiteCallEndReason.hungUp);
+      isInPictureInPicture.value = false;
       phase.value = KiteCallPhase.ended;
       _publishActivity();
       trace.log(LogLevel.info, DiagnosticEvent.completed);
@@ -702,5 +798,9 @@ final class KiteCallCoordinator {
     isMediaInterrupted.value = false;
     continuationCapabilities.value = KiteCallContinuationCapabilities.none;
     appState.value = KiteCallAppState.foreground;
+    participants.value = const <KiteCallParticipant>[];
+    spotlightParticipantId.value = null;
+    isPictureInPictureSupported.value = false;
+    isInPictureInPicture.value = false;
   }
 }
