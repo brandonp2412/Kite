@@ -4,6 +4,8 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -458,6 +460,20 @@ class _MessageRow extends StatelessWidget {
       ),
     );
 
+    final threadedBubble = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: mine
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: <Widget>[
+        bubble,
+        if (threadController.hasThread(message.id)) ...<Widget>[
+          const SizedBox(height: KiteSpacing.xs),
+          _ThreadSummaryButton(roomId: roomId, parent: message),
+        ],
+      ],
+    );
+
     return Padding(
       key: Key('message-row-${message.id}'),
       padding: const EdgeInsets.symmetric(
@@ -478,7 +494,7 @@ class _MessageRow extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: mine
-                  ? bubble
+                  ? threadedBubble
                   : Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,13 +514,106 @@ class _MessageRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        bubble,
+                        threadedBubble,
                       ],
                     ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ThreadSummaryButton extends StatelessWidget {
+  const _ThreadSummaryButton({required this.roomId, required this.parent});
+
+  final String roomId;
+  final TimelineMessage parent;
+
+  void _open(BuildContext context) {
+    Navigator.of(context).push(
+      ThreadRoute(
+        roomId: roomId,
+        parent: parent,
+        reduceMotion: KiteMotion.prefersReducedMotion(context),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SignalBuilder(
+      builder: (context) {
+        final replies = threadController
+            .repliesFor(roomId: roomId, parent: parent)
+            .value;
+        final count = replies.length;
+        if (count == 0) return const SizedBox.shrink();
+        final latest = replies.last;
+        return Semantics(
+          button: true,
+          label: 'Open thread with $count replies',
+          child: InkWell(
+            key: Key('thread-summary-${parent.id}'),
+            onTap: () => _open(context),
+            borderRadius: BorderRadius.circular(KiteRadii.md),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 168, maxWidth: 360),
+              padding: const EdgeInsets.symmetric(
+                horizontal: KiteSpacing.sm,
+                vertical: KiteSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerHighest.withValues(alpha: 0.58),
+                borderRadius: BorderRadius.circular(KiteRadii.md),
+                border: Border.all(
+                  color: colors.outlineVariant.withValues(alpha: 0.7),
+                  width: KiteStroke.hairline,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(Icons.forum_outlined, size: 17, color: colors.primary),
+                  const SizedBox(width: KiteSpacing.xs),
+                  Flexible(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          '$count ${count == 1 ? 'reply' : 'replies'}',
+                          style: KiteTypography.metadata.copyWith(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '${latest.sender}: ${latest.body}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: KiteTypography.metadata.copyWith(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: KiteSpacing.xs),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 19,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

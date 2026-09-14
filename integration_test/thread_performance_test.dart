@@ -1,0 +1,91 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:kite/app/kite_app.dart';
+import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/timeline/timeline_controller.dart';
+
+import 'performance_benchmark_harness.dart';
+
+void main() {
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  const virtualizedBenchmark = bool.fromEnvironment(
+    'KITE_VIRTUALIZED_BENCHMARK',
+  );
+
+  setUp(() {
+    threadController.reset(sendPort: const DeterministicThreadSendPort());
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+  });
+
+  testWidgets('opening a thread stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('thread-panel')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_open'] = <String, dynamic>{
+      'journey': 'open_thread',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('sending a thread reply stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        threadController.sendReply(
+          roomId: 'alice',
+          parent: parent,
+          rawBody: 'Profile-mode thread reply',
+        );
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(
+      threadController.repliesFor(roomId: 'alice', parent: parent).value,
+      hasLength(4),
+    );
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_reply_send'] = <String, dynamic>{
+      'journey': 'send_thread_reply',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+}
