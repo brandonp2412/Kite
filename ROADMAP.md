@@ -285,11 +285,11 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Encryption choice/policy with safe defaults.
 - [ ] History visibility/history sharing controls exposed upstream.
 - [ ] Room notification override.
-- [ ] Member list and search.
-- [ ] Member profile bottom sheet/details.
-- [ ] Invite members.
-- [ ] Roles/power levels.
-- [ ] Promote/demote where authorised.
+- [x] Member list and search.
+- [x] Member profile bottom sheet/details.
+- [x] Invite members.
+- [x] Roles/power levels.
+- [x] Promote/demote where authorised.
 - [ ] Kick.
 - [ ] Ban/unban.
 - [ ] Report user/room where supported.
