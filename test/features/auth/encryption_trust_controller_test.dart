@@ -1,0 +1,163 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/auth/encryption_trust_controller.dart';
+
+final class _FakeEncryptionTrustGateway implements EncryptionTrustGateway {
+  RoomEncryptionTrust current = RoomEncryptionTrust(
+    roomId: '!room:example.org',
+    isEncrypted: true,
+    trustState: EncryptionTrustState.unverifiedDevice,
+    historySharingSupported: true,
+    historySharingEnabled: false,
+  );
+  Object? failure;
+  String? loadedRoomId;
+  (String, bool)? historySharingUpdate;
+
+  @override
+  Future<RoomEncryptionTrust> loadRoomTrust(String roomId) async {
+    if (failure case final error?) throw error;
+    loadedRoomId = roomId;
+    return current;
+  }
+
+  @override
+  Future<RoomEncryptionTrust> setHistorySharing({
+    required String roomId,
+    required bool enabled,
+  }) async {
+    if (failure case final error?) throw error;
+    historySharingUpdate = (roomId, enabled);
+    current = current.copyWith(historySharingEnabled: enabled);
+    return current;
+  }
+}
+
+void main() {
+  test('loads SDK-owned encryption and device trust state', () async {
+    final gateway = _FakeEncryptionTrustGateway();
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load(' !room:example.org '), isTrue);
+    expect(gateway.loadedRoomId, '!room:example.org');
+    expect(controller.state.value?.isEncrypted, isTrue);
+    expect(
+      controller.state.value?.trustState,
+      EncryptionTrustState.unverifiedDevice,
+    );
+    expect(controller.state.value?.requiresTrustWarning, isTrue);
+    expect(
+      controller.warningMessage,
+      'This encrypted room includes an unverified device.',
+    );
+  });
+
+  test('distinguishes unverified users from verified room state', () async {
+    final gateway = _FakeEncryptionTrustGateway()
+      ..current = RoomEncryptionTrust(
+        roomId: '!room:example.org',
+        isEncrypted: true,
+        trustState: EncryptionTrustState.unverifiedUser,
+        historySharingSupported: false,
+        historySharingEnabled: false,
+      );
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('!room:example.org'), isTrue);
+    expect(
+      controller.warningMessage,
+      'This encrypted room includes an unverified user.',
+    );
+
+    gateway.current = RoomEncryptionTrust(
+      roomId: '!room:example.org',
+      isEncrypted: true,
+      trustState: EncryptionTrustState.verified,
+      historySharingSupported: false,
+      historySharingEnabled: false,
+    );
+    expect(await controller.load('!room:example.org'), isTrue);
+    expect(controller.warningMessage, isNull);
+    expect(controller.state.value?.requiresTrustWarning, isFalse);
+  });
+
+  test(
+    'history sharing is delegated only when SDK policy supports it',
+    () async {
+      final gateway = _FakeEncryptionTrustGateway();
+      final controller = EncryptionTrustController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(await controller.load('!room:example.org'), isTrue);
+      expect(await controller.setHistorySharing(true), isTrue);
+      expect(gateway.historySharingUpdate, ('!room:example.org', true));
+      expect(controller.state.value?.historySharingEnabled, isTrue);
+
+      gateway.current = RoomEncryptionTrust(
+        roomId: '!room:example.org',
+        isEncrypted: true,
+        trustState: EncryptionTrustState.verified,
+        historySharingSupported: false,
+        historySharingEnabled: false,
+      );
+      expect(await controller.load('!room:example.org'), isTrue);
+      gateway.historySharingUpdate = null;
+
+      expect(await controller.setHistorySharing(true), isFalse);
+      expect(gateway.historySharingUpdate, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Encrypted history sharing is not supported in this room.',
+      );
+    },
+  );
+
+  test('invalid room IDs never reach the trust gateway', () async {
+    final gateway = _FakeEncryptionTrustGateway();
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('room-without-sigil'), isFalse);
+    expect(gateway.loadedRoomId, isNull);
+    expect(controller.errorMessage.value, 'Choose a valid Matrix room.');
+  });
+
+  test('mismatched SDK state is rejected', () async {
+    final gateway = _FakeEncryptionTrustGateway()
+      ..current = RoomEncryptionTrust(
+        roomId: '!different:example.org',
+        isEncrypted: true,
+        trustState: EncryptionTrustState.verified,
+        historySharingSupported: true,
+        historySharingEnabled: false,
+      );
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('!room:example.org'), isFalse);
+    expect(controller.state.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite received invalid encryption trust state.',
+    );
+  });
+
+  test('gateway failures expose fixed public errors only', () async {
+    final gateway = _FakeEncryptionTrustGateway()
+      ..failure = StateError(
+        'access_token=token decrypted_message=secret recovery_key=hidden',
+      );
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('!room:example.org'), isFalse);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not read encryption trust state.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('token')));
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+    expect(controller.errorMessage.value, isNot(contains('recovery_key')));
+  });
+}
