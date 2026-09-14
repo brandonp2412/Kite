@@ -1,0 +1,46 @@
+# Kite performance contract
+
+Kite treats visible jitter as a correctness bug, not a polish issue.
+
+The contract is pinned in `lib/benchmark/performance_contract.dart` and independently asserted by `test/performance_contract_test.dart`. Weakening a threshold therefore requires an explicit code change and an explicit pin-test change.
+
+## Required invariants
+
+- Opening a user chat must produce zero Flutter build-frame budget violations.
+- Opening a user chat must produce zero Flutter raster-frame budget violations.
+- On physical Android hardware, opening a user chat must produce zero end-to-end frame-budget violations.
+- On Waydroid, end-to-end `totalSpan` is recorded but is not a merge gate because host/compositor scheduling is outside Kite; build and raster budgets remain strict zero-violation gates.
+- The deterministic 120 Hz motion test must produce zero unintended geometry movement in the sidebar, chat panel, message list, and composer.
+- The canonical fixture stays at 200 rooms and 100 messages per room unless this contract and its pin test are deliberately revised.
+- The canonical warm-switch benchmark remains 30 chat opens.
+- The benchmark detector must prove itself by failing when the 40 ms artificial build stall is enabled.
+
+## Required command before marking roadmap work complete
+
+```sh
+tool/quality_gate.sh
+```
+
+The quality gate performs `flutter analyze`, the deterministic Flutter tests, and the Waydroid positive/negative/positive jitter sequence.
+
+The expected jitter-harness sequence is:
+
+```text
+clean benchmark      PASS
+40 ms injected stall FAIL
+clean benchmark      PASS
+```
+
+A benchmark that cannot detect the injected fault is itself considered broken.
+
+## Authoritative physical-device gate
+
+Waydroid is the continuous regression detector. Release candidates must additionally run the Android Macrobenchmark on fixed physical hardware. A physical-device result is authoritative for end-to-end presentation timing; Waydroid results are not used to claim real-device jank freedom.
+
+## Evidence format
+
+`integration_test/open_dm_performance_test.dart` emits machine-readable frame data including refresh rate, frame budget, build/raster/total-span violations, worst timings, and raw per-frame timings. Keep this output when investigating any failure.
+
+## Regression policy
+
+Do not raise frame budgets, allow non-zero violations, reduce the number of benchmark iterations, disable the artificial-jitter negative control, or remove geometry checks merely to make a failing change pass. Fix the regression instead. Any intentional contract revision must be documented in the same change with the reason and before/after benchmark evidence.

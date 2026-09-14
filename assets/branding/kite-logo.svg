@@ -1,0 +1,46 @@
+<svg width="960" height="320" viewBox="0 0 960 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="kiteA" x1="92" y1="44" x2="246" y2="222" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8ED8FF"/>
+      <stop offset="1" stop-color="#1E9BFF"/>
+    </linearGradient>
+    <linearGradient id="kiteB" x1="128" y1="104" x2="227" y2="242" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2ED4C2"/>
+      <stop offset="1" stop-color="#087BB7"/>
+    </linearGradient>
+    <linearGradient id="tailA" x1="24" y1="225" x2="258" y2="242" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17C8C2"/>
+      <stop offset="0.55" stop-color="#0B9BFF"/>
+      <stop offset="1" stop-color="#1763D5"/>
+    </linearGradient>
+    <linearGradient id="word" x1="330" y1="82" x2="830" y2="264" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12396F"/>
+      <stop offset="1" stop-color="#041F4D"/>
+    </linearGradient>
+    <filter id="softShadow" x="36" y="24" width="248" height="242" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#063967" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#softShadow)">
+    <path d="M155 38C164 33 176 36 182 43L257 133C264 141 264 153 256 161L171 247C163 255 150 255 142 247L58 162C50 154 50 142 58 134L142 47C146 43 150 40 155 38Z" fill="url(#kiteA)"/>
+    <path d="M157 39L151 148L58 142L142 47C146 43 151 40 157 39Z" fill="#9BE1FF"/>
+    <path d="M151 148L58 142C55 142 52 143 50 145C49 151 51 157 56 162L142 247C149 254 160 255 168 249L151 148Z" fill="url(#kiteB)"/>
+    <path d="M151 148L256 160C264 152 264 141 257 133L182 43C176 36 165 33 157 39L151 148Z" fill="#1599EE"/>
+    <path d="M151 148L168 249C170 248 171 247 173 245L256 161L151 148Z" fill="#0B76B8"/>
+    <path d="M157 40L151 148M151 148L58 142M151 148L168 249M151 148L256 160" stroke="white" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <path d="M165 246C137 251 116 266 91 274C64 283 42 280 22 268C46 247 75 240 105 243C128 245 146 253 165 246C194 236 208 216 220 194" stroke="url(#tailA)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M142 258C120 270 109 287 88 295C72 301 58 299 44 292C61 280 80 276 98 279C116 281 128 277 142 258C151 245 158 229 164 213" stroke="#FFB42A" stroke-width="7" stroke-linecap="round"/>
+
+  <g fill="url(#word)">
+    <path d="M335 91H378V160L442 91H495L423 167L501 250H445L378 176V250H335V91Z"/>
+    <path d="M515 132H556V250H515V132ZM511 99C511 86 521 77 536 77C551 77 561 86 561 99C561 112 551 121 536 121C521 121 511 112 511 99Z"/>
+    <path d="M582 101H623V132H657V164H623V207C623 220 628 225 640 225C646 225 652 223 657 221V250C648 254 638 256 627 256C597 256 582 241 582 211V164H560V132H582V101Z"/>
+    <path d="M664 191C664 155 691 128 730 128C772 128 798 157 798 197V207H704C708 219 719 226 735 226C749 226 759 222 770 213L792 236C778 250 758 258 732 258C691 258 664 231 664 191ZM705 181H758C755 167 746 159 732 159C718 159 709 167 705 181Z"/>
+  </g>
+
+  <circle cx="536" cy="99" r="10" fill="#2DBBFF"/>
+  <text x="334" y="292" fill="#57708F" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="600" letter-spacing="4">MATRIX, WITHOUT THE JITTER</text>
+</svg>
