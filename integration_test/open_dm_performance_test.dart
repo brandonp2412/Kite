@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
 
@@ -15,6 +16,7 @@ void main() {
   testWidgets('cold open Alice DM has zero late Flutter frames', (
     tester,
   ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
     selectRoom('kite');
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
@@ -44,6 +46,7 @@ void main() {
   testWidgets('30 warm user-chat opens have zero late Flutter frames', (
     tester,
   ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
     selectRoom('alice');
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
@@ -72,6 +75,49 @@ void main() {
       'journey': 'open_user_dm',
       'fixture': 'deterministic_v1',
       'iterations': iterations,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('send message has zero late Flutter frames', (tester) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    final editable = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('composer-field')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    editable.controller.text = 'Profile benchmark message';
+    await tester.pump();
+    final sendButton = tester.widget<IconButton>(
+      find.byKey(const Key('composer-send')),
+    );
+    expect(sendButton.onPressed, isNotNull);
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        sendButton.onPressed!();
+        await tester.pump();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final sentMessage = timelineController.messagesFor('alice').value.last;
+    expect(sentMessage.body, 'Profile benchmark message');
+    expect(sentMessage.sendState.value, TimelineSendState.sent);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['send_message'] = <String, dynamic>{
+      'journey': 'send_text_message',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
       ...result,
       'result': 'PASS',
     };
