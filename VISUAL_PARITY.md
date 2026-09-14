@@ -26,6 +26,13 @@ Kite comparison renders are produced by `test/golden_gallery_test.dart` in:
 - `test/goldens/gallery/home_tablet_{light,dark}.png`
 - `test/goldens/gallery/home_desktop_{light,dark}.png`
 
+Relevant current Element X message references used for the DM/composer review are:
+
+- `features.messages.impl.timeline.components_TimelineItemEventRowForDirectRoom_Day_0_en.png`
+- `features.messages.impl.timeline.components_TimelineItemEventRowForDirectRoom_Night_0_en.png`
+- `features.messages.impl.messagecomposer_MessageComposerView_Day_0_en.png`
+- `features.messages.impl.messagecomposer_MessageComposerView_Night_0_en.png`
+
 Flutter widget-test goldens use the deterministic test font, so they are authoritative for geometry, colour, clipping and layout stability but not final typography appearance. Typography review must also use an app render on a real Flutter target before a visual-parity checkbox can close.
 
 ### Current upstream feature/release/Labs scan
@@ -44,6 +51,15 @@ The current Element X `RoomListContentView_Day_0_en.png` and `HomeTopBar_Day_0_e
 - Header hierarchy: Element X has avatar/profile anchoring, a prominent `Chats` title, search/filter actions, filter chips, and a restrained contextual bloom. Kite still has only the title, so this remains a parity gap.
 - Room rows: Element X uses stronger title/metadata hierarchy, timestamps/state affordances, invitation actions, and skeleton rows that reserve final geometry. Kite currently has avatar initials, title and one-line preview only, so density/state treatment remains a gap.
 - Branding/assets: the comparison is structural only; Kite does not vendor or copy Element trademarks or artwork.
+
+### Rendered DM timeline and composer comparison, 2026-09-15
+
+The current Element X direct-room timeline and composer LFS snapshots were loaded from the same audited `develop` SHA and visually compared with Kite's generated tablet and desktop home renders, which include the selected DM timeline and composer.
+
+- Timeline hierarchy: current Kite now distinguishes incoming and own messages with sender/avatar context, surface treatment, timestamps and delivery/status affordances. This is materially closer to the Element X direct-room reference than the stale pre-change wide gallery baselines.
+- Remaining timeline gaps: Element X uses tighter content-width bubbles, more restrained spacing, richer reaction/receipt treatment and production media/event variants. Kite's fixture still reads as wider card rows and does not yet represent the complete production timeline, so parity remains open.
+- Composer hierarchy: both products retain a clear leading attachment affordance, central rounded input and trailing send/media action region, but Element X's composer is more compact and has production voice, expansion and disabled-state treatment. Kite's current composer remains simplified.
+- Golden decision: the four tablet/desktop home gallery baselines are refreshed to the current deterministic Kite render only after this reference review. This accepts the already-merged runtime geometry as the review baseline; it does not close timeline/composer parity or approve the remaining visual gaps.
 
 ## Side-by-side review checklist
 
@@ -70,9 +86,9 @@ For each major screen, compare matching light/dark states at representative phon
 | Phone landscape shell | Compact layout stays single-pane rather than squeezing a desktop split view into the short axis. | Kite uses the same single-pane rule based on shortest side. | `adaptive_layout_test.dart`; `home_phone_landscape_*`. | Geometry covered; parity incomplete |
 | Tablet shell | Element X adapts composition for larger displays rather than simply scaling phone content. | Kite uses a stable 300 px room-list pane plus conversation pane. | `adaptive_layout_test.dart`; `home_tablet_*`. | Adaptive baseline covered; parity incomplete |
 | Desktop-width shell | Wide layout should preserve mobile visual language while adding useful simultaneous context. | Kite uses a stable 320 px room-list pane plus conversation pane. | `adaptive_layout_test.dart`; `home_desktop_*`. | Adaptive baseline covered; parity incomplete |
-| DM timeline | Element X uses production message grouping, event states, receipts, reactions and stable jump/focus behaviour. | Kite fixture timeline is benchmark-oriented and intentionally minimal today. | Existing shell/gallery only. | Not audited |
+| DM timeline | Element X uses production message grouping, event states, receipts, reactions and stable jump/focus behaviour. | Kite now renders distinct incoming/own rows with sender/avatar context, timestamps and status affordances, but rows remain broader and reaction/receipt/media treatment is incomplete. | `home_tablet_*`, `home_desktop_*`; compare with `TimelineItemEventRowForDirectRoom_*`. | Reviewed; gaps remain |
 | Group-room timeline | Element X adds group-specific sender/state-event hierarchy on top of the timeline system. | Kite has no group-room-specific rendered treatment yet. | None yet. | Not audited |
-| Composer / rich text | Element X uses a compact production composer with formatting, reply/edit/media and expansion states. | Kite currently exposes only the benchmark text field. | Existing shell/gallery only. | Not audited |
+| Composer / rich text | Element X uses a compact production composer with formatting, reply/edit/media and expansion states. | Kite has a deterministic rounded composer with attachment/input/send regions, but voice, rich-text formatting, expansion and several production states remain incomplete. | `home_tablet_*`, `home_desktop_*`; compare with `MessageComposerView_*`. | Reviewed; gaps remain |
 | Message actions / reactions | Element X uses contextual actions, reaction summaries/pickers and destructive confirmations. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Threads | Current `develop` retains thread feature flags/Labs direction and dedicated thread timeline concepts. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Spaces | Element X ships dedicated Space discovery/navigation flows and hierarchy. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
