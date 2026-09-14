@@ -13,6 +13,18 @@ abstract interface class ThreadSendPort {
   });
 }
 
+enum ThreadSubscriptionOutcome { applied, failed }
+
+abstract interface class ThreadSubscriptionPort {
+  Future<ThreadSubscriptionOutcome> setFollowing({
+    required String roomId,
+    required String parentEventId,
+    required bool following,
+  });
+}
+
+enum ThreadComposerAction { text, staticLocation, liveLocation }
+
 @immutable
 class ThreadPage {
   const ThreadPage({required this.replies, required this.hasMore});
@@ -68,6 +80,24 @@ class DeterministicThreadPaginationPort implements ThreadPaginationPort {
   }
 }
 
+class DeterministicThreadSubscriptionPort implements ThreadSubscriptionPort {
+  const DeterministicThreadSubscriptionPort({
+    this.latency = const Duration(milliseconds: 90),
+  });
+
+  final Duration latency;
+
+  @override
+  Future<ThreadSubscriptionOutcome> setFollowing({
+    required String roomId,
+    required String parentEventId,
+    required bool following,
+  }) async {
+    await Future<void>.delayed(latency);
+    return ThreadSubscriptionOutcome.applied;
+  }
+}
+
 class DeterministicThreadSendPort implements ThreadSendPort {
   const DeterministicThreadSendPort({
     this.latency = const Duration(milliseconds: 140),
@@ -110,12 +140,16 @@ class ThreadController {
   ThreadController({
     ThreadSendPort? sendPort,
     ThreadPaginationPort? paginationPort,
+    ThreadSubscriptionPort? subscriptionPort,
   }) : _sendPort = sendPort ?? const DeterministicThreadSendPort(),
        _paginationPort =
-           paginationPort ?? const DeterministicThreadPaginationPort();
+           paginationPort ?? const DeterministicThreadPaginationPort(),
+       _subscriptionPort =
+           subscriptionPort ?? const DeterministicThreadSubscriptionPort();
 
   ThreadSendPort _sendPort;
   ThreadPaginationPort _paginationPort;
+  ThreadSubscriptionPort _subscriptionPort;
   final Map<String, Signal<List<ThreadReply>>> _threads =
       <String, Signal<List<ThreadReply>>>{};
   final Map<String, Signal<bool>> _hasMore = <String, Signal<bool>>{};
@@ -127,6 +161,11 @@ class ThreadController {
       <String, Signal<String?>>{};
   final Map<String, Signal<String?>> _focusedReplyId =
       <String, Signal<String?>>{};
+  final Map<String, Signal<bool>> _isFollowing = <String, Signal<bool>>{};
+  final Map<String, Signal<bool>> _isUpdatingSubscription =
+      <String, Signal<bool>>{};
+  final Map<String, Signal<bool>> _subscriptionFailed =
+      <String, Signal<bool>>{};
   int _transactionCounter = 0;
 
   bool hasThread(String parentEventId) {
@@ -214,6 +253,79 @@ class ThreadController {
       );
     }
     unreadThreadCountForRoom(roomId).value = unreadThreadCount;
+  }
+
+  bool supportsComposerAction(ThreadComposerAction action) {
+    return action != ThreadComposerAction.liveLocation;
+  }
+
+  void requireSupportedComposerAction(ThreadComposerAction action) {
+    if (!supportsComposerAction(action)) {
+      throw UnsupportedError(
+        'Live location sharing is not supported in threads',
+      );
+    }
+  }
+
+  Signal<bool> isFollowingFor({
+    required String roomId,
+    required TimelineMessage parent,
+  }) {
+    repliesFor(roomId: roomId, parent: parent);
+    return _isFollowing.putIfAbsent(
+      _key(roomId, parent.id),
+      () => signal(false),
+    );
+  }
+
+  Signal<bool> isUpdatingSubscriptionFor({
+    required String roomId,
+    required TimelineMessage parent,
+  }) {
+    repliesFor(roomId: roomId, parent: parent);
+    return _isUpdatingSubscription.putIfAbsent(
+      _key(roomId, parent.id),
+      () => signal(false),
+    );
+  }
+
+  Signal<bool> subscriptionFailedFor({
+    required String roomId,
+    required TimelineMessage parent,
+  }) {
+    repliesFor(roomId: roomId, parent: parent);
+    return _subscriptionFailed.putIfAbsent(
+      _key(roomId, parent.id),
+      () => signal(false),
+    );
+  }
+
+  Future<void> toggleFollowing({
+    required String roomId,
+    required TimelineMessage parent,
+  }) async {
+    final following = isFollowingFor(roomId: roomId, parent: parent);
+    final updating = isUpdatingSubscriptionFor(roomId: roomId, parent: parent);
+    final failed = subscriptionFailedFor(roomId: roomId, parent: parent);
+    if (updating.value) return;
+
+    final target = !following.value;
+    updating.value = true;
+    failed.value = false;
+    try {
+      final outcome = await _subscriptionPort.setFollowing(
+        roomId: roomId,
+        parentEventId: parent.id,
+        following: target,
+      );
+      if (outcome == ThreadSubscriptionOutcome.applied) {
+        following.value = target;
+      } else {
+        failed.value = true;
+      }
+    } finally {
+      updating.value = false;
+    }
   }
 
   Signal<String?> latestReadReplyIdFor({
@@ -336,9 +448,14 @@ class ThreadController {
     unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
   }
 
-  void reset({ThreadSendPort? sendPort, ThreadPaginationPort? paginationPort}) {
+  void reset({
+    ThreadSendPort? sendPort,
+    ThreadPaginationPort? paginationPort,
+    ThreadSubscriptionPort? subscriptionPort,
+  }) {
     if (sendPort != null) _sendPort = sendPort;
     if (paginationPort != null) _paginationPort = paginationPort;
+    if (subscriptionPort != null) _subscriptionPort = subscriptionPort;
     _transactionCounter = 0;
     _threads.clear();
     _hasMore.clear();
@@ -347,6 +464,9 @@ class ThreadController {
     _roomUnreadThreadCount.clear();
     _latestReadReplyId.clear();
     _focusedReplyId.clear();
+    _isFollowing.clear();
+    _isUpdatingSubscription.clear();
+    _subscriptionFailed.clear();
   }
 
   Future<void> _settle({

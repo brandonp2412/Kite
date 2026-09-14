@@ -9,6 +9,22 @@ import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
+class _ControlledSubscriptionPort implements ThreadSubscriptionPort {
+  final List<Completer<ThreadSubscriptionOutcome>> attempts =
+      <Completer<ThreadSubscriptionOutcome>>[];
+
+  @override
+  Future<ThreadSubscriptionOutcome> setFollowing({
+    required String roomId,
+    required String parentEventId,
+    required bool following,
+  }) {
+    final completer = Completer<ThreadSubscriptionOutcome>();
+    attempts.add(completer);
+    return completer.future;
+  }
+}
+
 class _ControlledThreadPort implements ThreadSendPort {
   final List<Completer<TimelineSendOutcome>> attempts =
       <Completer<TimelineSendOutcome>>[];
@@ -33,7 +49,10 @@ Rect _rectOf(WidgetTester tester, Finder finder) {
 
 void main() {
   tearDown(() {
-    threadController.reset(sendPort: const DeterministicThreadSendPort());
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(),
+      subscriptionPort: const DeterministicThreadSubscriptionPort(),
+    );
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
     selectRoom('kite');
   });
@@ -154,6 +173,82 @@ void main() {
     expect(find.text('6 replies'), findsOneWidget);
     expect(find.byKey(const Key('thread-unread-alice-98')), findsNothing);
     expect(roomUnread, findsNothing);
+  });
+
+  testWidgets('thread subscription toggle preserves geometry at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final port = _ControlledSubscriptionPort();
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(),
+      subscriptionPort: port,
+    );
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(const Key('thread-panel'));
+    final header = find.byKey(const Key('thread-header'));
+    final composer = find.byKey(const Key('thread-composer'));
+    final list = find.byKey(const Key('thread-reply-list'));
+    final toggle = find.byKey(const Key('thread-subscription-toggle'));
+    final panelRect = _rectOf(tester, panel);
+    final headerRect = _rectOf(tester, header);
+    final composerRect = _rectOf(tester, composer);
+    final listRect = _rectOf(tester, list);
+    final toggleRect = _rectOf(tester, toggle);
+
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(
+      find.byKey(const Key('thread-subscription-progress')),
+      findsOneWidget,
+    );
+    expect(_rectOf(tester, toggle), toggleRect);
+
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, panel), panelRect);
+      expect(_rectOf(tester, header), headerRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(_rectOf(tester, list), listRect);
+      expect(_rectOf(tester, toggle), toggleRect);
+      expect(tester.takeException(), isNull);
+    }
+
+    port.attempts.single.complete(ThreadSubscriptionOutcome.applied);
+    await tester.pump();
+    expect(
+      find.byKey(const Key('thread-subscription-following')),
+      findsOneWidget,
+    );
+    expect(_rectOf(tester, toggle), toggleRect);
+    expect(_rectOf(tester, header), headerRect);
+    expect(_rectOf(tester, composer), composerRect);
+    expect(_rectOf(tester, list), listRect);
+
+    await tester.tap(toggle);
+    await tester.pump();
+    port.attempts.last.complete(ThreadSubscriptionOutcome.failed);
+    await tester.pump();
+    expect(find.byTooltip('Retry thread notifications'), findsOneWidget);
+    expect(_rectOf(tester, toggle), toggleRect);
+    expect(_rectOf(tester, header), headerRect);
+    expect(_rectOf(tester, composer), composerRect);
+    expect(_rectOf(tester, list), listRect);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

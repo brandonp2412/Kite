@@ -4,6 +4,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
+class _ControlledSubscriptionPort implements ThreadSubscriptionPort {
+  final List<({String roomId, String parentEventId, bool following})> calls =
+      <({String roomId, String parentEventId, bool following})>[];
+  final List<Completer<ThreadSubscriptionOutcome>> attempts =
+      <Completer<ThreadSubscriptionOutcome>>[];
+
+  @override
+  Future<ThreadSubscriptionOutcome> setFollowing({
+    required String roomId,
+    required String parentEventId,
+    required bool following,
+  }) {
+    calls.add((
+      roomId: roomId,
+      parentEventId: parentEventId,
+      following: following,
+    ));
+    final completer = Completer<ThreadSubscriptionOutcome>();
+    attempts.add(completer);
+    return completer.future;
+  }
+}
+
 class _ControlledThreadPort implements ThreadSendPort {
   final List<Completer<TimelineSendOutcome>> attempts =
       <Completer<TimelineSendOutcome>>[];
@@ -214,6 +237,101 @@ void main() {
       expect(reply.sendState.value, TimelineSendState.sent);
     },
   );
+  test('thread notification subscription is scoped and failure-safe', () async {
+    final port = _ControlledSubscriptionPort();
+    final controller = ThreadController(subscriptionPort: port);
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final otherParent = TimelineMessage(
+      id: 'alice-81',
+      sender: 'Alice',
+      body: 'Other parent',
+      mine: false,
+      timeLabel: '09:55',
+    );
+
+    final following = controller.isFollowingFor(
+      roomId: 'alice',
+      parent: parent,
+    );
+    expect(following.value, isFalse);
+    expect(
+      controller.isFollowingFor(roomId: 'alice', parent: otherParent).value,
+      isFalse,
+    );
+
+    final firstToggle = controller.toggleFollowing(
+      roomId: 'alice',
+      parent: parent,
+    );
+    expect(
+      controller
+          .isUpdatingSubscriptionFor(roomId: 'alice', parent: parent)
+          .value,
+      isTrue,
+    );
+    expect(port.calls.single.following, isTrue);
+    port.attempts.single.complete(ThreadSubscriptionOutcome.applied);
+    await firstToggle;
+
+    expect(following.value, isTrue);
+    expect(
+      controller
+          .isUpdatingSubscriptionFor(roomId: 'alice', parent: parent)
+          .value,
+      isFalse,
+    );
+    expect(
+      controller.subscriptionFailedFor(roomId: 'alice', parent: parent).value,
+      isFalse,
+    );
+    expect(
+      controller.isFollowingFor(roomId: 'alice', parent: otherParent).value,
+      isFalse,
+    );
+
+    final failedToggle = controller.toggleFollowing(
+      roomId: 'alice',
+      parent: parent,
+    );
+    port.attempts.last.complete(ThreadSubscriptionOutcome.failed);
+    await failedToggle;
+
+    expect(following.value, isTrue);
+    expect(
+      controller.subscriptionFailedFor(roomId: 'alice', parent: parent).value,
+      isTrue,
+    );
+  });
+
+  test('thread composer boundary rejects live-location sharing', () {
+    final controller = ThreadController();
+
+    expect(
+      controller.supportsComposerAction(ThreadComposerAction.text),
+      isTrue,
+    );
+    expect(
+      controller.supportsComposerAction(ThreadComposerAction.staticLocation),
+      isTrue,
+    );
+    expect(
+      controller.supportsComposerAction(ThreadComposerAction.liveLocation),
+      isFalse,
+    );
+    expect(
+      () => controller.requireSupportedComposerAction(
+        ThreadComposerAction.liveLocation,
+      ),
+      throwsUnsupportedError,
+    );
+  });
+
   test(
     'focused reply remains scoped to one thread and clears conditionally',
     () {

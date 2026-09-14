@@ -32,7 +32,10 @@ void main() {
   );
 
   setUp(() {
-    threadController.reset(sendPort: const DeterministicThreadSendPort());
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(),
+      subscriptionPort: const DeterministicThreadSubscriptionPort(),
+    );
     threadController.updateRoomUnreadThreadCount(
       roomId: 'alice',
       unreadThreadCount: 2,
@@ -148,6 +151,53 @@ void main() {
       };
     },
   );
+
+  testWidgets('toggling thread notifications stays within the frame contract', (
+    tester,
+  ) async {
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(),
+      subscriptionPort: const DeterministicThreadSubscriptionPort(
+        latency: Duration.zero,
+      ),
+    );
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-subscription-toggle')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(
+      threadController.isFollowingFor(roomId: 'alice', parent: parent).value,
+      isTrue,
+    );
+    expect(
+      find.byKey(const Key('thread-subscription-following')),
+      findsOneWidget,
+    );
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_subscription_toggle'] = <String, dynamic>{
+      'journey': 'toggle_thread_notifications',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
 
   testWidgets('sending a thread reply stays within the frame contract', (
     tester,

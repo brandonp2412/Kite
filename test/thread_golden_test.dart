@@ -22,7 +22,10 @@ class _AlwaysFailThreadPort implements ThreadSendPort {
 
 void main() {
   tearDown(() {
-    threadController.reset(sendPort: const DeterministicThreadSendPort());
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(),
+      subscriptionPort: const DeterministicThreadSubscriptionPort(),
+    );
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
     selectRoom('kite');
   });
@@ -56,6 +59,45 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread following ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        subscriptionPort: const DeterministicThreadSubscriptionPort(
+          latency: Duration.zero,
+        ),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-subscription-toggle')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('thread-subscription-following')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_following_${variant.name}.png'),
       );
     });
 

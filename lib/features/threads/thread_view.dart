@@ -174,6 +174,11 @@ class _ThreadViewState extends State<ThreadView> {
                         ],
                       ),
                     ),
+                    _ThreadSubscriptionButton(
+                      roomId: widget.roomId,
+                      parent: widget.parent,
+                    ),
+                    const SizedBox(width: KiteSpacing.xxs),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: KiteSpacing.sm,
@@ -401,6 +406,76 @@ class _ThreadViewState extends State<ThreadView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ThreadSubscriptionButton extends StatelessWidget {
+  const _ThreadSubscriptionButton({required this.roomId, required this.parent});
+
+  final String roomId;
+  final TimelineMessage parent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox.square(
+      dimension: 44,
+      child: SignalBuilder(
+        builder: (context) {
+          final following = threadController
+              .isFollowingFor(roomId: roomId, parent: parent)
+              .value;
+          final updating = threadController
+              .isUpdatingSubscriptionFor(roomId: roomId, parent: parent)
+              .value;
+          final failed = threadController
+              .subscriptionFailedFor(roomId: roomId, parent: parent)
+              .value;
+          final tooltip = failed
+              ? 'Retry thread notifications'
+              : following
+              ? 'Unfollow thread'
+              : 'Follow thread';
+          return IconButton(
+            key: const Key('thread-subscription-toggle'),
+            tooltip: tooltip,
+            onPressed: updating
+                ? null
+                : () => threadController.toggleFollowing(
+                    roomId: roomId,
+                    parent: parent,
+                  ),
+            style: IconButton.styleFrom(
+              minimumSize: const Size.square(44),
+              foregroundColor: failed ? colors.error : colors.onSurfaceVariant,
+            ),
+            icon: updating
+                ? SizedBox.square(
+                    key: const Key('thread-subscription-progress'),
+                    dimension: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.primary,
+                    ),
+                  )
+                : Icon(
+                    failed
+                        ? Icons.notifications_active_rounded
+                        : following
+                        ? Icons.notifications_active_rounded
+                        : Icons.notifications_none_rounded,
+                    key: Key(
+                      following
+                          ? 'thread-subscription-following'
+                          : 'thread-subscription-not-following',
+                    ),
+                    semanticLabel: tooltip,
+                    size: 21,
+                  ),
+          );
+        },
       ),
     );
   }
