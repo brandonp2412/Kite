@@ -300,6 +300,77 @@ void main() {
     },
   );
 
+  test(
+    'audio interruption state follows only confirmed MatrixRTC media changes',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+
+      await fixture.coordinator.setMediaInterrupted(true);
+      await fixture.coordinator.setMediaInterrupted(true);
+      expect(fixture.coordinator.isMediaInterrupted.value, isTrue);
+
+      fixture.gateway.failNextWith = StateError('audio focus failed');
+      await expectLater(
+        fixture.coordinator.setMediaInterrupted(false),
+        throwsStateError,
+      );
+      expect(fixture.coordinator.isMediaInterrupted.value, isTrue);
+
+      await fixture.coordinator.setMediaInterrupted(false);
+      expect(fixture.coordinator.isMediaInterrupted.value, isFalse);
+      expect(
+        fixture.gateway.invocations
+            .where(
+              (entry) =>
+                  entry.type == MatrixRtcInvocationType.setMediaInterrupted,
+            )
+            .map((entry) => entry.enabled),
+        <bool?>[true, false, false],
+      );
+    },
+  );
+
+  test('transient reconnect remains retryable after failure and restores active state', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+    fixture.gateway.failNextWith = StateError('network still unavailable');
+
+    await expectLater(
+      fixture.coordinator.reconnectAfterTransientNetworkLoss(),
+      throwsStateError,
+    );
+    expect(fixture.coordinator.phase.value, KiteCallPhase.reconnecting);
+    expect(fixture.coordinator.session.value?.roomId, '!dm:example.org');
+
+    await fixture.coordinator.reconnectAfterTransientNetworkLoss();
+    expect(fixture.coordinator.phase.value, KiteCallPhase.active);
+    expect(
+      fixture.gateway.invocations
+          .where((entry) => entry.type == MatrixRtcInvocationType.reconnect)
+          .map((entry) => entry.callId),
+      <String?>['call-1', 'call-1'],
+    );
+  });
+
+  test('reconnecting calls can still hang up cleanly', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+    fixture.gateway.failNextWith = StateError('offline');
+    await expectLater(
+      fixture.coordinator.reconnectAfterTransientNetworkLoss(),
+      throwsStateError,
+    );
+
+    await fixture.coordinator.hangUp();
+
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
+    expect(
+      fixture.coordinator.session.value?.endReason,
+      KiteCallEndReason.hungUp,
+    );
+  });
+
   test('gateway failures restore deterministic idle state and emit safe trace data', () async {
     final fixture = _fixture();
     fixture.gateway.failNextWith = StateError('transport failed');

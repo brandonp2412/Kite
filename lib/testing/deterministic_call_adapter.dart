@@ -13,6 +13,8 @@ enum MatrixRtcInvocationType {
   switchCamera,
   availableAudioRoutes,
   selectAudioRoute,
+  setMediaInterrupted,
+  reconnect,
 }
 
 final class MatrixRtcInvocation {
@@ -209,6 +211,32 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
         type: MatrixRtcInvocationType.selectAudioRoute,
         callId: callId,
         routeId: routeId,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<void> setMediaInterrupted({
+    required String callId,
+    required bool interrupted,
+  }) async {
+    invocations.add(
+      MatrixRtcInvocation(
+        type: MatrixRtcInvocationType.setMediaInterrupted,
+        callId: callId,
+        enabled: interrupted,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<void> reconnect(String callId) async {
+    invocations.add(
+      MatrixRtcInvocation(
+        type: MatrixRtcInvocationType.reconnect,
+        callId: callId,
       ),
     );
     _throwIfRequested();

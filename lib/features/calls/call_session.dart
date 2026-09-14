@@ -7,7 +7,7 @@ enum KiteCallScope { direct, group }
 
 enum KiteCallDirection { outgoing, incoming }
 
-enum KiteCallPhase { idle, ringing, connecting, active, ended }
+enum KiteCallPhase { idle, ringing, connecting, active, reconnecting, ended }
 
 enum KiteCallEndReason { declined, hungUp }
 
@@ -129,6 +129,13 @@ abstract interface class MatrixRtcGateway {
     required String callId,
     required String routeId,
   });
+
+  Future<void> setMediaInterrupted({
+    required String callId,
+    required bool interrupted,
+  });
+
+  Future<void> reconnect(String callId);
 }
 
 final class KiteCallCoordinator {
@@ -157,6 +164,7 @@ final class KiteCallCoordinator {
     const <KiteAudioRoute>[],
   );
   final Signal<String?> selectedAudioRouteId = signal<String?>(null);
+  final Signal<bool> isMediaInterrupted = signal<bool>(false);
 
   Future<void> startDirectVoiceCall(String roomId) {
     return _startOutgoing(
@@ -314,12 +322,39 @@ final class KiteCallCoordinator {
     selectedAudioRouteId.value = routeId;
   }
 
+  Future<void> setMediaInterrupted(bool interrupted) async {
+    final current = _requireActiveSession();
+    if (isMediaInterrupted.value == interrupted) return;
+
+    await _gateway.setMediaInterrupted(
+      callId: current.callId,
+      interrupted: interrupted,
+    );
+    isMediaInterrupted.value = interrupted;
+  }
+
+  Future<void> reconnectAfterTransientNetworkLoss() async {
+    final current = _requireReconnectableSession();
+    phase.value = KiteCallPhase.reconnecting;
+
+    try {
+      await _gateway.reconnect(current.callId);
+      phase.value = KiteCallPhase.active;
+    } catch (_) {
+      phase.value = KiteCallPhase.reconnecting;
+      rethrow;
+    }
+  }
+
   Future<void> hangUp() async {
     final current = session.value;
     if (current == null ||
         (phase.value != KiteCallPhase.connecting &&
-            phase.value != KiteCallPhase.active)) {
-      throw StateError('No connecting or active call to hang up.');
+            phase.value != KiteCallPhase.active &&
+            phase.value != KiteCallPhase.reconnecting)) {
+      throw StateError(
+        'No connecting, active, or reconnecting call to hang up.',
+      );
     }
 
     final trace = _logger.trace(
@@ -411,6 +446,16 @@ final class KiteCallCoordinator {
     return current;
   }
 
+  KiteCallSession _requireReconnectableSession() {
+    final current = session.value;
+    if (current == null ||
+        (phase.value != KiteCallPhase.active &&
+            phase.value != KiteCallPhase.reconnecting)) {
+      throw StateError('No active or reconnecting call is available.');
+    }
+    return current;
+  }
+
   KiteCallSession _requireActiveVideoSession() {
     final current = _requireActiveSession();
     if (current.kind != KiteCallKind.video) {
@@ -450,5 +495,6 @@ final class KiteCallCoordinator {
     cameraFacing.value = KiteCameraFacing.front;
     audioRoutes.value = const <KiteAudioRoute>[];
     selectedAudioRouteId.value = null;
+    isMediaInterrupted.value = false;
   }
 }
