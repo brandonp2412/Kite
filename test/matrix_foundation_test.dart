@@ -43,6 +43,33 @@ void main() {
       expect(merged, hasLength(1));
       expect(merged.single.eventId, r'$remote');
     });
+
+    test(
+      'does not let stale transaction echo replace a newer remote event',
+      () {
+        final remote = event(
+          r'$remote',
+          order: 11,
+          transactionId: 't1',
+          summary: 'sent',
+        );
+        final staleEcho = event(
+          'local-t1',
+          order: 10,
+          transactionId: 't1',
+          summary: 'stale pending',
+        );
+
+        final merged = MatrixEventReducer.merge(
+          <MatrixEventEnvelope>[remote],
+          <MatrixEventEnvelope>[staleEcho],
+        );
+
+        expect(merged, hasLength(1));
+        expect(merged.single.eventId, r'$remote');
+        expect(merged.single.summary, 'sent');
+      },
+    );
   });
 
   group('MatrixPresentationCache', () {
@@ -338,6 +365,26 @@ void main() {
       expect(identical(first, second), isTrue);
       expect(queue.sends, hasLength(1));
       expect(queue.sends.single.body, 'first');
+    });
+
+    test('transport exceptions become deterministic retry state', () async {
+      final queue = OfflineSendQueue();
+      queue.enqueue(transactionId: 't1', roomId: '!room:test', body: 'hello');
+
+      await queue.drain((send) async {
+        throw Exception('temporary transport failure');
+      });
+
+      expect(queue.sends.single.state, OfflineSendState.retryWaiting);
+      expect(queue.sends.single.attempts, 1);
+
+      queue.retryNow('t1');
+      await queue.drain(
+        (send) async => const SendAttemptResult.sent(r'$event'),
+      );
+
+      expect(queue.sends.single.state, OfflineSendState.sent);
+      expect(queue.sends.single.attempts, 2);
     });
   });
 

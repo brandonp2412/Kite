@@ -38,20 +38,46 @@ abstract final class MatrixEventReducer {
     final byEventId = <String, MatrixEventEnvelope>{};
     final eventIdByTransactionId = <String, String>{};
 
+    bool isAtLeastAsFresh(
+      MatrixEventEnvelope candidate,
+      MatrixEventEnvelope current,
+    ) {
+      final orderComparison = candidate.syncOrder.compareTo(current.syncOrder);
+      if (orderComparison != 0) return orderComparison > 0;
+
+      final timeComparison = candidate.timestamp.compareTo(current.timestamp);
+      if (timeComparison != 0) return timeComparison >= 0;
+
+      return candidate.eventId.compareTo(current.eventId) >= 0;
+    }
+
     void ingest(MatrixEventEnvelope event) {
+      final previousById = byEventId[event.eventId];
+      if (previousById != null && !isAtLeastAsFresh(event, previousById)) {
+        return;
+      }
+
       final transactionId = event.transactionId;
       if (transactionId != null) {
         final previousEventId = eventIdByTransactionId[transactionId];
         if (previousEventId != null && previousEventId != event.eventId) {
+          final previousByTransaction = byEventId[previousEventId];
+          if (previousByTransaction != null &&
+              !isAtLeastAsFresh(event, previousByTransaction)) {
+            return;
+          }
           byEventId.remove(previousEventId);
         }
         eventIdByTransactionId[transactionId] = event.eventId;
       }
 
-      final previous = byEventId[event.eventId];
-      if (previous == null || event.syncOrder >= previous.syncOrder) {
-        byEventId[event.eventId] = event;
+      final previousTransactionId = previousById?.transactionId;
+      if (previousTransactionId != null &&
+          previousTransactionId != transactionId &&
+          eventIdByTransactionId[previousTransactionId] == event.eventId) {
+        eventIdByTransactionId.remove(previousTransactionId);
       }
+      byEventId[event.eventId] = event;
     }
 
     for (final event in existing) {
@@ -388,7 +414,15 @@ final class OfflineSendQueue {
         );
         _sends[transactionId] = sending;
 
-        final result = await operation(sending);
+        SendAttemptResult result;
+        try {
+          result = await operation(sending);
+        } on Exception {
+          _sends[transactionId] = sending.copyWith(
+            state: OfflineSendState.retryWaiting,
+          );
+          continue;
+        }
         _sends[transactionId] = sending.copyWith(
           state: result.succeeded
               ? OfflineSendState.sent
