@@ -1,23 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kite/design/kite_tokens.dart';
+
+enum KiteDarkThemeVariant { standard, trueBlack }
+
+abstract final class KiteSystemBars {
+  static SystemUiOverlayStyle forTheme(ThemeData theme) {
+    final dark = theme.brightness == Brightness.dark;
+    return SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: theme.scaffoldBackgroundColor,
+      systemNavigationBarIconBrightness: dark
+          ? Brightness.light
+          : Brightness.dark,
+    );
+  }
+}
 
 abstract final class KiteTheme {
   static const _seed = Color(0xFF0B7A6B);
 
   static final ThemeData light = _build(Brightness.light);
   static final ThemeData dark = _build(Brightness.dark);
+  static final ThemeData black = _build(Brightness.dark, trueBlack: true);
 
   static void warmUp() {
     light;
     dark;
+    black;
   }
 
-  static ThemeData _build(Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: _seed,
-      brightness: brightness,
-    );
-    final tokens = KiteSemanticColors.forBrightness(brightness, scheme);
+  static ThemeData _build(Brightness brightness, {bool trueBlack = false}) {
+    var scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: brightness);
+    if (trueBlack) {
+      scheme = scheme.copyWith(
+        surface: Colors.black,
+        surfaceContainerLowest: Colors.black,
+        surfaceContainerLow: const Color(0xFF050505),
+        surfaceContainer: const Color(0xFF090909),
+        surfaceContainerHigh: const Color(0xFF0D0D0D),
+        surfaceContainerHighest: const Color(0xFF151515),
+      );
+    }
+    var tokens = KiteSemanticColors.forBrightness(brightness, scheme);
+    if (trueBlack) {
+      tokens = tokens.copyWith(
+        canvas: Colors.black,
+        navigation: Colors.black,
+        field: const Color(0xFF0D0D0D),
+      );
+    }
 
     return ThemeData(
       useMaterial3: true,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/home_screen.dart';
@@ -12,9 +13,14 @@ void selectRoom(String roomId) {
 }
 
 class KiteApp extends StatelessWidget {
-  const KiteApp({super.key, this.themeMode = ThemeMode.system});
+  const KiteApp({
+    super.key,
+    this.themeMode = ThemeMode.system,
+    this.darkThemeVariant = KiteDarkThemeVariant.standard,
+  });
 
   final ThemeMode themeMode;
+  final KiteDarkThemeVariant darkThemeVariant;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +28,9 @@ class KiteApp extends StatelessWidget {
       title: 'Kite',
       debugShowCheckedModeBanner: false,
       theme: KiteTheme.light,
-      darkTheme: KiteTheme.dark,
+      darkTheme: darkThemeVariant == KiteDarkThemeVariant.trueBlack
+          ? KiteTheme.black
+          : KiteTheme.dark,
       themeMode: themeMode,
       themeAnimationCurve: KiteMotion.standardCurve,
       themeAnimationDuration: KiteMotion.resolve(context, KiteMotion.standard),

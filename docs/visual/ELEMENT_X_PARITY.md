@@ -35,6 +35,10 @@ Kite renders checked in this review:
 - `test/goldens/home_tablet_dark.png`
 - `test/goldens/home_desktop_light.png`
 - `test/goldens/home_desktop_dark.png`
+- `test/goldens/home_phone_portrait_true_black.png`
+- `test/goldens/home_phone_landscape_true_black.png`
+- `test/goldens/home_tablet_true_black.png`
+- `test/goldens/home_desktop_true_black.png`
 
 Element X reference: `https://element.io/blog/content/images/2026/03/space-list.png`.
 
@@ -49,9 +53,9 @@ Observed comparison:
 | Selection/unread state | State is carried by shape, iconography, text and colour | Selected state exists but fixture does not exercise equivalent unread/mention hierarchy | Gap |
 | Spacing/radii | Consistent compact spacing, soft containers and restrained separators | Tokenised spacing/radii now exist; current fixture still exposes generic list composition | Partial |
 | Responsive composition | Reference is phone-first; Element X visual language stays compact | Kite now has explicit compact and two-pane layouts with bounded sidebar width | Partial |
-| Light/dark verification | Upstream screenshot tests gate visual changes | Kite light/dark goldens gate all current home viewport variants | Pass for current Kite surface |
+| Theme verification | Upstream screenshot tests gate visual changes | Kite light/dark/true-black goldens gate all current home viewport variants; true-black keeps primary surfaces at `#000000` with restrained near-black elevated surfaces and matching system-bar treatment | Pass for current Kite surface |
 
-Do not approve the home visual-parity roadmap checkbox from this review. The comparison identifies concrete gaps and is intentionally stricter than source-code inspection.
+Do not approve the home visual-parity roadmap checkbox from this review. The comparison identifies concrete gaps and is intentionally stricter than source-code inspection. The 2026-09-14 true-black render review preserved the same geometry and hierarchy as dark mode. The theme/system-bar implementation is in place, but its roadmap checkbox remains open until the full quality gate passes the pinned cold-frame contract.
 
 ## Screen-by-screen parity matrix
 
