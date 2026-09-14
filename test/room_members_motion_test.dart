@@ -170,6 +170,81 @@ void main() {
       expect(find.byKey(const Key('member-details-name')), findsOneWidget);
       expect(find.byKey(const Key('member-role-50')), findsOneWidget);
       expect(find.byKey(const Key('member-role-100')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('member-kick')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, heading), initialHeading);
+        expect(_rectOf(tester, search), initialSearch);
+        expect(tester.takeException(), isNull);
+      }
+      expect(find.text('Remove Alice?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('member-ban')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, heading), initialHeading);
+        expect(_rectOf(tester, search), initialSearch);
+        expect(tester.takeException(), isNull);
+      }
+      expect(find.text('Ban Alice?'), findsOneWidget);
     },
   );
+
+  testWidgets('unban confirmation keeps room geometry stable at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    const member = RoomMember(
+      userId: '@banned:example.org',
+      displayName: 'Banned member',
+      membership: RoomMembership.banned,
+      powerLevel: 0,
+    );
+    final coordinator = RoomMemberManagementCoordinator(
+      actorUserId: '@moderator:example.org',
+      directory: FakeRoomMemberDirectoryPort(
+        members: const <RoomMember>[member],
+      ),
+      authorization: FakeRoomMemberAuthorizationPort(),
+      mutations: FakeRoomMemberMutationPort(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomMembersScreen(
+          roomId: '!team:example.org',
+          coordinator: coordinator,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final heading = find.text('Members');
+    final search = find.byKey(const Key('member-search'));
+    final initialHeading = _rectOf(tester, heading);
+    final initialSearch = _rectOf(tester, search);
+
+    await tester.tap(find.byKey(const Key('member-@banned:example.org')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-unban')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, heading), initialHeading);
+      expect(_rectOf(tester, search), initialSearch);
+      expect(tester.takeException(), isNull);
+    }
+    expect(find.text('Unban Banned member?'), findsOneWidget);
+  });
 }

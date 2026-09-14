@@ -155,6 +155,105 @@ void main() {
     );
   });
 
+  testWidgets('kick is permission gated and requires confirmation', (
+    tester,
+  ) async {
+    const member = RoomMember(
+      userId: '@member:example.org',
+      displayName: 'Member',
+      membership: RoomMembership.joined,
+      powerLevel: 0,
+    );
+    final directory = FakeRoomMemberDirectoryPort(
+      members: const <RoomMember>[member],
+    );
+    final authorization = FakeRoomMemberAuthorizationPort(
+      resolver: (request) {
+        if (request.action == RoomMemberAction.kick) {
+          return const RoomMemberActionAuthorization.allowed();
+        }
+        return const RoomMemberActionAuthorization.denied('Not permitted.');
+      },
+    );
+    final mutations = FakeRoomMemberMutationPort();
+    await pumpScreen(
+      tester,
+      coordinator: coordinator(
+        directory: directory,
+        authorization: authorization,
+        mutations: mutations,
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('member-@member:example.org')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('member-kick')), findsOneWidget);
+    expect(find.byKey(const Key('member-ban')), findsNothing);
+    await tester.tap(find.byKey(const Key('member-kick')));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove Member?'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(mutations.kicks, isEmpty);
+
+    await tester.tap(find.byKey(const Key('member-kick')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-moderation-confirm-Remove')));
+    await tester.pumpAndSettle();
+
+    expect(mutations.kicks, <({String roomId, String userId})>[
+      (roomId: roomId, userId: member.userId),
+    ]);
+  });
+
+  testWidgets('ban transitions to authorised unban semantics', (tester) async {
+    const member = RoomMember(
+      userId: '@member:example.org',
+      displayName: 'Member',
+      membership: RoomMembership.joined,
+      powerLevel: 0,
+    );
+    final directory = FakeRoomMemberDirectoryPort(
+      members: const <RoomMember>[member],
+    );
+    final mutations = FakeRoomMemberMutationPort();
+    await pumpScreen(
+      tester,
+      coordinator: coordinator(directory: directory, mutations: mutations),
+    );
+
+    await tester.tap(find.byKey(const Key('member-@member:example.org')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('member-ban')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('member-ban')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-moderation-confirm-Ban')));
+    await tester.pumpAndSettle();
+
+    expect(mutations.bans, <({String roomId, String userId, String? reason})>[
+      (roomId: roomId, userId: member.userId, reason: null),
+    ]);
+
+    await tester.tap(find.byKey(const Key('member-@member:example.org')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('member-ban')), findsNothing);
+    expect(find.byKey(const Key('member-kick')), findsNothing);
+    expect(find.byKey(const Key('member-unban')), findsOneWidget);
+    expect(find.byKey(const Key('member-role-50')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('member-unban')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-moderation-confirm-Unban')));
+    await tester.pumpAndSettle();
+
+    expect(mutations.unbans, <({String roomId, String userId})>[
+      (roomId: roomId, userId: member.userId),
+    ]);
+  });
+
   testWidgets('denied invite surfaces the SDK reason without mutating', (
     tester,
   ) async {

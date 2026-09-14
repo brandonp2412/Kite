@@ -18,19 +18,44 @@ void main() {
       ? PerformanceContract.gateVirtualizedTotalSpan
       : PerformanceContract.gatePhysicalTotalSpan;
 
-  testWidgets('member invite and role actions have zero late Flutter frames', (
+  testWidgets('member moderation actions have zero late Flutter frames', (
     tester,
   ) async {
-    const member = RoomMember(
+    const roleMember = RoomMember(
       userId: '@member:example.org',
       displayName: 'Member',
       membership: RoomMembership.joined,
       powerLevel: 0,
     );
+    const kickMember = RoomMember(
+      userId: '@kick:example.org',
+      displayName: 'Kick target',
+      membership: RoomMembership.joined,
+      powerLevel: 0,
+    );
+    const banMember = RoomMember(
+      userId: '@ban:example.org',
+      displayName: 'Ban target',
+      membership: RoomMembership.joined,
+      powerLevel: 0,
+    );
+    const bannedMember = RoomMember(
+      userId: '@banned:example.org',
+      displayName: 'Banned target',
+      membership: RoomMembership.banned,
+      powerLevel: 0,
+    );
     final mutations = FakeRoomMemberMutationPort();
     final coordinator = RoomMemberManagementCoordinator(
       actorUserId: '@moderator:example.org',
-      directory: FakeRoomMemberDirectoryPort(members: <RoomMember>[member]),
+      directory: FakeRoomMemberDirectoryPort(
+        members: const <RoomMember>[
+          roleMember,
+          kickMember,
+          banMember,
+          bannedMember,
+        ],
+      ),
       authorization: FakeRoomMemberAuthorizationPort(),
       mutations: mutations,
     );
@@ -58,16 +83,46 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('member-role-50')));
         await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('member-@kick:example.org')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('member-kick')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('member-moderation-confirm-Remove')),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('member-@ban:example.org')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('member-ban')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('member-moderation-confirm-Ban')),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('member-@banned:example.org')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('member-unban')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('member-moderation-confirm-Unban')),
+        );
+        await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
 
     expect(mutations.invitations, isEmpty);
     expect(mutations.powerLevelChanges, hasLength(1));
+    expect(mutations.kicks, hasLength(1));
+    expect(mutations.bans, hasLength(1));
+    expect(mutations.unbans, hasLength(1));
     binding.reportData ??= <String, dynamic>{};
-    binding.reportData!['room_member_invite_role_actions'] = <String, dynamic>{
-      'journey': 'room_member_invite_sheet_and_role_change',
-      'fixture': 'deterministic_member_actions_v1',
+    binding.reportData!['room_member_moderation_actions'] = <String, dynamic>{
+      'journey': 'room_member_role_kick_ban_unban',
+      'fixture': 'deterministic_member_actions_v2',
       ...result,
       'result': 'PASS',
     };

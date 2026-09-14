@@ -51,8 +51,36 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
     await _controller.invite(userId);
   }
 
+  Future<bool> _confirmModerationAction({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required String actionLabel,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: Key('member-moderation-confirm-$actionLabel'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _openMember(RoomMember member) async {
     final powerOptions = _controller.powerOptions(member);
+    final moderationOptions = _controller.moderationOptions(member);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -212,6 +240,96 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: actions,
+                    );
+                  },
+                ),
+                FutureBuilder<RoomMemberModerationOptions>(
+                  future: moderationOptions,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done ||
+                        snapshot.hasError ||
+                        !snapshot.hasData) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final options = snapshot.requireData;
+                    final actions = <Widget>[];
+                    if (options.canKick) {
+                      actions.add(
+                        ListTile(
+                          key: const Key('member-kick'),
+                          minTileHeight: 52,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.person_remove_outlined),
+                          title: const Text('Remove from room'),
+                          onTap: () async {
+                            final confirmed = await _confirmModerationAction(
+                              context: sheetContext,
+                              title: 'Remove ${member.displayName}?',
+                              message: 'They will leave this room but can be invited again.',
+                              actionLabel: 'Remove',
+                            );
+                            if (!confirmed) return;
+                            final changed = await _controller.kick(member);
+                            if (changed && sheetContext.mounted) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                          },
+                        ),
+                      );
+                    }
+                    if (options.canBan) {
+                      actions.add(
+                        ListTile(
+                          key: const Key('member-ban'),
+                          minTileHeight: 52,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.block_outlined),
+                          title: const Text('Ban from room'),
+                          onTap: () async {
+                            final confirmed = await _confirmModerationAction(
+                              context: sheetContext,
+                              title: 'Ban ${member.displayName}?',
+                              message: 'They will be removed and cannot rejoin until unbanned.',
+                              actionLabel: 'Ban',
+                            );
+                            if (!confirmed) return;
+                            final changed = await _controller.ban(member);
+                            if (changed && sheetContext.mounted) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                          },
+                        ),
+                      );
+                    }
+                    if (options.canUnban) {
+                      actions.add(
+                        ListTile(
+                          key: const Key('member-unban'),
+                          minTileHeight: 52,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.undo_outlined),
+                          title: const Text('Unban'),
+                          onTap: () async {
+                            final confirmed = await _confirmModerationAction(
+                              context: sheetContext,
+                              title: 'Unban ${member.displayName}?',
+                              message: 'They will be allowed to join this room again.',
+                              actionLabel: 'Unban',
+                            );
+                            if (!confirmed) return;
+                            final changed = await _controller.unban(member);
+                            if (changed && sheetContext.mounted) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                          },
+                        ),
+                      );
+                    }
+                    if (actions.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[const Divider(), ...actions],
                     );
                   },
                 ),

@@ -290,8 +290,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Invite members.
 - [x] Roles/power levels.
 - [x] Promote/demote where authorised.
-- [ ] Kick.
-- [ ] Ban/unban.
+- [x] Kick.
+- [x] Ban/unban.
 - [ ] Report user/room where supported.
 - [ ] Leave room.
 - [ ] Forget/remove local room state where relevant.

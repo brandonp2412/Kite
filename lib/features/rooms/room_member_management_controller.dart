@@ -13,6 +13,18 @@ final class RoomMemberPowerOptions {
   final bool canSetAdmin;
 }
 
+final class RoomMemberModerationOptions {
+  const RoomMemberModerationOptions({
+    required this.canKick,
+    required this.canBan,
+    required this.canUnban,
+  });
+
+  final bool canKick;
+  final bool canBan;
+  final bool canUnban;
+}
+
 final class RoomMemberManagementController {
   RoomMemberManagementController({
     required this.roomId,
@@ -73,6 +85,14 @@ final class RoomMemberManagementController {
   }
 
   Future<RoomMemberPowerOptions> powerOptions(RoomMember member) async {
+    if (member.membership != RoomMembership.joined) {
+      return const RoomMemberPowerOptions(
+        canSetMember: false,
+        canSetModerator: false,
+        canSetAdmin: false,
+      );
+    }
+
     final decisions = await Future.wait<RoomMemberActionAuthorization>(
       <Future<RoomMemberActionAuthorization>>[
         _coordinator.authorization(
@@ -114,14 +134,107 @@ final class RoomMemberManagementController {
     );
     if (!changed) return false;
 
-    members.value = List<RoomMember>.unmodifiable(
-      members.value.map(
-        (current) => current.userId == member.userId
-            ? current.copyWith(powerLevel: powerLevel)
-            : current,
-      ),
+    _replaceMember(member.userId, member.copyWith(powerLevel: powerLevel));
+    return true;
+  }
+
+  Future<RoomMemberModerationOptions> moderationOptions(
+    RoomMember member,
+  ) async {
+    if (member.membership == RoomMembership.banned) {
+      final decision = await _coordinator.authorization(
+        roomId: roomId,
+        action: RoomMemberAction.unban,
+        targetUserId: member.userId,
+      );
+      return RoomMemberModerationOptions(
+        canKick: false,
+        canBan: false,
+        canUnban: decision.allowed,
+      );
+    }
+
+    if (member.membership != RoomMembership.joined) {
+      return const RoomMemberModerationOptions(
+        canKick: false,
+        canBan: false,
+        canUnban: false,
+      );
+    }
+
+    final decisions = await Future.wait<RoomMemberActionAuthorization>(
+      <Future<RoomMemberActionAuthorization>>[
+        _coordinator.authorization(
+          roomId: roomId,
+          action: RoomMemberAction.kick,
+          targetUserId: member.userId,
+        ),
+        _coordinator.authorization(
+          roomId: roomId,
+          action: RoomMemberAction.ban,
+          targetUserId: member.userId,
+        ),
+      ],
+    );
+    return RoomMemberModerationOptions(
+      canKick: decisions[0].allowed,
+      canBan: decisions[1].allowed,
+      canUnban: false,
+    );
+  }
+
+  Future<bool> kick(RoomMember member) async {
+    final changed = await _runMutation(
+      failureMessage: 'Kite could not remove that member.',
+      action: () => _coordinator.kick(roomId: roomId, userId: member.userId),
+    );
+    if (!changed) return false;
+
+    _replaceMember(
+      member.userId,
+      member.copyWith(membership: RoomMembership.left),
     );
     return true;
+  }
+
+  Future<bool> ban(RoomMember member, {String? reason}) async {
+    final changed = await _runMutation(
+      failureMessage: 'Kite could not ban that member.',
+      action: () => _coordinator.ban(
+        roomId: roomId,
+        userId: member.userId,
+        reason: reason,
+      ),
+    );
+    if (!changed) return false;
+
+    _replaceMember(
+      member.userId,
+      member.copyWith(membership: RoomMembership.banned),
+    );
+    return true;
+  }
+
+  Future<bool> unban(RoomMember member) async {
+    final changed = await _runMutation(
+      failureMessage: 'Kite could not unban that member.',
+      action: () => _coordinator.unban(roomId: roomId, userId: member.userId),
+    );
+    if (!changed) return false;
+
+    _replaceMember(
+      member.userId,
+      member.copyWith(membership: RoomMembership.left),
+    );
+    return true;
+  }
+
+  void _replaceMember(String userId, RoomMember replacement) {
+    members.value = List<RoomMember>.unmodifiable(
+      members.value.map(
+        (current) => current.userId == userId ? replacement : current,
+      ),
+    );
   }
 
   Future<bool> _runMutation({
