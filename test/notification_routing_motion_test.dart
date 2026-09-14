@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_delivery.dart';
+import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
@@ -37,21 +39,19 @@ void main() {
 
       final revision = ValueNotifier<int>(0);
       addTearDown(revision.dispose);
-      final notifications = FakeNotificationRepository(<KiteNotification>[
-        const KiteNotification(
-          id: 'event',
-          kind: KiteNotificationKind.mention,
-          destination: AppDestination.event(
-            accountId: 'work',
-            roomId: '!team:example.org',
-            eventId: r'$event',
-          ),
-        ),
-      ]);
-      final cancellations = FakeNotificationCancellationPort();
+      final notifications = FakeNotificationRepository();
+      final platform = FakeNotificationDeliveryPort();
+      final delivery = NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: platform,
+      );
+      final dispatcher = NotificationDispatchCoordinator(
+        notifications: notifications,
+        delivery: delivery,
+      );
       final coordinator = NotificationCoordinator(
         notifications: notifications,
-        cancellations: cancellations,
+        cancellations: delivery,
         accounts: FakeAccountActivationPort('personal'),
         navigation: _MotionNavigationPort(revision),
       );
@@ -96,6 +96,29 @@ void main() {
       final contentRect = _rectOf(tester, content);
       final statusRect = _rectOf(tester, status);
 
+      await dispatcher.dispatch(
+        const MatrixNotificationEvent(
+          id: 'event',
+          kind: MatrixNotificationEventKind.mention,
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$event',
+          title: 'Alice',
+          body: 'Mentioned you',
+        ),
+      );
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, content), contentRect);
+        expect(_rectOf(tester, status), statusRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(
+        platform.shown.single.notification.kind,
+        KiteNotificationKind.mention,
+      );
+
       expect(await coordinator.tap('event'), isTrue);
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
@@ -122,7 +145,7 @@ void main() {
       }
 
       expect(notifications.notification('event'), isNull);
-      expect(cancellations.cancelledIds, <String>['event']);
+      expect(platform.cancelledIds, <String>['event']);
     },
   );
 }

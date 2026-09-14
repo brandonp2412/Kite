@@ -1,0 +1,155 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_delivery.dart';
+import 'package:kite/features/notifications/notification_dispatch.dart';
+import 'package:kite/features/notifications/notification_routing.dart';
+import 'package:kite/testing/deterministic_routing_adapters.dart';
+
+void main() {
+  test(
+    'dispatch maps message, mention, invite, and thread to exact targets',
+    () async {
+      final repository = FakeNotificationRepository();
+      final platform = FakeNotificationDeliveryPort();
+      final dispatcher = NotificationDispatchCoordinator(
+        notifications: repository,
+        delivery: NotificationDeliveryCoordinator(
+          privacy: FakeNotificationPrivacyPort(),
+          delivery: platform,
+        ),
+      );
+
+      final events = <MatrixNotificationEvent>[
+        const MatrixNotificationEvent(
+          id: 'message',
+          kind: MatrixNotificationEventKind.message,
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$message',
+          title: 'Alice',
+          body: 'Message body',
+        ),
+        const MatrixNotificationEvent(
+          id: 'mention',
+          kind: MatrixNotificationEventKind.mention,
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$mention',
+          title: 'Bob',
+          body: 'Mentioned you',
+        ),
+        const MatrixNotificationEvent(
+          id: 'invite',
+          kind: MatrixNotificationEventKind.invite,
+          accountId: 'work',
+          roomId: '!invite:example.org',
+          title: 'Room invite',
+          body: 'Invited by Carol',
+        ),
+        const MatrixNotificationEvent(
+          id: 'thread',
+          kind: MatrixNotificationEventKind.thread,
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$reply',
+          threadRootEventId: r'$root',
+          title: 'Thread reply',
+          body: 'Dave replied',
+        ),
+      ];
+
+      for (final event in events) {
+        await dispatcher.dispatch(event);
+      }
+
+      expect(
+        repository.notification('message')!.destination,
+        const AppDestination.event(
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$message',
+        ),
+      );
+      expect(
+        repository.notification('mention')!.kind,
+        KiteNotificationKind.mention,
+      );
+      expect(
+        repository.notification('invite')!.destination,
+        const AppDestination.room(
+          accountId: 'work',
+          roomId: '!invite:example.org',
+        ),
+      );
+      expect(
+        repository.notification('thread')!.destination,
+        const AppDestination.thread(
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$reply',
+          threadRootEventId: r'$root',
+        ),
+      );
+      expect(
+        platform.shown.map((item) => item.notification.kind),
+        <KiteNotificationKind>[
+          KiteNotificationKind.message,
+          KiteNotificationKind.mention,
+          KiteNotificationKind.invite,
+          KiteNotificationKind.thread,
+        ],
+      );
+      expect(platform.shown.map((item) => item.body), <String>[
+        'Message body',
+        'Mentioned you',
+        'Invited by Carol',
+        'Dave replied',
+      ]);
+    },
+  );
+
+  test('invalid event identity and failed platform delivery never register routing', () async {
+    final repository = FakeNotificationRepository();
+    final platform = FakeNotificationDeliveryPort();
+    final dispatcher = NotificationDispatchCoordinator(
+      notifications: repository,
+      delivery: NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: platform,
+      ),
+    );
+
+    await expectLater(
+      dispatcher.dispatch(
+        const MatrixNotificationEvent(
+          id: 'bad-thread',
+          kind: MatrixNotificationEventKind.thread,
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$reply',
+          title: 'Thread',
+          body: 'Missing root',
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(repository.notification('bad-thread'), isNull);
+
+    platform.failNextWith = StateError('platform unavailable');
+    await expectLater(
+      dispatcher.dispatch(
+        const MatrixNotificationEvent(
+          id: 'failed',
+          kind: MatrixNotificationEventKind.message,
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$failed',
+          title: 'Alice',
+          body: 'Body',
+        ),
+      ),
+      throwsStateError,
+    );
+    expect(repository.notification('failed'), isNull);
+  });
+}

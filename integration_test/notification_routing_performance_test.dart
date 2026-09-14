@@ -4,6 +4,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
+import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
@@ -38,41 +39,16 @@ void main() {
       addTearDown(revision.dispose);
       final navigation = _BenchmarkNavigationPort(revision);
       final accounts = FakeAccountActivationPort('personal');
-      final notifications = FakeNotificationRepository(<KiteNotification>[
-        const KiteNotification(
-          id: 'thread',
-          kind: KiteNotificationKind.thread,
-          destination: AppDestination.thread(
-            accountId: 'work',
-            roomId: '!team:example.org',
-            eventId: r'$reply',
-            threadRootEventId: r'$root',
-          ),
-        ),
-        const KiteNotification(
-          id: 'message',
-          kind: KiteNotificationKind.message,
-          destination: AppDestination.event(
-            accountId: 'work',
-            roomId: '!team:example.org',
-            eventId: r'$message',
-          ),
-        ),
-        const KiteNotification(
-          id: 'remote-read',
-          kind: KiteNotificationKind.mention,
-          destination: AppDestination.event(
-            accountId: 'work',
-            roomId: '!other:example.org',
-            eventId: r'$remoteRead',
-          ),
-        ),
-      ]);
+      final notifications = FakeNotificationRepository();
       final notificationPrivacy = FakeNotificationPrivacyPort();
       final notificationDelivery = FakeNotificationDeliveryPort();
       final deliveryCoordinator = NotificationDeliveryCoordinator(
         privacy: notificationPrivacy,
         delivery: notificationDelivery,
+      );
+      final dispatcher = NotificationDispatchCoordinator(
+        notifications: notifications,
+        delivery: deliveryCoordinator,
       );
       final coordinator = NotificationCoordinator(
         notifications: notifications,
@@ -80,21 +56,6 @@ void main() {
         accounts: accounts,
         navigation: navigation,
       );
-      for (final notificationId in <String>[
-        'thread',
-        'message',
-        'remote-read',
-      ]) {
-        final notification = notifications.notification(notificationId)!;
-        await deliveryCoordinator.upsert(
-          notification: notification,
-          content: KiteNotificationContent(
-            title: 'Sender $notificationId',
-            body: 'Deterministic $notificationId notification',
-          ),
-        );
-      }
-
       await tester.pumpWidget(
         MaterialApp(
           home: ValueListenableBuilder<int>(
@@ -113,6 +74,46 @@ void main() {
       final result = await measureFrames(
         binding: binding,
         action: () async {
+          for (final event in <MatrixNotificationEvent>[
+            const MatrixNotificationEvent(
+              id: 'thread',
+              kind: MatrixNotificationEventKind.thread,
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$reply',
+              threadRootEventId: r'$root',
+              title: 'Thread reply',
+              body: 'Deterministic thread notification',
+            ),
+            const MatrixNotificationEvent(
+              id: 'message',
+              kind: MatrixNotificationEventKind.message,
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$message',
+              title: 'Message',
+              body: 'Deterministic message notification',
+            ),
+            const MatrixNotificationEvent(
+              id: 'remote-read',
+              kind: MatrixNotificationEventKind.mention,
+              accountId: 'work',
+              roomId: '!other:example.org',
+              eventId: r'$remoteRead',
+              title: 'Mention',
+              body: 'Deterministic mention notification',
+            ),
+            const MatrixNotificationEvent(
+              id: 'invite',
+              kind: MatrixNotificationEventKind.invite,
+              accountId: 'work',
+              roomId: '!invite:example.org',
+              title: 'Invite',
+              body: 'Deterministic invite notification',
+            ),
+          ]) {
+            await dispatcher.dispatch(event);
+          }
           expect(await coordinator.tap('thread'), isTrue);
           await tester.pump();
 
@@ -152,7 +153,7 @@ void main() {
           }
           notificationPrivacy.hideNotificationContents = true;
           await deliveryCoordinator.refreshPrivacy();
-          expect(deliveryCoordinator.activePresentations, hasLength(48));
+          expect(deliveryCoordinator.activePresentations, hasLength(49));
           expect(
             deliveryCoordinator.activePresentations.every(
               (presentation) => presentation.contentsHidden,
@@ -173,6 +174,7 @@ void main() {
       expect(notifications.notification('thread'), isNull);
       expect(notifications.notification('message'), isNull);
       expect(notifications.notification('remote-read'), isNull);
+      expect(notifications.notification('invite'), isNotNull);
       expect(notificationDelivery.cancelledIds.take(3), <String>[
         'thread',
         'message',

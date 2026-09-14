@@ -1,8 +1,10 @@
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
+import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 
-final class FakeNotificationRepository implements NotificationRepository {
+final class FakeNotificationRepository
+    implements NotificationRepository, NotificationRegistrationPort {
   FakeNotificationRepository([Iterable<KiteNotification> initial = const []])
     : _notifications = <String, KiteNotification>{
         for (final notification in initial) notification.id: notification,
@@ -12,6 +14,11 @@ final class FakeNotificationRepository implements NotificationRepository {
   final List<String> removedIds = <String>[];
 
   void add(KiteNotification notification) {
+    upsertNotification(notification);
+  }
+
+  @override
+  void upsertNotification(KiteNotification notification) {
     _notifications[notification.id] = notification;
   }
 
