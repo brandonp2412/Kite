@@ -6,6 +6,8 @@ void main() {
     expect(PerformanceContract.fixtureRoomCount, 200);
     expect(PerformanceContract.fixtureMessagesPerRoom, 100);
     expect(PerformanceContract.roomListBenchmarkRoomCount, 3000);
+    expect(PerformanceContract.timelineBenchmarkMessageCount, 1200);
+    expect(PerformanceContract.paginationBenchmarkPageSize, 100);
 
     expect(PerformanceContract.motionRefreshRateHz, 120);
     expect(PerformanceContract.motionFrame, const Duration(microseconds: 8333));

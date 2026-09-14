@@ -2,6 +2,8 @@ abstract final class PerformanceContract {
   static const int fixtureRoomCount = 200;
   static const int fixtureMessagesPerRoom = 100;
   static const int roomListBenchmarkRoomCount = 3000;
+  static const int timelineBenchmarkMessageCount = 1200;
+  static const int paginationBenchmarkPageSize = 100;
 
   static const double motionRefreshRateHz = 120;
   static const Duration motionFrame = Duration(microseconds: 8333);

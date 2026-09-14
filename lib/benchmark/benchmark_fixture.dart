@@ -14,6 +14,16 @@ class BenchmarkRoom {
   final String subtitle;
 }
 
+enum BenchmarkMessageKind {
+  text,
+  formatted,
+  image,
+  file,
+  audio,
+  poll,
+  location,
+}
+
 @immutable
 class BenchmarkMessage {
   const BenchmarkMessage({
@@ -21,12 +31,14 @@ class BenchmarkMessage {
     required this.sender,
     required this.body,
     required this.mine,
+    this.kind = BenchmarkMessageKind.text,
   });
 
   final String id;
   final String sender;
   final String body;
   final bool mine;
+  final BenchmarkMessageKind kind;
 }
 
 abstract final class BenchmarkFixture {
@@ -87,6 +99,59 @@ abstract final class BenchmarkFixture {
           ),
         ),
       );
+
+  static final List<BenchmarkMessage> richTimelineMessages =
+      List<BenchmarkMessage>.unmodifiable(
+        _timelinePage(
+          prefix: 'timeline',
+          startIndex: 0,
+          count: PerformanceContract.timelineBenchmarkMessageCount,
+        ),
+      );
+
+  static final List<BenchmarkMessage> olderTimelinePage =
+      List<BenchmarkMessage>.unmodifiable(
+        _timelinePage(
+          prefix: 'older',
+          startIndex: -PerformanceContract.paginationBenchmarkPageSize,
+          count: PerformanceContract.paginationBenchmarkPageSize,
+        ),
+      );
+
+  static const BenchmarkMessage incomingTimelineMessage = BenchmarkMessage(
+    id: 'incoming-timeline-message',
+    sender: 'Alice',
+    body: 'A deterministic incoming benchmark message',
+    mine: false,
+    kind: BenchmarkMessageKind.formatted,
+  );
+
+  static List<BenchmarkMessage> _timelinePage({
+    required String prefix,
+    required int startIndex,
+    required int count,
+  }) {
+    final kinds = BenchmarkMessageKind.values;
+    return List<BenchmarkMessage>.generate(count, (offset) {
+      final index = startIndex + offset;
+      final kind = kinds[offset % kinds.length];
+      return BenchmarkMessage(
+        id: '$prefix-$index',
+        sender: offset.isEven ? 'Alice' : 'You',
+        body: switch (kind) {
+          BenchmarkMessageKind.text => 'Message $index',
+          BenchmarkMessageKind.formatted => 'Formatted update $index',
+          BenchmarkMessageKind.image => 'Image attachment $index',
+          BenchmarkMessageKind.file => 'Document-$index.pdf',
+          BenchmarkMessageKind.audio => 'Voice message $index',
+          BenchmarkMessageKind.poll => 'Poll response $index',
+          BenchmarkMessageKind.location => 'Shared location $index',
+        },
+        mine: offset.isOdd,
+        kind: kind,
+      );
+    });
+  }
 
   static BenchmarkRoom room(String id) =>
       rooms.firstWhere((room) => room.id == id);

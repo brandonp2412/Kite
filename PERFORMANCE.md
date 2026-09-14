@@ -13,6 +13,8 @@ The contract is pinned in `lib/benchmark/performance_contract.dart` and independ
 - The deterministic 120 Hz motion test must produce zero unintended geometry movement in the sidebar, chat panel, message list, and composer.
 - The canonical fixture stays at 200 rooms and 100 messages per room unless this contract and its pin test are deliberately revised.
 - The dedicated room-list scroll benchmark uses a separate deterministic 3,000-room fixture; it must not replace or silently resize the canonical 200-room fixture.
+- Timeline performance journeys use a separate deterministic 1,200-message fixture spanning text, formatted, image, file, audio, poll, and location event shapes.
+- Pagination adds a deterministic 100-event page; incoming-message insertion and reaction/read-receipt/typing updates are measured as independent mutation journeys.
 - The canonical warm-switch benchmark remains 30 chat opens.
 - The benchmark detector must prove itself by failing when the 40 ms artificial build stall is enabled.
 
@@ -40,7 +42,7 @@ Waydroid is the continuous regression detector. Release candidates must addition
 
 ## Evidence format
 
-`integration_test/open_dm_performance_test.dart` and `integration_test/release_journey_performance_test.dart` emit machine-readable frame data including refresh rate, frame budget, build/raster/total-span violations, worst timings, and raw per-frame timings. Keep this output when investigating any failure.
+`integration_test/open_dm_performance_test.dart` and `integration_test/release_journey_performance_test.dart` emit machine-readable frame data including refresh rate, frame budget, build/raster/total-span violations, worst timings, and raw per-frame timings. Release-journey output includes room-list scroll, composer keyboard, mixed rich timeline scroll, pagination, incoming-message insertion, and reaction/read-receipt/typing mutation records. Keep this output when investigating any failure.
 
 The 2026-09-15 Waydroid profile-mode release-journey run used a 16,666 µs frame budget and recorded zero build, raster, and total-span violations for both new journeys. The 3,000-room scroll captured 117 frames with worst build/raster/total-span times of 4,959/2,831/6,661 µs. Composer keyboard appearance captured 7 frames with worst build/raster/total-span times of 3,365/2,152/6,366 µs. Waydroid still gates only build and raster timing as described above.
 
