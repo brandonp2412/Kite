@@ -28,11 +28,44 @@ void main() {
       expect(boundary.openCalls, 0);
     });
 
+    test('rejects SDK boundaries without Sliding Sync support', () {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+        },
+      );
+
+      expect(
+        () => MatrixBoundaryEngine(boundary: boundary, store: _store),
+        throwsA(isA<MatrixSdkContractException>()),
+      );
+      expect(boundary.openCalls, 0);
+    });
+
+    test('back-pagination requires explicit SDK capability', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.slidingSync,
+        },
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+
+      await expectLater(
+        engine.paginateBackwards('!alpha:kite.test'),
+        throwsA(isA<MatrixSdkContractException>()),
+      );
+      expect(boundary.openCalls, 0);
+    });
+
     test('opens encrypted store once and delegates sync lifecycle', () async {
       final boundary = _FakeSdkBoundary(
         capabilities: const <MatrixSdkCapability>{
           MatrixSdkCapability.auditedEncryption,
           MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.slidingSync,
           MatrixSdkCapability.backPagination,
         },
       );
@@ -52,6 +85,88 @@ void main() {
       expect(boundary.paginatedRooms, <String>['!alpha:kite.test']);
       expect(boundary.closeCalls, 1);
     });
+
+    test(
+      'Sliding Sync populates the initial room list then updates leaf state',
+      () async {
+        final initialRooms = List<MatrixRoomDelta>.generate(200, (index) {
+          final roomId = '!room$index:kite.test';
+          return MatrixRoomDelta(
+            roomId: roomId,
+            summary: MatrixRoomSummary(
+              roomId: roomId,
+              displayName: 'Room $index',
+              lastActivity: DateTime.utc(
+                2026,
+                9,
+                15,
+                2,
+              ).add(Duration(seconds: index)),
+              streamPosition: index,
+            ),
+          );
+        });
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.slidingSync,
+            MatrixSdkCapability.backPagination,
+          },
+          startBatch: MatrixSyncBatch(cursor: 'initial', rooms: initialRooms),
+        );
+        final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+        final cache = MatrixPresentationCache();
+        final sync = MatrixSyncCoordinator(
+          engine: engine,
+          applyBatch: cache.applySync,
+        );
+
+        await sync.start();
+
+        expect(cache.roomOrder.value, hasLength(200));
+        expect(cache.roomOrder.value.first, '!room199:kite.test');
+        expect(cache.lastSyncCursor, 'initial');
+        final orderBefore = cache.roomOrder.value;
+        final untouchedBefore = cache
+            .roomSummarySignal('!room199:kite.test')
+            .value;
+
+        boundary.emit(
+          MatrixSyncBatch(
+            cursor: 'incremental-1',
+            rooms: <MatrixRoomDelta>[
+              MatrixRoomDelta(
+                roomId: '!room0:kite.test',
+                summary: MatrixRoomSummary(
+                  roomId: '!room0:kite.test',
+                  displayName: 'Room zero renamed',
+                  lastActivity: DateTime.utc(2026, 9, 15, 2),
+                  streamPosition: 500,
+                ),
+              ),
+            ],
+          ),
+        );
+
+        expect(cache.lastSyncCursor, 'incremental-1');
+        expect(
+          cache.roomSummarySignal('!room0:kite.test').value?.displayName,
+          'Room zero renamed',
+        );
+        expect(
+          identical(
+            cache.roomSummarySignal('!room199:kite.test').value,
+            untouchedBefore,
+          ),
+          isTrue,
+        );
+        expect(identical(cache.roomOrder.value, orderBefore), isTrue);
+
+        await sync.stop();
+        await engine.close();
+      },
+    );
   });
 
   test(
@@ -274,10 +389,11 @@ const _store = MatrixSdkStoreConfiguration(
 );
 
 final class _FakeSdkBoundary implements MatrixSdkBoundary {
-  _FakeSdkBoundary({required this.capabilities});
+  _FakeSdkBoundary({required this.capabilities, this.startBatch});
 
   @override
   final Set<MatrixSdkCapability> capabilities;
+  final MatrixSyncBatch? startBatch;
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
@@ -300,6 +416,8 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   @override
   Future<void> startSync() async {
     startCalls += 1;
+    final batch = startBatch;
+    if (batch != null) _sync.add(batch);
   }
 
   @override
@@ -317,6 +435,8 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
     closeCalls += 1;
     await _sync.close();
   }
+
+  void emit(MatrixSyncBatch batch) => _sync.add(batch);
 }
 
 final class _FakeMatrixEngine implements MatrixEngine {

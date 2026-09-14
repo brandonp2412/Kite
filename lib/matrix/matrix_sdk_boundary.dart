@@ -55,6 +55,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       boundary,
       MatrixSdkCapability.encryptedPersistentStore,
     );
+    _requireBoundaryCapability(boundary, MatrixSdkCapability.slidingSync);
     return MatrixBoundaryEngine._(boundary, store);
   }
 
