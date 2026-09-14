@@ -101,8 +101,7 @@ class TimelineController {
 
   Signal<List<TimelineMessage>> messagesFor(String roomId) {
     return _messages.putIfAbsent(roomId, () {
-      final fixture = BenchmarkFixture.messages[roomId];
-      if (fixture == null) return signal(const <TimelineMessage>[]);
+      final fixture = BenchmarkFixture.messagesFor(roomId);
       return signal(
         List<TimelineMessage>.unmodifiable(<TimelineMessage>[
           for (var index = 0; index < fixture.length; index++)
