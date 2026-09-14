@@ -417,7 +417,7 @@ This milestone is not optional cleanup; it is a product feature.
 - [x] Media viewer benchmark.
 - [ ] Call-screen transition benchmark.
 - [ ] App startup benchmark.
-- [ ] Offline recovery benchmark.
+- [x] Offline recovery benchmark.
 - [ ] Memory-growth soak test while switching rooms and paginating.
 - [ ] Image/media cache pressure test.
 - [ ] Repeated login/logout/account-switch store-cleanup test.

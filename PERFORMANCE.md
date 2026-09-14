@@ -15,6 +15,7 @@ The contract is pinned in `lib/benchmark/performance_contract.dart` and independ
 - The dedicated room-list scroll benchmark uses a separate deterministic 3,000-room fixture; it must not replace or silently resize the canonical 200-room fixture.
 - Timeline performance journeys use a separate deterministic 1,200-message fixture spanning text, formatted, image, file, audio, poll, and location event shapes.
 - Pagination adds a deterministic 100-event page; incoming-message insertion and reaction/read-receipt/typing updates are measured as independent mutation journeys.
+- Offline recovery renders the canonical 200 cached rooms continuously while a deterministic 20-room recovered sync batch is applied; room ordering and the first visible row geometry must remain unchanged.
 - The canonical warm-switch benchmark remains 30 chat opens.
 - The benchmark detector must prove itself by failing when the 40 ms artificial build stall is enabled.
 
@@ -51,6 +52,10 @@ A later 2026-09-15 Waydroid profile run verified the new mutation benchmarks ind
 The 2026-09-15 isolated Waydroid profile run for room-list mutations passed both new journeys at the same 16,666 µs budget. Search/filter switching captured 5 frames with worst build/raster/total-span timings of 3,049/1,533/4,585 µs. Spaces/Sections switching captured 5 frames at 6,095/1,843/8,240 µs. Both recorded zero build, raster, and total-span violations.
 
 The 2026-09-15 Waydroid profile run for media-viewer interactions passed all three journeys with zero build and raster budget violations at the 16,666 µs budget. Three repeated open/close cycles captured 24 frames with worst build/raster/total-span timings of 3,107/15,814/19,039 µs; the single end-to-end total-span miss is recorded but is not a Waydroid merge gate. Flick-to-dismiss captured 3 frames at 1,498/14,564/15,412 µs, and adjacent-media swipe captured 60 frames at 2,064/1,654/3,675 µs with zero build, raster, and total-span violations.
+
+The 2026-09-15 Waydroid profile run for offline recovery passed with the canonical 200 cached rooms kept mounted while 20 deterministic recovered-sync summaries were applied. It captured 1 frame with worst build/raster/total-span timings of 2,975/1,309/4,579 µs at the 16,666 µs budget, with zero build, raster, and total-span violations; the room order and first visible row geometry were unchanged.
+
+The cold-start Android Macrobenchmark remains intentionally unchecked. Its benchmark target built and launched on Waydroid, but the 10-iteration `CompilationMode.Full` run remained at 0/1 completed until the bounded 5-minute command expired. The iteration count and compilation mode were not reduced to manufacture a pass.
 
 ## Regression policy
 
