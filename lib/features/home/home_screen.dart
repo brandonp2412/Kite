@@ -5,6 +5,7 @@ import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/room_list_entry.dart';
+import 'package:kite/features/home/room_list_filter.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -32,6 +33,7 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             children: <Widget>[
               const _CompactHomeHeader(),
+              const _RoomFilterBar(),
               Expanded(
                 child: SizedBox.expand(
                   key: const Key('sidebar'),
@@ -63,7 +65,13 @@ class HomeScreen extends StatelessWidget {
           SizedBox(
             key: const Key('sidebar'),
             width: adaptiveSidebarWidth,
-            child: _RoomList(rooms: rooms),
+            child: Column(
+              children: <Widget>[
+                const _CompactHomeHeader(),
+                const _RoomFilterBar(),
+                Expanded(child: _RoomList(rooms: rooms)),
+              ],
+            ),
           ),
           const VerticalDivider(width: 1),
           const Expanded(child: _ChatPanel()),
@@ -79,6 +87,7 @@ class _CompactHomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      key: const Key('home-header'),
       height: 72,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -90,6 +99,87 @@ class _CompactHomeHeader extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _RoomFilterBar extends StatelessWidget {
+  const _RoomFilterBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('room-filter-bar'),
+      height: 52,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        scrollDirection: Axis.horizontal,
+        itemCount: RoomListFilter.values.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 7),
+        itemBuilder: (context, index) =>
+            _RoomFilterPill(filter: RoomListFilter.values[index]),
+      ),
+    );
+  }
+}
+
+class _RoomFilterPill extends StatefulWidget {
+  const _RoomFilterPill({required this.filter});
+
+  final RoomListFilter filter;
+
+  @override
+  State<_RoomFilterPill> createState() => _RoomFilterPillState();
+}
+
+class _RoomFilterPillState extends State<_RoomFilterPill> {
+  late final FlutterComputed<bool> _selected = computed(
+    () => activeRoomListFilter.value == widget.filter,
+  );
+
+  @override
+  void dispose() {
+    _selected.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _selected,
+      builder: (context, selected, child) {
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        return Material(
+          color: selected
+              ? scheme.secondaryContainer
+              : scheme.surfaceContainerHighest.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            key: Key('filter-${widget.filter.name}'),
+            onTap: () => selectRoomListFilter(widget.filter),
+            borderRadius: BorderRadius.circular(18),
+            splashFactory: NoSplash.splashFactory,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 44),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Center(
+                  child: Text(
+                    widget.filter.label,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: selected
+                          ? scheme.onSecondaryContainer
+                          : scheme.onSurfaceVariant,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -119,16 +209,24 @@ class _RoomList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      key: const Key('room-list'),
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      itemCount: rooms.length,
-      itemExtent: 76,
-      itemBuilder: (context, index) => _RoomListItem(
-        key: ValueKey<String>(rooms[index].id),
-        room: rooms[index],
-        onTap: onRoomTap,
-      ),
+    return SignalBuilder(
+      builder: (context) {
+        final filter = activeRoomListFilter.value;
+        final visibleRooms = rooms
+            .where((room) => roomMatchesFilter(room, filter))
+            .toList(growable: false);
+        return ListView.builder(
+          key: const Key('room-list'),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          itemCount: visibleRooms.length,
+          itemExtent: 76,
+          itemBuilder: (context, index) => _RoomListItem(
+            key: ValueKey<String>(visibleRooms[index].id),
+            room: visibleRooms[index],
+            onTap: onRoomTap,
+          ),
+        );
+      },
     );
   }
 }

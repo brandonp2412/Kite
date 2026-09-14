@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/home/room_list_filter.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -12,6 +13,8 @@ void main() {
   const virtualizedBenchmark = bool.fromEnvironment(
     'KITE_VIRTUALIZED_BENCHMARK',
   );
+
+  setUp(() => selectRoomListFilter(RoomListFilter.all));
 
   testWidgets('cold open Alice DM has zero late Flutter frames', (
     tester,

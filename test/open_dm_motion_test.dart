@@ -2,6 +2,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/home/room_list_filter.dart';
 
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
@@ -32,6 +33,7 @@ void main() {
     addTearDown(display.resetRefreshRate);
 
     selectRoom('kite');
+    selectRoomListFilter(RoomListFilter.all);
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
 

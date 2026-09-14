@@ -79,6 +79,7 @@ abstract final class BenchmarkFixture {
       timeLabel: '17:12',
       unreadCount: 3,
       mentionCount: 1,
+      isFavourite: true,
     ),
     const BenchmarkRoom(
       id: 'alice',
@@ -86,6 +87,8 @@ abstract final class BenchmarkFixture {
       subtitle: 'See you at 6?',
       latestSender: 'You',
       timeLabel: '17:08',
+      isFavourite: true,
+      isDirectMessage: true,
     ),
     const BenchmarkRoom(
       id: 'bob',
@@ -96,6 +99,7 @@ abstract final class BenchmarkFixture {
       unreadCount: 12,
       isMuted: true,
       hasMutedActivity: true,
+      isDirectMessage: true,
     ),
     ...List<BenchmarkRoom>.generate(
       PerformanceContract.fixtureRoomCount - 3,
