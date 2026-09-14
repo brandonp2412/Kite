@@ -62,19 +62,24 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       body: Row(
         children: <Widget>[
-          SizedBox(
-            key: const Key('sidebar'),
-            width: adaptiveSidebarWidth,
-            child: Column(
-              children: <Widget>[
-                const _CompactHomeHeader(),
-                const _RoomFilterBar(),
-                Expanded(child: _RoomList(rooms: rooms)),
-              ],
+          RepaintBoundary(
+            child: SizedBox(
+              key: const Key('sidebar'),
+              width: adaptiveSidebarWidth,
+              child: ColoredBox(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                child: Column(
+                  children: <Widget>[
+                    const _CompactHomeHeader(),
+                    const _RoomFilterBar(),
+                    Expanded(child: _RoomList(rooms: rooms)),
+                  ],
+                ),
+              ),
             ),
           ),
           const VerticalDivider(width: 1),
-          const Expanded(child: _ChatPanel()),
+          const Expanded(child: RepaintBoundary(child: _ChatPanel())),
         ],
       ),
     );
@@ -316,6 +321,33 @@ class _RoomListItemState extends State<_RoomListItem> {
                                     ),
                                   ),
                                 ),
+                                if (room.isFavourite) ...<Widget>[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.star_rounded,
+                                    key: Key('favourite-${room.id}'),
+                                    size: 15,
+                                    color: scheme.primary,
+                                  ),
+                                ],
+                                if (room.hasActiveCall) ...<Widget>[
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    key: Key('active-call-${room.id}'),
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: scheme.primaryContainer,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Icon(
+                                      Icons.call_rounded,
+                                      size: 12,
+                                      color: scheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ],
                                 if (room.isMuted) ...<Widget>[
                                   const SizedBox(width: 4),
                                   Icon(
@@ -416,6 +448,8 @@ class _RoomListItemState extends State<_RoomListItem> {
       '${room.latestSender}: ${room.subtitle}',
       if (room.unreadCount > 0) '${room.unreadCount} unread',
       if (room.mentionCount > 0) '${room.mentionCount} mention',
+      if (room.isFavourite) 'favourite',
+      if (room.hasActiveCall) 'active call',
       if (room.isMuted) 'notifications muted',
       if (room.hasMutedActivity) 'new activity',
     ];
