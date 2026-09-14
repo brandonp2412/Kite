@@ -5,7 +5,9 @@ import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:signals/signals_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.benchmarkRooms});
+
+  final List<BenchmarkRoom>? benchmarkRooms;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -15,6 +17,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final isPhone = size.shortestSide < phoneBreakpoint;
+    final rooms = benchmarkRooms ?? BenchmarkFixture.rooms;
 
     if (isPhone) {
       return Scaffold(
@@ -26,6 +29,7 @@ class HomeScreen extends StatelessWidget {
                 child: SizedBox.expand(
                   key: const Key('sidebar'),
                   child: _RoomList(
+                    rooms: rooms,
                     onRoomTap: (room) {
                       selectRoom(room.id);
                       Navigator.of(context).push(
@@ -52,7 +56,7 @@ class HomeScreen extends StatelessWidget {
           SizedBox(
             key: const Key('sidebar'),
             width: adaptiveSidebarWidth,
-            child: const _RoomList(),
+            child: _RoomList(rooms: rooms),
           ),
           const VerticalDivider(width: 1),
           const Expanded(child: _ChatPanel()),
@@ -101,18 +105,19 @@ class _CompactChatScreen extends StatelessWidget {
 }
 
 class _RoomList extends StatelessWidget {
-  const _RoomList({this.onRoomTap});
+  const _RoomList({required this.rooms, this.onRoomTap});
 
+  final List<BenchmarkRoom> rooms;
   final ValueChanged<BenchmarkRoom>? onRoomTap;
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
       key: const Key('room-list'),
-      itemCount: BenchmarkFixture.rooms.length,
+      itemCount: rooms.length,
       itemExtent: 72,
       itemBuilder: (context, index) {
-        final room = BenchmarkFixture.rooms[index];
+        final room = rooms[index];
         return SignalBuilder(
           builder: (context) {
             final selected = selectedRoomId.value == room.id;

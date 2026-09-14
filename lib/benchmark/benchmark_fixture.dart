@@ -76,6 +76,18 @@ abstract final class BenchmarkFixture {
         },
       );
 
+  static final List<BenchmarkRoom> largeRoomListRooms =
+      List<BenchmarkRoom>.unmodifiable(
+        List<BenchmarkRoom>.generate(
+          PerformanceContract.roomListBenchmarkRoomCount,
+          (index) => BenchmarkRoom(
+            id: 'scroll-room-$index',
+            name: 'Benchmark room ${index + 1}',
+            subtitle: 'Deterministic room-list benchmark ${index + 1}',
+          ),
+        ),
+      );
+
   static BenchmarkRoom room(String id) =>
       rooms.firstWhere((room) => room.id == id);
 }

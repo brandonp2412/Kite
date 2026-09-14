@@ -405,12 +405,12 @@ This milestone is not optional cleanup; it is a product feature.
 ## Milestone 15 — Release-grade performance and reliability
 
 - [ ] Expand the zero-jitter harness from `open_dm` to every primary navigation and mutation journey.
-- [ ] Room-list scroll benchmark with thousands of rooms.
+- [x] Room-list scroll benchmark with thousands of rooms.
 - [ ] Timeline scroll benchmark with mixed rich event types.
 - [ ] Pagination benchmark.
 - [ ] New-message insertion benchmark.
 - [ ] Reaction/read-receipt/typing-update benchmark.
-- [ ] Composer + keyboard benchmark.
+- [x] Composer + keyboard benchmark.
 - [ ] Search/filter benchmark.
 - [ ] Spaces/Sections benchmark.
 - [ ] Thread open/switch benchmark.
