@@ -13,6 +13,8 @@ final class RoomListEntry {
     this.hasMention = false,
     this.hasMutedActivity = false,
     this.hasActiveCall = false,
+    this.isMuted = false,
+    this.isFavourite = false,
   });
 
   factory RoomListEntry.fromBenchmark(BenchmarkRoom room) {
@@ -31,6 +33,8 @@ final class RoomListEntry {
   final bool hasMention;
   final bool hasMutedActivity;
   final bool hasActiveCall;
+  final bool isMuted;
+  final bool isFavourite;
 
   RoomListEntry copyWith({
     String? latestEventBody,
@@ -39,6 +43,8 @@ final class RoomListEntry {
     bool? hasMention,
     bool? hasMutedActivity,
     bool? hasActiveCall,
+    bool? isMuted,
+    bool? isFavourite,
   }) {
     return RoomListEntry(
       id: id,
@@ -49,6 +55,8 @@ final class RoomListEntry {
       hasMention: hasMention ?? this.hasMention,
       hasMutedActivity: hasMutedActivity ?? this.hasMutedActivity,
       hasActiveCall: hasActiveCall ?? this.hasActiveCall,
+      isMuted: isMuted ?? this.isMuted,
+      isFavourite: isFavourite ?? this.isFavourite,
     );
   }
 }
@@ -99,6 +107,7 @@ List<RoomListEntry> deterministicRoomListEntries(List<BenchmarkRoom> rooms) {
           latestSender: 'Alice',
           latestEventBody: 'Muted room activity stays quiet.',
           hasMutedActivity: true,
+          isMuted: true,
         ),
         'bob' => base.copyWith(
           latestSender: 'Bob',
@@ -109,6 +118,7 @@ List<RoomListEntry> deterministicRoomListEntries(List<BenchmarkRoom> rooms) {
           latestSender: 'Sam',
           latestEventBody: 'Unread room activity is easy to scan.',
           unreadCount: 4,
+          isFavourite: true,
         ),
         _ => base,
       };

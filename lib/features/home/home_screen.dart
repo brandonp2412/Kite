@@ -185,6 +185,8 @@ class _RoomListRow extends StatelessWidget {
       if (room.hasMention) 'Mention',
       if (room.hasMutedActivity) 'Muted room has new activity',
       if (room.hasActiveCall) 'Active call',
+      if (room.isMuted) 'Muted',
+      if (room.isFavourite) 'Favourite',
     ].join(', ');
 
     return Semantics(
@@ -247,6 +249,30 @@ class _RoomListRow extends StatelessWidget {
                                 key: Key('room-active-call-${room.id}'),
                                 size: 16,
                                 color: colors.unread,
+                              ),
+                            ),
+                          if (room.isMuted)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: KiteSpacing.xs,
+                              ),
+                              child: Icon(
+                                Icons.notifications_off_outlined,
+                                key: Key('room-muted-${room.id}'),
+                                size: 15,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          if (room.isFavourite)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: KiteSpacing.xs,
+                              ),
+                              child: Icon(
+                                Icons.star_rounded,
+                                key: Key('room-favourite-${room.id}'),
+                                size: 16,
+                                color: theme.colorScheme.primary,
                               ),
                             ),
                         ],

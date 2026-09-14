@@ -45,6 +45,8 @@ void main() {
             latestEventBody: 'Leaf signal frame benchmark',
             unreadCount: 3,
             hasMention: true,
+            isMuted: true,
+            isFavourite: true,
           ),
         );
         await tester.pump();
