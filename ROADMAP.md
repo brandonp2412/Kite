@@ -319,9 +319,9 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Privacy/security settings.
 - [ ] Session/device management.
 - [ ] App lock settings.
-- [ ] Cache/storage management without destroying diagnostic logs unexpectedly.
-- [ ] Report-a-problem flow with sanitised logs.
-- [ ] About/version/licenses.
+- [x] Cache/storage management without destroying diagnostic logs unexpectedly.
+- [x] Report-a-problem flow with sanitised logs.
+- [x] About/version/licenses.
 - [ ] Developer settings only where they are genuinely useful; never leak Matrix complexity into normal settings.
 
 ## Milestone 11 — Notifications and deep-link correctness

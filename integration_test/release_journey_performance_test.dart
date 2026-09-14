@@ -11,6 +11,8 @@ import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/settings/general_settings_screen.dart';
 import 'package:kite/features/settings/notification_settings_screen.dart';
 import 'package:kite/features/settings/settings_controller.dart';
+import 'package:kite/features/settings/support_settings_controller.dart';
+import 'package:kite/features/settings/support_settings_screen.dart';
 
 import 'performance_benchmark_harness.dart';
 
@@ -80,6 +82,56 @@ final class _BenchmarkSettingsGateway implements SettingsGateway {
 
   @override
   Future<void> saveCallRingtone(String? soundId) async {}
+}
+
+final class _BenchmarkSupportSettingsGateway implements SupportSettingsGateway {
+  StorageUsageSnapshot storage = const StorageUsageSnapshot(
+    mediaCacheBytes: 2048,
+    presentationCacheBytes: 1024,
+    diagnosticLogBytes: 512,
+  );
+
+  @override
+  Future<void> clearMediaCache() async {
+    storage = StorageUsageSnapshot(
+      mediaCacheBytes: 0,
+      presentationCacheBytes: storage.presentationCacheBytes,
+      diagnosticLogBytes: storage.diagnosticLogBytes,
+    );
+  }
+
+  @override
+  Future<void> clearPresentationCache() async {
+    storage = StorageUsageSnapshot(
+      mediaCacheBytes: storage.mediaCacheBytes,
+      presentationCacheBytes: 0,
+      diagnosticLogBytes: storage.diagnosticLogBytes,
+    );
+  }
+
+  @override
+  Future<AppAboutInfo> loadAboutInfo() async {
+    return const AppAboutInfo(
+      version: '1.0.0',
+      buildNumber: '1',
+      licenseCount: 3,
+    );
+  }
+
+  @override
+  Future<StorageUsageSnapshot> loadStorageUsage() async => storage;
+
+  @override
+  Future<SanitizedDiagnosticBundle> prepareSanitizedDiagnostics() async {
+    return SanitizedDiagnosticBundle(
+      generatedAt: DateTime.utc(2026, 9, 15, 5),
+      structuredEventCount: 4,
+      crashReportCount: 1,
+    );
+  }
+
+  @override
+  Future<void> submitProblemReport(ProblemReportRequest report) async {}
 }
 
 void main() {
@@ -254,6 +306,57 @@ void main() {
       'journey': 'general_settings_mutations',
       'fixture': 'deterministic_general_settings_v1',
       ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('support settings mutations have zero late Flutter frames', (
+    tester,
+  ) async {
+    final gateway = _BenchmarkSupportSettingsGateway();
+    final controller = SupportSettingsController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SupportSettingsScreen(controller: controller, loadOnInit: false),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final clearResult = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('clear-cached-content')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+    expect(controller.storage.value?.clearableBytes, 0);
+    expect(controller.storage.value?.diagnosticLogBytes, 512);
+
+    final reportResult = await measureFrames(
+      binding: binding,
+      action: () async {
+        await controller.submitProblemReport('Benchmark support report');
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+    expect(controller.reportSubmitted.value, isTrue);
+
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['support_settings_clear_cache'] = <String, dynamic>{
+      'journey': 'support_settings_clear_cache',
+      'fixture': 'deterministic_support_settings_v1',
+      ...clearResult,
+      'result': 'PASS',
+    };
+    binding.reportData!['support_settings_problem_report'] = <String, dynamic>{
+      'journey': 'support_settings_problem_report',
+      'fixture': 'deterministic_support_settings_v1',
+      ...reportResult,
       'result': 'PASS',
     };
   });
