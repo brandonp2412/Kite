@@ -27,6 +27,9 @@ jobs:
       - name: Dependencies
         run: flutter pub get
 
+      - name: Release audit
+        run: tool/release_audit.sh
+
       - name: Analyze
         run: flutter analyze
 
