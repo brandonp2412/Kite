@@ -65,30 +65,60 @@ void main() {
       expect(store.member('@bob:example.org').role, RoomMemberRole.member);
     });
 
-    test('administrator can promote and demote lower-power members', () {
+    test('administrator can promote and demote lower-power members', () async {
       expect(
-        store.setRole('@bob:example.org', RoomMemberRole.moderator),
+        await store.setRole('@bob:example.org', RoomMemberRole.moderator),
         isTrue,
       );
       expect(store.member('@bob:example.org').powerLevel, 50);
       expect(store.powerLevels.value.powerLevelFor('@bob:example.org'), 50);
 
-      expect(store.setRole('@bob:example.org', RoomMemberRole.member), isTrue);
+      expect(
+        await store.setRole('@bob:example.org', RoomMemberRole.member),
+        isTrue,
+      );
       expect(store.member('@bob:example.org').powerLevel, 0);
     });
 
-    test('equal-power users cannot moderate each other', () {
+    test('cannot assign a power level equal to the actor', () async {
       expect(
-        store.setRole('@alice:example.org', RoomMemberRole.administrator),
-        isTrue,
+        await store.setRole('@alice:example.org', RoomMemberRole.administrator),
+        isFalse,
       );
-      final alice = store.member('@alice:example.org');
-      final you = store.currentUser;
+      expect(store.member('@alice:example.org').powerLevel, 50);
+    });
 
-      expect(alice.powerLevel, 100);
-      expect(store.permissions.canKick(actor: you, target: alice), isFalse);
+    test('equal-power users cannot moderate each other', () {
+      final equalPowerMembers = <RoomMember>[
+        for (final member in store.members.value)
+          if (member.userId == '@alice:example.org')
+            member.copyWith(powerLevel: 100)
+          else
+            member,
+      ];
+      const equalPowerLevels = MatrixPowerLevels(
+        users: <String, int>{
+          RoomMembersFixture.currentUserId: 100,
+          '@alice:example.org': 100,
+        },
+        events: <String, int>{'m.room.power_levels': 50},
+      );
+      final equalPowerStore = RoomMembersStore(
+        roomId: 'kite',
+        currentUserId: RoomMembersFixture.currentUserId,
+        members: equalPowerMembers,
+        powerLevels: equalPowerLevels,
+      );
+      addTearDown(equalPowerStore.dispose);
+      final alice = equalPowerStore.member('@alice:example.org');
+      final you = equalPowerStore.currentUser;
+
       expect(
-        store.permissions.canChangeRole(
+        equalPowerStore.permissions.canKick(actor: you, target: alice),
+        isFalse,
+      );
+      expect(
+        equalPowerStore.permissions.canChangeRole(
           actor: you,
           target: alice,
           role: RoomMemberRole.member,
@@ -97,8 +127,8 @@ void main() {
       );
     });
 
-    test('kick requires threshold and strictly greater target power', () {
-      expect(store.kick('@bob:example.org'), isTrue);
+    test('kick requires threshold and strictly greater target power', () async {
+      expect(await store.kick('@bob:example.org'), isTrue);
       expect(store.member('@bob:example.org').membership, RoomMembership.left);
       expect(
         store.visibleMembers.any(
@@ -107,38 +137,104 @@ void main() {
         isFalse,
       );
 
-      expect(store.kick('@alice:example.org'), isTrue);
+      expect(await store.kick('@alice:example.org'), isTrue);
       expect(
         store.member('@alice:example.org').membership,
         RoomMembership.left,
       );
-      expect(store.kick(RoomMembersFixture.currentUserId), isFalse);
+      expect(await store.kick(RoomMembersFixture.currentUserId), isFalse);
     });
 
-    test('moderator cannot kick a peer or promote above own power', () {
+    test('ban and unban follow Matrix membership thresholds', () async {
+      expect(await store.ban('@bob:example.org'), isTrue);
+      expect(
+        store.member('@bob:example.org').membership,
+        RoomMembership.banned,
+      );
+      expect(await store.ban('@bob:example.org'), isFalse);
+
+      expect(await store.unban('@bob:example.org'), isTrue);
+      expect(store.member('@bob:example.org').membership, RoomMembership.left);
+      expect(await store.unban('@bob:example.org'), isFalse);
+    });
+
+    test('moderator cannot kick a peer or promote to own power', () async {
       final moderatorStore = RoomMembersStore(
+        roomId: 'kite',
         currentUserId: '@alice:example.org',
         members: store.members.value,
         powerLevels: store.powerLevels.value,
       );
       addTearDown(moderatorStore.dispose);
 
-      expect(moderatorStore.kick('@bob:example.org'), isTrue);
+      expect(await moderatorStore.kick('@bob:example.org'), isTrue);
       expect(
-        moderatorStore.setRole(
+        await moderatorStore.setRole(
           '@charlie:example.org',
           RoomMemberRole.administrator,
         ),
         isFalse,
       );
       expect(
-        moderatorStore.setRole(
+        await moderatorStore.setRole(
           '@charlie:example.org',
           RoomMemberRole.moderator,
         ),
-        isTrue,
+        isFalse,
       );
-      expect(moderatorStore.kick('@charlie:example.org'), isFalse);
+    });
+    test('gateway failure never mutates local moderation state', () async {
+      final gateway = _FailingModerationGateway();
+      final failingStore = RoomMembersStore(
+        roomId: 'kite',
+        currentUserId: RoomMembersFixture.currentUserId,
+        members: store.members.value,
+        powerLevels: store.powerLevels.value,
+        moderationGateway: gateway,
+      );
+      addTearDown(failingStore.dispose);
+
+      expect(
+        await failingStore.setRole(
+          '@bob:example.org',
+          RoomMemberRole.moderator,
+        ),
+        isFalse,
+      );
+      expect(failingStore.member('@bob:example.org').powerLevel, 0);
+      expect(await failingStore.kick('@bob:example.org'), isFalse);
+      expect(
+        failingStore.member('@bob:example.org').membership,
+        RoomMembership.joined,
+      );
     });
   });
+}
+
+class _FailingModerationGateway implements RoomModerationGateway {
+  Never _fail() => throw Exception('deterministic moderation failure');
+
+  @override
+  Future<void> ban({required String roomId, required String userId}) async {
+    _fail();
+  }
+
+  @override
+  Future<void> kick({required String roomId, required String userId}) async {
+    _fail();
+  }
+
+  @override
+  Future<void> setPowerLevel({
+    required String roomId,
+    required String userId,
+    required int powerLevel,
+  }) async {
+    _fail();
+  }
+
+  @override
+  Future<void> unban({required String roomId, required String userId}) async {
+    _fail();
+  }
 }

@@ -131,6 +131,7 @@ class _MemberSheet extends StatefulWidget {
 
 class _MemberSheetState extends State<_MemberSheet> {
   bool _confirmingKick = false;
+  bool _confirmingBan = false;
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +157,8 @@ class _MemberSheetState extends State<_MemberSheet> {
               role: previousRole,
             );
         final canKick = permissions.canKick(actor: actor, target: member);
+        final canBan = permissions.canBan(actor: actor, target: member);
+        final canUnban = permissions.canUnban(actor: actor, target: member);
 
         return SafeArea(
           child: Padding(
@@ -183,7 +186,25 @@ class _MemberSheetState extends State<_MemberSheet> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _confirmingKick
+                  children: member.membership == RoomMembership.banned
+                      ? <Widget>[
+                          FilledButton.tonalIcon(
+                            key: const Key('member-unban'),
+                            onPressed: canUnban
+                                ? () async {
+                                    if (await widget.store.unban(
+                                          widget.userId,
+                                        ) &&
+                                        context.mounted) {
+                                      Navigator.of(context).pop();
+                                    }
+                                  }
+                                : null,
+                            icon: const Icon(Icons.person_add_alt_outlined),
+                            label: const Text('Unban'),
+                          ),
+                        ]
+                      : _confirmingKick
                       ? <Widget>[
                           TextButton(
                             key: const Key('member-kick-cancel'),
@@ -193,8 +214,9 @@ class _MemberSheetState extends State<_MemberSheet> {
                           ),
                           FilledButton.icon(
                             key: const Key('member-kick-confirm'),
-                            onPressed: () {
-                              if (widget.store.kick(widget.userId)) {
+                            onPressed: () async {
+                              if (await widget.store.kick(widget.userId) &&
+                                  context.mounted) {
                                 Navigator.of(context).pop();
                               }
                             },
@@ -202,12 +224,32 @@ class _MemberSheetState extends State<_MemberSheet> {
                             label: Text('Remove ${member.displayName}'),
                           ),
                         ]
+                      : _confirmingBan
+                      ? <Widget>[
+                          TextButton(
+                            key: const Key('member-ban-cancel'),
+                            onPressed: () =>
+                                setState(() => _confirmingBan = false),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton.icon(
+                            key: const Key('member-ban-confirm'),
+                            onPressed: () async {
+                              if (await widget.store.ban(widget.userId) &&
+                                  context.mounted) {
+                                setState(() => _confirmingBan = false);
+                              }
+                            },
+                            icon: const Icon(Icons.block_outlined),
+                            label: Text('Ban ${member.displayName}'),
+                          ),
+                        ]
                       : <Widget>[
                           FilledButton.tonalIcon(
                             key: const Key('member-promote'),
                             onPressed: canPromote
-                                ? () {
-                                    widget.store.setRole(
+                                ? () async {
+                                    await widget.store.setRole(
                                       widget.userId,
                                       nextRole,
                                     );
@@ -219,8 +261,8 @@ class _MemberSheetState extends State<_MemberSheet> {
                           FilledButton.tonalIcon(
                             key: const Key('member-demote'),
                             onPressed: canDemote
-                                ? () {
-                                    widget.store.setRole(
+                                ? () async {
+                                    await widget.store.setRole(
                                       widget.userId,
                                       previousRole,
                                     );
@@ -236,6 +278,14 @@ class _MemberSheetState extends State<_MemberSheet> {
                                 : null,
                             icon: const Icon(Icons.person_remove_outlined),
                             label: const Text('Kick'),
+                          ),
+                          FilledButton.tonalIcon(
+                            key: const Key('member-ban'),
+                            onPressed: canBan
+                                ? () => setState(() => _confirmingBan = true)
+                                : null,
+                            icon: const Icon(Icons.block_outlined),
+                            label: const Text('Ban'),
                           ),
                         ],
                 ),

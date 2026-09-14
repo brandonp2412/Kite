@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
+import 'package:kite/features/rooms/room_members.dart';
 
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
@@ -165,4 +166,62 @@ void main() {
       expect(_rectOf(tester, search), initialSearch);
     },
   );
+
+  testWidgets('ban and unban keep unrelated room geometry stable at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 700);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final store = RoomMembersFixture.forRoom('kite');
+    addTearDown(store.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RoomDetailsScreen(roomId: 'kite', roomName: 'Kite', store: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final search = find.byKey(const Key('member-search'));
+    final initialSearch = _rectOf(tester, search);
+    await tester.tap(find.byKey(const Key('member-@bob:example.org')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('member-ban')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, search), initialSearch);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('member-ban-confirm')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('member-ban-confirm')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, search), initialSearch);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpAndSettle();
+    expect(store.member('@bob:example.org').membership, RoomMembership.banned);
+    expect(find.byKey(const Key('member-unban')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('member-unban')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, search), initialSearch);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpAndSettle();
+
+    expect(store.member('@bob:example.org').membership, RoomMembership.left);
+    expect(find.byKey(const Key('member-profile-sheet')), findsNothing);
+    expect(_rectOf(tester, search), initialSearch);
+  });
 }

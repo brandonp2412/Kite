@@ -87,47 +87,104 @@ class RoomModerationPermissions {
     required RoomMember target,
     required RoomMemberRole role,
   }) {
-    if (!_canModerate(actor, target)) return false;
+    if (!_canTarget(actor, target) ||
+        target.membership != RoomMembership.joined) {
+      return false;
+    }
     final actorLevel = powerLevels.powerLevelFor(actor.userId);
     final targetLevel = powerLevels.powerLevelFor(target.userId);
     final required = powerLevels.requiredForStateEvent('m.room.power_levels');
     return actorLevel >= required &&
         actorLevel > targetLevel &&
-        actorLevel >= role.powerLevel;
+        actorLevel > role.powerLevel;
   }
 
   bool canKick({required RoomMember actor, required RoomMember target}) {
-    if (!_canModerate(actor, target)) return false;
+    if (!_canTarget(actor, target) ||
+        target.membership != RoomMembership.joined) {
+      return false;
+    }
     final actorLevel = powerLevels.powerLevelFor(actor.userId);
     final targetLevel = powerLevels.powerLevelFor(target.userId);
     return actorLevel >= powerLevels.kick && actorLevel > targetLevel;
   }
 
   bool canBan({required RoomMember actor, required RoomMember target}) {
-    if (!_canModerate(actor, target)) return false;
+    if (!_canTarget(actor, target) ||
+        target.membership == RoomMembership.banned) {
+      return false;
+    }
     final actorLevel = powerLevels.powerLevelFor(actor.userId);
     final targetLevel = powerLevels.powerLevelFor(target.userId);
     return actorLevel >= powerLevels.ban && actorLevel > targetLevel;
   }
 
-  bool _canModerate(RoomMember actor, RoomMember target) {
+  bool canUnban({required RoomMember actor, required RoomMember target}) {
+    if (!_canTarget(actor, target) ||
+        target.membership != RoomMembership.banned) {
+      return false;
+    }
+    final actorLevel = powerLevels.powerLevelFor(actor.userId);
+    final targetLevel = powerLevels.powerLevelFor(target.userId);
+    return actorLevel >= powerLevels.kick &&
+        actorLevel >= powerLevels.ban &&
+        actorLevel > targetLevel;
+  }
+
+  bool _canTarget(RoomMember actor, RoomMember target) {
     return actor.membership == RoomMembership.joined &&
-        target.membership == RoomMembership.joined &&
         actor.userId != target.userId;
   }
 }
 
+abstract interface class RoomModerationGateway {
+  Future<void> setPowerLevel({
+    required String roomId,
+    required String userId,
+    required int powerLevel,
+  });
+
+  Future<void> kick({required String roomId, required String userId});
+
+  Future<void> ban({required String roomId, required String userId});
+
+  Future<void> unban({required String roomId, required String userId});
+}
+
+class InMemoryRoomModerationGateway implements RoomModerationGateway {
+  @override
+  Future<void> setPowerLevel({
+    required String roomId,
+    required String userId,
+    required int powerLevel,
+  }) async {}
+
+  @override
+  Future<void> kick({required String roomId, required String userId}) async {}
+
+  @override
+  Future<void> ban({required String roomId, required String userId}) async {}
+
+  @override
+  Future<void> unban({required String roomId, required String userId}) async {}
+}
+
 class RoomMembersStore {
   RoomMembersStore({
+    required this.roomId,
     required this.currentUserId,
     required List<RoomMember> members,
     required MatrixPowerLevels powerLevels,
-  }) : members = signal<List<RoomMember>>(
+    RoomModerationGateway? moderationGateway,
+  }) : moderationGateway = moderationGateway ?? InMemoryRoomModerationGateway(),
+       members = signal<List<RoomMember>>(
          List<RoomMember>.unmodifiable(members),
        ),
        powerLevels = signal<MatrixPowerLevels>(powerLevels);
 
+  final String roomId;
   final String currentUserId;
+  final RoomModerationGateway moderationGateway;
   final Signal<List<RoomMember>> members;
   final Signal<MatrixPowerLevels> powerLevels;
   final Signal<String> query = signal<String>('');
@@ -160,13 +217,22 @@ class RoomMembersStore {
   RoomModerationPermissions get permissions =>
       RoomModerationPermissions(powerLevels.value);
 
-  bool setRole(String userId, RoomMemberRole role) {
+  Future<bool> setRole(String userId, RoomMemberRole role) async {
     final target = member(userId);
     if (!permissions.canChangeRole(
       actor: currentUser,
       target: target,
       role: role,
     )) {
+      return false;
+    }
+    try {
+      await moderationGateway.setPowerLevel(
+        roomId: roomId,
+        userId: userId,
+        powerLevel: role.powerLevel,
+      );
+    } on Exception {
       return false;
     }
     _replaceMember(target.copyWith(powerLevel: role.powerLevel));
@@ -184,9 +250,38 @@ class RoomMembersStore {
     return true;
   }
 
-  bool kick(String userId) {
+  Future<bool> kick(String userId) async {
     final target = member(userId);
     if (!permissions.canKick(actor: currentUser, target: target)) return false;
+    try {
+      await moderationGateway.kick(roomId: roomId, userId: userId);
+    } on Exception {
+      return false;
+    }
+    _replaceMember(target.copyWith(membership: RoomMembership.left));
+    return true;
+  }
+
+  Future<bool> ban(String userId) async {
+    final target = member(userId);
+    if (!permissions.canBan(actor: currentUser, target: target)) return false;
+    try {
+      await moderationGateway.ban(roomId: roomId, userId: userId);
+    } on Exception {
+      return false;
+    }
+    _replaceMember(target.copyWith(membership: RoomMembership.banned));
+    return true;
+  }
+
+  Future<bool> unban(String userId) async {
+    final target = member(userId);
+    if (!permissions.canUnban(actor: currentUser, target: target)) return false;
+    try {
+      await moderationGateway.unban(roomId: roomId, userId: userId);
+    } on Exception {
+      return false;
+    }
     _replaceMember(target.copyWith(membership: RoomMembership.left));
     return true;
   }
@@ -246,6 +341,7 @@ abstract final class RoomMembersFixture {
       events: <String, int>{'m.room.power_levels': 50},
     );
     return RoomMembersStore(
+      roomId: roomId,
       currentUserId: currentUserId,
       members: members,
       powerLevels: levels,
