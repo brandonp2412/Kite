@@ -14,6 +14,8 @@ enum MatrixRtcInvocationType {
   availableAudioRoutes,
   selectAudioRoute,
   setMediaInterrupted,
+  continuationCapabilities,
+  setAppState,
   reconnect,
 }
 
@@ -26,6 +28,7 @@ final class MatrixRtcInvocation {
     this.scope,
     this.enabled,
     this.routeId,
+    this.appState,
   });
 
   final MatrixRtcInvocationType type;
@@ -35,6 +38,7 @@ final class MatrixRtcInvocation {
   final KiteCallScope? scope;
   final bool? enabled;
   final String? routeId;
+  final KiteCallAppState? appState;
 }
 
 final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
@@ -48,6 +52,8 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
   Object? failNextWith;
   bool holdNextStart = false;
   KiteCameraFacing cameraFacing = KiteCameraFacing.front;
+  KiteCallContinuationCapabilities callContinuationCapabilities =
+      const KiteCallContinuationCapabilities(background: true, locked: true);
   List<KiteAudioRoute> audioRoutes = const <KiteAudioRoute>[
     KiteAudioRoute(
       id: 'system',
@@ -226,6 +232,35 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
         type: MatrixRtcInvocationType.setMediaInterrupted,
         callId: callId,
         enabled: interrupted,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<KiteCallContinuationCapabilities> continuationCapabilities(
+    String callId,
+  ) async {
+    invocations.add(
+      MatrixRtcInvocation(
+        type: MatrixRtcInvocationType.continuationCapabilities,
+        callId: callId,
+      ),
+    );
+    _throwIfRequested();
+    return callContinuationCapabilities;
+  }
+
+  @override
+  Future<void> setAppState({
+    required String callId,
+    required KiteCallAppState state,
+  }) async {
+    invocations.add(
+      MatrixRtcInvocation(
+        type: MatrixRtcInvocationType.setAppState,
+        callId: callId,
+        appState: state,
       ),
     );
     _throwIfRequested();

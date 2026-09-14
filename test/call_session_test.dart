@@ -331,6 +331,97 @@ void main() {
     },
   );
 
+  test(
+    'call activity exposes exact room call state through lifecycle transitions',
+    () async {
+      final fixture = _fixture();
+      fixture.coordinator.registerIncomingCall(
+        const MatrixRtcSessionDescriptor(
+          callId: 'incoming-activity',
+          roomId: '!room:example.org',
+          kind: KiteCallKind.video,
+          scope: KiteCallScope.group,
+        ),
+      );
+
+      expect(fixture.coordinator.activity.value?.callId, 'incoming-activity');
+      expect(fixture.coordinator.activity.value?.roomId, '!room:example.org');
+      expect(fixture.coordinator.activity.value?.phase, KiteCallPhase.ringing);
+      expect(fixture.coordinator.activity.value?.isActive, isTrue);
+
+      await fixture.coordinator.acceptIncomingCall();
+      expect(fixture.coordinator.activity.value?.phase, KiteCallPhase.active);
+
+      await fixture.coordinator.hangUp();
+      expect(fixture.coordinator.activity.value?.phase, KiteCallPhase.ended);
+      expect(fixture.coordinator.activity.value?.isActive, isFalse);
+      expect(
+        fixture.coordinator.activity.value?.endReason,
+        KiteCallEndReason.hungUp,
+      );
+
+      fixture.coordinator.clearEndedCall();
+      expect(fixture.coordinator.activity.value, isNull);
+    },
+  );
+
+  test(
+    'background and lock continuation follows platform capabilities exactly',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+      fixture.gateway.callContinuationCapabilities =
+          const KiteCallContinuationCapabilities(
+            background: true,
+            locked: false,
+          );
+
+      final capabilities = await fixture.coordinator
+          .refreshContinuationCapabilities();
+      expect(capabilities.background, isTrue);
+      expect(capabilities.locked, isFalse);
+
+      await fixture.coordinator.setAppState(KiteCallAppState.background);
+      expect(fixture.coordinator.appState.value, KiteCallAppState.background);
+
+      final invocationCount = fixture.gateway.invocations.length;
+      await expectLater(
+        fixture.coordinator.setAppState(KiteCallAppState.locked),
+        throwsStateError,
+      );
+      expect(fixture.gateway.invocations, hasLength(invocationCount));
+      expect(fixture.coordinator.appState.value, KiteCallAppState.background);
+
+      await fixture.coordinator.setAppState(KiteCallAppState.foreground);
+      expect(
+        fixture.gateway.invocations
+            .where((entry) => entry.type == MatrixRtcInvocationType.setAppState)
+            .map((entry) => entry.appState),
+        <KiteCallAppState?>[
+          KiteCallAppState.background,
+          KiteCallAppState.foreground,
+        ],
+      );
+    },
+  );
+
+  test(
+    'failed app-state transition preserves last confirmed lifecycle state',
+    () async {
+      final fixture = _fixture();
+      await fixture.coordinator.startDirectVoiceCall('!dm:example.org');
+      await fixture.coordinator.refreshContinuationCapabilities();
+      fixture.gateway.failNextWith = StateError('platform lifecycle failed');
+
+      await expectLater(
+        fixture.coordinator.setAppState(KiteCallAppState.background),
+        throwsStateError,
+      );
+
+      expect(fixture.coordinator.appState.value, KiteCallAppState.foreground);
+    },
+  );
+
   test('transient reconnect remains retryable after failure and restores active state', () async {
     final fixture = _fixture();
     await fixture.coordinator.startDirectVideoCall('!dm:example.org');
@@ -342,9 +433,14 @@ void main() {
     );
     expect(fixture.coordinator.phase.value, KiteCallPhase.reconnecting);
     expect(fixture.coordinator.session.value?.roomId, '!dm:example.org');
+    expect(
+      fixture.coordinator.activity.value?.phase,
+      KiteCallPhase.reconnecting,
+    );
 
     await fixture.coordinator.reconnectAfterTransientNetworkLoss();
     expect(fixture.coordinator.phase.value, KiteCallPhase.active);
+    expect(fixture.coordinator.activity.value?.phase, KiteCallPhase.active);
     expect(
       fixture.gateway.invocations
           .where((entry) => entry.type == MatrixRtcInvocationType.reconnect)

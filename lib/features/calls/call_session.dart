@@ -11,6 +11,8 @@ enum KiteCallPhase { idle, ringing, connecting, active, reconnecting, ended }
 
 enum KiteCallEndReason { declined, hungUp }
 
+enum KiteCallAppState { foreground, background, locked }
+
 enum KiteCameraFacing { front, rear }
 
 enum KiteAudioRouteKind {
@@ -34,6 +36,27 @@ final class KiteAudioRoute {
   final KiteAudioRouteKind kind;
 }
 
+final class KiteCallContinuationCapabilities {
+  const KiteCallContinuationCapabilities({
+    required this.background,
+    required this.locked,
+  });
+
+  static const none = KiteCallContinuationCapabilities(
+    background: false,
+    locked: false,
+  );
+
+  final bool background;
+  final bool locked;
+
+  bool supports(KiteCallAppState state) => switch (state) {
+    KiteCallAppState.foreground => true,
+    KiteCallAppState.background => background,
+    KiteCallAppState.locked => locked,
+  };
+}
+
 final class MatrixRtcSessionDescriptor {
   const MatrixRtcSessionDescriptor({
     required this.callId,
@@ -46,6 +69,49 @@ final class MatrixRtcSessionDescriptor {
   final String roomId;
   final KiteCallKind kind;
   final KiteCallScope scope;
+}
+
+final class KiteCallActivity {
+  const KiteCallActivity({
+    required this.callId,
+    required this.roomId,
+    required this.kind,
+    required this.scope,
+    required this.direction,
+    required this.phase,
+    this.endReason,
+  });
+
+  factory KiteCallActivity.fromSession(
+    KiteCallSession session,
+    KiteCallPhase phase,
+  ) {
+    return KiteCallActivity(
+      callId: session.callId,
+      roomId: session.roomId,
+      kind: session.kind,
+      scope: session.scope,
+      direction: session.direction,
+      phase: phase,
+      endReason: session.endReason,
+    );
+  }
+
+  final String callId;
+  final String roomId;
+  final KiteCallKind kind;
+  final KiteCallScope scope;
+  final KiteCallDirection direction;
+  final KiteCallPhase phase;
+  final KiteCallEndReason? endReason;
+
+  bool get isActive => switch (phase) {
+    KiteCallPhase.ringing ||
+    KiteCallPhase.connecting ||
+    KiteCallPhase.active ||
+    KiteCallPhase.reconnecting => true,
+    KiteCallPhase.idle || KiteCallPhase.ended => false,
+  };
 }
 
 final class KiteCallSession {
@@ -135,6 +201,15 @@ abstract interface class MatrixRtcGateway {
     required bool interrupted,
   });
 
+  Future<KiteCallContinuationCapabilities> continuationCapabilities(
+    String callId,
+  );
+
+  Future<void> setAppState({
+    required String callId,
+    required KiteCallAppState state,
+  });
+
   Future<void> reconnect(String callId);
 }
 
@@ -165,6 +240,14 @@ final class KiteCallCoordinator {
   );
   final Signal<String?> selectedAudioRouteId = signal<String?>(null);
   final Signal<bool> isMediaInterrupted = signal<bool>(false);
+  final Signal<KiteCallContinuationCapabilities> continuationCapabilities =
+      signal<KiteCallContinuationCapabilities>(
+        KiteCallContinuationCapabilities.none,
+      );
+  final Signal<KiteCallAppState> appState = signal<KiteCallAppState>(
+    KiteCallAppState.foreground,
+  );
+  final Signal<KiteCallActivity?> activity = signal<KiteCallActivity?>(null);
 
   Future<void> startDirectVoiceCall(String roomId) {
     return _startOutgoing(
@@ -231,6 +314,7 @@ final class KiteCallCoordinator {
     isVideo.value = descriptor.kind == KiteCallKind.video;
     isGroupCall.value = descriptor.scope == KiteCallScope.group;
     phase.value = KiteCallPhase.ringing;
+    _publishActivity();
   }
 
   Future<void> acceptIncomingCall() async {
@@ -245,6 +329,7 @@ final class KiteCallCoordinator {
     try {
       await _gateway.acceptCall(current.callId);
       phase.value = KiteCallPhase.active;
+      _publishActivity();
       trace.log(LogLevel.info, DiagnosticEvent.completed);
     } catch (_) {
       phase.value = KiteCallPhase.ringing;
@@ -265,6 +350,7 @@ final class KiteCallCoordinator {
       await _gateway.declineCall(current.callId);
       session.value = current.copyWith(endReason: KiteCallEndReason.declined);
       phase.value = KiteCallPhase.ended;
+      _publishActivity();
       trace.log(LogLevel.info, DiagnosticEvent.completed);
     } catch (_) {
       trace.log(LogLevel.error, DiagnosticEvent.failed);
@@ -333,15 +419,39 @@ final class KiteCallCoordinator {
     isMediaInterrupted.value = interrupted;
   }
 
+  Future<KiteCallContinuationCapabilities>
+  refreshContinuationCapabilities() async {
+    final current = _requireReconnectableSession();
+    final capabilities = await _gateway.continuationCapabilities(
+      current.callId,
+    );
+    continuationCapabilities.value = capabilities;
+    return capabilities;
+  }
+
+  Future<void> setAppState(KiteCallAppState state) async {
+    final current = _requireReconnectableSession();
+    if (appState.value == state) return;
+    if (!continuationCapabilities.value.supports(state)) {
+      throw StateError('The current platform cannot continue this call there.');
+    }
+
+    await _gateway.setAppState(callId: current.callId, state: state);
+    appState.value = state;
+  }
+
   Future<void> reconnectAfterTransientNetworkLoss() async {
     final current = _requireReconnectableSession();
     phase.value = KiteCallPhase.reconnecting;
+    _publishActivity();
 
     try {
       await _gateway.reconnect(current.callId);
       phase.value = KiteCallPhase.active;
+      _publishActivity();
     } catch (_) {
       phase.value = KiteCallPhase.reconnecting;
+      _publishActivity();
       rethrow;
     }
   }
@@ -367,6 +477,7 @@ final class KiteCallCoordinator {
       await _gateway.hangUp(current.callId);
       session.value = current.copyWith(endReason: KiteCallEndReason.hungUp);
       phase.value = KiteCallPhase.ended;
+      _publishActivity();
       trace.log(LogLevel.info, DiagnosticEvent.completed);
     } catch (_) {
       trace.log(LogLevel.error, DiagnosticEvent.failed);
@@ -383,6 +494,7 @@ final class KiteCallCoordinator {
     isGroupCall.value = false;
     _resetCallControls();
     phase.value = KiteCallPhase.idle;
+    activity.value = null;
   }
 
   Future<void> _startOutgoing({
@@ -436,6 +548,7 @@ final class KiteCallCoordinator {
     isGroupCall.value = descriptor.scope == KiteCallScope.group;
     isCameraEnabled.value = descriptor.kind == KiteCallKind.video;
     phase.value = KiteCallPhase.active;
+    _publishActivity();
   }
 
   KiteCallSession _requireActiveSession() {
@@ -487,6 +600,14 @@ final class KiteCallCoordinator {
     isGroupCall.value = false;
     _resetCallControls();
     phase.value = KiteCallPhase.idle;
+    activity.value = null;
+  }
+
+  void _publishActivity() {
+    final current = session.value;
+    activity.value = current == null
+        ? null
+        : KiteCallActivity.fromSession(current, phase.value);
   }
 
   void _resetCallControls() {
@@ -496,5 +617,7 @@ final class KiteCallCoordinator {
     audioRoutes.value = const <KiteAudioRoute>[];
     selectedAudioRouteId.value = null;
     isMediaInterrupted.value = false;
+    continuationCapabilities.value = KiteCallContinuationCapabilities.none;
+    appState.value = KiteCallAppState.foreground;
   }
 }
