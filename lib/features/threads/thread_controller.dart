@@ -121,6 +121,8 @@ class ThreadController {
   final Map<String, Signal<bool>> _hasMore = <String, Signal<bool>>{};
   final Map<String, Signal<bool>> _isLoadingOlder = <String, Signal<bool>>{};
   final Map<String, Signal<int>> _unreadCount = <String, Signal<int>>{};
+  final Map<String, Signal<int>> _roomUnreadThreadCount =
+      <String, Signal<int>>{};
   final Map<String, Signal<String?>> _latestReadReplyId =
       <String, Signal<String?>>{};
   int _transactionCounter = 0;
@@ -194,6 +196,24 @@ class ThreadController {
     return _unreadCount[_key(roomId, parent.id)] ?? signal(0);
   }
 
+  Signal<int> unreadThreadCountForRoom(String roomId) {
+    return _roomUnreadThreadCount.putIfAbsent(roomId, () => signal(0));
+  }
+
+  void updateRoomUnreadThreadCount({
+    required String roomId,
+    required int unreadThreadCount,
+  }) {
+    if (unreadThreadCount < 0) {
+      throw ArgumentError.value(
+        unreadThreadCount,
+        'unreadThreadCount',
+        'Unread thread count cannot be negative',
+      );
+    }
+    unreadThreadCountForRoom(roomId).value = unreadThreadCount;
+  }
+
   Signal<String?> latestReadReplyIdFor({
     required String roomId,
     required TimelineMessage parent,
@@ -205,7 +225,13 @@ class ThreadController {
   void markRead({required String roomId, required TimelineMessage parent}) {
     final replies = repliesFor(roomId: roomId, parent: parent).value;
     final key = _key(roomId, parent.id);
+    final previouslyUnread = _unreadCount[key]?.value ?? 0;
     _unreadCount[key]?.value = 0;
+    if (previouslyUnread > 0) {
+      final roomUnread = unreadThreadCountForRoom(roomId);
+      final nextUnread = roomUnread.value - previouslyUnread;
+      roomUnread.value = nextUnread < 0 ? 0 : nextUnread;
+    }
     _latestReadReplyId[key]?.value = replies.isEmpty ? null : replies.last.id;
   }
 
@@ -277,6 +303,7 @@ class ThreadController {
     _hasMore.clear();
     _isLoadingOlder.clear();
     _unreadCount.clear();
+    _roomUnreadThreadCount.clear();
     _latestReadReplyId.clear();
   }
 

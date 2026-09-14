@@ -31,6 +31,10 @@ void main() {
     addTearDown(display.resetRefreshRate);
 
     threadController.reset(sendPort: const DeterministicThreadSendPort());
+    threadController.updateRoomUnreadThreadCount(
+      roomId: 'alice',
+      unreadThreadCount: 2,
+    );
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
     selectRoom('alice');
     await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
@@ -44,12 +48,16 @@ void main() {
     final scrollState = tester.state<ScrollableState>(scrollable);
 
     final summary = find.byKey(const Key('thread-summary-alice-98'));
+    final roomRow = find.byKey(const Key('room-alice'));
+    final roomUnread = find.byKey(const Key('room-thread-unread-alice'));
     expect(summary, findsOneWidget);
+    expect(roomUnread, findsOneWidget);
     expect(find.byKey(const Key('thread-unread-alice-98')), findsOneWidget);
     final initialOffset = scrollState.position.pixels;
     expect(initialOffset, 0);
     final initialSummary = _rectOf(tester, summary);
     final initialMessageList = _rectOf(tester, messageList);
+    final initialRoomRow = _rectOf(tester, roomRow);
 
     await tester.tap(summary);
     await tester.pump();
@@ -122,8 +130,10 @@ void main() {
     expect(scrollState.position.pixels, initialOffset);
     expect(_rectOf(tester, messageList), initialMessageList);
     expect(_rectOf(tester, summary), initialSummary);
+    expect(_rectOf(tester, roomRow), initialRoomRow);
     expect(find.text('6 replies'), findsOneWidget);
     expect(find.byKey(const Key('thread-unread-alice-98')), findsNothing);
+    expect(roomUnread, findsNothing);
   });
 
   testWidgets('thread route preserves a nonzero main timeline scroll anchor', (

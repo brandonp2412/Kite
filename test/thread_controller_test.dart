@@ -79,6 +79,35 @@ void main() {
     );
   });
 
+  test('room thread unread aggregate reconciles when a thread is read', () {
+    final controller = ThreadController();
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    controller.repliesFor(roomId: 'alice', parent: parent);
+    controller.updateRoomUnreadThreadCount(
+      roomId: 'alice',
+      unreadThreadCount: 5,
+    );
+
+    expect(controller.unreadThreadCountForRoom('alice').value, 5);
+
+    controller.markRead(roomId: 'alice', parent: parent);
+
+    expect(controller.unreadThreadCountForRoom('alice').value, 3);
+    expect(
+      () => controller.updateRoomUnreadThreadCount(
+        roomId: 'alice',
+        unreadThreadCount: -1,
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('thread pagination prepends older replies exactly once', () async {
     final controller = ThreadController(
       paginationPort: const DeterministicThreadPaginationPort(

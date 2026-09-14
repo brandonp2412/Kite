@@ -16,6 +16,10 @@ void main() {
 
   setUp(() {
     threadController.reset(sendPort: const DeterministicThreadSendPort());
+    threadController.updateRoomUnreadThreadCount(
+      roomId: 'alice',
+      unreadThreadCount: 2,
+    );
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
     selectRoom('alice');
   });

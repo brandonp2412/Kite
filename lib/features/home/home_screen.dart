@@ -126,6 +126,9 @@ class _RoomList extends StatelessWidget {
         return SignalBuilder(
           builder: (context) {
             final selected = selectedRoomId.value == room.id;
+            final unreadThreadCount = threadController
+                .unreadThreadCountForRoom(room.id)
+                .value;
             return ListTile(
               key: Key('room-${room.id}'),
               selected: selected,
@@ -139,6 +142,26 @@ class _RoomList extends StatelessWidget {
                 room.subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+              ),
+              trailing: SizedBox.square(
+                dimension: 24,
+                child: Center(
+                  child: unreadThreadCount > 0
+                      ? Semantics(
+                          label:
+                              '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
+                          child: Container(
+                            key: Key('room-thread-unread-${room.id}'),
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: context.kiteColors.unread,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ),
               onTap: () {
                 final handler = onRoomTap;

@@ -44,5 +44,36 @@ void main() {
         matchesGoldenFile('goldens/thread_${variant.name}.png'),
       );
     });
+
+    testWidgets('thread room unread ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      threadController.updateRoomUnreadThreadCount(
+        roomId: 'alice',
+        unreadThreadCount: 2,
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('room-thread-unread-alice')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_room_unread_${variant.name}.png'),
+      );
+    });
   }
 }
