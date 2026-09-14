@@ -11,6 +11,7 @@ Primary sources:
 - https://github.com/element-hq/element-x-android-neutrino/blob/develop/docs/screenshot_testing.md
 - https://element.io/blog/spaces-has-landed-on-element-x/
 - https://element.io/blog/content/images/2026/03/space-list.png
+- https://element.io/blog/organise-your-chats-your-way-with-sections/
 
 The official Spaces screenshot is the current public visual reference used for the home/list comparison below. Upstream screenshot tests remain the mechanical reference source for screens that do not have a public marketing screenshot. Kite does not copy Element assets, logos, or brand artwork.
 
@@ -18,7 +19,7 @@ The official Spaces screenshot is the current public visual reference used for t
 
 The `develop` feature inventory at the reference commit contains: `analytics`, `announcement`, `cachecleaner`, `call`, `contentscanner`, `createroom`, `deactivation`, `enterprise`, `forward`, `ftue`, `home`, `invite`, `invitepeople`, `joinroom`, `knockrequests`, `leaveroom`, `licenses`, `linknewdevice`, `location`, `lockscreen`, `login`, `logout`, `messages`, `migration`, `networkmonitor`, `poll`, `preferences`, `rageshake`, `reportroom`, `rolesandpermissions`, `roomaliasresolver`, `roomcall`, `roomdetails`, `roomdetailsedit`, `roomdirectory`, `roommembermoderation`, `securebackup`, `securityandprivacy`, `share`, `signedout`, `space`, `startchat`, `userprofile`, `verifysession`, and `viewfolder`.
 
-Non-screen support modules such as analytics/network monitoring remain part of the upstream scan, but the matrix below focuses on user-visible screens and flows.
+Non-screen support modules such as analytics/network monitoring remain part of the upstream scan, but the matrix below focuses on user-visible screens and flows. The July 2026 Sections reference also confirms that current room-list organisation has moved beyond the older filter-only presentation: named/collapsible sections, room moves, and unread section state now need to be represented in the home parity audit. The public July imagery is useful for hierarchy and density, but is not treated as an Android screenshot unless its source identifies it that way.
 
 ## Rendered side-by-side review
 
@@ -58,7 +59,7 @@ Do not approve the home visual-parity roadmap checkbox from this review. The com
 
 | Element X area / screen | Element X behaviour reference | Kite behaviour | Kite test | Status |
 | --- | --- | --- | --- | --- |
-| Home / room list | Activity-sorted conversations, filters, invite/state decoration, Spaces entry points | Deterministic room list with selection | `test/widget_test.dart`, `test/adaptive_layout_test.dart`, gallery goldens | Partial |
+| Home / room list | Activity-sorted conversations, filters, Sections organisation/unread state, invite/state decoration, Spaces entry points | Deterministic room list with selection | `test/widget_test.dart`, `test/adaptive_layout_test.dart`, gallery goldens | Partial |
 | Spaces list / discovery | Joined Spaces, filtering/discovery and Space context | No Spaces UI | None | Missing |
 | Room timeline | Mixed Matrix event timeline with state, receipts and pagination | Deterministic benchmark messages only | open-DM motion/performance fixtures | Foundation |
 | Composer | Rich message composition and send actions | Static text field fixture | gallery goldens | Foundation |
