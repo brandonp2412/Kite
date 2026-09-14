@@ -14,6 +14,7 @@ android {
     }
 
     targetProjectPath = ":app"
+    experimentalProperties["android.experimental.self-instrumenting"] = true
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -22,6 +23,7 @@ android {
 
     buildTypes {
         create("benchmark") {
+            signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
         }
     }

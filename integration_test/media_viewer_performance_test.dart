@@ -46,23 +46,29 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    const iterations = 3;
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('open-media-viewer')));
-        await tester.pumpAndSettle();
+        for (var index = 0; index < iterations; index++) {
+          await tester.tap(find.byKey(const Key('open-media-viewer')));
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('media-viewer')), findsOneWidget);
+          await tester.tap(find.byKey(const Key('media-close')));
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('media-viewer')), findsNothing);
+        }
       },
       enforceTotalSpan: virtualizedBenchmark
           ? PerformanceContract.gateVirtualizedTotalSpan
           : PerformanceContract.gatePhysicalTotalSpan,
     );
 
-    expect(find.byKey(const Key('media-viewer')), findsOneWidget);
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['media_viewer_open'] = <String, dynamic>{
       'journey': 'open_media_viewer',
       'fixture': 'deterministic_media_v1',
-      'iterations': 1,
+      'iterations': iterations,
       ...result,
       'result': 'PASS',
     };
