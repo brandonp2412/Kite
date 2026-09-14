@@ -70,6 +70,59 @@ void main() {
     expect(resolved, KiteMotion.deliberate);
   });
 
+  test(
+    'component overlay surfaces use the shared shape and elevation tokens',
+    () {
+      for (final theme in <ThemeData>[
+        KiteTheme.light,
+        KiteTheme.dark,
+        KiteTheme.black,
+      ]) {
+        final dialogShape = theme.dialogTheme.shape as RoundedRectangleBorder;
+        final dialogRadius = dialogShape.borderRadius as BorderRadius;
+        expect(dialogRadius.topLeft.x, KiteRadii.lg);
+        expect(theme.dialogTheme.elevation, KiteElevation.overlay);
+
+        final sheetShape =
+            theme.bottomSheetTheme.shape as RoundedRectangleBorder;
+        final sheetRadius = sheetShape.borderRadius as BorderRadius;
+        expect(sheetRadius.topLeft.x, KiteRadii.lg);
+        expect(sheetRadius.bottomLeft.x, 0);
+        expect(theme.bottomSheetTheme.showDragHandle, isTrue);
+        expect(theme.bottomSheetTheme.modalElevation, KiteElevation.overlay);
+
+        final popupShape = theme.popupMenuTheme.shape as RoundedRectangleBorder;
+        final popupRadius = popupShape.borderRadius as BorderRadius;
+        expect(popupRadius.topLeft.x, KiteRadii.md);
+        expect(theme.popupMenuTheme.elevation, KiteElevation.overlay);
+
+        final menuShape = theme.menuTheme.style?.shape?.resolve({});
+        expect(menuShape, isA<RoundedRectangleBorder>());
+        expect(
+          ((menuShape! as RoundedRectangleBorder).borderRadius as BorderRadius)
+              .topLeft
+              .x,
+          KiteRadii.md,
+        );
+        expect(
+          theme.menuTheme.style?.elevation?.resolve({}),
+          KiteElevation.overlay,
+        );
+
+        final snackShape = theme.snackBarTheme.shape as RoundedRectangleBorder;
+        final snackRadius = snackShape.borderRadius as BorderRadius;
+        expect(snackRadius.topLeft.x, KiteRadii.sm);
+        expect(theme.snackBarTheme.behavior, SnackBarBehavior.floating);
+        expect(theme.snackBarTheme.elevation, KiteElevation.floating);
+
+        final tooltipDecoration =
+            theme.tooltipTheme.decoration as BoxDecoration;
+        final tooltipRadius = tooltipDecoration.borderRadius as BorderRadius;
+        expect(tooltipRadius.topLeft.x, KiteRadii.sm);
+      }
+    },
+  );
+
   test('theme foreground pairs meet WCAG AA normal-text contrast', () {
     for (final theme in <ThemeData>[
       KiteTheme.light,
@@ -143,6 +196,24 @@ void main() {
     );
   });
 
+  testWidgets('KiteApp removes route motion when the platform requests it', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+
+    selectRoom('kite');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final navigatorContext = tester.element(find.byType(Navigator));
+    expect(
+      Theme.of(navigatorContext).pageTransitionsTheme,
+      KiteMotion.reducedPageTransitions,
+    );
+  });
+
   testWidgets('motion durations collapse when reduced motion is requested', (
     tester,
   ) async {
@@ -161,6 +232,13 @@ void main() {
     expect(
       KiteMotion.duration(normalContext, KiteMotion.standard),
       KiteMotion.standard,
+    );
+    expect(
+      KiteMotion.pageTransitions(
+        normalContext,
+        KiteTheme.light.pageTransitionsTheme,
+      ),
+      KiteTheme.light.pageTransitionsTheme,
     );
 
     late BuildContext reducedContext;
@@ -181,6 +259,13 @@ void main() {
     expect(
       KiteMotion.duration(reducedContext, KiteMotion.emphasized),
       Duration.zero,
+    );
+    expect(
+      KiteMotion.pageTransitions(
+        reducedContext,
+        KiteTheme.light.pageTransitionsTheme,
+      ),
+      KiteMotion.reducedPageTransitions,
     );
   });
 }

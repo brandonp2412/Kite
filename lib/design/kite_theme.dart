@@ -114,6 +114,63 @@ abstract final class KiteTheme {
         backgroundColor: tokens.navigation,
         indicatorColor: tokens.selected,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: scheme.surfaceContainerHigh,
+        elevation: KiteElevation.overlay,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KiteRadii.lg),
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        modalBackgroundColor: scheme.surfaceContainer,
+        elevation: KiteElevation.floating,
+        modalElevation: KiteElevation.overlay,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(KiteRadii.lg),
+          ),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainer,
+        elevation: KiteElevation.overlay,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KiteRadii.md),
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainer),
+          elevation: const WidgetStatePropertyAll(KiteElevation.overlay),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(KiteRadii.md),
+            ),
+          ),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+          color: scheme.onInverseSurface,
+        ),
+        behavior: SnackBarBehavior.floating,
+        elevation: KiteElevation.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KiteRadii.sm),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: BorderRadius.circular(KiteRadii.sm),
+        ),
+        textStyle: base.textTheme.bodySmall?.copyWith(
+          color: scheme.onInverseSurface,
+        ),
+      ),
     );
   }
 }

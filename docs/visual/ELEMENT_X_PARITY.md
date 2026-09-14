@@ -55,7 +55,7 @@ Observed comparison:
 | Responsive composition | Reference is phone-first; Element X visual language stays compact | Kite now has explicit compact and two-pane layouts with bounded sidebar width | Partial |
 | Theme verification | Upstream screenshot tests gate visual changes | Kite light/dark/true-black goldens gate all current home viewport variants; true-black keeps primary surfaces at `#000000` with restrained near-black elevated surfaces and matching system-bar treatment | Pass for current Kite surface |
 
-Do not approve the home visual-parity roadmap checkbox from this review. The comparison identifies concrete gaps and is intentionally stricter than source-code inspection. The 2026-09-14 true-black render review preserved the same geometry and hierarchy as dark mode. The theme/system-bar implementation is in place, but its roadmap checkbox remains open until the full quality gate passes the pinned cold-frame contract.
+Do not approve the home visual-parity roadmap checkbox from this review. The comparison identifies concrete gaps and is intentionally stricter than source-code inspection. The 2026-09-14 true-black render review preserved the same geometry and hierarchy as dark mode. The theme/system-bar implementation is in place, but its roadmap checkbox remains open until the full quality gate passes the pinned cold-frame contract. Shared dialog, sheet, menu, snackbar, and tooltip defaults now also use the same tokenised radii/elevation/surface hierarchy across light, dark, and true-black themes; empty/error/destructive state parity is still open.
 
 ## Screen-by-screen parity matrix
 
@@ -87,7 +87,7 @@ Do not approve the home visual-parity roadmap checkbox from this review. The com
 | Error / offline states | Deliberate loading, empty, error and connectivity states | Deterministic adapters exist; user-visible states are not complete | deterministic adapter tests where applicable | Foundation |
 | Adaptive phone layout | Mobile composition appropriate to width/orientation | Explicit portrait/landscape compact layout | `test/adaptive_layout_test.dart`, gallery goldens | Partial |
 | Tablet / desktop layout | Wider composition without stretched phone UI | Two-pane layout with bounded 320-360 px sidebar | `test/adaptive_layout_test.dart`, gallery goldens | Partial |
-| Reduced motion | Motion follows accessibility preference | Token durations collapse for `disableAnimations`/`accessibleNavigation`; current UI has no bespoke animated journey yet | `test/design_tokens_test.dart` | Foundation |
+| Reduced motion | Motion follows accessibility preference | Token durations collapse for `disableAnimations`/`accessibleNavigation`, and route transitions are removed when the platform requests disabled animations; current UI has no bespoke animated journey yet | `test/design_tokens_test.dart` | Foundation |
 
 This matrix is a tracking artifact, not a parity claim. A row moves to `Pass` only when behavior, edge states, accessibility, goldens and the performance contract all meet the roadmap definition of parity.
 
