@@ -61,6 +61,41 @@ void main() {
     'KITE_VIRTUALIZED_BENCHMARK',
   );
 
+  testWidgets('opening room details has zero late Flutter frames', (
+    tester,
+  ) async {
+    selectRoom('kite');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    final detailsButton = find.byKey(const Key('room-details-button'));
+    await tester.tap(detailsButton);
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byKey(const Key('room-details-screen'))))
+        .pop();
+    await tester.pumpAndSettle();
+
+    final result = await _measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(detailsButton);
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('room-details-screen')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_details_open'] = <String, dynamic>{
+      'journey': 'open_room_details',
+      'fixture': 'deterministic_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('warmed member search has zero late Flutter frames', (
     tester,
   ) async {
