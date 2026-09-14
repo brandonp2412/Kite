@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+printf '%s\n' 'Kite quality gate: release audit'
+"$(dirname "$0")/release_audit.sh"
+
 printf '%s\n' 'Kite quality gate: analyze'
 flutter analyze
 
