@@ -16,6 +16,19 @@ final class MatrixPresentationCache {
 
   String? lastSyncCursor;
 
+  MatrixPresentationSnapshot snapshot() {
+    return MatrixPresentationSnapshot(
+      rooms: <MatrixRoomSummary>[
+        for (final roomId in roomOrder.value) ?_roomSummaries[roomId]?.value,
+      ],
+      timelines: <String, List<MatrixTimelineEvent>>{
+        for (final entry in _timelines.entries)
+          if (entry.value.value.isNotEmpty) entry.key: entry.value.value,
+      },
+      syncCursor: lastSyncCursor,
+    );
+  }
+
   Signal<MatrixRoomSummary?> roomSummarySignal(String roomId) {
     return _roomSummaries.putIfAbsent(
       roomId,
@@ -31,6 +44,7 @@ final class MatrixPresentationCache {
   }
 
   void restore(MatrixPresentationSnapshot snapshot) {
+    lastSyncCursor = snapshot.syncCursor;
     for (final summary in snapshot.rooms) {
       roomSummarySignal(summary.roomId).value = summary;
     }

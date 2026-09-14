@@ -62,6 +62,7 @@ final class MatrixPresentationSnapshot {
     required List<MatrixRoomSummary> rooms,
     Map<String, List<MatrixTimelineEvent>> timelines =
         const <String, List<MatrixTimelineEvent>>{},
+    this.syncCursor,
   }) : rooms = List<MatrixRoomSummary>.unmodifiable(rooms),
        timelines = UnmodifiableMapView<String, List<MatrixTimelineEvent>>(
          <String, List<MatrixTimelineEvent>>{
@@ -72,4 +73,5 @@ final class MatrixPresentationSnapshot {
 
   final List<MatrixRoomSummary> rooms;
   final Map<String, List<MatrixTimelineEvent>> timelines;
+  final String? syncCursor;
 }

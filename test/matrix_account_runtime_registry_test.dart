@@ -6,6 +6,7 @@ import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
+import 'package:kite/matrix/presentation_store.dart';
 
 void main() {
   test(
@@ -59,6 +60,61 @@ void main() {
         '@alice:example.org',
         '@bob:example.org',
       ]);
+    },
+  );
+
+  test(
+    'restored cache is observable before network sync startup completes',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final startGate = Completer<void>();
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{
+          '@alice:example.org': MatrixPresentationSnapshot(
+            syncCursor: 'persisted-cursor',
+            rooms: <MatrixRoomSummary>[
+              MatrixRoomSummary(
+                roomId: '!alice:example.org',
+                displayName: 'Cached Alice room',
+                lastActivity: DateTime.utc(2026, 9, 15, 2),
+                streamPosition: 0,
+              ),
+            ],
+          ),
+        },
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+        startGateFor: '@alice:example.org',
+        startGate: startGate,
+      );
+      addTearDown(registry.dispose);
+
+      final activation = registry.activate('@alice:example.org');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(
+        registry.activeCache
+            ?.roomSummarySignal('!alice:example.org')
+            .value
+            ?.displayName,
+        'Cached Alice room',
+      );
+      expect(registry.activeCache?.lastSyncCursor, 'persisted-cursor');
+
+      startGate.complete();
+      final cache = await activation;
+      expect(
+        cache.roomSummarySignal('!alice:example.org').value?.displayName,
+        'Alice room',
+      );
+      await registry.flushPresentationWrites('@alice:example.org');
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'alice-start-1',
+      );
     },
   );
 
@@ -174,6 +230,9 @@ void main() {
 MatrixAccountRuntimeRegistry _registry(
   Map<String, _FakeAccountBoundary> boundaries, {
   String? failStartFor,
+  MatrixPresentationStore? presentationStore,
+  String? startGateFor,
+  Completer<void>? startGate,
 }) {
   return MatrixAccountRuntimeRegistry(
     storeRegistry: MatrixAccountStoreRegistry(
@@ -186,19 +245,26 @@ MatrixAccountRuntimeRegistry _registry(
         () => _FakeAccountBoundary(
           accountId: accountId,
           failStart: accountId == failStartFor,
+          startGate: accountId == startGateFor ? startGate : null,
         ),
       );
     },
     initialActivity: MatrixAppActivity.foreground,
     initialNetworkState: MatrixNetworkState.online,
+    presentationStore: presentationStore,
   );
 }
 
 final class _FakeAccountBoundary implements MatrixSdkBoundary {
-  _FakeAccountBoundary({required this.accountId, this.failStart = false});
+  _FakeAccountBoundary({
+    required this.accountId,
+    this.failStart = false,
+    this.startGate,
+  });
 
   final String accountId;
   final bool failStart;
+  final Completer<void>? startGate;
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -228,6 +294,7 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   Future<void> startSync() async {
     startCalls += 1;
     if (failStart) throw StateError('deterministic start failure');
+    await startGate?.future;
     final localpart = accountId.substring(1, accountId.indexOf(':'));
     _sync.add(
       MatrixSyncBatch(
@@ -263,4 +330,29 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   }
 
   void emit(MatrixSyncBatch batch) => _sync.add(batch);
+}
+
+final class _MemoryPresentationStore implements MatrixPresentationStore {
+  _MemoryPresentationStore(Map<String, MatrixPresentationSnapshot> initial)
+    : snapshots = Map<String, MatrixPresentationSnapshot>.of(initial);
+
+  final Map<String, MatrixPresentationSnapshot> snapshots;
+
+  @override
+  Future<void> clear(String accountId) async {
+    snapshots.remove(accountId);
+  }
+
+  @override
+  Future<MatrixPresentationSnapshot?> load(String accountId) async {
+    return snapshots[accountId];
+  }
+
+  @override
+  Future<void> save(
+    String accountId,
+    MatrixPresentationSnapshot snapshot,
+  ) async {
+    snapshots[accountId] = snapshot;
+  }
 }
