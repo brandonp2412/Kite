@@ -125,6 +125,8 @@ class ThreadController {
       <String, Signal<int>>{};
   final Map<String, Signal<String?>> _latestReadReplyId =
       <String, Signal<String?>>{};
+  final Map<String, Signal<String?>> _focusedReplyId =
+      <String, Signal<String?>>{};
   int _transactionCounter = 0;
 
   bool hasThread(String parentEventId) {
@@ -222,6 +224,35 @@ class ThreadController {
     return _latestReadReplyId[_key(roomId, parent.id)] ?? signal(null);
   }
 
+  Signal<String?> focusedReplyIdFor({
+    required String roomId,
+    required TimelineMessage parent,
+  }) {
+    repliesFor(roomId: roomId, parent: parent);
+    return _focusedReplyId.putIfAbsent(
+      _key(roomId, parent.id),
+      () => signal(null),
+    );
+  }
+
+  void focusReply({
+    required String roomId,
+    required TimelineMessage parent,
+    required String replyId,
+  }) {
+    focusedReplyIdFor(roomId: roomId, parent: parent).value = replyId;
+  }
+
+  void clearFocus({
+    required String roomId,
+    required TimelineMessage parent,
+    String? onlyIfReplyId,
+  }) {
+    final focus = focusedReplyIdFor(roomId: roomId, parent: parent);
+    if (onlyIfReplyId != null && focus.value != onlyIfReplyId) return;
+    focus.value = null;
+  }
+
   void markRead({required String roomId, required TimelineMessage parent}) {
     final replies = repliesFor(roomId: roomId, parent: parent).value;
     final key = _key(roomId, parent.id);
@@ -315,6 +346,7 @@ class ThreadController {
     _unreadCount.clear();
     _roomUnreadThreadCount.clear();
     _latestReadReplyId.clear();
+    _focusedReplyId.clear();
   }
 
   Future<void> _settle({

@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -187,4 +189,54 @@ void main() {
       'result': 'PASS',
     };
   });
+  testWidgets(
+    'opening a focused thread destination stays within the frame contract',
+    (tester) async {
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+      await tester.pumpAndSettle();
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+      final destination = AppDestination.thread(
+        accountId: '@alice:kite.test',
+        roomId: 'alice',
+        eventId: 'alice-98-thread-2',
+        threadRootEventId: 'alice-98',
+      );
+      final navigatorContext = tester.element(
+        find.byKey(const Key('chat-panel')),
+      );
+
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          Navigator.of(navigatorContext).push(
+            ThreadRoute.fromDestination(
+              destination: destination,
+              parent: parent,
+              reduceMotion: false,
+            ),
+          );
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: virtualizedBenchmark
+            ? PerformanceContract.gateVirtualizedTotalSpan
+            : PerformanceContract.gatePhysicalTotalSpan,
+      );
+
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        findsOneWidget,
+      );
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['thread_focus_open'] = <String, dynamic>{
+        'journey': 'open_focused_thread_reply',
+        'fixture': 'deterministic_thread_v1',
+        'iterations': 1,
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
 }

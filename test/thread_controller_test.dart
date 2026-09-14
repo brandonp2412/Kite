@@ -214,4 +214,61 @@ void main() {
       expect(reply.sendState.value, TimelineSendState.sent);
     },
   );
+  test(
+    'focused reply remains scoped to one thread and clears conditionally',
+    () {
+      final controller = ThreadController();
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+      final otherParent = TimelineMessage(
+        id: 'alice-81',
+        sender: 'Alice',
+        body: 'Other parent',
+        mine: false,
+        timeLabel: '09:55',
+      );
+
+      controller.focusReply(
+        roomId: 'alice',
+        parent: parent,
+        replyId: 'alice-98-thread-2',
+      );
+
+      expect(
+        controller.focusedReplyIdFor(roomId: 'alice', parent: parent).value,
+        'alice-98-thread-2',
+      );
+      expect(
+        controller
+            .focusedReplyIdFor(roomId: 'alice', parent: otherParent)
+            .value,
+        isNull,
+      );
+
+      controller.clearFocus(
+        roomId: 'alice',
+        parent: parent,
+        onlyIfReplyId: 'wrong-id',
+      );
+      expect(
+        controller.focusedReplyIdFor(roomId: 'alice', parent: parent).value,
+        'alice-98-thread-2',
+      );
+
+      controller.clearFocus(
+        roomId: 'alice',
+        parent: parent,
+        onlyIfReplyId: 'alice-98-thread-2',
+      );
+      expect(
+        controller.focusedReplyIdFor(roomId: 'alice', parent: parent).value,
+        isNull,
+      );
+    },
+  );
 }

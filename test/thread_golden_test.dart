@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 class _AlwaysFailThreadPort implements ThreadSendPort {
@@ -94,6 +96,57 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_retry_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread focused ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+      final destination = AppDestination.thread(
+        accountId: '@alice:kite.test',
+        roomId: 'alice',
+        eventId: 'alice-98-thread-2',
+        threadRootEventId: 'alice-98',
+      );
+      final navigatorContext = tester.element(
+        find.byKey(const Key('chat-panel')),
+      );
+      Navigator.of(navigatorContext).push(
+        ThreadRoute.fromDestination(
+          destination: destination,
+          parent: parent,
+          reduceMotion: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_focus_${variant.name}.png'),
       );
     });
 

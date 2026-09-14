@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:signals/signals_flutter.dart';
@@ -10,13 +11,17 @@ class ThreadRoute extends PageRouteBuilder<void> {
     required String roomId,
     required TimelineMessage parent,
     required bool reduceMotion,
+    String? focusedReplyId,
   }) : super(
          transitionDuration: reduceMotion ? Duration.zero : KiteMotion.standard,
          reverseTransitionDuration: reduceMotion
              ? Duration.zero
              : KiteMotion.standard,
-         pageBuilder: (context, animation, secondaryAnimation) =>
-             ThreadView(roomId: roomId, parent: parent),
+         pageBuilder: (context, animation, secondaryAnimation) => ThreadView(
+           roomId: roomId,
+           parent: parent,
+           focusedReplyId: focusedReplyId,
+         ),
          transitionsBuilder: (context, animation, secondaryAnimation, child) {
            if (reduceMotion) return child;
            final curved = CurvedAnimation(
@@ -33,13 +38,42 @@ class ThreadRoute extends PageRouteBuilder<void> {
            );
          },
        );
+
+  factory ThreadRoute.fromDestination({
+    required AppDestination destination,
+    required TimelineMessage parent,
+    required bool reduceMotion,
+  }) {
+    if (destination.kind != AppDestinationKind.thread ||
+        destination.threadRootEventId != parent.id ||
+        destination.roomId.isEmpty ||
+        destination.eventId == null) {
+      throw ArgumentError.value(
+        destination,
+        'destination',
+        'Thread destination must target this parent and a reply event',
+      );
+    }
+    return ThreadRoute(
+      roomId: destination.roomId,
+      parent: parent,
+      reduceMotion: reduceMotion,
+      focusedReplyId: destination.eventId,
+    );
+  }
 }
 
 class ThreadView extends StatefulWidget {
-  const ThreadView({super.key, required this.roomId, required this.parent});
+  const ThreadView({
+    super.key,
+    required this.roomId,
+    required this.parent,
+    this.focusedReplyId,
+  });
 
   final String roomId;
   final TimelineMessage parent;
+  final String? focusedReplyId;
 
   @override
   State<ThreadView> createState() => _ThreadViewState();
@@ -52,6 +86,14 @@ class _ThreadViewState extends State<ThreadView> {
   @override
   void initState() {
     super.initState();
+    final focusedReplyId = widget.focusedReplyId;
+    if (focusedReplyId != null) {
+      threadController.focusReply(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        replyId: focusedReplyId,
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       threadController.markRead(roomId: widget.roomId, parent: widget.parent);
@@ -60,6 +102,14 @@ class _ThreadViewState extends State<ThreadView> {
 
   @override
   void dispose() {
+    final focusedReplyId = widget.focusedReplyId;
+    if (focusedReplyId != null) {
+      threadController.clearFocus(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        onlyIfReplyId: focusedReplyId,
+      );
+    }
     _composerController.dispose();
     _composerFocusNode.dispose();
     super.dispose();
@@ -197,6 +247,10 @@ class _ThreadViewState extends State<ThreadView> {
                         parent: widget.parent,
                       )
                       .value;
+                  final focusSignal = threadController.focusedReplyIdFor(
+                    roomId: widget.roomId,
+                    parent: widget.parent,
+                  );
                   return Stack(
                     children: <Widget>[
                       ListView.builder(
@@ -216,6 +270,7 @@ class _ThreadViewState extends State<ThreadView> {
                             roomId: widget.roomId,
                             parent: widget.parent,
                             reply: reply,
+                            focusSignal: focusSignal,
                           );
                         },
                       ),
@@ -428,142 +483,166 @@ class _ThreadReplyRow extends StatelessWidget {
     required this.roomId,
     required this.parent,
     required this.reply,
+    required this.focusSignal,
   });
 
   final String roomId;
   final TimelineMessage parent;
   final ThreadReply reply;
+  final Signal<String?> focusSignal;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final mine = reply.mine;
-    return Padding(
-      key: Key('thread-reply-${reply.id}'),
-      padding: const EdgeInsets.symmetric(vertical: KiteSpacing.xs),
-      child: Row(
-        mainAxisAlignment: mine
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: <Widget>[
-          if (!mine) ...<Widget>[
-            CircleAvatar(
-              radius: 15,
-              backgroundColor: colors.secondaryContainer,
-              foregroundColor: colors.onSecondaryContainer,
-              child: Text(
-                reply.sender.characters.first.toUpperCase(),
-                style: KiteTypography.metadata.copyWith(
-                  fontWeight: FontWeight.w700,
+    return SignalBuilder(
+      builder: (context) {
+        final focused = focusSignal.value == reply.id;
+        return Semantics(
+          focused: focused,
+          label: focused ? 'Focused thread reply from ${reply.sender}' : null,
+          child: DecoratedBox(
+            key: focused ? Key('thread-focused-${reply.id}') : null,
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  width: 2,
+                  color: focused ? colors.primary : Colors.transparent,
                 ),
               ),
             ),
-            const SizedBox(width: KiteSpacing.xs),
-          ],
-          Flexible(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 560),
-              padding: const EdgeInsets.fromLTRB(
-                KiteSpacing.sm,
-                KiteSpacing.xs,
-                KiteSpacing.xs,
-                KiteSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: mine
-                    ? colors.primaryContainer
-                    : colors.surfaceContainerHighest,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(KiteRadii.md),
-                  topRight: const Radius.circular(KiteRadii.md),
-                  bottomLeft: Radius.circular(
-                    mine ? KiteRadii.md : KiteRadii.sm,
-                  ),
-                  bottomRight: Radius.circular(
-                    mine ? KiteRadii.sm : KiteRadii.md,
-                  ),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: Padding(
+              key: Key('thread-reply-${reply.id}'),
+              padding: const EdgeInsets.symmetric(vertical: KiteSpacing.xs),
+              child: Row(
+                mainAxisAlignment: mine
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
                   if (!mine) ...<Widget>[
-                    Text(
-                      reply.sender,
-                      style: KiteTypography.metadata.copyWith(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: KiteSpacing.xxs),
-                  ],
-                  Text(
-                    reply.body,
-                    style: KiteTypography.body.copyWith(
-                      color: colors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: KiteSpacing.xxs),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        reply.timeLabel,
+                    CircleAvatar(
+                      radius: 15,
+                      backgroundColor: colors.secondaryContainer,
+                      foregroundColor: colors.onSecondaryContainer,
+                      child: Text(
+                        reply.sender.characters.first.toUpperCase(),
                         style: KiteTypography.metadata.copyWith(
-                          color: colors.onSurfaceVariant,
-                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      if (mine) ...<Widget>[
-                        const SizedBox(width: KiteSpacing.xxs),
-                        SignalBuilder(
-                          builder: (context) {
-                            final state = reply.sendState.value;
-                            return SizedBox(
-                              key: Key('thread-send-state-${reply.id}'),
-                              width: 20,
-                              height: 20,
-                              child: state == TimelineSendState.failed
-                                  ? Tooltip(
-                                      message: 'Retry sending',
-                                      child: InkResponse(
-                                        key: Key('thread-retry-${reply.id}'),
-                                        radius: 18,
-                                        containedInkWell: true,
-                                        onTap: () =>
-                                            threadController.retryReply(
-                                              roomId: roomId,
-                                              parent: parent,
-                                              reply: reply,
-                                            ),
-                                        child: Icon(
-                                          Icons.error_rounded,
-                                          semanticLabel: 'Thread reply failed. Retry sending',
-                                          size: 14,
-                                          color: colors.error,
-                                        ),
-                                      ),
-                                    )
-                                  : Icon(
-                                      state == TimelineSendState.sending
-                                          ? Icons.schedule_rounded
-                                          : Icons.done_rounded,
-                                      size: 14,
-                                      color: colors.onSurfaceVariant,
-                                    ),
-                            );
-                          },
+                    ),
+                    const SizedBox(width: KiteSpacing.xs),
+                  ],
+                  Flexible(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      padding: const EdgeInsets.fromLTRB(
+                        KiteSpacing.sm,
+                        KiteSpacing.xs,
+                        KiteSpacing.xs,
+                        KiteSpacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: mine
+                            ? colors.primaryContainer
+                            : colors.surfaceContainerHighest,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(KiteRadii.md),
+                          topRight: const Radius.circular(KiteRadii.md),
+                          bottomLeft: Radius.circular(
+                            mine ? KiteRadii.md : KiteRadii.sm,
+                          ),
+                          bottomRight: Radius.circular(
+                            mine ? KiteRadii.sm : KiteRadii.md,
+                          ),
                         ),
-                      ],
-                    ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          if (!mine) ...<Widget>[
+                            Text(
+                              reply.sender,
+                              style: KiteTypography.metadata.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: KiteSpacing.xxs),
+                          ],
+                          Text(
+                            reply.body,
+                            style: KiteTypography.body.copyWith(
+                              color: colors.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: KiteSpacing.xxs),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                reply.timeLabel,
+                                style: KiteTypography.metadata.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              if (mine) ...<Widget>[
+                                const SizedBox(width: KiteSpacing.xxs),
+                                SignalBuilder(
+                                  builder: (context) {
+                                    final state = reply.sendState.value;
+                                    return SizedBox(
+                                      key: Key('thread-send-state-${reply.id}'),
+                                      width: 20,
+                                      height: 20,
+                                      child: state == TimelineSendState.failed
+                                          ? Tooltip(
+                                              message: 'Retry sending',
+                                              child: InkResponse(
+                                                key: Key(
+                                                  'thread-retry-${reply.id}',
+                                                ),
+                                                radius: 18,
+                                                containedInkWell: true,
+                                                onTap: () =>
+                                                    threadController.retryReply(
+                                                      roomId: roomId,
+                                                      parent: parent,
+                                                      reply: reply,
+                                                    ),
+                                                child: Icon(
+                                                  Icons.error_rounded,
+                                                  semanticLabel: 'Thread reply failed. Retry sending',
+                                                  size: 14,
+                                                  color: colors.error,
+                                                ),
+                                              ),
+                                            )
+                                          : Icon(
+                                              state == TimelineSendState.sending
+                                                  ? Icons.schedule_rounded
+                                                  : Icons.done_rounded,
+                                              size: 14,
+                                              color: colors.onSurfaceVariant,
+                                            ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
