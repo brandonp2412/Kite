@@ -114,6 +114,15 @@ For each review, record the exact upstream commit or public reference image and 
 - [ ] Avatar / image quality.
 - [ ] Motion / easing at normal speed and frame-by-frame.
 
+## Current-upstream scope audit
+
+Audit refreshed from a clean shallow checkout of Element X Android `develop` on 2026-09-14.
+
+- `develop` still points at `8cd3750cde65c8bbfc97cb578d00111b6bf62ee8`, committed 2026-09-11. Because the Kite roadmap baseline is dated 2026-09-14, there are no upstream `develop` commits newer than the roadmap baseline to add or schedule in this audit pass.
+- The current upstream `FeatureFlags.MessageSearch` implementation is unfinished and disabled by default (`defaultValue = false`, `isFinished = false`). Its implementation feeds the global home search target; it is not treated as a generally available in-room-search parity blocker.
+- No on-device voice-transcription implementation or feature module is present in the current `develop` tree. Matrix Classic-only or proposal-only capabilities remain outside the parity baseline until Element X ships them generally.
+- This audit does not relax existing Kite roadmap requirements. Features already represented in the parity matrix remain required even when they are currently behind an upstream Labs/developer flag where the roadmap explicitly calls for current-upstream behaviour.
+
 ## Review discipline
 
 A review is complete only when both reference and Kite renders are available for the same state. Golden changes are reviewed as product changes; broad updates are never accepted merely to make tests pass. Missing Element X screens remain visible as `Missing` in the matrix instead of being silently excluded from parity.
