@@ -153,23 +153,46 @@ class _RoomList extends StatelessWidget {
   }
 }
 
-class _ChatPanel extends StatelessWidget {
+typedef _ComposerAction = void Function(String roomId, TimelineMessage message);
+
+enum _MessageAction { reply, edit }
+
+enum _ComposerMode { reply, edit }
+
+class _ChatPanel extends StatefulWidget {
   const _ChatPanel({this.showHeader = true});
 
   final bool showHeader;
+
+  @override
+  State<_ChatPanel> createState() => _ChatPanelState();
+}
+
+class _ChatPanelState extends State<_ChatPanel> {
+  final GlobalKey<_ComposerState> _composerKey = GlobalKey<_ComposerState>();
+
+  void _reply(String roomId, TimelineMessage message) {
+    _composerKey.currentState?.beginReply(roomId, message);
+  }
+
+  void _edit(String roomId, TimelineMessage message) {
+    _composerKey.currentState?.beginEdit(roomId, message);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       key: const Key('chat-panel'),
       children: <Widget>[
-        if (showHeader) ...<Widget>[
+        if (widget.showHeader) ...<Widget>[
           const _ChatHeader(),
           const Divider(height: 1),
         ],
-        const Expanded(child: _Timeline()),
+        Expanded(
+          child: _Timeline(onReply: _reply, onEdit: _edit),
+        ),
         const Divider(height: 1),
-        const _Composer(),
+        _Composer(key: _composerKey),
       ],
     );
   }
@@ -236,7 +259,10 @@ class _ChatHeader extends StatelessWidget {
 }
 
 class _Timeline extends StatelessWidget {
-  const _Timeline();
+  const _Timeline({required this.onReply, required this.onEdit});
+
+  final _ComposerAction onReply;
+  final _ComposerAction onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +281,8 @@ class _Timeline extends StatelessWidget {
               key: ValueKey<String>(message.id),
               roomId: roomId,
               message: message,
+              onReply: onReply,
+              onEdit: onEdit,
             );
           },
         );
@@ -264,10 +292,38 @@ class _Timeline extends StatelessWidget {
 }
 
 class _MessageRow extends StatelessWidget {
-  const _MessageRow({super.key, required this.roomId, required this.message});
+  const _MessageRow({
+    super.key,
+    required this.roomId,
+    required this.message,
+    required this.onReply,
+    required this.onEdit,
+  });
 
   final String roomId;
   final TimelineMessage message;
+  final _ComposerAction onReply;
+  final _ComposerAction onEdit;
+
+  Future<void> _showActions(BuildContext context) async {
+    final action = await showModalBottomSheet<_MessageAction>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (sheetContext) => _MessageActionSheet(message: message),
+    );
+    if (!context.mounted || action == null) return;
+    switch (action) {
+      case _MessageAction.reply:
+        onReply(roomId, message);
+      case _MessageAction.edit:
+        onEdit(roomId, message);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -284,43 +340,68 @@ class _MessageRow extends StatelessWidget {
       bottomRight: Radius.circular(mine ? KiteRadii.sm : KiteRadii.md),
     );
 
-    final bubble = DecoratedBox(
-      key: Key('message-bubble-${message.id}'),
-      decoration: BoxDecoration(color: bubbleColor, borderRadius: bubbleRadius),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          KiteSpacing.sm,
-          KiteSpacing.xs,
-          KiteSpacing.xs,
-          KiteSpacing.xs,
+    final bubble = GestureDetector(
+      onLongPress: () => _showActions(context),
+      onSecondaryTap: () => _showActions(context),
+      child: DecoratedBox(
+        key: Key('message-bubble-${message.id}'),
+        decoration: BoxDecoration(
+          color: bubbleColor,
+          borderRadius: bubbleRadius,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              message.body,
-              key: Key('message-body-${message.id}'),
-              style: KiteTypography.body.copyWith(color: colors.onSurface),
-            ),
-            const SizedBox(height: KiteSpacing.xxs),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  message.timeLabel,
-                  style: KiteTypography.metadata.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 11,
-                  ),
-                ),
-                if (mine) ...<Widget>[
-                  const SizedBox(width: KiteSpacing.xxs),
-                  _MessageSendState(roomId: roomId, message: message),
-                ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.sm,
+            KiteSpacing.xs,
+            KiteSpacing.xs,
+            KiteSpacing.xs,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (message.isReply) ...<Widget>[
+                _MessageReplyPreview(message: message),
+                const SizedBox(height: KiteSpacing.xs),
               ],
-            ),
-          ],
+              SignalBuilder(
+                builder: (context) => Text(
+                  message.body,
+                  key: Key('message-body-${message.id}'),
+                  style: KiteTypography.body.copyWith(color: colors.onSurface),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.xxs),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    message.timeLabel,
+                    style: KiteTypography.metadata.copyWith(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
+                  SignalBuilder(
+                    builder: (context) => message.edited
+                        ? Text(
+                            ' · edited',
+                            key: Key('edited-${message.id}'),
+                            style: KiteTypography.metadata.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  if (mine) ...<Widget>[
+                    const SizedBox(width: KiteSpacing.xxs),
+                    _MessageSendState(roomId: roomId, message: message),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -371,6 +452,150 @@ class _MessageRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MessageReplyPreview extends StatelessWidget {
+  const _MessageReplyPreview({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: Key('reply-preview-${message.id}'),
+      constraints: const BoxConstraints(minWidth: 132, maxWidth: 460),
+      padding: const EdgeInsets.only(left: KiteSpacing.xs),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: colors.primary, width: KiteStroke.emphasis),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            message.replyToSender ?? 'Message',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: KiteTypography.metadata.copyWith(
+              color: colors.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            message.replyToBody ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: KiteTypography.metadata.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageActionSheet extends StatelessWidget {
+  const _MessageActionSheet({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('message-action-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: colors.outlineVariant,
+              borderRadius: BorderRadius.circular(KiteRadii.pill),
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              message.body,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: KiteTypography.body.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.sm),
+          _MessageActionButton(
+            key: const Key('message-action-reply'),
+            icon: Icons.reply_rounded,
+            label: 'Reply',
+            onTap: () => Navigator.of(context).pop(_MessageAction.reply),
+          ),
+          if (message.mine)
+            _MessageActionButton(
+              key: const Key('message-action-edit'),
+              icon: Icons.edit_outlined,
+              label: 'Edit message',
+              onTap: () => Navigator.of(context).pop(_MessageAction.edit),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageActionButton extends StatelessWidget {
+  const _MessageActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(KiteRadii.md),
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 44,
+              child: Icon(icon, size: 21, color: colors.onSurface),
+            ),
+            const SizedBox(width: KiteSpacing.xs),
+            Text(
+              label,
+              style: KiteTypography.body.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -457,7 +682,7 @@ class _MessageSendState extends StatelessWidget {
 }
 
 class _Composer extends StatefulWidget {
-  const _Composer();
+  const _Composer({super.key});
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -466,6 +691,10 @@ class _Composer extends StatefulWidget {
 class _ComposerState extends State<_Composer> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  _ComposerMode? _mode;
+  String? _contextRoomId;
+  TimelineMessage? _contextMessage;
+  String _draftBeforeEdit = '';
 
   @override
   void dispose() {
@@ -474,84 +703,277 @@ class _ComposerState extends State<_Composer> {
     super.dispose();
   }
 
+  void beginReply(String roomId, TimelineMessage message) {
+    if (_mode == _ComposerMode.edit) {
+      _controller.text = _draftBeforeEdit;
+    }
+    setState(() {
+      _mode = _ComposerMode.reply;
+      _contextRoomId = roomId;
+      _contextMessage = message;
+    });
+    _focusNode.requestFocus();
+  }
+
+  void beginEdit(String roomId, TimelineMessage message) {
+    if (!message.mine) return;
+    if (_mode != _ComposerMode.edit) {
+      _draftBeforeEdit = _controller.text;
+    }
+    _controller.value = TextEditingValue(
+      text: message.body,
+      selection: TextSelection.collapsed(offset: message.body.length),
+    );
+    setState(() {
+      _mode = _ComposerMode.edit;
+      _contextRoomId = roomId;
+      _contextMessage = message;
+    });
+    _focusNode.requestFocus();
+  }
+
+  void _clearContext({required bool restoreEditDraft}) {
+    final wasEditing = _mode == _ComposerMode.edit;
+    if (restoreEditDraft && wasEditing) {
+      _controller.value = TextEditingValue(
+        text: _draftBeforeEdit,
+        selection: TextSelection.collapsed(offset: _draftBeforeEdit.length),
+      );
+    }
+    setState(() {
+      _mode = null;
+      _contextRoomId = null;
+      _contextMessage = null;
+      if (wasEditing) _draftBeforeEdit = '';
+    });
+  }
+
   void _send() {
     final body = _controller.text.trim();
     if (body.isEmpty) return;
-    timelineController.sendText(selectedRoomId.value, body);
-    _controller.clear();
+    final roomId = selectedRoomId.value;
+    final contextMessage = _contextRoomId == roomId ? _contextMessage : null;
+    if (_mode == _ComposerMode.edit && contextMessage != null) {
+      timelineController.editText(contextMessage, body);
+      _clearContext(restoreEditDraft: true);
+    } else {
+      timelineController.sendText(
+        roomId,
+        body,
+        replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
+      );
+      _controller.clear();
+      if (_mode != null) _clearContext(restoreEditDraft: false);
+    }
     _focusNode.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: context.kiteColors.canvas,
-      child: SizedBox(
-        key: const Key('composer'),
-        height: 76,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            KiteSpacing.sm,
-            KiteSpacing.xs,
-            KiteSpacing.md,
-            KiteSpacing.xs,
-          ),
-          child: Row(
-            children: <Widget>[
-              IconButton(
-                key: const Key('composer-attach'),
-                tooltip: 'Add attachment',
-                onPressed: () {},
-                icon: const Icon(Icons.add_circle_outline_rounded),
-              ),
-              const SizedBox(width: KiteSpacing.xxs),
-              Expanded(
-                child: TextField(
-                  key: const Key('composer-field'),
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  minLines: 1,
-                  maxLines: 2,
-                  textInputAction: TextInputAction.newline,
-                  style: KiteTypography.body,
-                  decoration: const InputDecoration(
-                    hintText: 'Message…',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: KiteSpacing.md,
-                      vertical: KiteSpacing.sm,
+    return SignalBuilder(
+      builder: (context) {
+        final roomId = selectedRoomId.value;
+        final activeMessage = _contextRoomId == roomId ? _contextMessage : null;
+        final activeMode = activeMessage == null ? null : _mode;
+        return AnimatedSize(
+          key: const Key('composer'),
+          alignment: Alignment.bottomCenter,
+          duration: KiteMotion.resolve(context, KiteMotion.standard),
+          curve: KiteMotion.standardCurve,
+          child: ColoredBox(
+            color: context.kiteColors.canvas,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (activeMessage != null && activeMode != null)
+                  _ComposerContextBar(
+                    mode: activeMode,
+                    message: activeMessage,
+                    onClose: () => _clearContext(restoreEditDraft: true),
+                  ),
+                SizedBox(
+                  height: 76,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      KiteSpacing.sm,
+                      KiteSpacing.xs,
+                      KiteSpacing.md,
+                      KiteSpacing.xs,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        IconButton(
+                          key: const Key('composer-attach'),
+                          tooltip: 'Add attachment',
+                          onPressed: () {},
+                          icon: const Icon(Icons.add_circle_outline_rounded),
+                        ),
+                        const SizedBox(width: KiteSpacing.xxs),
+                        Expanded(
+                          child: TextField(
+                            key: const Key('composer-field'),
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            minLines: 1,
+                            maxLines: 2,
+                            textInputAction: TextInputAction.newline,
+                            style: KiteTypography.body,
+                            decoration: InputDecoration(
+                              hintText: activeMode == _ComposerMode.edit
+                                  ? 'Edit message…'
+                                  : 'Message…',
+                              isDense: true,
+                              filled: true,
+                              fillColor: context.kiteColors.field,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: KiteSpacing.md,
+                                vertical: KiteSpacing.sm,
+                              ),
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                                borderRadius: BorderRadius.circular(
+                                  KiteRadii.lg,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                                borderRadius: BorderRadius.circular(
+                                  KiteRadii.lg,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.42),
+                                  width: KiteStroke.emphasis,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                  KiteRadii.lg,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: KiteSpacing.xs),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _controller,
+                          builder: (context, value, child) {
+                            final enabled = value.text.trim().isNotEmpty;
+                            final editing = activeMode == _ComposerMode.edit;
+                            return IconButton.filled(
+                              key: const Key('composer-send'),
+                              tooltip: editing ? 'Save edit' : 'Send message',
+                              onPressed: enabled ? _send : null,
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size.square(44),
+                                backgroundColor: enabled
+                                    ? colors.primary
+                                    : colors.surfaceContainerHighest,
+                                foregroundColor: enabled
+                                    ? colors.onPrimary
+                                    : colors.onSurfaceVariant,
+                                disabledBackgroundColor:
+                                    colors.surfaceContainerHighest,
+                                disabledForegroundColor:
+                                    colors.onSurfaceVariant,
+                              ),
+                              icon: Icon(
+                                editing
+                                    ? Icons.check_rounded
+                                    : Icons.arrow_upward_rounded,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: KiteSpacing.xs),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _controller,
-                builder: (context, value, child) {
-                  final enabled = value.text.trim().isNotEmpty;
-                  return IconButton.filled(
-                    key: const Key('composer-send'),
-                    tooltip: 'Send message',
-                    onPressed: enabled ? _send : null,
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size.square(44),
-                      backgroundColor: enabled
-                          ? colors.primary
-                          : colors.surfaceContainerHighest,
-                      foregroundColor: enabled
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant,
-                      disabledBackgroundColor: colors.surfaceContainerHighest,
-                      disabledForegroundColor: colors.onSurfaceVariant,
-                    ),
-                    icon: const Icon(Icons.arrow_upward_rounded),
-                  );
-                },
-              ),
-            ],
+              ],
+            ),
           ),
+        );
+      },
+    );
+  }
+}
+
+class _ComposerContextBar extends StatelessWidget {
+  const _ComposerContextBar({
+    required this.mode,
+    required this.message,
+    required this.onClose,
+  });
+
+  final _ComposerMode mode;
+  final TimelineMessage message;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final editing = mode == _ComposerMode.edit;
+    return Container(
+      key: const Key('composer-context'),
+      height: 52,
+      margin: const EdgeInsets.fromLTRB(
+        KiteSpacing.md,
+        KiteSpacing.xs,
+        KiteSpacing.md,
+        0,
+      ),
+      padding: const EdgeInsets.only(left: KiteSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(KiteRadii.md),
+        border: Border(
+          left: BorderSide(color: colors.primary, width: KiteStroke.emphasis),
         ),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            editing ? Icons.edit_outlined : Icons.reply_rounded,
+            size: 18,
+            color: colors.primary,
+          ),
+          const SizedBox(width: KiteSpacing.sm),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  editing ? 'Editing message' : 'Replying to ${message.sender}',
+                  key: const Key('composer-context-label'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: KiteTypography.metadata.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SignalBuilder(
+                  builder: (context) => Text(
+                    message.body,
+                    key: const Key('composer-context-preview'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: KiteTypography.metadata.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            key: const Key('composer-context-close'),
+            tooltip: editing ? 'Cancel edit' : 'Cancel reply',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded, size: 19),
+          ),
+        ],
       ),
     );
   }

@@ -42,5 +42,66 @@ void main() {
         matchesGoldenFile('goldens/timeline_composer_${variant.name}.png'),
       );
     });
+
+    testWidgets('message actions ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('message-action-sheet')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/timeline_actions_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('reply composer ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-composer-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-reply')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Replying to Alice'), findsOneWidget);
+      await expectLater(
+        find.byKey(const Key('timeline-composer-golden')),
+        matchesGoldenFile('goldens/timeline_reply_${variant.name}.png'),
+      );
+    });
   }
 }
