@@ -434,7 +434,7 @@ Current capability-audit evidence is recorded in `PARITY_AUDIT.md`; visual/refer
 - [ ] Reproducible signed Android release build.
 - [x] Linux/desktop release build if included in the first public target.
 - [ ] Upgrade/migration tests between app versions.
-- [ ] Clean-install tests.
+- [x] Clean-install tests.
 - [ ] Backup/recovery disaster tests.
 - [ ] Notification tests across reboot/doze/background restrictions.
 - [ ] Store metadata, privacy disclosures, licenses, and support/reporting links.

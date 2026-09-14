@@ -12,6 +12,12 @@ The current Matrix SDK boundary requires both audited encryption and encrypted p
 
 The final Milestone 16 security-review checkbox remains open. Access-token persistence, production SDK credential storage, encrypted media persistence/cleanup, release deep-link intent filters, and other unfinished roadmap features must be reviewed after their final implementations land.
 
+## Clean-install verification
+
+`tool/clean_install_test.sh` builds the Android app in Flutter release mode, removes any prior package installation, verifies the package is absent, installs the generated APK without replacement semantics, then performs both the first clean launch and a force-stopped cold relaunch while rejecting fatal Android process errors. On 2026-09-15 this passed on Nox Waydroid (`192.168.240.2:5555`) with both launches reported by Android as `LaunchState: COLD`.
+
+This closes the clean-install test item only. The current Gradle release build still uses the debug signing configuration, so the separate reproducible signed Android release-build item remains open until the real release signing configuration and reproducibility evidence are in place.
+
 ## Dependency and license review
 
 The reviewed `pubspec.lock` SHA-256 is:
