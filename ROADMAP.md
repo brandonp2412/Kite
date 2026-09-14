@@ -364,9 +364,9 @@ This milestone is not optional cleanup; it is a product feature.
 
 - [ ] Capture the current Element X Android reference gallery and current Kite gallery for the same representative states.
 - [ ] Home/room list side-by-side review.
-- [ ] DM timeline review.
+- [x] DM timeline review.
 - [ ] Group-room timeline review.
-- [ ] Composer/rich-text review.
+- [x] Composer/rich-text review.
 - [ ] Message action/reaction review.
 - [ ] Threads review.
 - [ ] Spaces review.
