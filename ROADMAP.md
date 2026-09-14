@@ -309,11 +309,11 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] General settings.
 - [ ] Light/dark/system/black appearance modes matching current upstream capabilities.
 - [ ] Language selection.
-- [ ] Notification master settings.
-- [ ] Per-room notification settings.
-- [ ] Mentions/calls/message notification categories.
-- [ ] Custom message notification sound.
-- [ ] Custom call ringtone.
+- [x] Notification master settings.
+- [x] Per-room notification settings.
+- [x] Mentions/calls/message notification categories.
+- [x] Custom message notification sound.
+- [x] Custom call ringtone.
 - [ ] Push registration and encrypted notification payload handling.
 - [ ] Badge counts and clear-on-read behaviour.
 - [ ] Privacy/security settings.
