@@ -68,4 +68,45 @@ void main() {
 
     expect(resolved, KiteMotion.deliberate);
   });
+
+  testWidgets('motion durations collapse when reduced motion is requested', (
+    tester,
+  ) async {
+    late BuildContext normalContext;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            normalContext = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    expect(KiteMotion.reducedMotion(normalContext), isFalse);
+    expect(
+      KiteMotion.duration(normalContext, KiteMotion.standard),
+      KiteMotion.standard,
+    );
+
+    late BuildContext reducedContext;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              reducedContext = context;
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    expect(KiteMotion.reducedMotion(reducedContext), isTrue);
+    expect(
+      KiteMotion.duration(reducedContext, KiteMotion.emphasized),
+      Duration.zero,
+    );
+  });
 }

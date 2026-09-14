@@ -4,6 +4,8 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 
+import 'golden_test_support.dart';
+
 void main() {
   const viewports = <String, Size>{
     'phone_portrait': Size(390, 844),
