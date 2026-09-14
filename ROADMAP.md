@@ -40,7 +40,7 @@ A feature is only considered parity-complete when all of the following are true:
 
 Kite should not merely contain the same controls. It must have the same level of composition, restraint, consistency, and finish.
 
-- [ ] Build a Kite design-token layer for typography, spacing, radii, elevation, stroke widths, opacity, semantic colours, animation durations, and easing.
+- [x] Build a Kite design-token layer for typography, spacing, radii, elevation, stroke widths, opacity, semantic colours, animation durations, and easing.
 - [ ] Audit Element X's Compound-based visual hierarchy screen-by-screen and reproduce the same quality level with Kite branding.
 - [ ] Match Element X's uncluttered information density: strong primary hierarchy, quiet secondary metadata, obvious selected/unread/mention states, and no gratuitous chrome.
 - [ ] Reproduce the polished avatar treatment and contextual colour/bloom concept without copying Element trademarks/assets.
@@ -49,7 +49,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Light, dark, and true-black themes with correct system-bar treatment.
 - [ ] Consistent sheets, dialogs, menus, snackbars, tooltips, empty states, error states, and destructive confirmations.
 - [ ] Deliberate motion system: room changes, new messages, reactions, sheets, navigation, image viewer, composer expansion, and call transitions use consistent curves and durations.
-- [ ] Respect reduced-motion accessibility settings.
+- [x] Respect reduced-motion accessibility settings.
 - [ ] Build a Flutter golden-gallery equivalent to Element X's screenshot gallery.
 - [ ] Every reusable component has golden coverage in light/dark and representative edge states.
 - [ ] Every top-level screen has phone portrait, phone landscape, tablet, and desktop-width reference renders where layout differs.
@@ -348,7 +348,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Large font/text scaling without clipping or hidden actions.
 - [ ] Minimum contrast compliance in every theme/state.
 - [ ] RTL layout and event-text correctness.
-- [ ] Reduced motion.
+- [x] Reduced motion.
 - [ ] Colour is never the sole carrier of unread/error/selection state.
 - [ ] Accessible media labels and call controls.
 - [ ] Localisation framework and plural handling.
