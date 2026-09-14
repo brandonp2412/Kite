@@ -99,10 +99,12 @@ final class PresentationSnapshot {
   const PresentationSnapshot({
     this.rooms = const <RoomPresentation>[],
     this.timelines = const <String, List<MatrixEventEnvelope>>{},
+    this.backPaginationTokens = const <String, String?>{},
   });
 
   final List<RoomPresentation> rooms;
   final Map<String, List<MatrixEventEnvelope>> timelines;
+  final Map<String, String?> backPaginationTokens;
 }
 
 /// Synchronous presentation cache used by UI-facing state.
@@ -124,11 +126,13 @@ final class MatrixPresentationCache {
         entry.value,
       );
     }
+    _backPaginationTokens.addAll(initial.backPaginationTokens);
   }
 
   final Map<String, RoomPresentation> _rooms = <String, RoomPresentation>{};
   final Map<String, List<MatrixEventEnvelope>> _timelines =
       <String, List<MatrixEventEnvelope>>{};
+  final Map<String, String?> _backPaginationTokens = <String, String?>{};
 
   List<RoomPresentation> get rooms =>
       List<RoomPresentation>.unmodifiable(_rooms.values);
@@ -137,6 +141,11 @@ final class MatrixPresentationCache {
 
   List<MatrixEventEnvelope> timeline(String roomId) =>
       _timelines[roomId] ?? const <MatrixEventEnvelope>[];
+
+  String? backPaginationToken(String roomId) => _backPaginationTokens[roomId];
+
+  bool hasBackPaginationToken(String roomId) =>
+      _backPaginationTokens.containsKey(roomId);
 
   void upsertRoom(RoomPresentation room) {
     _rooms[room.roomId] = room;
@@ -157,6 +166,15 @@ final class MatrixPresentationCache {
     }
   }
 
+  void applyBackPaginationPage(String roomId, BackPaginationPage page) {
+    _backPaginationTokens[roomId] = page.previousToken;
+    if (page.events.isEmpty) return;
+    _timelines[roomId] = MatrixEventReducer.merge(
+      timeline(roomId),
+      page.events,
+    );
+  }
+
   PresentationSnapshot snapshot() {
     return PresentationSnapshot(
       rooms: List<RoomPresentation>.unmodifiable(_rooms.values),
@@ -166,7 +184,65 @@ final class MatrixPresentationCache {
             entry.key: List<MatrixEventEnvelope>.unmodifiable(entry.value),
         },
       ),
+      backPaginationTokens: Map<String, String?>.unmodifiable(
+        _backPaginationTokens,
+      ),
     );
+  }
+}
+
+final class BackPaginationPage {
+  const BackPaginationPage({required this.events, required this.previousToken});
+
+  final List<MatrixEventEnvelope> events;
+  final String? previousToken;
+}
+
+typedef BackPaginationLoader = Future<BackPaginationPage> Function(
+  String roomId,
+  String token,
+);
+
+/// Requests older timeline pages when the viewport approaches the leading edge.
+///
+/// The controller is intentionally UI-framework agnostic: widgets report their
+/// first visible index and the controller performs at most one request at a
+/// time. Loaded events merge into the existing cache, so visible timeline data
+/// is never cleared while a page is fetched.
+final class TimelineBackPaginationController {
+  TimelineBackPaginationController({
+    required this.cache,
+    required this.loadPage,
+    this.prefetchThreshold = 8,
+  });
+
+  final MatrixPresentationCache cache;
+  final BackPaginationLoader loadPage;
+  final int prefetchThreshold;
+  final Set<String> _roomsLoading = <String>{};
+
+  bool isLoading(String roomId) => _roomsLoading.contains(roomId);
+
+  Future<bool> onViewport({
+    required String roomId,
+    required int firstVisibleIndex,
+  }) async {
+    if (firstVisibleIndex > prefetchThreshold || isLoading(roomId)) {
+      return false;
+    }
+
+    if (!cache.hasBackPaginationToken(roomId)) return false;
+    final token = cache.backPaginationToken(roomId);
+    if (token == null || token.isEmpty) return false;
+
+    _roomsLoading.add(roomId);
+    try {
+      final page = await loadPage(roomId, token);
+      cache.applyBackPaginationPage(roomId, page);
+      return true;
+    } finally {
+      _roomsLoading.remove(roomId);
+    }
   }
 }
 

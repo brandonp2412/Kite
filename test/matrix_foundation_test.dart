@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_foundation.dart';
 
@@ -97,6 +99,159 @@ void main() {
         expect(cache.room('!one:test')?.latestEventId, 'one-new');
       },
     );
+
+    test('snapshot preserves back-pagination continuation tokens', () {
+      final cache = MatrixPresentationCache(
+        const PresentationSnapshot(
+          backPaginationTokens: <String, String?>{'!room:test': 'older-2'},
+        ),
+      );
+
+      final snapshot = cache.snapshot();
+
+      expect(snapshot.backPaginationTokens['!room:test'], 'older-2');
+      expect(cache.hasBackPaginationToken('!room:test'), isTrue);
+    });
+  });
+
+  group('TimelineBackPaginationController', () {
+    test(
+      'automatically loads and merges older events near the leading edge',
+      () async {
+        final cache = MatrixPresentationCache(
+          PresentationSnapshot(
+            timelines: <String, List<MatrixEventEnvelope>>{
+              '!room:test': <MatrixEventEnvelope>[event('newer', order: 20)],
+            },
+            backPaginationTokens: const <String, String?>{
+              '!room:test': 'older-1',
+            },
+          ),
+        );
+        final requestedTokens = <String>[];
+        final controller = TimelineBackPaginationController(
+          cache: cache,
+          prefetchThreshold: 5,
+          loadPage: (roomId, token) async {
+            requestedTokens.add(token);
+            return BackPaginationPage(
+              events: <MatrixEventEnvelope>[
+                event('older', order: 10),
+                event('newer', order: 20, summary: 'deduped newer'),
+              ],
+              previousToken: 'older-2',
+            );
+          },
+        );
+
+        expect(
+          await controller.onViewport(
+            roomId: '!room:test',
+            firstVisibleIndex: 4,
+          ),
+          isTrue,
+        );
+
+        expect(requestedTokens, <String>['older-1']);
+        expect(
+          cache.timeline('!room:test').map((item) => item.eventId),
+          <String>['older', 'newer'],
+        );
+        expect(cache.timeline('!room:test').last.summary, 'deduped newer');
+        expect(cache.backPaginationToken('!room:test'), 'older-2');
+      },
+    );
+
+    test(
+      'does not fetch away from edge or after pagination is exhausted',
+      () async {
+        final cache = MatrixPresentationCache(
+          const PresentationSnapshot(
+            backPaginationTokens: <String, String?>{'!room:test': 'older-1'},
+          ),
+        );
+        var calls = 0;
+        final controller = TimelineBackPaginationController(
+          cache: cache,
+          prefetchThreshold: 5,
+          loadPage: (roomId, token) async {
+            calls += 1;
+            return const BackPaginationPage(
+              events: <MatrixEventEnvelope>[],
+              previousToken: null,
+            );
+          },
+        );
+
+        expect(
+          await controller.onViewport(
+            roomId: '!room:test',
+            firstVisibleIndex: 6,
+          ),
+          isFalse,
+        );
+        expect(calls, 0);
+
+        expect(
+          await controller.onViewport(
+            roomId: '!room:test',
+            firstVisibleIndex: 5,
+          ),
+          isTrue,
+        );
+        expect(calls, 1);
+        expect(cache.hasBackPaginationToken('!room:test'), isTrue);
+        expect(cache.backPaginationToken('!room:test'), isNull);
+
+        expect(
+          await controller.onViewport(
+            roomId: '!room:test',
+            firstVisibleIndex: 0,
+          ),
+          isFalse,
+        );
+        expect(calls, 1);
+      },
+    );
+
+    test('coalesces overlapping viewport triggers to one request', () async {
+      final cache = MatrixPresentationCache(
+        const PresentationSnapshot(
+          backPaginationTokens: <String, String?>{'!room:test': 'older-1'},
+        ),
+      );
+      final completer = Completer<BackPaginationPage>();
+      var calls = 0;
+      final controller = TimelineBackPaginationController(
+        cache: cache,
+        loadPage: (roomId, token) {
+          calls += 1;
+          return completer.future;
+        },
+      );
+
+      final first = controller.onViewport(
+        roomId: '!room:test',
+        firstVisibleIndex: 0,
+      );
+      final second = controller.onViewport(
+        roomId: '!room:test',
+        firstVisibleIndex: 0,
+      );
+
+      expect(controller.isLoading('!room:test'), isTrue);
+      expect(await second, isFalse);
+      expect(calls, 1);
+
+      completer.complete(
+        const BackPaginationPage(
+          events: <MatrixEventEnvelope>[],
+          previousToken: null,
+        ),
+      );
+      expect(await first, isTrue);
+      expect(controller.isLoading('!room:test'), isFalse);
+    });
   });
 
   group('OfflineSendQueue', () {
