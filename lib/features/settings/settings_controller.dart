@@ -4,10 +4,15 @@ enum KiteAppearanceMode { system, light, dark, black }
 
 enum NotificationCategory { messages, mentions, calls }
 
+enum RoomNotificationMode { inherit, allMessages, mentionsOnly, mute }
+
 final class NotificationPreferences {
   const NotificationPreferences({
     required this.masterEnabled,
     required this.enabledCategories,
+    this.roomModes = const <String, RoomNotificationMode>{},
+    this.messageSoundId,
+    this.callRingtoneId,
   });
 
   const NotificationPreferences.defaults()
@@ -16,23 +21,46 @@ final class NotificationPreferences {
         NotificationCategory.messages,
         NotificationCategory.mentions,
         NotificationCategory.calls,
-      };
+      },
+      roomModes = const <String, RoomNotificationMode>{},
+      messageSoundId = null,
+      callRingtoneId = null;
 
   final bool masterEnabled;
   final Set<NotificationCategory> enabledCategories;
+  final Map<String, RoomNotificationMode> roomModes;
+  final String? messageSoundId;
+  final String? callRingtoneId;
 
   bool isEnabled(NotificationCategory category) =>
       masterEnabled && enabledCategories.contains(category);
 
+  RoomNotificationMode roomMode(String roomId) =>
+      roomModes[roomId] ?? RoomNotificationMode.inherit;
+
   NotificationPreferences copyWith({
     bool? masterEnabled,
     Set<NotificationCategory>? enabledCategories,
+    Map<String, RoomNotificationMode>? roomModes,
+    String? messageSoundId,
+    bool useDefaultMessageSound = false,
+    String? callRingtoneId,
+    bool useDefaultCallRingtone = false,
   }) {
     return NotificationPreferences(
       masterEnabled: masterEnabled ?? this.masterEnabled,
       enabledCategories: Set<NotificationCategory>.unmodifiable(
         enabledCategories ?? this.enabledCategories,
       ),
+      roomModes: Map<String, RoomNotificationMode>.unmodifiable(
+        roomModes ?? this.roomModes,
+      ),
+      messageSoundId: useDefaultMessageSound
+          ? null
+          : messageSoundId ?? this.messageSoundId,
+      callRingtoneId: useDefaultCallRingtone
+          ? null
+          : callRingtoneId ?? this.callRingtoneId,
     );
   }
 }
@@ -80,6 +108,15 @@ abstract interface class SettingsGateway {
     required NotificationCategory category,
     required bool enabled,
   });
+
+  Future<void> saveRoomNotificationMode({
+    required String roomId,
+    required RoomNotificationMode mode,
+  });
+
+  Future<void> saveMessageNotificationSound(String? soundId);
+
+  Future<void> saveCallRingtone(String? soundId);
 }
 
 final class SettingsController {
@@ -206,6 +243,109 @@ final class SettingsController {
     } finally {
       isSaving.value = false;
     }
+  }
+
+  Future<bool> setRoomNotificationMode(
+    String roomId,
+    RoomNotificationMode mode,
+  ) async {
+    if (isSaving.value) return false;
+    final normalizedRoomId = roomId.trim();
+    if (!_isValidRoomId(normalizedRoomId)) {
+      errorMessage.value = 'Choose a valid Matrix room.';
+      return false;
+    }
+    final previous = settings.value;
+    final roomModes = <String, RoomNotificationMode>{
+      ...previous.notifications.roomModes,
+    };
+    if (mode == RoomNotificationMode.inherit) {
+      roomModes.remove(normalizedRoomId);
+    } else {
+      roomModes[normalizedRoomId] = mode;
+    }
+
+    isSaving.value = true;
+    errorMessage.value = null;
+    try {
+      await _gateway.saveRoomNotificationMode(
+        roomId: normalizedRoomId,
+        mode: mode,
+      );
+      settings.value = previous.copyWith(
+        notifications: previous.notifications.copyWith(roomModes: roomModes),
+      );
+      return true;
+    } catch (_) {
+      errorMessage.value = 'Kite could not save room notification settings.';
+      return false;
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  Future<bool> setMessageNotificationSound(String? soundId) async {
+    return _setNotificationSound(
+      soundId: soundId,
+      save: _gateway.saveMessageNotificationSound,
+      success: (previous, normalizedSoundId) => previous.copyWith(
+        notifications: previous.notifications.copyWith(
+          messageSoundId: normalizedSoundId,
+          useDefaultMessageSound: normalizedSoundId == null,
+        ),
+      ),
+      failureMessage: 'Kite could not save the message notification sound.',
+    );
+  }
+
+  Future<bool> setCallRingtone(String? soundId) async {
+    return _setNotificationSound(
+      soundId: soundId,
+      save: _gateway.saveCallRingtone,
+      success: (previous, normalizedSoundId) => previous.copyWith(
+        notifications: previous.notifications.copyWith(
+          callRingtoneId: normalizedSoundId,
+          useDefaultCallRingtone: normalizedSoundId == null,
+        ),
+      ),
+      failureMessage: 'Kite could not save the call ringtone.',
+    );
+  }
+
+  Future<bool> _setNotificationSound({
+    required String? soundId,
+    required Future<void> Function(String? soundId) save,
+    required KiteSettings Function(KiteSettings previous, String? soundId)
+    success,
+    required String failureMessage,
+  }) async {
+    if (isSaving.value) return false;
+    final normalizedSoundId = _normalizeSoundId(soundId);
+    final previous = settings.value;
+
+    isSaving.value = true;
+    errorMessage.value = null;
+    try {
+      await save(normalizedSoundId);
+      settings.value = success(previous, normalizedSoundId);
+      return true;
+    } catch (_) {
+      errorMessage.value = failureMessage;
+      return false;
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  bool _isValidRoomId(String roomId) {
+    return roomId.startsWith('!') &&
+        roomId.contains(':') &&
+        !roomId.contains(RegExp(r'\s'));
+  }
+
+  String? _normalizeSoundId(String? soundId) {
+    final trimmed = soundId?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   String? _normalizeLanguageTag(String? languageTag) {

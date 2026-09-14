@@ -10,6 +10,9 @@ final class _FakeSettingsGateway implements SettingsGateway {
   bool savedSystemLanguage = false;
   bool? savedMaster;
   final categoryUpdates = <(NotificationCategory, bool)>[];
+  final roomModeUpdates = <(String, RoomNotificationMode)>[];
+  final messageSoundUpdates = <String?>[];
+  final callRingtoneUpdates = <String?>[];
 
   @override
   Future<KiteSettings> load() async {
@@ -43,6 +46,27 @@ final class _FakeSettingsGateway implements SettingsGateway {
   Future<void> saveNotificationMaster(bool enabled) async {
     if (saveError case final error?) throw error;
     savedMaster = enabled;
+  }
+
+  @override
+  Future<void> saveRoomNotificationMode({
+    required String roomId,
+    required RoomNotificationMode mode,
+  }) async {
+    if (saveError case final error?) throw error;
+    roomModeUpdates.add((roomId, mode));
+  }
+
+  @override
+  Future<void> saveMessageNotificationSound(String? soundId) async {
+    if (saveError case final error?) throw error;
+    messageSoundUpdates.add(soundId);
+  }
+
+  @override
+  Future<void> saveCallRingtone(String? soundId) async {
+    if (saveError case final error?) throw error;
+    callRingtoneUpdates.add(soundId);
   }
 }
 
@@ -154,6 +178,97 @@ void main() {
   });
 
   test(
+    'persists per-room notification overrides and removes inherited state',
+    () async {
+      final gateway = _FakeSettingsGateway();
+      final controller = SettingsController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(
+        await controller.setRoomNotificationMode(
+          ' !room:example.org ',
+          RoomNotificationMode.mentionsOnly,
+        ),
+        isTrue,
+      );
+      expect(
+        controller.settings.value.notifications.roomMode('!room:example.org'),
+        RoomNotificationMode.mentionsOnly,
+      );
+
+      expect(
+        await controller.setRoomNotificationMode(
+          '!room:example.org',
+          RoomNotificationMode.inherit,
+        ),
+        isTrue,
+      );
+      expect(
+        controller.settings.value.notifications.roomMode('!room:example.org'),
+        RoomNotificationMode.inherit,
+      );
+      expect(controller.settings.value.notifications.roomModes, isEmpty);
+      expect(gateway.roomModeUpdates, <(String, RoomNotificationMode)>[
+        ('!room:example.org', RoomNotificationMode.mentionsOnly),
+        ('!room:example.org', RoomNotificationMode.inherit),
+      ]);
+    },
+  );
+
+  test(
+    'rejects malformed room IDs before touching the settings gateway',
+    () async {
+      final gateway = _FakeSettingsGateway();
+      final controller = SettingsController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(
+        await controller.setRoomNotificationMode(
+          'room-without-sigil',
+          RoomNotificationMode.mute,
+        ),
+        isFalse,
+      );
+      expect(gateway.roomModeUpdates, isEmpty);
+      expect(controller.errorMessage.value, 'Choose a valid Matrix room.');
+    },
+  );
+
+  test(
+    'persists custom message sound and call ringtone with default reset',
+    () async {
+      final gateway = _FakeSettingsGateway();
+      final controller = SettingsController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(
+        await controller.setMessageNotificationSound(' message-soft '),
+        isTrue,
+      );
+      expect(
+        controller.settings.value.notifications.messageSoundId,
+        'message-soft',
+      );
+      expect(gateway.messageSoundUpdates, <String?>['message-soft']);
+
+      expect(await controller.setCallRingtone(' call-loud '), isTrue);
+      expect(
+        controller.settings.value.notifications.callRingtoneId,
+        'call-loud',
+      );
+      expect(gateway.callRingtoneUpdates, <String?>['call-loud']);
+
+      expect(await controller.setMessageNotificationSound('  '), isTrue);
+      expect(controller.settings.value.notifications.messageSoundId, isNull);
+      expect(gateway.messageSoundUpdates, <String?>['message-soft', null]);
+
+      expect(await controller.setCallRingtone(null), isTrue);
+      expect(controller.settings.value.notifications.callRingtoneId, isNull);
+      expect(gateway.callRingtoneUpdates, <String?>['call-loud', null]);
+    },
+  );
+
+  test(
     'failed saves leave the previous in-memory settings untouched',
     () async {
       final gateway = _FakeSettingsGateway()
@@ -170,6 +285,23 @@ void main() {
         controller.errorMessage.value,
         'Kite could not save your appearance setting.',
       );
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+
+      expect(
+        await controller.setRoomNotificationMode(
+          '!room:example.org',
+          RoomNotificationMode.mute,
+        ),
+        isFalse,
+      );
+      expect(controller.settings.value.notifications.roomModes, isEmpty);
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+
+      expect(
+        await controller.setMessageNotificationSound('secret-tone'),
+        isFalse,
+      );
+      expect(controller.settings.value.notifications.messageSoundId, isNull);
       expect(controller.errorMessage.value, isNot(contains('secret')));
     },
   );
