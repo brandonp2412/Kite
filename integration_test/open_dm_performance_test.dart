@@ -21,6 +21,10 @@ void main() {
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('unread-kite')), findsOneWidget);
+    expect(find.byKey(const Key('mention-kite')), findsOneWidget);
+    expect(find.byKey(const Key('muted-activity-bob')), findsOneWidget);
+
     final result = await measureFrames(
       binding: binding,
       action: () async {
@@ -50,6 +54,9 @@ void main() {
     selectRoom('alice');
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('unread-kite')), findsOneWidget);
+    expect(find.byKey(const Key('muted-activity-bob')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('room-bob')));
     await tester.pump();
