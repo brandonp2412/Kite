@@ -44,6 +44,8 @@ void main() {
           latestEventBody: 'A new mention without geometry movement',
           unreadCount: 7,
           hasMention: true,
+          isMuted: true,
+          isFavourite: true,
         ),
       );
       await tester.pump();
@@ -51,6 +53,8 @@ void main() {
       expect(tester.getRect(roomFinder), beforeRect);
       expect(scrollable.position.pixels, beforePixels);
       expect(find.byKey(const Key('room-mention-room-5')), findsOne);
+      expect(find.byKey(const Key('room-muted-room-5')), findsOne);
+      expect(find.byKey(const Key('room-favourite-room-5')), findsOne);
       expect(find.text('@7'), findsOne);
     },
   );

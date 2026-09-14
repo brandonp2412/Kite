@@ -53,8 +53,10 @@ void main() {
     expect(find.byKey(const Key('room-mention-kite')), findsOne);
     expect(find.text('@12'), findsOne);
     expect(find.byKey(const Key('room-muted-activity-alice')), findsOne);
+    expect(find.byKey(const Key('room-muted-alice')), findsOne);
     expect(find.byKey(const Key('room-active-call-bob')), findsOne);
     expect(find.byKey(const Key('room-unread-room-3')), findsOne);
+    expect(find.byKey(const Key('room-favourite-room-3')), findsOne);
     expect(find.text('4'), findsOne);
   });
 }
