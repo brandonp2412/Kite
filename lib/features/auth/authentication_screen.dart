@@ -6,11 +6,13 @@ import 'package:signals/signals_flutter.dart';
 class AuthenticationScreen extends StatefulWidget {
   const AuthenticationScreen({
     required this.gateway,
+    this.controller,
     this.onAuthenticated,
     super.key,
   });
 
   final AuthenticationGateway gateway;
+  final AuthenticationController? controller;
   final ValueChanged<AuthenticatedSession>? onAuthenticated;
 
   @override
@@ -19,6 +21,7 @@ class AuthenticationScreen extends StatefulWidget {
 
 class _AuthenticationScreenState extends State<AuthenticationScreen> {
   late final AuthenticationController _controller;
+  late final bool _ownsController;
   late final TextEditingController _homeserverController;
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
@@ -26,7 +29,8 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = AuthenticationController(widget.gateway);
+    _ownsController = widget.controller == null;
+    _controller = widget.controller ?? AuthenticationController(widget.gateway);
     _homeserverController = TextEditingController();
     _usernameController = TextEditingController();
     _passwordController = TextEditingController();
@@ -37,7 +41,9 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     _homeserverController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
-    _controller.dispose();
+    if (_ownsController) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 

@@ -306,9 +306,9 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Ignore/block controls supported upstream.
 - [ ] Account management and sign out.
 - [ ] Multi-account management if present upstream.
-- [ ] General settings.
-- [ ] Light/dark/system/black appearance modes matching current upstream capabilities.
-- [ ] Language selection.
+- [x] General settings.
+- [x] Light/dark/system/black appearance modes matching current upstream capabilities.
+- [x] Language selection.
 - [x] Notification master settings.
 - [x] Per-room notification settings.
 - [x] Mentions/calls/message notification categories.

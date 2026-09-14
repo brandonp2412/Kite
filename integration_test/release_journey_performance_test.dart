@@ -4,9 +4,11 @@ import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/auth/authentication_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/authentication_screen.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/settings/general_settings_screen.dart';
 import 'package:kite/features/settings/notification_settings_screen.dart';
 import 'package:kite/features/settings/settings_controller.dart';
 
@@ -215,6 +217,47 @@ void main() {
     };
   });
 
+  testWidgets('general settings mutations have zero late Flutter frames', (
+    tester,
+  ) async {
+    final controller = SettingsController(_BenchmarkSettingsGateway());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GeneralSettingsScreen(controller: controller, loadOnInit: false),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('appearance-dark')));
+        await tester.pumpAndSettle();
+
+        final languagePicker = find.byKey(const Key('language-picker'));
+        await tester.ensureVisible(languagePicker);
+        await tester.tap(languagePicker);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('English (New Zealand)').last);
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(controller.settings.value.appearanceMode, KiteAppearanceMode.dark);
+    expect(controller.settings.value.languageTag, 'en-NZ');
+
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['general_settings_mutations'] = <String, dynamic>{
+      'journey': 'general_settings_mutations',
+      'fixture': 'deterministic_general_settings_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('authentication interactions have zero late Flutter frames', (
     tester,
   ) async {
@@ -225,75 +268,73 @@ void main() {
         AuthenticationMethod.sso,
       },
     );
+    final controllers = <AuthenticationController>[];
+    addTearDown(() {
+      for (final controller in controllers) {
+        controller.dispose();
+      }
+    });
 
-    Future<void> pumpAuthentication() async {
+    Future<AuthenticationController> pumpAuthentication() async {
+      final controller = AuthenticationController(gateway);
+      controllers.add(controller);
       await tester.pumpWidget(
         MaterialApp(
-          home: AuthenticationScreen(key: UniqueKey(), gateway: gateway),
+          home: AuthenticationScreen(
+            key: UniqueKey(),
+            gateway: gateway,
+            controller: controller,
+          ),
         ),
       );
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('homeserver-field')),
-        'matrix.example.org',
-      );
+      return controller;
     }
 
-    await pumpAuthentication();
+    var controller = await pumpAuthentication();
     final discoveryResult = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await controller.discover('matrix.example.org');
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
     expect(find.byKey(const Key('password-login')), findsOneWidget);
 
-    await tester.enterText(
-      find.byKey(const Key('username-field')),
-      'benchmark',
-    );
-    await tester.enterText(
-      find.byKey(const Key('password-field')),
-      'benchmark-password',
-    );
     final passwordResult = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await controller.loginWithPassword(
+          username: 'benchmark',
+          password: 'benchmark-password',
+        );
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
     expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
 
-    await pumpAuthentication();
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    controller = await pumpAuthentication();
+    await controller.discover('matrix.example.org');
     await tester.pumpAndSettle();
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('oidc-login')));
     final oidcResult = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('oidc-login')));
+        await controller.loginWithOidc();
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
     expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
 
-    await pumpAuthentication();
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    controller = await pumpAuthentication();
+    await controller.discover('matrix.example.org');
     await tester.pumpAndSettle();
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('sso-login')));
     final ssoResult = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('sso-login')));
+        await controller.loginWithSso();
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
