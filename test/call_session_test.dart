@@ -20,6 +20,22 @@ void main() {
         voice.gateway.invocations.single.type,
         MatrixRtcInvocationType.start,
       );
+      expect(
+        voice.gateway.invocations.single.launchConfig?.intent,
+        MatrixRtcLaunchIntent.startCallDmVoice,
+      );
+      expect(
+        voice.gateway.invocations.single.launchConfig?.intent.elementCallValue,
+        'start_call_dm_voice',
+      );
+      expect(
+        voice.gateway.invocations.single.launchConfig?.perParticipantE2ee,
+        isTrue,
+      );
+      expect(
+        voice.gateway.invocations.single.launchConfig?.controlledAudioDevices,
+        isTrue,
+      );
 
       final video = _fixture(seed: 20);
       await video.coordinator.startDirectVideoCall('!dm:example.org');
@@ -30,6 +46,10 @@ void main() {
       expect(video.coordinator.session.value?.callId, 'call-21');
       expect(video.coordinator.session.value?.kind, KiteCallKind.video);
       expect(video.coordinator.session.value?.scope, KiteCallScope.direct);
+      expect(
+        video.gateway.invocations.single.launchConfig?.intent,
+        MatrixRtcLaunchIntent.startCallDm,
+      );
     },
   );
 
@@ -45,6 +65,10 @@ void main() {
     expect(started.coordinator.isGroupCall.value, isTrue);
     expect(started.coordinator.session.value?.callId, 'call-31');
     expect(started.coordinator.session.value?.scope, KiteCallScope.group);
+    expect(
+      started.gateway.invocations.single.launchConfig?.intent,
+      MatrixRtcLaunchIntent.startCallVoice,
+    );
 
     final joined = _fixture();
     await joined.coordinator.joinGroupCall(
@@ -59,6 +83,10 @@ void main() {
     expect(
       joined.gateway.invocations.single.type,
       MatrixRtcInvocationType.joinGroup,
+    );
+    expect(
+      joined.gateway.invocations.single.launchConfig?.intent,
+      MatrixRtcLaunchIntent.joinExisting,
     );
   });
 

@@ -5,6 +5,30 @@ enum KiteCallKind { voice, video }
 
 enum KiteCallScope { direct, group }
 
+enum MatrixRtcLaunchIntent {
+  startCall,
+  joinExisting,
+  startCallVoice,
+  joinExistingVoice,
+  startCallDm,
+  joinExistingDm,
+  startCallDmVoice,
+  joinExistingDmVoice,
+}
+
+extension MatrixRtcLaunchIntentValue on MatrixRtcLaunchIntent {
+  String get elementCallValue => switch (this) {
+    MatrixRtcLaunchIntent.startCall => 'start_call',
+    MatrixRtcLaunchIntent.joinExisting => 'join_existing',
+    MatrixRtcLaunchIntent.startCallVoice => 'start_call_voice',
+    MatrixRtcLaunchIntent.joinExistingVoice => 'join_existing_voice',
+    MatrixRtcLaunchIntent.startCallDm => 'start_call_dm',
+    MatrixRtcLaunchIntent.joinExistingDm => 'join_existing_dm',
+    MatrixRtcLaunchIntent.startCallDmVoice => 'start_call_dm_voice',
+    MatrixRtcLaunchIntent.joinExistingDmVoice => 'join_existing_dm_voice',
+  };
+}
+
 enum KiteCallDirection { outgoing, incoming }
 
 enum KiteCallPhase { idle, ringing, connecting, active, reconnecting, ended }
@@ -55,6 +79,58 @@ final class KiteCallContinuationCapabilities {
     KiteCallAppState.background => background,
     KiteCallAppState.locked => locked,
   };
+}
+
+final class MatrixRtcLaunchConfig {
+  const MatrixRtcLaunchConfig({
+    required this.intent,
+    required this.perParticipantE2ee,
+    required this.controlledAudioDevices,
+  });
+
+  factory MatrixRtcLaunchConfig.start({
+    required KiteCallKind kind,
+    required KiteCallScope scope,
+  }) {
+    return MatrixRtcLaunchConfig(
+      intent: switch ((scope, kind)) {
+        (KiteCallScope.direct, KiteCallKind.video) =>
+          MatrixRtcLaunchIntent.startCallDm,
+        (KiteCallScope.direct, KiteCallKind.voice) =>
+          MatrixRtcLaunchIntent.startCallDmVoice,
+        (KiteCallScope.group, KiteCallKind.video) =>
+          MatrixRtcLaunchIntent.startCall,
+        (KiteCallScope.group, KiteCallKind.voice) =>
+          MatrixRtcLaunchIntent.startCallVoice,
+      },
+      perParticipantE2ee: true,
+      controlledAudioDevices: true,
+    );
+  }
+
+  factory MatrixRtcLaunchConfig.join({
+    required KiteCallKind kind,
+    required KiteCallScope scope,
+  }) {
+    return MatrixRtcLaunchConfig(
+      intent: switch ((scope, kind)) {
+        (KiteCallScope.direct, KiteCallKind.video) =>
+          MatrixRtcLaunchIntent.joinExistingDm,
+        (KiteCallScope.direct, KiteCallKind.voice) =>
+          MatrixRtcLaunchIntent.joinExistingDmVoice,
+        (KiteCallScope.group, KiteCallKind.video) =>
+          MatrixRtcLaunchIntent.joinExisting,
+        (KiteCallScope.group, KiteCallKind.voice) =>
+          MatrixRtcLaunchIntent.joinExistingVoice,
+      },
+      perParticipantE2ee: true,
+      controlledAudioDevices: true,
+    );
+  }
+
+  final MatrixRtcLaunchIntent intent;
+  final bool perParticipantE2ee;
+  final bool controlledAudioDevices;
 }
 
 final class MatrixRtcSessionDescriptor {
@@ -163,12 +239,14 @@ abstract interface class MatrixRtcGateway {
     required String roomId,
     required KiteCallKind kind,
     required KiteCallScope scope,
+    required MatrixRtcLaunchConfig launchConfig,
   });
 
   Future<MatrixRtcSessionDescriptor> joinGroupCall({
     required String roomId,
     required String callId,
     required KiteCallKind kind,
+    required MatrixRtcLaunchConfig launchConfig,
   });
 
   Future<void> acceptCall(String callId);
@@ -294,6 +372,10 @@ final class KiteCallCoordinator {
         roomId: roomId,
         callId: callId,
         kind: kind,
+        launchConfig: MatrixRtcLaunchConfig.join(
+          kind: kind,
+          scope: KiteCallScope.group,
+        ),
       );
       _setConnectedSession(descriptor, direction: KiteCallDirection.outgoing);
       trace.log(LogLevel.info, DiagnosticEvent.completed);
@@ -515,6 +597,7 @@ final class KiteCallCoordinator {
         roomId: roomId,
         kind: kind,
         scope: scope,
+        launchConfig: MatrixRtcLaunchConfig.start(kind: kind, scope: scope),
       );
       _setConnectedSession(descriptor, direction: KiteCallDirection.outgoing);
       trace.log(LogLevel.info, DiagnosticEvent.completed);

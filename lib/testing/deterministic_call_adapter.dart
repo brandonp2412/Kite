@@ -29,6 +29,7 @@ final class MatrixRtcInvocation {
     this.enabled,
     this.routeId,
     this.appState,
+    this.launchConfig,
   });
 
   final MatrixRtcInvocationType type;
@@ -39,6 +40,7 @@ final class MatrixRtcInvocation {
   final bool? enabled;
   final String? routeId;
   final KiteCallAppState? appState;
+  final MatrixRtcLaunchConfig? launchConfig;
 }
 
 final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
@@ -72,6 +74,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
     required String roomId,
     required KiteCallKind kind,
     required KiteCallScope scope,
+    required MatrixRtcLaunchConfig launchConfig,
   }) async {
     invocations.add(
       MatrixRtcInvocation(
@@ -79,6 +82,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
         roomId: roomId,
         kind: kind,
         scope: scope,
+        launchConfig: launchConfig,
       ),
     );
     _throwIfRequested();
@@ -103,6 +107,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
     required String roomId,
     required String callId,
     required KiteCallKind kind,
+    required MatrixRtcLaunchConfig launchConfig,
   }) async {
     invocations.add(
       MatrixRtcInvocation(
@@ -111,6 +116,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
         callId: callId,
         kind: kind,
         scope: KiteCallScope.group,
+        launchConfig: launchConfig,
       ),
     );
     _throwIfRequested();
