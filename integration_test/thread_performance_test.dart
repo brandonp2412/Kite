@@ -8,6 +8,21 @@ import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
 
+class _FailOnceThreadPort implements ThreadSendPort {
+  final Set<String> _failed = <String>{};
+
+  @override
+  Future<TimelineSendOutcome> sendReply({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required String body,
+  }) async {
+    if (_failed.add(transactionId)) return TimelineSendOutcome.failed;
+    return TimelineSendOutcome.sent;
+  }
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const virtualizedBenchmark = bool.fromEnvironment(
@@ -88,6 +103,49 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets(
+    'retrying a failed thread reply stays within the frame contract',
+    (tester) async {
+      threadController.reset(sendPort: _FailOnceThreadPort());
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+      final reply = threadController.sendReply(
+        roomId: 'alice',
+        parent: parent,
+        rawBody: 'Profile-mode retry thread reply',
+      );
+      await tester.pumpAndSettle();
+      expect(reply.sendState.value, TimelineSendState.failed);
+
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          await tester.tap(find.byKey(Key('thread-retry-${reply.id}')));
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: virtualizedBenchmark
+            ? PerformanceContract.gateVirtualizedTotalSpan
+            : PerformanceContract.gatePhysicalTotalSpan,
+      );
+
+      expect(reply.sendState.value, TimelineSendState.sent);
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['thread_reply_retry'] = <String, dynamic>{
+        'journey': 'retry_thread_reply',
+        'fixture': 'deterministic_thread_v1',
+        'iterations': 1,
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
 
   testWidgets('sending a thread reply stays within the frame contract', (
     tester,

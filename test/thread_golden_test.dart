@@ -6,6 +6,18 @@ import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
+class _AlwaysFailThreadPort implements ThreadSendPort {
+  const _AlwaysFailThreadPort();
+
+  @override
+  Future<TimelineSendOutcome> sendReply({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required String body,
+  }) async => TimelineSendOutcome.failed;
+}
+
 void main() {
   tearDown(() {
     threadController.reset(sendPort: const DeterministicThreadSendPort());
@@ -42,6 +54,46 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread retry ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const _AlwaysFailThreadPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+      final reply = threadController.sendReply(
+        roomId: 'alice',
+        parent: parent,
+        rawBody: 'Could not send — tap to retry',
+      );
+      await tester.pumpAndSettle();
+
+      expect(reply.sendState.value, TimelineSendState.failed);
+      expect(find.byKey(Key('thread-retry-${reply.id}')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_retry_${variant.name}.png'),
       );
     });
 

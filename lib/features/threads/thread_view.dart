@@ -213,6 +213,8 @@ class _ThreadViewState extends State<ThreadView> {
                           final reply = replies[replies.length - 1 - index];
                           return _ThreadReplyRow(
                             key: ValueKey<String>(reply.id),
+                            roomId: widget.roomId,
+                            parent: widget.parent,
                             reply: reply,
                           );
                         },
@@ -421,8 +423,15 @@ class _ThreadRoot extends StatelessWidget {
 }
 
 class _ThreadReplyRow extends StatelessWidget {
-  const _ThreadReplyRow({super.key, required this.reply});
+  const _ThreadReplyRow({
+    super.key,
+    required this.roomId,
+    required this.parent,
+    required this.reply,
+  });
 
+  final String roomId;
+  final TimelineMessage parent;
   final ThreadReply reply;
 
   @override
@@ -515,19 +524,34 @@ class _ThreadReplyRow extends StatelessWidget {
                               key: Key('thread-send-state-${reply.id}'),
                               width: 20,
                               height: 20,
-                              child: Icon(
-                                switch (state) {
-                                  TimelineSendState.sending =>
-                                    Icons.schedule_rounded,
-                                  TimelineSendState.sent => Icons.done_rounded,
-                                  TimelineSendState.failed =>
-                                    Icons.error_rounded,
-                                },
-                                size: 14,
-                                color: state == TimelineSendState.failed
-                                    ? colors.error
-                                    : colors.onSurfaceVariant,
-                              ),
+                              child: state == TimelineSendState.failed
+                                  ? Tooltip(
+                                      message: 'Retry sending',
+                                      child: InkResponse(
+                                        key: Key('thread-retry-${reply.id}'),
+                                        radius: 18,
+                                        containedInkWell: true,
+                                        onTap: () =>
+                                            threadController.retryReply(
+                                              roomId: roomId,
+                                              parent: parent,
+                                              reply: reply,
+                                            ),
+                                        child: Icon(
+                                          Icons.error_rounded,
+                                          semanticLabel: 'Thread reply failed. Retry sending',
+                                          size: 14,
+                                          color: colors.error,
+                                        ),
+                                      ),
+                                    )
+                                  : Icon(
+                                      state == TimelineSendState.sending
+                                          ? Icons.schedule_rounded
+                                          : Icons.done_rounded,
+                                      size: 14,
+                                      color: colors.onSurfaceVariant,
+                                    ),
                             );
                           },
                         ),

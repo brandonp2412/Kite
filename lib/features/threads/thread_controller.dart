@@ -295,6 +295,16 @@ class ThreadController {
     return reply;
   }
 
+  void retryReply({
+    required String roomId,
+    required TimelineMessage parent,
+    required ThreadReply reply,
+  }) {
+    if (reply.sendState.value != TimelineSendState.failed) return;
+    reply.sendState.value = TimelineSendState.sending;
+    unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
+  }
+
   void reset({ThreadSendPort? sendPort, ThreadPaginationPort? paginationPort}) {
     if (sendPort != null) _sendPort = sendPort;
     if (paginationPort != null) _paginationPort = paginationPort;

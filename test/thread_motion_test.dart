@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
@@ -5,6 +7,23 @@ import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+
+class _ControlledThreadPort implements ThreadSendPort {
+  final List<Completer<TimelineSendOutcome>> attempts =
+      <Completer<TimelineSendOutcome>>[];
+
+  @override
+  Future<TimelineSendOutcome> sendReply({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required String body,
+  }) {
+    final completer = Completer<TimelineSendOutcome>();
+    attempts.add(completer);
+    return completer.future;
+  }
+}
 
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
@@ -135,6 +154,78 @@ void main() {
     expect(find.byKey(const Key('thread-unread-alice-98')), findsNothing);
     expect(roomUnread, findsNothing);
   });
+
+  testWidgets(
+    'failed thread retry preserves reply and panel geometry at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      final port = _ControlledThreadPort();
+      threadController.reset(sendPort: port);
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('thread-composer-field')),
+        'Retry without reflow',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('thread-composer-send')));
+      await tester.pump();
+
+      final reply = threadController
+          .repliesFor(
+            roomId: 'alice',
+            parent: timelineController
+                .messagesFor('alice')
+                .value
+                .firstWhere((message) => message.id == 'alice-98'),
+          )
+          .value
+          .last;
+      final panel = find.byKey(const Key('thread-panel'));
+      final composer = find.byKey(const Key('thread-composer'));
+      final list = find.byKey(const Key('thread-reply-list'));
+      final row = find.byKey(Key('thread-reply-${reply.id}'));
+      final panelRect = _rectOf(tester, panel);
+      final composerRect = _rectOf(tester, composer);
+      final listRect = _rectOf(tester, list);
+      final rowRect = _rectOf(tester, row);
+
+      port.attempts.single.complete(TimelineSendOutcome.failed);
+      await tester.pump();
+      expect(find.byKey(Key('thread-retry-${reply.id}')), findsOneWidget);
+      expect(_rectOf(tester, row), rowRect);
+
+      await tester.tap(find.byKey(Key('thread-retry-${reply.id}')));
+      await tester.pump();
+      expect(reply.sendState.value, TimelineSendState.sending);
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, panel), panelRect);
+        expect(_rectOf(tester, composer), composerRect);
+        expect(_rectOf(tester, list), listRect);
+        expect(_rectOf(tester, row), rowRect);
+        expect(tester.takeException(), isNull);
+      }
+
+      port.attempts.last.complete(TimelineSendOutcome.sent);
+      await tester.pump();
+      expect(reply.sendState.value, TimelineSendState.sent);
+      expect(_rectOf(tester, row), rowRect);
+    },
+  );
 
   testWidgets('thread route preserves a nonzero main timeline scroll anchor', (
     tester,

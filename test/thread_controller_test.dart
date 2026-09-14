@@ -143,6 +143,45 @@ void main() {
   });
 
   test(
+    'failed thread reply retries without duplicating the local event',
+    () async {
+      final port = _ControlledThreadPort();
+      final controller = ThreadController(sendPort: port);
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+      final replies = controller.repliesFor(roomId: 'alice', parent: parent);
+      final initialCount = replies.value.length;
+
+      final reply = controller.sendReply(
+        roomId: 'alice',
+        parent: parent,
+        rawBody: 'Retry me',
+      );
+      port.attempts.single.complete(TimelineSendOutcome.failed);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(reply.sendState.value, TimelineSendState.failed);
+      controller.retryReply(roomId: 'alice', parent: parent, reply: reply);
+
+      expect(reply.sendState.value, TimelineSendState.sending);
+      expect(port.attempts, hasLength(2));
+      expect(replies.value, hasLength(initialCount + 1));
+      expect(replies.value.last, same(reply));
+
+      port.attempts.last.complete(TimelineSendOutcome.sent);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(reply.sendState.value, TimelineSendState.sent);
+      expect(replies.value, hasLength(initialCount + 1));
+    },
+  );
+
+  test(
     'thread reply stays scoped to its parent and settles through the port',
     () async {
       final port = _ControlledThreadPort();
