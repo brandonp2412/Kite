@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:kite/matrix/matrix_navigation.dart';
 
@@ -37,7 +38,7 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
     if (contents.trim().isEmpty) return null;
 
     try {
-      final decoded = jsonDecode(contents);
+      final decoded = await Isolate.run<Object?>(() => jsonDecode(contents));
       if (decoded is! Map<String, dynamic>) return null;
       if (decoded['version'] != _schemaVersion) return null;
 
@@ -65,11 +66,12 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
   Future<void> save(MatrixRestorationSnapshot snapshot) async {
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
-    final payload = jsonEncode(<String, Object?>{
+    final document = <String, Object?>{
       'version': _schemaVersion,
       'accountId': snapshot.accountId,
       'navigationTarget': _encodeNavigationTarget(snapshot.navigationTarget),
-    });
+    };
+    final payload = await Isolate.run<String>(() => jsonEncode(document));
 
     await temporary.writeAsString(payload, flush: true);
     if (await file.exists()) await file.delete();
