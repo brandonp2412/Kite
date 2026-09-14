@@ -48,39 +48,28 @@ final class MatrixAccountRuntimeRegistry {
   }
 
   Future<MatrixPresentationCache> activate(String accountId) {
-    final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty) {
-      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
-    }
+    final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
+    return _enqueue<MatrixPresentationCache>(
+      () => _activate(normalizedAccountId, startSync: true),
+    );
+  }
 
-    return _enqueue<MatrixPresentationCache>(() async {
-      final currentId = activeAccountId.value;
-      final current = currentId == null ? null : _runtimes[currentId];
-      final next = _runtimeFor(normalizedAccountId);
-      await _ensureHydrated(normalizedAccountId, next);
+  Future<MatrixPresentationCache> activateCached(String accountId) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    return _enqueue<MatrixPresentationCache>(
+      () => _activate(normalizedAccountId, startSync: false),
+    );
+  }
 
-      if (identical(current, next)) {
-        await next.runtime.start();
-        return next.cache;
+  Future<void> resumeActive() {
+    _ensureNotDisposed();
+    return _enqueue<void>(() async {
+      final active = _activeRuntime;
+      if (active != null) {
+        await active.runtime.start();
       }
-
-      if (current != null) {
-        await current.runtime.stop();
-      }
-
-      activeAccountId.value = normalizedAccountId;
-      try {
-        await next.runtime.start();
-      } catch (_) {
-        activeAccountId.value = currentId;
-        if (current != null) {
-          await current.runtime.start();
-        }
-        rethrow;
-      }
-
-      return next.cache;
     });
   }
 
@@ -137,6 +126,41 @@ final class MatrixAccountRuntimeRegistry {
   _MatrixAccountRuntime? get _activeRuntime {
     final accountId = activeAccountId.value;
     return accountId == null ? null : _runtimes[accountId];
+  }
+
+  Future<MatrixPresentationCache> _activate(
+    String accountId, {
+    required bool startSync,
+  }) async {
+    final currentId = activeAccountId.value;
+    final current = currentId == null ? null : _runtimes[currentId];
+    final next = _runtimeFor(accountId);
+    await _ensureHydrated(accountId, next);
+
+    if (identical(current, next)) {
+      if (startSync) {
+        await next.runtime.start();
+      }
+      return next.cache;
+    }
+
+    if (current != null) {
+      await current.runtime.stop();
+    }
+
+    activeAccountId.value = accountId;
+    if (!startSync) return next.cache;
+
+    try {
+      await next.runtime.start();
+    } catch (_) {
+      activeAccountId.value = currentId;
+      if (current != null) {
+        await current.runtime.start();
+      }
+      rethrow;
+    }
+    return next.cache;
   }
 
   _MatrixAccountRuntime _runtimeFor(String accountId) {
@@ -234,6 +258,14 @@ final class MatrixAccountRuntimeRegistry {
     );
     _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return completer.future;
+  }
+
+  static String _normalizeAccountId(String accountId) {
+    final normalizedAccountId = accountId.trim();
+    if (normalizedAccountId.isEmpty) {
+      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    }
+    return normalizedAccountId;
   }
 
   void _ensureNotDisposed() {

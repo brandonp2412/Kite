@@ -90,7 +90,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Offline send queue and deterministic retry states.
 - [x] Connectivity loss/recovery without room-list or timeline jumps.
 - [x] Background/foreground lifecycle handling.
-- [ ] Process-death restoration to the previous account and sensible navigation state.
+- [x] Process-death restoration to the previous account and sensible navigation state.
 - [x] Deep-link routing for room, event, user, invite, and call links.
 - [ ] Multiple accounts if present in current Element X baseline, with isolated stores and notification routing.
 
