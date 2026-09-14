@@ -19,10 +19,21 @@ final class MatrixSyncCoordinator {
   final void Function(MatrixSyncBatch) applyBatch;
   StreamSubscription<MatrixSyncBatch>? _subscription;
 
+  bool get isRunning => _subscription != null;
+
   Future<void> start() async {
     if (_subscription != null) return;
-    _subscription = engine.syncBatches.listen(applyBatch);
-    await engine.start();
+    final subscription = engine.syncBatches.listen(applyBatch);
+    _subscription = subscription;
+    try {
+      await engine.start();
+    } catch (_) {
+      if (identical(_subscription, subscription)) {
+        _subscription = null;
+      }
+      await subscription.cancel();
+      rethrow;
+    }
   }
 
   Future<void> stop() async {

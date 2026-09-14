@@ -29,33 +29,52 @@ final class MatrixRuntimeCoordinator {
       _activity == MatrixAppActivity.foreground &&
       _networkState == MatrixNetworkState.online;
 
+  bool get isSyncing => _sync.isRunning;
+
   Future<void> start() async {
-    if (_started) return;
+    if (_started) {
+      await _enqueueReconcile();
+      return;
+    }
     _started = true;
-    await _enqueueReconcile();
+    try {
+      await _enqueueReconcile();
+    } catch (_) {
+      _started = false;
+      rethrow;
+    }
   }
 
   Future<void> updateActivity(MatrixAppActivity activity) async {
-    if (_activity == activity) return;
+    final stateChanged = _activity != activity;
     _activity = activity;
+    if (!stateChanged && shouldSync == _sync.isRunning) return;
     await _enqueueReconcile();
   }
 
   Future<void> updateNetworkState(MatrixNetworkState state) async {
-    if (_networkState == state) return;
+    final stateChanged = _networkState != state;
     _networkState = state;
+    if (!stateChanged && shouldSync == _sync.isRunning) return;
     await _enqueueReconcile();
   }
 
   Future<void> stop() async {
-    if (!_started) return;
+    if (!_started && !_sync.isRunning) return;
     _started = false;
     await _enqueueReconcile();
   }
 
   Future<void> _enqueueReconcile() {
-    _transition = _transition.then((_) => _reconcile());
-    return _transition;
+    final reconcile = _transition.then<void>(
+      (_) => _reconcile(),
+      onError: (Object _, StackTrace _) => _reconcile(),
+    );
+    _transition = reconcile.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return reconcile;
   }
 
   Future<void> _reconcile() async {
