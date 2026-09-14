@@ -503,6 +503,11 @@ void main() {
       ...result,
       'result': 'PASS',
     };
+
+    // Keep subsequent journey measurements isolated from the platform IME.
+    editable.focusNode.unfocus();
+    await tester.pumpAndSettle();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
   });
 
   testWidgets('mixed rich timeline scroll has zero late Flutter frames', (

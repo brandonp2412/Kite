@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
@@ -74,6 +75,26 @@ Future<Map<String, dynamic>> measureFrames({
         },
     ],
   };
+
+  debugPrint(
+    'KITE_PERF frames=${timings.length} budgetUs=$budgetUs '
+    'buildViolations=$buildViolations rasterViolations=$rasterViolations '
+    'totalSpanViolations=$totalSpanViolations worstBuildUs=$worstBuildUs '
+    'worstRasterUs=$worstRasterUs worstTotalSpanUs=$worstTotalSpanUs',
+  );
+  for (var index = 0; index < timings.length; index++) {
+    final timing = timings[index];
+    if (timing.buildDuration.inMicroseconds > budgetUs ||
+        timing.rasterDuration.inMicroseconds > budgetUs ||
+        (enforceTotalSpan && timing.totalSpan.inMicroseconds > budgetUs)) {
+      debugPrint(
+        'KITE_PERF_VIOLATION frame=$index '
+        'buildUs=${timing.buildDuration.inMicroseconds} '
+        'rasterUs=${timing.rasterDuration.inMicroseconds} '
+        'totalSpanUs=${timing.totalSpan.inMicroseconds}',
+      );
+    }
+  }
 
   expect(
     buildViolations,

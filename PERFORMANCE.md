@@ -46,6 +46,8 @@ Waydroid is the continuous regression detector. Release candidates must addition
 
 The 2026-09-15 Waydroid profile-mode release-journey run used a 16,666 µs frame budget and recorded zero build, raster, and total-span violations for both new journeys. The 3,000-room scroll captured 117 frames with worst build/raster/total-span times of 4,959/2,831/6,661 µs. Composer keyboard appearance captured 7 frames with worst build/raster/total-span times of 3,365/2,152/6,366 µs. Waydroid still gates only build and raster timing as described above.
 
+A later 2026-09-15 Waydroid profile run verified the new mutation benchmarks independently: pagination captured 1 frame at 1,099/1,623/3,209 µs worst build/raster/total-span, incoming-message insertion captured 1 frame at 3,290/1,920/6,050 µs, and 20 reaction/read-receipt/typing updates peaked at 1,204/1,787/3,410 µs. All three had zero build and raster budget violations. Mixed-rich timeline scrolling is intentionally still unchecked: the same run reproduced one first-scroll raster violation at 20,892 µs with a 16,666 µs budget. The benchmark threshold remains unchanged while that raster spike is investigated.
+
 ## Regression policy
 
 Do not raise frame budgets, allow non-zero violations, reduce the number of benchmark iterations, disable the artificial-jitter negative control, or remove geometry checks merely to make a failing change pass. Fix the regression instead. Any intentional contract revision must be documented in the same change with the reason and before/after benchmark evidence.
