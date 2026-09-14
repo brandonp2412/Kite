@@ -119,19 +119,26 @@ class _RolePill extends StatelessWidget {
   }
 }
 
-class _MemberSheet extends StatelessWidget {
+class _MemberSheet extends StatefulWidget {
   const _MemberSheet({required this.store, required this.userId});
 
   final RoomMembersStore store;
   final String userId;
 
   @override
+  State<_MemberSheet> createState() => _MemberSheetState();
+}
+
+class _MemberSheetState extends State<_MemberSheet> {
+  bool _confirmingKick = false;
+
+  @override
   Widget build(BuildContext context) {
     return SignalBuilder(
       builder: (context) {
-        final member = store.member(userId);
-        final permissions = store.permissions;
-        final actor = store.currentUser;
+        final member = widget.store.member(widget.userId);
+        final permissions = widget.store.permissions;
+        final actor = widget.store.currentUser;
         final nextRole = _nextRole(member.role);
         final previousRole = _previousRole(member.role);
         final canPromote =
@@ -176,40 +183,61 @@ class _MemberSheet extends StatelessWidget {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: <Widget>[
-                    FilledButton.tonalIcon(
-                      key: const Key('member-promote'),
-                      onPressed: canPromote
-                          ? () {
-                              store.setRole(userId, nextRole);
-                            }
-                          : null,
-                      icon: const Icon(Icons.arrow_upward),
-                      label: const Text('Promote'),
-                    ),
-                    FilledButton.tonalIcon(
-                      key: const Key('member-demote'),
-                      onPressed: canDemote
-                          ? () {
-                              store.setRole(userId, previousRole);
-                            }
-                          : null,
-                      icon: const Icon(Icons.arrow_downward),
-                      label: const Text('Demote'),
-                    ),
-                    FilledButton.tonalIcon(
-                      key: const Key('member-kick'),
-                      onPressed: canKick
-                          ? () {
-                              if (store.kick(userId)) {
+                  children: _confirmingKick
+                      ? <Widget>[
+                          TextButton(
+                            key: const Key('member-kick-cancel'),
+                            onPressed: () =>
+                                setState(() => _confirmingKick = false),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton.icon(
+                            key: const Key('member-kick-confirm'),
+                            onPressed: () {
+                              if (widget.store.kick(widget.userId)) {
                                 Navigator.of(context).pop();
                               }
-                            }
-                          : null,
-                      icon: const Icon(Icons.person_remove_outlined),
-                      label: const Text('Kick'),
-                    ),
-                  ],
+                            },
+                            icon: const Icon(Icons.person_remove_outlined),
+                            label: Text('Remove ${member.displayName}'),
+                          ),
+                        ]
+                      : <Widget>[
+                          FilledButton.tonalIcon(
+                            key: const Key('member-promote'),
+                            onPressed: canPromote
+                                ? () {
+                                    widget.store.setRole(
+                                      widget.userId,
+                                      nextRole,
+                                    );
+                                  }
+                                : null,
+                            icon: const Icon(Icons.arrow_upward),
+                            label: const Text('Promote'),
+                          ),
+                          FilledButton.tonalIcon(
+                            key: const Key('member-demote'),
+                            onPressed: canDemote
+                                ? () {
+                                    widget.store.setRole(
+                                      widget.userId,
+                                      previousRole,
+                                    );
+                                  }
+                                : null,
+                            icon: const Icon(Icons.arrow_downward),
+                            label: const Text('Demote'),
+                          ),
+                          FilledButton.tonalIcon(
+                            key: const Key('member-kick'),
+                            onPressed: canKick
+                                ? () => setState(() => _confirmingKick = true)
+                                : null,
+                            icon: const Icon(Icons.person_remove_outlined),
+                            label: const Text('Kick'),
+                          ),
+                        ],
                 ),
               ],
             ),

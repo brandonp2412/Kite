@@ -143,10 +143,24 @@ void main() {
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
         expect(_rectOf(tester, search), initialSearch);
+        expect(_rectOf(tester, list), initialList);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('member-kick-confirm')), findsOneWidget);
+      expect(_rectOf(tester, search), initialSearch);
+      expect(_rectOf(tester, list), initialList);
+      expect(_rectOf(tester, sheet), settledSheet);
+
+      await tester.tap(find.byKey(const Key('member-kick-confirm')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, search), initialSearch);
         expect(tester.takeException(), isNull);
       }
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const Key('member-kick-confirm')), findsNothing);
       expect(find.byKey(const Key('member-profile-sheet')), findsNothing);
       expect(_rectOf(tester, search), initialSearch);
     },

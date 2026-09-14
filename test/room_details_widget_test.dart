@@ -84,6 +84,23 @@ void main() {
     await tester.tap(find.byKey(const Key('member-kick')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('member-kick-confirm')), findsOneWidget);
+    expect(find.byKey(const Key('member-profile-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('member-@bob:example.org')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('member-kick-cancel')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('member-kick-confirm')), findsNothing);
+    expect(find.byKey(const Key('member-kick')), findsOneWidget);
+    expect(find.byKey(const Key('member-profile-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('member-@bob:example.org')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('member-kick')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('member-kick-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('member-kick-confirm')), findsNothing);
     expect(find.byKey(const Key('member-profile-sheet')), findsNothing);
     expect(find.byKey(const Key('member-@bob:example.org')), findsNothing);
     expect(find.byKey(const Key('member-search-empty')), findsOneWidget);

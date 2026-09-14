@@ -216,12 +216,15 @@ void main() {
       action: () async {
         await tester.tap(find.byKey(const Key('member-kick')));
         await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('member-kick-confirm')));
+        await tester.pumpAndSettle();
       },
       enforceTotalSpan: virtualizedBenchmark
           ? PerformanceContract.gateVirtualizedTotalSpan
           : PerformanceContract.gatePhysicalTotalSpan,
     );
 
+    expect(find.byKey(const Key('member-kick-confirm')), findsNothing);
     expect(find.byKey(const Key('member-profile-sheet')), findsNothing);
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['room_member_kick'] = <String, dynamic>{
