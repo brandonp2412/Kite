@@ -4,11 +4,49 @@ import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/auth/authentication_gateway.dart';
+import 'package:kite/features/auth/authentication_screen.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/settings/notification_settings_screen.dart';
 import 'package:kite/features/settings/settings_controller.dart';
 
 import 'performance_benchmark_harness.dart';
+
+final class _BenchmarkAuthenticationGateway implements AuthenticationGateway {
+  _BenchmarkAuthenticationGateway(this.methods);
+
+  final Set<AuthenticationMethod> methods;
+
+  @override
+  Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async {
+    return HomeserverLoginMethods(homeserver: homeserver, methods: methods);
+  }
+
+  AuthenticatedSession _session(HomeserverAddress homeserver) {
+    return AuthenticatedSession(
+      userId: '@benchmark:${homeserver.uri.host}',
+      deviceId: 'BENCHMARK_DEVICE',
+      homeserver: homeserver,
+    );
+  }
+
+  @override
+  Future<AuthenticatedSession> loginWithOidc({
+    required HomeserverAddress homeserver,
+  }) async => _session(homeserver);
+
+  @override
+  Future<AuthenticatedSession> loginWithPassword({
+    required HomeserverAddress homeserver,
+    required String username,
+    required String password,
+  }) async => _session(homeserver);
+
+  @override
+  Future<AuthenticatedSession> loginWithSso({
+    required HomeserverAddress homeserver,
+  }) async => _session(homeserver);
+}
 
 final class _BenchmarkSettingsGateway implements SettingsGateway {
   @override
@@ -173,6 +211,119 @@ void main() {
       'journey': 'notification_settings_mutations',
       'fixture': 'deterministic_notification_settings_v1',
       ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('authentication interactions have zero late Flutter frames', (
+    tester,
+  ) async {
+    final gateway = _BenchmarkAuthenticationGateway(
+      const <AuthenticationMethod>{
+        AuthenticationMethod.password,
+        AuthenticationMethod.oidc,
+        AuthenticationMethod.sso,
+      },
+    );
+
+    Future<void> pumpAuthentication() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(key: UniqueKey(), gateway: gateway),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('homeserver-field')),
+        'matrix.example.org',
+      );
+    }
+
+    await pumpAuthentication();
+    final discoveryResult = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+    expect(find.byKey(const Key('password-login')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('username-field')),
+      'benchmark',
+    );
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'benchmark-password',
+    );
+    final passwordResult = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+    expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
+
+    await pumpAuthentication();
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('oidc-login')));
+    final oidcResult = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('oidc-login')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+    expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
+
+    await pumpAuthentication();
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('sso-login')));
+    final ssoResult = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('sso-login')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+    expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
+
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['authentication_homeserver_discovery'] =
+        <String, dynamic>{
+          'journey': 'authentication_homeserver_discovery',
+          'fixture': 'deterministic_authentication_v1',
+          ...discoveryResult,
+          'result': 'PASS',
+        };
+    binding.reportData!['authentication_password_login'] = <String, dynamic>{
+      'journey': 'authentication_password_login',
+      'fixture': 'deterministic_authentication_v1',
+      ...passwordResult,
+      'result': 'PASS',
+    };
+    binding.reportData!['authentication_oidc_login'] = <String, dynamic>{
+      'journey': 'authentication_oidc_login',
+      'fixture': 'deterministic_authentication_v1',
+      ...oidcResult,
+      'result': 'PASS',
+    };
+    binding.reportData!['authentication_sso_login'] = <String, dynamic>{
+      'journey': 'authentication_sso_login',
+      'fixture': 'deterministic_authentication_v1',
+      ...ssoResult,
       'result': 'PASS',
     };
   });
