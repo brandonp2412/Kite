@@ -17,6 +17,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Matrix Rust bridge
+        run: |
+          cargo fmt --manifest-path rust/kite_matrix_bridge/Cargo.toml --check
+          cargo test --manifest-path rust/kite_matrix_bridge/Cargo.toml --locked
+          cargo build --manifest-path rust/kite_matrix_bridge/Cargo.toml --locked
+
       - name: Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -29,6 +38,11 @@ jobs:
 
       - name: Analyze
         run: flutter analyze
+
+      - name: Dart/Rust Matrix ABI smoke test
+        env:
+          KITE_MATRIX_BRIDGE_LIBRARY: ${{ github.workspace }}/rust/kite_matrix_bridge/target/debug/libkite_matrix_bridge.so
+        run: flutter test test/matrix_rust_native_bridge_test.dart
 
       - name: Deterministic tests and performance-contract pin
         run: flutter test
