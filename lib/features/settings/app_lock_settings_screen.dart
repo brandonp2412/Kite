@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -62,10 +63,14 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
                     enableSuggestions: false,
                     autocorrect: false,
                     keyboardType: TextInputType.number,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(64),
+                    ],
                     autofillHints: const <String>[],
                     decoration: const InputDecoration(
                       labelText: 'PIN',
-                      helperText: 'Use at least 4 digits.',
+                      helperText: 'Use 4 to 64 digits.',
                     ),
                   ),
                 ),
@@ -80,6 +85,10 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
                     enableSuggestions: false,
                     autocorrect: false,
                     keyboardType: TextInputType.number,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(64),
+                    ],
                     autofillHints: const <String>[],
                     decoration: const InputDecoration(labelText: 'Confirm PIN'),
                   ),
@@ -143,6 +152,10 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
                     enableSuggestions: false,
                     autocorrect: false,
                     keyboardType: TextInputType.number,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(64),
+                    ],
                     autofillHints: const <String>[],
                     decoration: const InputDecoration(labelText: 'Current PIN'),
                   ),
@@ -185,26 +198,27 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
   }
 
   Future<void> _enableAppLock() async {
-    if (_pinController.text != _confirmPinController.text) {
+    final pin = _pinController.text;
+    final confirmation = _confirmPinController.text;
+    if (pin != confirmation) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('PINs do not match.')));
       return;
     }
 
-    await widget.controller.enableWithPin(
-      pin: _pinController.text,
-      hideNotificationContents: _hideNotificationContents,
-    );
-    if (!mounted || !widget.controller.settings.value.enabled) return;
     _pinController.clear();
     _confirmPinController.clear();
+    await widget.controller.enableWithPin(
+      pin: pin,
+      hideNotificationContents: _hideNotificationContents,
+    );
   }
 
   Future<void> _disableAppLock() async {
-    await widget.controller.disable(_pinController.text);
-    if (!mounted || widget.controller.settings.value.enabled) return;
+    final pin = _pinController.text;
     _pinController.clear();
     _confirmPinController.clear();
+    await widget.controller.disable(pin);
   }
 }
 

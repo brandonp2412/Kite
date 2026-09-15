@@ -49,8 +49,7 @@ class MainActivity : FlutterActivity() {
                 val pin = requiredPin(call)
                 val settings = requiredSettings(call)
                 require(settings.enabled) { "App lock must be enabled when enrolling a PIN." }
-                savePinVerifier(pin)
-                persistSettings(settings)
+                persistEnabledSettingsWithPin(pin, settings)
                 null
             }
             "verifyPin" -> onBackground(result) {
@@ -148,12 +147,15 @@ class MainActivity : FlutterActivity() {
         check(committed) { "App lock settings could not be persisted." }
     }
 
-    private fun savePinVerifier(pin: String) {
+    private fun persistEnabledSettingsWithPin(pin: String, settings: AppLockSettings) {
         val verifier = Base64.encodeToString(hmac(pin), Base64.NO_WRAP)
         val committed = preferences().edit()
+            .putBoolean(ENABLED_KEY, settings.enabled)
+            .putBoolean(BIOMETRICS_KEY, settings.biometricsEnabled)
+            .putBoolean(HIDE_NOTIFICATIONS_KEY, settings.hideNotificationContents)
             .putString(PIN_VERIFIER_KEY, verifier)
             .commit()
-        check(committed) { "App lock credential could not be persisted." }
+        check(committed) { "App lock credential state could not be persisted." }
     }
 
     private fun verifyPin(pin: String): Boolean {
