@@ -398,9 +398,9 @@ Current capability-audit evidence is recorded in `PARITY_AUDIT.md`; visual/refer
 - [x] Run through every Element X timeline event type.
 - [x] Run through every Element X message action.
 - [x] Run through every Element X room/user moderation action.
-- [ ] Run through every Element X notification/deep-link route.
-- [ ] Run through every Element X call flow.
-- [ ] Run through every Element X Space/Thread flow.
+- [x] Run through every Element X notification/deep-link route.
+- [x] Run through every Element X call flow.
+- [x] Run through every Element X Space/Thread flow.
 - [x] Confirm upstream features introduced after this roadmap date have been added or explicitly scheduled.
 - [x] Confirm known upstream-missing features are not incorrectly called parity blockers simply because Matrix Classic has them.
 

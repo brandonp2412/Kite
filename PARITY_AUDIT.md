@@ -155,3 +155,77 @@ The current moderation API exposes Display profile, Kick, Ban and Unban, while u
 | Mute / unmute and per-room notification mode | Notification settings foundations model per-room modes, but room-details parity is incomplete. | Partial — M10/M11 |
 
 This completes the current-upstream room/user moderation action inventory; gaps remain explicitly owned by M2, M3, M9, M10 and M11.
+
+## Notification and deep-link route audit
+
+The current push stack, `PendingIntentFactory`, notification action factories, `DeeplinkData`, and app `IntentResolver` were read at the reference SHA. Element X notification navigation carries a session plus room and optional event/thread identity; external Matrix permalinks are resolved separately from notification deep links.
+
+| Element X notification / route | Current Kite capability | Status / owner |
+| --- | --- | --- |
+| Open account/session root | Element X can open a session-level notification target. Kite notification destinations are room-scoped and have no root-notification target. | Gap — M11 |
+| Message notification -> exact event | `NotificationDispatchCoordinator` maps message notifications to an account-aware room/event destination. | Present foundation — M11 |
+| Mention notification -> exact event | Mention notifications use the same exact account/room/event route. | Present foundation — M11 |
+| Thread notification -> exact reply/thread | Kite preserves account, room, reply event and thread-root IDs in `AppDestination.thread`. | Present foundation — M6/M11 |
+| Invite notification -> room | Kite maps an invite to the account-aware room destination. | Present foundation — M3/M11 |
+| Ringing-call notification -> call | `AppDestination.call` and `CallDeepLinkCoordinator` preserve account/room/call identity, but Matrix notification dispatch does not yet create call notifications and there is no production ringing screen. | Partial — M8/M11 |
+| Notification quick reply | Element X has an event/thread-aware Android direct-reply action. Kite has no OS notification reply action. | Gap — M5/M11 |
+| Mark room/thread read from notification | Element X exposes a thread-aware mark-read action. Kite clears matching notifications when a room/event is read in-app, but has no OS notification mark-read action. | Partial — M11 |
+| Accept / reject invite from notification | Element X provides both notification actions. Kite has no OS invite action flow. | Gap — M9/M11 |
+| Dismiss event / invite / room / summary | Element X has explicit dismiss intents. Kite has cancellation and read-reconciliation abstractions but not the complete OS notification lifecycle. | Partial — M11 |
+| Correct account before navigation | Element X deep links carry `SessionId`; Kite destinations carry `accountId` and `NotificationCoordinator` activates it before navigation. | Present foundation — M1/M11 |
+| External room/event/thread permalink | Element X resolves external Matrix permalinks separately from notification intents. Kite's deep-link routing foundation supports room, event and thread destinations. | Present foundation — M1/M11 |
+| Call deep link | Kite has an explicit account-aware call target and coordinator. | Present foundation — M8/M11 |
+
+This completes the current-upstream notification/deep-link route inventory. It does not close the notification milestone: push delivery, OS actions, ringing-call presentation and multi-account production integration remain explicit gaps.
+
+## Call-flow audit
+
+The current Element X call entry point, room-call state, incoming-call UI, call-screen state, ringing notification path and picture-in-picture state were reviewed at the reference SHA. Element X delegates media to Element Call while the Android client owns launch intent, ringing, lifecycle and PiP integration.
+
+| Element X call flow | Current Kite capability | Status / owner |
+| --- | --- | --- |
+| Start 1:1 voice/video | `KiteCallCoordinator` exposes direct voice/video start and maps to Element Call-compatible launch intents. | Present foundation — M8 |
+| Start / join group call | Group start and join are represented with explicit call ID and media kind. | Present foundation — M8 |
+| Incoming ringing state | `registerIncomingCall` models ringing with exact room/call identity, but Kite has no production incoming-call UI. | Foundation only — M8 |
+| Accept / decline / hang up | Coordinator and gateway boundaries cover all three operations with deterministic state transitions. | Present foundation — M8 |
+| Microphone mute | Coordinator forwards mute state through the MatrixRTC gateway. | Present foundation — M8 |
+| Camera enable / disable / switch | Video-only camera controls and camera-facing state are modelled. | Present foundation — M8 |
+| Audio route selection | Available routes and explicit route selection are modelled. | Present foundation — M8 |
+| Participant grid / spotlight | Participant and spotlight state exist, but there is no rendered participant UI. | Foundation only — M8 |
+| Picture-in-picture | A platform PiP port and enter/exit/support state exist, but no production call screen is wired to it. | Foundation only — M8 |
+| Background / locked continuation | Platform continuation capabilities and app-state handoff are modelled. | Present foundation — M8 |
+| Audio interruption | Media interruption is explicitly forwarded to the gateway. | Present foundation — M8 |
+| Transient reconnect | Reconnecting state and gateway retry are implemented. | Present foundation — M8 |
+| Room active-call / timeline state | `KiteCallActivity` exposes call lifecycle state; production call timeline rendering remains missing. | Partial — M4/M8 |
+| Custom ringtone | Notification settings expose a custom call-ringtone choice. | Present — M10 |
+| Deep link into call | `CallDeepLinkCoordinator` activates the correct account before opening the call destination. | Present foundation — M8/M11 |
+| E2EE call launch policy | Launch config requires per-participant E2EE, but release parity still depends on the audited MatrixRTC/Element Call integration rather than Kite crypto. | Foundation only — M8 |
+
+This completes the current-upstream call-flow inventory. Rendering, incoming-call presentation, real MatrixRTC integration and call-transition performance remain open and prevent call parity from being claimed.
+
+## Space and Thread flow audit
+
+The current Home Space filters, Space root/add-room/leave/settings flows, Threads list, threaded-message node and thread top bar were reviewed at the reference SHA. Kite's current Spaces benchmark surface is synthetic and is not counted as shipped Space UI.
+
+| Element X Space / Thread flow | Current Kite capability | Status / owner |
+| --- | --- | --- |
+| Show/select/clear Space filter | No production Space filter UI; benchmark-only coverage is not counted as capability. | Gap — M3 |
+| Joined Spaces area | No production Spaces area. | Gap — M3 |
+| Browse/paginate Space rooms | No production Space room browser. | Gap — M3 |
+| Join room from Space | No production flow. | Gap — M3 |
+| Accept / decline Space-room invite | No production flow. | Gap — M3 |
+| Space topic viewer | No production flow. | Gap — M3 |
+| Enter manage mode / select and remove rooms | No production Space management UI. | Gap — M3 |
+| Add/search/select rooms in a Space | No production add-room flow. | Gap — M3 |
+| Leave Space with room selection/retry | No production leave-Space flow. | Gap — M3 |
+| Space settings | No production settings surface. | Gap — M3 |
+| Timeline thread summary / open thread | Kite renders thread summaries and opens a dedicated thread route while preserving parent context. | Present foundation — M6 |
+| Read/write thread replies | Dedicated thread replies, composer and send/retry state are implemented. | Present foundation — M6 |
+| Thread pagination | Controller and UI load older replies with deduplication. | Present foundation — M6 |
+| Thread follow/subscription state | Follow/unfollow state, in-flight state and failure state are implemented. | Present foundation — M6 |
+| Thread unread/read state | Per-thread and room-level unread counts plus latest-read reply state are modelled. | Present foundation — M6 |
+| Focus exact thread reply from route | Thread destination preserves root/reply identity and the thread view supports focused-reply state. | Present foundation — M6/M11 |
+| Prevent unsupported live-location sharing in thread | Controller rejects the unsupported thread composer action explicitly. | Present foundation — M6 |
+| Dedicated all-threads list / pagination | Element X has a current Labs Threads list; Kite has no equivalent all-threads screen. | Gap — M6 |
+
+This completes the current-upstream Space/Thread flow inventory while leaving all unimplemented Space UI and the dedicated Threads list visible as parity gaps. Thread performance remains separately blocked by the strict Waydroid raster gate recorded in `PERFORMANCE.md`.
