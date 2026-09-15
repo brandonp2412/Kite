@@ -15,6 +15,7 @@ class PrivacySecuritySettingsScreen extends StatefulWidget {
     required this.onOpenVerification,
     required this.onOpenRecovery,
     required this.onOpenSessions,
+    this.onOpenUserControls,
     this.onOpenAppLock,
     this.appLockEnabled,
     this.loadOnInit = true,
@@ -27,6 +28,7 @@ class PrivacySecuritySettingsScreen extends StatefulWidget {
   final VoidCallback onOpenVerification;
   final VoidCallback onOpenRecovery;
   final VoidCallback onOpenSessions;
+  final VoidCallback? onOpenUserControls;
   final VoidCallback? onOpenAppLock;
   final bool? appLockEnabled;
   final bool loadOnInit;
@@ -117,6 +119,17 @@ class _PrivacySecuritySettingsScreenState
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: widget.onOpenSessions,
                 ),
+                if (widget.onOpenUserControls != null)
+                  ListTile(
+                    key: const Key('privacy-security-user-controls'),
+                    leading: const Icon(Icons.person_off_outlined),
+                    title: const Text('Ignored & blocked users'),
+                    subtitle: const Text(
+                      'Review users you have hidden or blocked.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: widget.onOpenUserControls,
+                  ),
                 if (widget.onOpenAppLock != null) ...<Widget>[
                   const Divider(height: 1),
                   const _SectionTitle(label: 'App protection'),

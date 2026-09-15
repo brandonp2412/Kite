@@ -79,6 +79,27 @@ final class UserProfileController {
     }
   }
 
+  Future<void> refreshPrivacyControls() async {
+    if (isLoading.value) return;
+
+    isLoading.value = true;
+    errorMessage.value = null;
+    try {
+      final ignored = await _gateway.loadIgnoredUserIds();
+      final blocked = await _gateway.loadBlockedUserIds();
+      if (!_areValidUserIds(ignored) || !_areValidUserIds(blocked)) {
+        errorMessage.value = 'Kite received invalid privacy settings.';
+        return;
+      }
+      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
+      blockedUserIds.value = Set<String>.unmodifiable(blocked);
+    } catch (_) {
+      errorMessage.value = 'Kite could not load your privacy settings.';
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> loadUserProfile(String userId) async {
     if (isLoading.value) return;
     if (!_isValidUserId(userId)) {
@@ -224,6 +245,13 @@ final class UserProfileController {
     } finally {
       isSaving.value = false;
     }
+  }
+
+  bool _areValidUserIds(Iterable<String> userIds) {
+    for (final userId in userIds) {
+      if (!_isValidUserId(userId) || userId != userId.trim()) return false;
+    }
+    return true;
   }
 
   bool _isValidUserId(String userId) {
