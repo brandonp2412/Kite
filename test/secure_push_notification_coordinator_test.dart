@@ -89,7 +89,10 @@ void main() {
       );
       expect(
         repository.notification(
-          KiteNotification.routingIdFor('work', 'push-1'),
+          KiteNotification.routingIdFor(
+            accountId: 'work',
+            notificationId: 'push-1',
+          ),
         ),
         isNotNull,
       );
@@ -241,7 +244,10 @@ void main() {
       );
       expect(
         repository.notification(
-          KiteNotification.routingIdFor('work', 'push-1'),
+          KiteNotification.routingIdFor(
+            accountId: 'work',
+            notificationId: 'push-1',
+          ),
         ),
         isNotNull,
       );

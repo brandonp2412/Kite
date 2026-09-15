@@ -27,9 +27,40 @@ final class CallDeepLinkCoordinator {
   final AppNavigationPort _navigation;
 
   Future<void> open(CallDeepLinkTarget target) async {
+    _validate(target);
     if (_accounts.activeAccountId != target.accountId) {
       await _accounts.activateAccount(target.accountId);
     }
     await _navigation.open(target.toDestination());
+  }
+
+  void _validate(CallDeepLinkTarget target) {
+    if (target.accountId.trim().isEmpty ||
+        target.accountId != target.accountId.trim()) {
+      throw ArgumentError.value(
+        target.accountId,
+        'target.accountId',
+        'Call deep links require an exact non-empty account id.',
+      );
+    }
+    if (!target.roomId.startsWith('!') ||
+        target.roomId.length <= 2 ||
+        !target.roomId.contains(':') ||
+        target.roomId.contains(RegExp(r'\s'))) {
+      throw ArgumentError.value(
+        target.roomId,
+        'target.roomId',
+        'Call deep links require an exact Matrix room id.',
+      );
+    }
+    if (target.callId.isEmpty ||
+        target.callId != target.callId.trim() ||
+        target.callId.contains(RegExp(r'\s'))) {
+      throw ArgumentError.value(
+        target.callId,
+        'target.callId',
+        'Call deep links require an exact MatrixRTC call id.',
+      );
+    }
   }
 }

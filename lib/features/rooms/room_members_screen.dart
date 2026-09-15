@@ -51,6 +51,77 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
     await _controller.invite(userId);
   }
 
+  Future<String?> _requestReportReason({
+    required String title,
+    required String message,
+  }) async {
+    var reason = '';
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(message),
+            const SizedBox(height: KiteSpacing.md),
+            TextField(
+              key: const Key('room-report-reason'),
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Reason (optional)'),
+              onChanged: (value) => reason = value,
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('room-report-submit'),
+            onPressed: () => Navigator.of(dialogContext).pop(reason),
+            child: const Text('Report'),
+          ),
+        ],
+      ),
+    );
+    return result;
+  }
+
+  Future<void> _reportRoom() async {
+    final reason = await _requestReportReason(
+      title: 'Report room?',
+      message: 'Send a report to the homeserver moderators for this room.',
+    );
+    if (!mounted || reason == null) return;
+    await _controller.reportRoom(reason: reason);
+  }
+
+  Future<void> _leaveRoom() async {
+    final confirmed = await _confirmModerationAction(
+      context: context,
+      title: 'Leave room?',
+      message: 'You will stop receiving messages from this room.',
+      actionLabel: 'Leave',
+    );
+    if (!confirmed || !mounted) return;
+    await _controller.leaveRoom();
+  }
+
+  Future<void> _forgetRoom() async {
+    final confirmed = await _confirmModerationAction(
+      context: context,
+      title: 'Remove local room data?',
+      message: 'Remove this left room from Kite on this device.',
+      actionLabel: 'Remove data',
+    );
+    if (!confirmed || !mounted) return;
+    await _controller.forgetRoom();
+  }
+
   Future<bool> _confirmModerationAction({
     required BuildContext context,
     required String title,
@@ -243,6 +314,27 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
                     );
                   },
                 ),
+                ListTile(
+                  key: const Key('member-report'),
+                  minTileHeight: 52,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.flag_outlined),
+                  title: const Text('Report user'),
+                  onTap: () async {
+                    final reason = await _requestReportReason(
+                      title: 'Report ${member.displayName}?',
+                      message: 'Send a report about this user to the homeserver moderators.',
+                    );
+                    if (reason == null) return;
+                    final reported = await _controller.reportUser(
+                      member,
+                      reason: reason,
+                    );
+                    if (reported && sheetContext.mounted) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  },
+                ),
                 FutureBuilder<RoomMemberModerationOptions>(
                   future: moderationOptions,
                   builder: (context, snapshot) {
@@ -353,6 +445,37 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
             onPressed: _inviteMember,
             icon: const Icon(Icons.person_add_alt_1_outlined),
           ),
+          PopupMenuButton<_RoomSafetyAction>(
+            key: const Key('room-safety-actions'),
+            tooltip: 'Room actions',
+            onSelected: (action) {
+              switch (action) {
+                case _RoomSafetyAction.report:
+                  unawaited(_reportRoom());
+                  break;
+                case _RoomSafetyAction.leave:
+                  unawaited(_leaveRoom());
+                  break;
+                case _RoomSafetyAction.forget:
+                  unawaited(_forgetRoom());
+                  break;
+              }
+            },
+            itemBuilder: (_) => const <PopupMenuEntry<_RoomSafetyAction>>[
+              PopupMenuItem<_RoomSafetyAction>(
+                value: _RoomSafetyAction.report,
+                child: Text('Report room'),
+              ),
+              PopupMenuItem<_RoomSafetyAction>(
+                value: _RoomSafetyAction.leave,
+                child: Text('Leave room'),
+              ),
+              PopupMenuItem<_RoomSafetyAction>(
+                value: _RoomSafetyAction.forget,
+                child: Text('Remove local room data'),
+              ),
+            ],
+          ),
         ],
       ),
       body: SafeArea(
@@ -457,6 +580,8 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
     );
   }
 }
+
+enum _RoomSafetyAction { report, leave, forget }
 
 class _InviteMemberDialog extends StatefulWidget {
   const _InviteMemberDialog();

@@ -13,10 +13,15 @@ final class KiteNotification {
   final KiteNotificationKind kind;
   final AppDestination destination;
 
-  String get routingId => routingIdFor(destination.accountId, id);
+  String get routingId =>
+      routingIdFor(accountId: destination.accountId, notificationId: id);
 
-  static String routingIdFor(String accountId, String id) =>
-      '${accountId.length}:$accountId${id.length}:$id';
+  static String routingIdFor({
+    required String accountId,
+    required String notificationId,
+  }) =>
+      '${accountId.length}:$accountId'
+      '${notificationId.length}:$notificationId';
 
   bool get clearsWhenRead => switch (kind) {
     KiteNotificationKind.message ||
@@ -37,20 +42,26 @@ final class KiteNotificationContent {
   final String body;
 }
 
+enum KiteNotificationSurface { standard, incomingCall }
+
 final class KiteNotificationPresentation {
   const KiteNotificationPresentation({
     required this.notification,
     required this.title,
     required this.body,
     required this.contentsHidden,
+    required this.surface,
   });
 
   final KiteNotification notification;
   final String title;
   final String body;
   final bool contentsHidden;
+  final KiteNotificationSurface surface;
 
   String get groupKey => notification.groupKey;
+  bool get requestsIncomingCallSurface =>
+      surface == KiteNotificationSurface.incomingCall;
 }
 
 final class KiteNotificationSummary {
@@ -85,6 +96,9 @@ final class NotificationPresentationPolicy {
       title: hideContents ? privateTitle : content.title,
       body: hideContents ? privateBody : content.body,
       contentsHidden: hideContents,
+      surface: notification.kind == KiteNotificationKind.call
+          ? KiteNotificationSurface.incomingCall
+          : KiteNotificationSurface.standard,
     );
   }
 
@@ -166,8 +180,8 @@ final class NotificationCoordinator {
   final AppNavigationPort _navigation;
   final NotificationBadgeRefreshPort? _badgeRefresh;
 
-  Future<bool> tap(String notificationRoutingId) async {
-    final notification = _notifications.notification(notificationRoutingId);
+  Future<bool> tap(String routingId) async {
+    final notification = _notifications.notification(routingId);
     if (notification == null) return false;
 
     final destination = notification.destination;

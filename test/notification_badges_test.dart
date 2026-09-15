@@ -148,7 +148,12 @@ void main() {
 
     final first = coordinator.refreshForAccounts(const <String>['work']);
     await Future<void>.delayed(Duration.zero);
-    repository.remove(KiteNotification.routingIdFor('work', 'message'));
+    repository.remove(
+      KiteNotification.routingIdFor(
+        accountId: 'work',
+        notificationId: 'message',
+      ),
+    );
     final second = coordinator.refreshForAccounts(const <String>['work']);
     await Future<void>.delayed(Duration.zero);
 
@@ -183,7 +188,12 @@ void main() {
       );
 
       expect(await coordinator.refreshForAccounts(const <String>['work']), 2);
-      repository.remove(KiteNotification.routingIdFor('work', 'message'));
+      repository.remove(
+        KiteNotification.routingIdFor(
+          accountId: 'work',
+          notificationId: 'message',
+        ),
+      );
       expect(await coordinator.refreshForAccounts(const <String>['work']), 1);
       expect(badges.counts, <int>[2, 1]);
     },
@@ -209,7 +219,10 @@ void main() {
       expect(badges.counts, <int>[0]);
       expect(
         repository.notification(
-          KiteNotification.routingIdFor('work', 'message'),
+          KiteNotification.routingIdFor(
+            accountId: 'work',
+            notificationId: 'message',
+          ),
         ),
         isNotNull,
       );

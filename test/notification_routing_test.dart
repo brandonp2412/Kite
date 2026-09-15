@@ -16,9 +16,15 @@ final class _FakeBadgeRefreshPort implements NotificationBadgeRefreshPort {
 }
 
 String _routingId(String accountId, String id) =>
-    KiteNotification.routingIdFor(accountId, id);
+    KiteNotification.routingIdFor(accountId: accountId, notificationId: id);
 
 void main() {
+  String routingId(String notificationId, {String accountId = 'work'}) =>
+      KiteNotification.routingIdFor(
+        accountId: accountId,
+        notificationId: notificationId,
+      );
+
   group('notification routing', () {
     test(
       'tap activates the owning account and opens exact call destination',
@@ -44,10 +50,7 @@ void main() {
           navigation: navigation,
         );
 
-        expect(
-          await coordinator.tap(_routingId('work', 'notification-1')),
-          isTrue,
-        );
+        expect(await coordinator.tap(routingId('notification-1')), isTrue);
         expect(accounts.activeAccountId, 'work');
         expect(accounts.activations, <String>['work']);
         expect(navigation.opened, <AppDestination>[destination]);
@@ -96,9 +99,9 @@ void main() {
         navigation: navigation,
       );
 
-      expect(await coordinator.tap(_routingId('work', 'room')), isTrue);
-      expect(await coordinator.tap(_routingId('work', 'event')), isTrue);
-      expect(await coordinator.tap(_routingId('work', 'thread')), isTrue);
+      expect(await coordinator.tap(routingId('room')), isTrue);
+      expect(await coordinator.tap(routingId('event')), isTrue);
+      expect(await coordinator.tap(routingId('thread')), isTrue);
       expect(accounts.activations, isEmpty);
       expect(navigation.opened, <AppDestination>[room, event, thread]);
     });
@@ -173,6 +176,48 @@ void main() {
       );
       expect(accounts.activeAccountId, 'work');
       expect(navigation.opened, isEmpty);
+    });
+
+    test('same source notification id remains isolated per account', () async {
+      const workDestination = AppDestination.room(
+        accountId: 'work',
+        roomId: '!work:example.org',
+      );
+      const personalDestination = AppDestination.room(
+        accountId: 'personal',
+        roomId: '!personal:example.org',
+      );
+      final notifications = FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'shared-id',
+          kind: KiteNotificationKind.invite,
+          destination: workDestination,
+        ),
+        const KiteNotification(
+          id: 'shared-id',
+          kind: KiteNotificationKind.invite,
+          destination: personalDestination,
+        ),
+      ]);
+      final accounts = FakeAccountActivationPort('personal');
+      final navigation = FakeAppNavigationPort();
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
+        accounts: accounts,
+        navigation: navigation,
+      );
+
+      expect(await coordinator.tap(routingId('shared-id')), isTrue);
+      expect(
+        await coordinator.tap(routingId('shared-id', accountId: 'personal')),
+        isTrue,
+      );
+      expect(accounts.activations, <String>['work', 'personal']);
+      expect(navigation.opened, <AppDestination>[
+        workDestination,
+        personalDestination,
+      ]);
     });
 
     test('unknown notification is ignored without navigation', () async {
@@ -250,6 +295,45 @@ void main() {
       expect(presentation.title, 'Alice');
       expect(presentation.body, 'Mentioned you in Launch room');
       expect(presentation.contentsHidden, isFalse);
+    });
+
+    test('call presentation requests incoming-call surface without leaking lock content', () {
+      const policy = NotificationPresentationPolicy();
+      const notification = KiteNotification(
+        id: 'incoming-call',
+        kind: KiteNotificationKind.call,
+        destination: AppDestination.call(
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          callId: 'matrix-rtc-42',
+        ),
+      );
+
+      final visible = policy.present(
+        notification: notification,
+        content: const KiteNotificationContent(
+          title: 'Alice',
+          body: 'Incoming video call',
+        ),
+        hideContents: false,
+      );
+      final locked = policy.present(
+        notification: notification,
+        content: const KiteNotificationContent(
+          title: 'Alice',
+          body: 'Incoming video call',
+        ),
+        hideContents: true,
+      );
+
+      expect(visible.surface, KiteNotificationSurface.incomingCall);
+      expect(visible.requestsIncomingCallSurface, isTrue);
+      expect(visible.title, 'Alice');
+      expect(locked.surface, KiteNotificationSurface.incomingCall);
+      expect(locked.requestsIncomingCallSurface, isTrue);
+      expect(locked.title, NotificationPresentationPolicy.privateTitle);
+      expect(locked.body, NotificationPresentationPolicy.privateBody);
+      expect(locked.contentsHidden, isTrue);
     });
 
     test(
@@ -650,4 +734,38 @@ void main() {
       ]);
     },
   );
+
+  test('call deep-link coordinator rejects malformed identity before account switch', () async {
+    final accounts = FakeAccountActivationPort('personal');
+    final navigation = FakeAppNavigationPort();
+    final coordinator = CallDeepLinkCoordinator(
+      accounts: accounts,
+      navigation: navigation,
+    );
+
+    await expectLater(
+      coordinator.open(
+        const CallDeepLinkTarget(
+          accountId: 'work',
+          roomId: 'team:example.org',
+          callId: 'matrix-rtc-session',
+        ),
+      ),
+      throwsArgumentError,
+    );
+    await expectLater(
+      coordinator.open(
+        const CallDeepLinkTarget(
+          accountId: 'work',
+          roomId: '!team:example.org',
+          callId: 'call with spaces',
+        ),
+      ),
+      throwsArgumentError,
+    );
+
+    expect(accounts.activeAccountId, 'personal');
+    expect(accounts.activations, isEmpty);
+    expect(navigation.opened, isEmpty);
+  });
 }

@@ -33,7 +33,22 @@ enum KiteCallDirection { outgoing, incoming }
 
 enum KiteCallPhase { idle, ringing, connecting, active, reconnecting, ended }
 
-enum KiteCallEndReason { declined, hungUp }
+enum KiteCallEndReason { declined, hungUp, missed, remoteEnded }
+
+enum KiteCallIdentityTrust { unknown, trusted, warning }
+
+final class KiteCallSecurityState {
+  const KiteCallSecurityState({
+    required this.e2eeEnabled,
+    required this.identityTrust,
+  });
+
+  final bool e2eeEnabled;
+  final KiteCallIdentityTrust identityTrust;
+
+  bool get hasTrustWarning =>
+      !e2eeEnabled || identityTrust == KiteCallIdentityTrust.warning;
+}
 
 enum KiteCallAppState { foreground, background, locked }
 
@@ -312,6 +327,8 @@ abstract interface class MatrixRtcGateway {
 
   Future<void> reconnect(String callId);
 
+  Future<KiteCallSecurityState> securityState(String callId);
+
   Future<List<KiteCallParticipant>> participants(String callId);
 }
 
@@ -360,6 +377,8 @@ final class KiteCallCoordinator {
     KiteCallAppState.foreground,
   );
   final Signal<KiteCallActivity?> activity = signal<KiteCallActivity?>(null);
+  final Signal<KiteCallSecurityState?> securityState =
+      signal<KiteCallSecurityState?>(null);
   final Signal<List<KiteCallParticipant>> participants =
       signal<List<KiteCallParticipant>>(const <KiteCallParticipant>[]);
   final Signal<String?> spotlightParticipantId = signal<String?>(null);
@@ -479,6 +498,39 @@ final class KiteCallCoordinator {
     }
   }
 
+  bool endIncomingCallFromSync(String callId) {
+    final current = session.value;
+    if (current == null ||
+        current.direction != KiteCallDirection.incoming ||
+        phase.value != KiteCallPhase.ringing ||
+        current.callId != callId) {
+      return false;
+    }
+    return endCallFromSync(callId);
+  }
+
+  bool endCallFromSync(String callId) {
+    final current = session.value;
+    final currentPhase = phase.value;
+    if (current == null ||
+        current.callId != callId ||
+        currentPhase == KiteCallPhase.idle ||
+        currentPhase == KiteCallPhase.ended) {
+      return false;
+    }
+
+    final reason =
+        current.direction == KiteCallDirection.incoming &&
+            currentPhase == KiteCallPhase.ringing
+        ? KiteCallEndReason.missed
+        : KiteCallEndReason.remoteEnded;
+    session.value = current.copyWith(endReason: reason);
+    isInPictureInPicture.value = false;
+    phase.value = KiteCallPhase.ended;
+    _publishActivity();
+    return true;
+  }
+
   Future<void> setMicrophoneMuted(bool muted) async {
     final current = _requireActiveSession();
     if (isMicrophoneMuted.value == muted) return;
@@ -530,7 +582,7 @@ final class KiteCallCoordinator {
   }
 
   Future<void> setMediaInterrupted(bool interrupted) async {
-    final current = _requireActiveSession();
+    final current = _requireReconnectableSession();
     if (isMediaInterrupted.value == interrupted) return;
 
     await _gateway.setMediaInterrupted(
@@ -561,10 +613,18 @@ final class KiteCallCoordinator {
     appState.value = state;
   }
 
-  Future<void> reconnectAfterTransientNetworkLoss() async {
-    final current = _requireReconnectableSession();
+  void markTransientNetworkLoss() {
+    _requireActiveSession();
     phase.value = KiteCallPhase.reconnecting;
     _publishActivity();
+  }
+
+  Future<void> reconnectAfterTransientNetworkLoss() async {
+    final current = _requireReconnectableSession();
+    if (phase.value != KiteCallPhase.reconnecting) {
+      phase.value = KiteCallPhase.reconnecting;
+      _publishActivity();
+    }
 
     try {
       await _gateway.reconnect(current.callId);
@@ -575,6 +635,13 @@ final class KiteCallCoordinator {
       _publishActivity();
       rethrow;
     }
+  }
+
+  Future<KiteCallSecurityState> refreshSecurityState() async {
+    final current = _requireActiveSession();
+    final state = await _gateway.securityState(current.callId);
+    securityState.value = state;
+    return state;
   }
 
   Future<List<KiteCallParticipant>> refreshParticipants() async {
@@ -798,6 +865,7 @@ final class KiteCallCoordinator {
     isMediaInterrupted.value = false;
     continuationCapabilities.value = KiteCallContinuationCapabilities.none;
     appState.value = KiteCallAppState.foreground;
+    securityState.value = null;
     participants.value = const <KiteCallParticipant>[];
     spotlightParticipantId.value = null;
     isPictureInPictureSupported.value = false;

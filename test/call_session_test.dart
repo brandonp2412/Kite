@@ -122,6 +122,51 @@ void main() {
     );
   });
 
+  test('sync can end only the matching ringing incoming call as missed', () {
+    final fixture = _fixture();
+    fixture.coordinator.registerIncomingCall(
+      const MatrixRtcSessionDescriptor(
+        callId: 'incoming-missed',
+        roomId: '!dm:example.org',
+        kind: KiteCallKind.voice,
+        scope: KiteCallScope.direct,
+      ),
+    );
+
+    expect(fixture.coordinator.endIncomingCallFromSync('other-call'), isFalse);
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ringing);
+
+    expect(
+      fixture.coordinator.endIncomingCallFromSync('incoming-missed'),
+      isTrue,
+    );
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
+    expect(
+      fixture.coordinator.session.value?.endReason,
+      KiteCallEndReason.missed,
+    );
+    expect(fixture.coordinator.activity.value?.isActive, isFalse);
+    expect(fixture.gateway.invocations, isEmpty);
+  });
+
+  test('sync can end an active call without issuing a local hangup', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+    final callId = fixture.coordinator.session.value!.callId;
+    final invocationCount = fixture.gateway.invocations.length;
+
+    expect(fixture.coordinator.endCallFromSync(callId), isTrue);
+
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
+    expect(
+      fixture.coordinator.session.value?.endReason,
+      KiteCallEndReason.remoteEnded,
+    );
+    expect(fixture.coordinator.activity.value?.isActive, isFalse);
+    expect(fixture.gateway.invocations, hasLength(invocationCount));
+    expect(fixture.coordinator.endCallFromSync(callId), isFalse);
+  });
+
   test('declines an incoming call and can clear the ended state', () async {
     final fixture = _fixture();
     fixture.coordinator.registerIncomingCall(
@@ -279,6 +324,42 @@ void main() {
       expect(fixture.gateway.invocations, hasLength(invocationCount));
     },
   );
+
+  test('call security state comes only from the MatrixRTC gateway and preserves last confirmed trust', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+    fixture.gateway.callSecurityState = const KiteCallSecurityState(
+      e2eeEnabled: true,
+      identityTrust: KiteCallIdentityTrust.warning,
+    );
+
+    final security = await fixture.coordinator.refreshSecurityState();
+    expect(security.e2eeEnabled, isTrue);
+    expect(security.identityTrust, KiteCallIdentityTrust.warning);
+    expect(security.hasTrustWarning, isTrue);
+    expect(fixture.coordinator.securityState.value, same(security));
+
+    fixture.gateway.callSecurityState = const KiteCallSecurityState(
+      e2eeEnabled: true,
+      identityTrust: KiteCallIdentityTrust.trusted,
+    );
+    fixture.gateway.failNextWith = StateError('security state unavailable');
+    await expectLater(
+      fixture.coordinator.refreshSecurityState(),
+      throwsStateError,
+    );
+
+    expect(
+      fixture.coordinator.securityState.value?.identityTrust,
+      KiteCallIdentityTrust.warning,
+    );
+    expect(
+      fixture.gateway.invocations.where(
+        (entry) => entry.type == MatrixRtcInvocationType.securityState,
+      ),
+      hasLength(2),
+    );
+  });
 
   test(
     'audio routes refresh and selection preserve platform route identity',

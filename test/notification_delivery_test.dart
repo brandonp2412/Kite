@@ -256,13 +256,9 @@ void main() {
       );
       final groupKey = notification(id: 'one').groupKey;
 
-      expect(
-        await coordinator.cancel(notification(id: 'one').routingId),
-        isTrue,
-      );
-      expect(delivery.cancelledIds, <String>[
-        notification(id: 'one').routingId,
-      ]);
+      final oneRoutingId = notification(id: 'one').routingId;
+      expect(await coordinator.cancel(oneRoutingId), isTrue);
+      expect(delivery.cancelledIds, <String>[oneRoutingId]);
       expect(delivery.cancelledSummaryGroupKeys, <String>[groupKey]);
       expect(coordinator.activePresentations, hasLength(1));
 
@@ -280,7 +276,10 @@ void main() {
       );
       expect(
         await coordinator.cancel(
-          KiteNotification.routingIdFor('work', 'missing'),
+          KiteNotification.routingIdFor(
+            accountId: 'work',
+            notificationId: 'missing',
+          ),
         ),
         isFalse,
       );

@@ -2,13 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
+import 'package:kite/features/notifications/notification_ingress.dart';
+import 'package:kite/features/notifications/notification_resolution.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
+import 'package:kite/features/notifications/notification_transport.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 import 'performance_benchmark_harness.dart';
+
+String _routingId(String notificationId, {String accountId = 'work'}) =>
+    KiteNotification.routingIdFor(
+      accountId: accountId,
+      notificationId: notificationId,
+    );
 
 final class _BenchmarkNavigationPort implements AppNavigationPort {
   _BenchmarkNavigationPort(this.revision);
@@ -56,12 +66,58 @@ void main() {
         accounts: accounts,
         navigation: navigation,
       );
+      final ingressAccounts = FakeNotificationIngressAccountPort(<String>[
+        'work',
+        'personal',
+      ]);
+      final resolver = FakeNotificationEventResolver();
+      final resolution = NotificationResolutionCoordinator(
+        resolver: resolver,
+        dispatch: dispatcher,
+      );
+      resolver.eventsByRoutingId[_routingId(
+        'ingress-call',
+      )] = const MatrixNotificationEvent(
+        id: 'ingress-call',
+        kind: MatrixNotificationEventKind.call,
+        accountId: 'work',
+        roomId: '!calls:example.org',
+        callId: 'rtc-42',
+        title: 'Incoming call',
+        body: 'Resolved MatrixRTC call notification',
+      );
+      resolver.eventsByRoutingId[_routingId(
+        'ingress-invite',
+        accountId: 'personal',
+      )] = const MatrixNotificationEvent(
+        id: 'ingress-invite',
+        kind: MatrixNotificationEventKind.invite,
+        accountId: 'personal',
+        roomId: '!invite:example.org',
+        title: 'Invite',
+        body: 'Resolved Matrix room invite',
+      );
+      final ingress = NotificationIngressCoordinator(
+        accounts: ingressAccounts,
+        onAccepted: resolution.handleAccepted,
+      );
+      final fcm = FakeNotificationPayloadSource();
+      final backgroundSync = FakeNotificationPayloadSource();
+      final transportBinding = NotificationTransportBinding(
+        ingress: ingress,
+        fcm: fcm,
+        backgroundSync: backgroundSync,
+      )..start();
+      addTearDown(transportBinding.stop);
+      addTearDown(fcm.close);
+      addTearDown(backgroundSync.close);
       await tester.pumpWidget(
         MaterialApp(
-          home: ValueListenableBuilder<int>(
-            valueListenable: revision,
-            builder: (context, value, child) => Scaffold(
-              body: Text(
+          theme: KiteTheme.light,
+          home: Scaffold(
+            body: ValueListenableBuilder<int>(
+              valueListenable: revision,
+              builder: (context, value, child) => Text(
                 'notification-revision-$value',
                 key: const Key('notification-routing-benchmark-status'),
               ),
@@ -69,6 +125,10 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+      revision.value = 1;
+      await tester.pumpAndSettle();
+      revision.value = 0;
       await tester.pumpAndSettle();
 
       final result = await measureFrames(
@@ -111,11 +171,35 @@ void main() {
               title: 'Invite',
               body: 'Deterministic invite notification',
             ),
+            const MatrixNotificationEvent(
+              id: 'call',
+              kind: MatrixNotificationEventKind.call,
+              accountId: 'work',
+              roomId: '!calls:example.org',
+              callId: 'matrix-rtc-dispatch',
+              title: 'Incoming call',
+              body: 'Deterministic call notification',
+            ),
           ]) {
             await dispatcher.dispatch(event);
           }
-          expect(await coordinator.tap('thread'), isTrue);
+          expect(await coordinator.tap(_routingId('thread')), isTrue);
           await tester.pump();
+
+          fcm.emit(const <String, String?>{
+            'notification_id': 'ingress-call',
+            'kind': 'call',
+            'account_id': 'work',
+            'room_id': '!calls:example.org',
+            'call_id': 'rtc-42',
+          });
+          backgroundSync.emit(const <String, String?>{
+            'notification_id': 'ingress-invite',
+            'kind': 'invite',
+            'account_id': 'personal',
+            'room_id': '!invite:example.org',
+          });
+          await transportBinding.flush();
 
           expect(
             await coordinator.markRoomRead(
@@ -153,7 +237,7 @@ void main() {
           }
           notificationPrivacy.hideNotificationContents = true;
           await deliveryCoordinator.refreshPrivacy();
-          expect(deliveryCoordinator.activePresentations, hasLength(49));
+          expect(deliveryCoordinator.activePresentations, hasLength(52));
           expect(
             deliveryCoordinator.activePresentations.every(
               (presentation) => presentation.contentsHidden,
@@ -171,21 +255,52 @@ void main() {
       expect(navigation.lastDestination?.kind, AppDestinationKind.thread);
       expect(navigation.lastDestination?.eventId, r'$reply');
       expect(navigation.lastDestination?.threadRootEventId, r'$root');
-      expect(notifications.notification('thread'), isNull);
-      expect(notifications.notification('message'), isNull);
-      expect(notifications.notification('remote-read'), isNull);
-      expect(notifications.notification('invite'), isNotNull);
+      expect(notifications.notification(_routingId('thread')), isNull);
+      expect(notifications.notification(_routingId('message')), isNull);
+      expect(notifications.notification(_routingId('remote-read')), isNull);
+      expect(notifications.notification(_routingId('invite')), isNotNull);
+      expect(
+        notifications.notification(_routingId('call'))?.destination,
+        const AppDestination.call(
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          callId: 'matrix-rtc-dispatch',
+        ),
+      );
       expect(notificationDelivery.cancelledIds.take(3), <String>[
-        'thread',
-        'message',
-        'remote-read',
+        _routingId('thread'),
+        _routingId('message'),
+        _routingId('remote-read'),
+      ]);
+      expect(
+        notifications.notification(_routingId('ingress-call'))?.destination,
+        const AppDestination.call(
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          callId: 'rtc-42',
+        ),
+      );
+      expect(
+        notifications
+            .notification(_routingId('ingress-invite', accountId: 'personal'))
+            ?.destination,
+        const AppDestination.room(
+          accountId: 'personal',
+          roomId: '!invite:example.org',
+        ),
+      );
+      expect(ingressAccounts.queries, <String>['work', 'personal']);
+      expect(resolver.resolutions.map((entry) => entry.routingId), <String>[
+        _routingId('ingress-call'),
+        _routingId('ingress-invite', accountId: 'personal'),
       ]);
 
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['notification_routing_reconciliation'] =
           <String, dynamic>{
             'journey': 'notification_tap_and_read_reconciliation',
-            'fixture': 'deterministic_notification_routing_v1',
+            'fixture':
+                'deterministic_notification_routing_v3_secure_resolution',
             ...result,
             'result': 'PASS',
           };

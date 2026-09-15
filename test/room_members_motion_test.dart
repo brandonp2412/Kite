@@ -171,6 +171,17 @@ void main() {
       expect(find.byKey(const Key('member-role-50')), findsOneWidget);
       expect(find.byKey(const Key('member-role-100')), findsOneWidget);
 
+      await tester.tap(find.byKey(const Key('member-report')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, heading), initialHeading);
+        expect(_rectOf(tester, search), initialSearch);
+        expect(tester.takeException(), isNull);
+      }
+      expect(find.byKey(const Key('room-report-reason')), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byKey(const Key('member-kick')));
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
@@ -192,6 +203,72 @@ void main() {
       expect(find.text('Ban Alice?'), findsOneWidget);
     },
   );
+
+  testWidgets('room safety actions keep room geometry stable at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final coordinator = RoomMemberManagementCoordinator(
+      actorUserId: '@moderator:example.org',
+      directory: FakeRoomMemberDirectoryPort(),
+      authorization: FakeRoomMemberAuthorizationPort(),
+      mutations: FakeRoomMemberMutationPort(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomMembersScreen(
+          roomId: '!team:example.org',
+          coordinator: coordinator,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final heading = find.text('Members');
+    final search = find.byKey(const Key('member-search'));
+    final initialHeading = _rectOf(tester, heading);
+    final initialSearch = _rectOf(tester, search);
+
+    Future<void> expectStable() async {
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, heading), initialHeading);
+        expect(_rectOf(tester, search), initialSearch);
+        expect(tester.takeException(), isNull);
+      }
+    }
+
+    await tester.tap(find.byKey(const Key('room-safety-actions')));
+    await expectStable();
+    await tester.tap(find.text('Report room'));
+    await expectStable();
+    expect(find.byKey(const Key('room-report-reason')), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('room-safety-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leave room'));
+    await expectStable();
+    expect(find.text('Leave room?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('room-safety-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove local room data'));
+    await expectStable();
+    expect(find.text('Remove local room data?'), findsOneWidget);
+  });
 
   testWidgets('unban confirmation keeps room geometry stable at 120 Hz', (
     tester,

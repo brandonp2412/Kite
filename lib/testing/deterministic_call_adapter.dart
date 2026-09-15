@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:kite/features/calls/call_session.dart';
+import 'package:kite/features/calls/matrix_call_deep_link.dart';
 
 enum MatrixRtcInvocationType {
   start,
@@ -17,6 +18,7 @@ enum MatrixRtcInvocationType {
   continuationCapabilities,
   setAppState,
   reconnect,
+  securityState,
   participants,
 }
 
@@ -44,6 +46,41 @@ final class MatrixRtcInvocation {
   final MatrixRtcLaunchConfig? launchConfig;
 }
 
+final class MatrixCallDeepLinkResolution {
+  const MatrixCallDeepLinkResolution({
+    required this.accountId,
+    required this.roomIdOrAlias,
+  });
+
+  final String accountId;
+  final String roomIdOrAlias;
+}
+
+final class DeterministicMatrixCallDeepLinkResolver
+    implements MatrixCallDeepLinkResolverPort {
+  MatrixRtcSessionDescriptor? descriptor;
+  Object? failNextWith;
+  final List<MatrixCallDeepLinkResolution> resolutions =
+      <MatrixCallDeepLinkResolution>[];
+
+  @override
+  Future<MatrixRtcSessionDescriptor?> resolveActiveCall({
+    required String accountId,
+    required String roomIdOrAlias,
+  }) async {
+    resolutions.add(
+      MatrixCallDeepLinkResolution(
+        accountId: accountId,
+        roomIdOrAlias: roomIdOrAlias,
+      ),
+    );
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
+    return descriptor;
+  }
+}
+
 final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
   DeterministicMatrixRtcGateway({this.seed = 0});
 
@@ -69,6 +106,10 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       kind: KiteAudioRouteKind.speaker,
     ),
   ];
+  KiteCallSecurityState callSecurityState = const KiteCallSecurityState(
+    e2eeEnabled: true,
+    identityTrust: KiteCallIdentityTrust.trusted,
+  );
   List<KiteCallParticipant> callParticipants = const <KiteCallParticipant>[];
 
   @override
@@ -283,6 +324,18 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+  }
+
+  @override
+  Future<KiteCallSecurityState> securityState(String callId) async {
+    invocations.add(
+      MatrixRtcInvocation(
+        type: MatrixRtcInvocationType.securityState,
+        callId: callId,
+      ),
+    );
+    _throwIfRequested();
+    return callSecurityState;
   }
 
   @override

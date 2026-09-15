@@ -45,6 +45,12 @@ void main() {
       membership: RoomMembership.banned,
       powerLevel: 0,
     );
+    const reportMember = RoomMember(
+      userId: '@report:example.org',
+      displayName: 'Report target',
+      membership: RoomMembership.joined,
+      powerLevel: 0,
+    );
     final mutations = FakeRoomMemberMutationPort();
     final coordinator = RoomMemberManagementCoordinator(
       actorUserId: '@moderator:example.org',
@@ -54,6 +60,7 @@ void main() {
           kickMember,
           banMember,
           bannedMember,
+          reportMember,
         ],
       ),
       authorization: FakeRoomMemberAuthorizationPort(),
@@ -77,6 +84,13 @@ void main() {
         await tester.tap(find.byKey(const Key('member-invite-action')));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('member-@report:example.org')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('member-report')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('room-report-submit')));
         await tester.pumpAndSettle();
 
         await tester.tap(find.byKey(const Key('member-@member:example.org')));
@@ -110,6 +124,31 @@ void main() {
           find.byKey(const Key('member-moderation-confirm-Unban')),
         );
         await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('room-safety-actions')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Report room'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('room-report-submit')));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('room-safety-actions')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Leave room'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('member-moderation-confirm-Leave')),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('room-safety-actions')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove local room data'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('member-moderation-confirm-Remove data')),
+        );
+        await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
@@ -119,10 +158,14 @@ void main() {
     expect(mutations.kicks, hasLength(1));
     expect(mutations.bans, hasLength(1));
     expect(mutations.unbans, hasLength(1));
+    expect(mutations.userReports, hasLength(1));
+    expect(mutations.roomReports, hasLength(1));
+    expect(mutations.leaves, hasLength(1));
+    expect(mutations.forgottenRooms, hasLength(1));
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['room_member_moderation_actions'] = <String, dynamic>{
-      'journey': 'room_member_role_kick_ban_unban',
-      'fixture': 'deterministic_member_actions_v2',
+      'journey': 'room_member_role_moderation_report_leave_forget',
+      'fixture': 'deterministic_member_actions_v3',
       ...result,
       'result': 'PASS',
     };

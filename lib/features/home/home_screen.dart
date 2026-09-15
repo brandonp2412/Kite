@@ -4,6 +4,7 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/rooms/room_details_screen.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -275,6 +276,22 @@ class _ChatHeader extends StatelessWidget {
                   Icons.lock_outline_rounded,
                   size: 18,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  key: const Key('room-details-button'),
+                  tooltip: 'Room details',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => RoomDetailsScreen(
+                          roomId: room.id,
+                          roomName: room.name,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.info_outline_rounded),
                 ),
               ],
             );
