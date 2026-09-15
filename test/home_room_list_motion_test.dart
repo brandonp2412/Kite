@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
+import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
@@ -40,6 +41,53 @@ void main() {
     expect(tester.getRect(filterRow), filterRect);
     expect(tester.getRect(list).top, listRect.top);
     expect(store.selectedFilter.value, RoomListFilter.people);
+  });
+
+  testWidgets('space transition keeps sidebar geometry fixed at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(roomListStore: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final profile = find.byKey(const Key('home-profile'));
+    final spaceRow = find.byKey(const Key('space-filter-row'));
+    final filterRow = find.byKey(const Key('room-filter-row'));
+    final list = find.byKey(const Key('room-list'));
+    final profileRect = tester.getRect(profile);
+    final spaceRect = tester.getRect(spaceRow);
+    final filterRect = tester.getRect(filterRow);
+    final listRect = tester.getRect(list);
+
+    await tester.tap(find.byKey(const Key('space-filter-kite-space')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(tester.getRect(profile), profileRect);
+      expect(tester.getRect(spaceRow), spaceRect);
+      expect(tester.getRect(filterRow), filterRect);
+      expect(tester.getRect(list), listRect);
+      expect(tester.takeException(), isNull);
+    }
+
+    expect(store.selectedSpaceId.value, 'kite-space');
+    expect(find.byKey(const Key('room-kite')), findsOneWidget);
+    expect(find.byKey(const Key('room-room-3')), findsOneWidget);
+    expect(find.byKey(const Key('room-alice')), findsNothing);
   });
 
   testWidgets(
