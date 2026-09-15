@@ -73,4 +73,64 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets('room member search/filter stays within the frame budget', (
+    tester,
+  ) async {
+    final members = List<RoomMember>.generate(
+      200,
+      (index) => RoomMember(
+        userId: '@member$index:example.org',
+        displayName: 'Member $index',
+        membership: RoomMembership.joined,
+        powerLevel: index == 0 ? 100 : 0,
+      ),
+      growable: false,
+    );
+    final directory = FakeRoomMemberDirectoryPort(members: members);
+    final coordinator = RoomMemberManagementCoordinator(
+      actorUserId: '@member0:example.org',
+      directory: directory,
+      authorization: FakeRoomMemberAuthorizationPort(),
+      mutations: FakeRoomMemberMutationPort(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomMembersScreen(
+          roomId: '!benchmark:example.org',
+          coordinator: coordinator,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final search = find.byKey(const Key('member-search'));
+    expect(search, findsOneWidget);
+
+    final textField = tester.widget<TextField>(search);
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        textField.controller!.text = 'member 199';
+        textField.onChanged!('member 199');
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(directory.queries, contains('member 199'));
+    expect(find.text('Member 199'), findsOneWidget);
+    expect(find.text('Member 198'), findsNothing);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_member_search_filter_200'] = <String, dynamic>{
+      'journey': 'search_filter_room_members',
+      'fixture': 'deterministic_200_members_v1',
+      'memberCount': members.length,
+      'query': 'member 199',
+      ...result,
+      'result': 'PASS',
+    };
+  });
 }
