@@ -105,6 +105,7 @@ void main() {
     var verificationOpens = 0;
     var recoveryOpens = 0;
     var sessionOpens = 0;
+    var userControlsOpens = 0;
     var appLockOpens = 0;
 
     await tester.pumpWidget(
@@ -118,6 +119,7 @@ void main() {
           onOpenVerification: () => verificationOpens += 1,
           onOpenRecovery: () => recoveryOpens += 1,
           onOpenSessions: () => sessionOpens += 1,
+          onOpenUserControls: () => userControlsOpens += 1,
           onOpenAppLock: () => appLockOpens += 1,
         ),
       ),
@@ -131,11 +133,13 @@ void main() {
     await tester.tap(find.byKey(const Key('privacy-security-verification')));
     await tester.tap(find.byKey(const Key('privacy-security-recovery')));
     await tester.tap(find.byKey(const Key('privacy-security-sessions')));
+    await tester.tap(find.byKey(const Key('privacy-security-user-controls')));
     await tester.tap(find.byKey(const Key('privacy-security-app-lock')));
 
     expect(verificationOpens, 1);
     expect(recoveryOpens, 1);
     expect(sessionOpens, 1);
+    expect(userControlsOpens, 1);
     expect(appLockOpens, 1);
   });
 }
