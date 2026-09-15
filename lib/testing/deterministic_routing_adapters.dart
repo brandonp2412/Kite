@@ -4,7 +4,7 @@ import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 
 final class FakeNotificationRepository
-    implements NotificationRepository, NotificationRegistrationPort {
+    implements MutableNotificationRepository, NotificationRegistrationPort {
   FakeNotificationRepository([Iterable<KiteNotification> initial = const []])
     : _notifications = <String, KiteNotification>{
         for (final notification in initial) notification.id: notification,
@@ -19,6 +19,11 @@ final class FakeNotificationRepository
 
   @override
   void upsertNotification(KiteNotification notification) {
+    upsert(notification);
+  }
+
+  @override
+  void upsert(KiteNotification notification) {
     _notifications[notification.id] = notification;
   }
 

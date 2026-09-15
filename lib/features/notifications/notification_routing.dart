@@ -119,6 +119,11 @@ abstract interface class NotificationRepository {
   void remove(String id);
 }
 
+abstract interface class MutableNotificationRepository
+    implements NotificationRepository {
+  void upsert(KiteNotification notification);
+}
+
 abstract interface class NotificationCancellationPort {
   Future<bool> cancel(String notificationId);
 }
