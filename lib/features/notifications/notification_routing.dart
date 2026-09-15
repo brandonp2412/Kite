@@ -168,6 +168,7 @@ final class NotificationCoordinator {
     final destination = notification.destination;
     if (_accounts.activeAccountId != destination.accountId) {
       await _accounts.activateAccount(destination.accountId);
+      if (_accounts.activeAccountId != destination.accountId) return false;
     }
     await _navigation.open(destination);
     return true;
@@ -214,7 +215,8 @@ final class NotificationCoordinator {
   Future<int> _cancelAndRemove(Iterable<String> notificationIds) async {
     var removed = 0;
     for (final id in notificationIds) {
-      await _cancellations.cancel(id);
+      final cancelled = await _cancellations.cancel(id);
+      if (!cancelled) continue;
       _notifications.remove(id);
       removed += 1;
     }
