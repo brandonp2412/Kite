@@ -108,8 +108,12 @@ final class IncomingCallCoordinator {
   }
 
   Future<bool> endFromSync(String callId) async {
-    if (!_calls.endIncomingCallFromSync(callId)) return false;
-    await _stopRingtone(callId);
+    final current = _calls.session.value;
+    final wasRinging =
+        current?.callId == callId &&
+        _calls.phase.value == KiteCallPhase.ringing;
+    if (!_calls.endCallFromSync(callId)) return false;
+    if (wasRinging) await _stopRingtone(callId);
     return true;
   }
 

@@ -38,6 +38,28 @@ void main() {
   });
 
   test(
+    'MatrixRTC sync ends an accepted active call without extra ringtone stop',
+    () async {
+      final fixture = _fixture();
+      addTearDown(fixture.source.close);
+      fixture.calls.registerIncomingCall(_descriptor('call-1'));
+      await fixture.ringtone.start('call-1');
+      await fixture.incoming.accept();
+      fixture.binding.start();
+
+      fixture.source.emitEnded('call-1');
+      await _flush(fixture.binding);
+
+      expect(fixture.calls.phase.value, KiteCallPhase.ended);
+      expect(
+        fixture.calls.session.value?.endReason,
+        KiteCallEndReason.remoteEnded,
+      );
+      expect(fixture.ringtone.stoppedCallIds, <String>['call-1']);
+    },
+  );
+
+  test(
     'source errors are isolated and stopping detaches sync handling',
     () async {
       final errors = <Object>[];
@@ -94,6 +116,7 @@ _IncomingCallSyncFixture _fixture({IncomingCallSyncErrorHandler? onError}) {
   );
   return _IncomingCallSyncFixture(
     calls: calls,
+    incoming: incoming,
     ringtone: ringtone,
     source: source,
     binding: IncomingCallSyncBinding(
@@ -107,12 +130,14 @@ _IncomingCallSyncFixture _fixture({IncomingCallSyncErrorHandler? onError}) {
 final class _IncomingCallSyncFixture {
   const _IncomingCallSyncFixture({
     required this.calls,
+    required this.incoming,
     required this.ringtone,
     required this.source,
     required this.binding,
   });
 
   final KiteCallCoordinator calls;
+  final IncomingCallCoordinator incoming;
   final DeterministicIncomingCallRingtone ringtone;
   final DeterministicIncomingCallSyncSource source;
   final IncomingCallSyncBinding binding;

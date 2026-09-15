@@ -809,7 +809,7 @@ class _EndedCallBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = switch (reason) {
       KiteCallEndReason.declined => 'Call declined',
-      KiteCallEndReason.hungUp => 'Call ended',
+      KiteCallEndReason.hungUp || KiteCallEndReason.remoteEnded => 'Call ended',
       KiteCallEndReason.missed => 'Missed call',
       null => 'No active call',
     };

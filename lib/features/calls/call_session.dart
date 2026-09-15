@@ -33,7 +33,7 @@ enum KiteCallDirection { outgoing, incoming }
 
 enum KiteCallPhase { idle, ringing, connecting, active, reconnecting, ended }
 
-enum KiteCallEndReason { declined, hungUp, missed }
+enum KiteCallEndReason { declined, hungUp, missed, remoteEnded }
 
 enum KiteCallIdentityTrust { unknown, trusted, warning }
 
@@ -506,8 +506,26 @@ final class KiteCallCoordinator {
         current.callId != callId) {
       return false;
     }
+    return endCallFromSync(callId);
+  }
 
-    session.value = current.copyWith(endReason: KiteCallEndReason.missed);
+  bool endCallFromSync(String callId) {
+    final current = session.value;
+    final currentPhase = phase.value;
+    if (current == null ||
+        current.callId != callId ||
+        currentPhase == KiteCallPhase.idle ||
+        currentPhase == KiteCallPhase.ended) {
+      return false;
+    }
+
+    final reason =
+        current.direction == KiteCallDirection.incoming &&
+            currentPhase == KiteCallPhase.ringing
+        ? KiteCallEndReason.missed
+        : KiteCallEndReason.remoteEnded;
+    session.value = current.copyWith(endReason: reason);
+    isInPictureInPicture.value = false;
     phase.value = KiteCallPhase.ended;
     _publishActivity();
     return true;

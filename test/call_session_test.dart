@@ -149,6 +149,24 @@ void main() {
     expect(fixture.gateway.invocations, isEmpty);
   });
 
+  test('sync can end an active call without issuing a local hangup', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+    final callId = fixture.coordinator.session.value!.callId;
+    final invocationCount = fixture.gateway.invocations.length;
+
+    expect(fixture.coordinator.endCallFromSync(callId), isTrue);
+
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
+    expect(
+      fixture.coordinator.session.value?.endReason,
+      KiteCallEndReason.remoteEnded,
+    );
+    expect(fixture.coordinator.activity.value?.isActive, isFalse);
+    expect(fixture.gateway.invocations, hasLength(invocationCount));
+    expect(fixture.coordinator.endCallFromSync(callId), isFalse);
+  });
+
   test('declines an incoming call and can clear the ended state', () async {
     final fixture = _fixture();
     fixture.coordinator.registerIncomingCall(
