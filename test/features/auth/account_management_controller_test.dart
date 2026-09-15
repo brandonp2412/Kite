@@ -299,6 +299,17 @@ void main() {
       ];
       expect(await controller.load(), isFalse);
 
+      gateway.loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'bad-device',
+          userId: '@alice:example.org',
+          deviceId: ' DEVICE ',
+          homeserver: 'example.org',
+          isActive: true,
+        ),
+      ];
+      expect(await controller.load(), isFalse);
+
       expect(
         controller.errorMessage.value,
         'Kite received invalid account information.',

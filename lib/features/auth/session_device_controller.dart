@@ -107,12 +107,13 @@ final class SessionDeviceController {
     final ids = <String>{};
     var currentCount = 0;
     for (final device in loaded) {
-      if (device.deviceId.trim().isEmpty) return false;
+      final deviceId = device.deviceId.trim();
+      if (deviceId.isEmpty || deviceId != device.deviceId) return false;
       if (ids.add(device.deviceId) == false) return false;
       if (device.isCurrent) currentCount += 1;
       if (currentCount > 1) return false;
     }
-    return true;
+    return loaded.isEmpty || currentCount == 1;
   }
 
   void dispose() {

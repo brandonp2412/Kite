@@ -112,6 +112,51 @@ void main() {
     expect(controller.errorMessage.value, isNot(contains('remote-secret')));
   });
 
+  test(
+    'rejects device lists that cannot identify the current device',
+    () async {
+      final gateway = _FakeSessionDeviceGateway()
+        ..loaded = const <SessionDevice>[
+          SessionDevice(
+            deviceId: 'REMOTE',
+            isCurrent: false,
+            verification: SessionDeviceVerification.verified,
+          ),
+        ];
+      final controller = SessionDeviceController(gateway);
+      addTearDown(controller.dispose);
+
+      await controller.load();
+
+      expect(controller.devices.value, isEmpty);
+      expect(
+        controller.errorMessage.value,
+        'Kite received an invalid device list.',
+      );
+    },
+  );
+
+  test('rejects whitespace-bearing device identifiers', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[
+        SessionDevice(
+          deviceId: ' CURRENT ',
+          isCurrent: true,
+          verification: SessionDeviceVerification.verified,
+        ),
+      ];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.load();
+
+    expect(controller.devices.value, isEmpty);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid device list.',
+    );
+  });
+
   test('rejects duplicate or ambiguous current-device data', () async {
     final gateway = _FakeSessionDeviceGateway()
       ..loaded = const <SessionDevice>[
