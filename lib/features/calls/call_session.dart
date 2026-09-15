@@ -536,6 +536,7 @@ final class KiteCallCoordinator {
     if (isMicrophoneMuted.value == muted) return;
 
     await _gateway.setMicrophoneMuted(callId: current.callId, muted: muted);
+    if (!_isCurrentCall(current.callId)) return;
     isMicrophoneMuted.value = muted;
   }
 
@@ -544,6 +545,7 @@ final class KiteCallCoordinator {
     if (isCameraEnabled.value == enabled) return;
 
     await _gateway.setCameraEnabled(callId: current.callId, enabled: enabled);
+    if (!_isCurrentCall(current.callId)) return;
     isCameraEnabled.value = enabled;
   }
 
@@ -553,7 +555,9 @@ final class KiteCallCoordinator {
       throw StateError('Camera must be enabled before switching cameras.');
     }
 
-    cameraFacing.value = await _gateway.switchCamera(current.callId);
+    final facing = await _gateway.switchCamera(current.callId);
+    if (!_isCurrentCall(current.callId)) return;
+    cameraFacing.value = facing;
   }
 
   Future<List<KiteAudioRoute>> refreshAudioRoutes() async {
@@ -561,6 +565,7 @@ final class KiteCallCoordinator {
     final routes = List<KiteAudioRoute>.unmodifiable(
       await _gateway.availableAudioRoutes(current.callId),
     );
+    if (!_isCurrentCall(current.callId)) return routes;
     audioRoutes.value = routes;
     if (selectedAudioRouteId.value != null &&
         !routes.any((route) => route.id == selectedAudioRouteId.value)) {
@@ -578,6 +583,7 @@ final class KiteCallCoordinator {
     if (selectedAudioRouteId.value == routeId) return;
 
     await _gateway.selectAudioRoute(callId: current.callId, routeId: routeId);
+    if (!_isCurrentCall(current.callId)) return;
     selectedAudioRouteId.value = routeId;
   }
 
@@ -654,6 +660,7 @@ final class KiteCallCoordinator {
     final nextParticipants = List<KiteCallParticipant>.unmodifiable(
       await _gateway.participants(current.callId),
     );
+    if (!_isCurrentCall(current.callId)) return nextParticipants;
     participants.value = nextParticipants;
     final spotlight = spotlightParticipantId.value;
     if (spotlight != null &&
@@ -677,8 +684,9 @@ final class KiteCallCoordinator {
   }
 
   Future<bool> refreshPictureInPictureSupport() async {
-    _requireActiveSession();
+    final current = _requireActiveSession();
     final supported = await _pictureInPicture.isSupported();
+    if (!_isCurrentCall(current.callId)) return supported;
     isPictureInPictureSupported.value = supported;
     if (!supported) {
       isInPictureInPicture.value = false;
@@ -694,6 +702,7 @@ final class KiteCallCoordinator {
     if (isInPictureInPicture.value) return;
 
     await _pictureInPicture.enter(current.callId);
+    if (!_isCurrentCall(current.callId)) return;
     isInPictureInPicture.value = true;
   }
 
@@ -702,6 +711,7 @@ final class KiteCallCoordinator {
     if (!isInPictureInPicture.value) return;
 
     await _pictureInPicture.exit(current.callId);
+    if (!_isCurrentCall(current.callId)) return;
     isInPictureInPicture.value = false;
   }
 

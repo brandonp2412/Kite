@@ -700,6 +700,227 @@ void main() {
     );
   });
 
+  test('stale microphone completion cannot mute a replacement call', () async {
+    final fixture = _fixture(seed: 80);
+    await fixture.coordinator.startDirectVoiceCall('!first:example.org');
+    fixture.gateway.holdNextInvocation(
+      MatrixRtcInvocationType.setMicrophoneMuted,
+    );
+
+    final pending = fixture.coordinator.setMicrophoneMuted(true);
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      fixture.gateway.hasHeldInvocation(
+        MatrixRtcInvocationType.setMicrophoneMuted,
+      ),
+      isTrue,
+    );
+
+    await _replaceWithVideoCall(fixture, '!replacement:example.org');
+    fixture.gateway.completeHeldInvocation(
+      MatrixRtcInvocationType.setMicrophoneMuted,
+    );
+    await pending;
+
+    expect(
+      fixture.coordinator.session.value?.roomId,
+      '!replacement:example.org',
+    );
+    expect(fixture.coordinator.isMicrophoneMuted.value, isFalse);
+  });
+
+  test(
+    'stale camera completions cannot alter a replacement video call',
+    () async {
+      final fixture = _fixture(seed: 90);
+      await fixture.coordinator.startDirectVideoCall('!first:example.org');
+      fixture.gateway.holdNextInvocation(
+        MatrixRtcInvocationType.setCameraEnabled,
+      );
+
+      final pendingDisable = fixture.coordinator.setCameraEnabled(false);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        fixture.gateway.hasHeldInvocation(
+          MatrixRtcInvocationType.setCameraEnabled,
+        ),
+        isTrue,
+      );
+
+      await _replaceWithVideoCall(fixture, '!second:example.org');
+      fixture.gateway.completeHeldInvocation(
+        MatrixRtcInvocationType.setCameraEnabled,
+      );
+      await pendingDisable;
+      expect(fixture.coordinator.isCameraEnabled.value, isTrue);
+
+      fixture.gateway.holdNextInvocation(MatrixRtcInvocationType.switchCamera);
+      final pendingSwitch = fixture.coordinator.switchCamera();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        fixture.gateway.hasHeldInvocation(MatrixRtcInvocationType.switchCamera),
+        isTrue,
+      );
+
+      await _replaceWithVideoCall(fixture, '!third:example.org');
+      fixture.gateway.completeHeldInvocation(
+        MatrixRtcInvocationType.switchCamera,
+      );
+      await pendingSwitch;
+      expect(fixture.coordinator.cameraFacing.value, KiteCameraFacing.front);
+    },
+  );
+
+  test(
+    'stale audio route refresh and selection cannot leak across calls',
+    () async {
+      final fixture = _fixture(seed: 100);
+      await fixture.coordinator.startDirectVoiceCall('!first:example.org');
+      fixture.gateway.audioRoutes = const <KiteAudioRoute>[
+        KiteAudioRoute(
+          id: 'wired',
+          label: 'Wired headset',
+          kind: KiteAudioRouteKind.wired,
+        ),
+      ];
+      fixture.gateway.holdNextInvocation(
+        MatrixRtcInvocationType.availableAudioRoutes,
+      );
+
+      final pendingRefresh = fixture.coordinator.refreshAudioRoutes();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        fixture.gateway.hasHeldInvocation(
+          MatrixRtcInvocationType.availableAudioRoutes,
+        ),
+        isTrue,
+      );
+
+      await _replaceWithVideoCall(fixture, '!second:example.org');
+      fixture.gateway.completeHeldInvocation(
+        MatrixRtcInvocationType.availableAudioRoutes,
+      );
+      final staleRoutes = await pendingRefresh;
+      expect(staleRoutes.single.id, 'wired');
+      expect(fixture.coordinator.audioRoutes.value, isEmpty);
+
+      fixture.gateway.audioRoutes = const <KiteAudioRoute>[
+        KiteAudioRoute(
+          id: 'speaker',
+          label: 'Speaker',
+          kind: KiteAudioRouteKind.speaker,
+        ),
+      ];
+      await fixture.coordinator.refreshAudioRoutes();
+      fixture.gateway.holdNextInvocation(
+        MatrixRtcInvocationType.selectAudioRoute,
+      );
+      final pendingSelection = fixture.coordinator.selectAudioRoute('speaker');
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        fixture.gateway.hasHeldInvocation(
+          MatrixRtcInvocationType.selectAudioRoute,
+        ),
+        isTrue,
+      );
+
+      await _replaceWithVideoCall(fixture, '!third:example.org');
+      fixture.gateway.completeHeldInvocation(
+        MatrixRtcInvocationType.selectAudioRoute,
+      );
+      await pendingSelection;
+      expect(fixture.coordinator.selectedAudioRouteId.value, isNull);
+    },
+  );
+
+  test(
+    'stale participant snapshots cannot repopulate a replacement call',
+    () async {
+      final fixture = _fixture(seed: 110);
+      await fixture.coordinator.startGroupCall('!first:example.org');
+      fixture.gateway.callParticipants = const <KiteCallParticipant>[
+        KiteCallParticipant(
+          participantId: 'alice-device',
+          userId: '@alice:example.org',
+          displayName: 'Alice',
+          isLocal: false,
+          isMicrophoneMuted: false,
+          isCameraEnabled: true,
+          isSpeaking: true,
+        ),
+      ];
+      fixture.gateway.holdNextInvocation(MatrixRtcInvocationType.participants);
+
+      final pending = fixture.coordinator.refreshParticipants();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        fixture.gateway.hasHeldInvocation(MatrixRtcInvocationType.participants),
+        isTrue,
+      );
+
+      await _replaceWithVideoCall(fixture, '!replacement:example.org');
+      fixture.gateway.completeHeldInvocation(
+        MatrixRtcInvocationType.participants,
+      );
+      final staleParticipants = await pending;
+
+      expect(staleParticipants.single.participantId, 'alice-device');
+      expect(fixture.coordinator.participants.value, isEmpty);
+      expect(fixture.coordinator.spotlightParticipantId.value, isNull);
+    },
+  );
+
+  test(
+    'stale picture-in-picture completions cannot alter a replacement call',
+    () async {
+      final fixture = _fixture(seed: 120);
+      await fixture.coordinator.startDirectVideoCall('!first:example.org');
+      fixture.pictureInPicture.holdNextInvocation(
+        PictureInPictureInvocationType.support,
+      );
+
+      final pendingSupport = fixture.coordinator
+          .refreshPictureInPictureSupport();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        fixture.pictureInPicture.hasHeldInvocation(
+          PictureInPictureInvocationType.support,
+        ),
+        isTrue,
+      );
+
+      await _replaceWithVideoCall(fixture, '!second:example.org');
+      fixture.pictureInPicture.completeHeldInvocation(
+        PictureInPictureInvocationType.support,
+      );
+      expect(await pendingSupport, isTrue);
+      expect(fixture.coordinator.isPictureInPictureSupported.value, isFalse);
+
+      expect(
+        await fixture.coordinator.refreshPictureInPictureSupport(),
+        isTrue,
+      );
+      fixture.pictureInPicture.holdNextInvocation(
+        PictureInPictureInvocationType.enter,
+      );
+      final pendingEnter = fixture.coordinator.enterPictureInPicture();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        fixture.pictureInPicture.hasHeldInvocation(
+          PictureInPictureInvocationType.enter,
+        ),
+        isTrue,
+      );
+
+      await _replaceWithVideoCall(fixture, '!third:example.org');
+      fixture.pictureInPicture.completeHeldInvocation(
+        PictureInPictureInvocationType.enter,
+      );
+      await pendingEnter;
+      expect(fixture.coordinator.isInPictureInPicture.value, isFalse);
+    },
+  );
+
   test('gateway failures restore deterministic idle state and emit safe trace data', () async {
     final fixture = _fixture();
     fixture.gateway.failNextWith = StateError('transport failed');
@@ -722,6 +943,18 @@ void main() {
       isTrue,
     );
   });
+}
+
+Future<void> _replaceWithVideoCall(_CallFixture fixture, String roomId) async {
+  final current = fixture.coordinator.session.value;
+  if (current == null) {
+    throw StateError('Expected an active call before replacement.');
+  }
+  if (!fixture.coordinator.endCallFromSync(current.callId)) {
+    throw StateError('Expected the current call to end from sync.');
+  }
+  fixture.coordinator.clearEndedCall();
+  await fixture.coordinator.startDirectVideoCall(roomId);
 }
 
 _CallFixture _fixture({int seed = 0}) {

@@ -113,6 +113,10 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
   Completer<void>? _heldMediaInterruption;
   Completer<void>? _heldAppState;
   Completer<void>? _heldReconnect;
+  final Set<MatrixRtcInvocationType> _holdNextInvocations =
+      <MatrixRtcInvocationType>{};
+  final Map<MatrixRtcInvocationType, Completer<void>> _heldInvocations =
+      <MatrixRtcInvocationType, Completer<void>>{};
   Object? failNextWith;
   bool holdNextStart = false;
   bool holdNextMediaInterruption = false;
@@ -238,6 +242,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+    await _holdIfRequested(MatrixRtcInvocationType.setMicrophoneMuted);
   }
 
   @override
@@ -253,6 +258,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+    await _holdIfRequested(MatrixRtcInvocationType.setCameraEnabled);
   }
 
   @override
@@ -264,6 +270,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+    await _holdIfRequested(MatrixRtcInvocationType.switchCamera);
     cameraFacing = switch (cameraFacing) {
       KiteCameraFacing.front => KiteCameraFacing.rear,
       KiteCameraFacing.rear => KiteCameraFacing.front,
@@ -280,7 +287,9 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
-    return List<KiteAudioRoute>.unmodifiable(audioRoutes);
+    final snapshot = List<KiteAudioRoute>.unmodifiable(audioRoutes);
+    await _holdIfRequested(MatrixRtcInvocationType.availableAudioRoutes);
+    return snapshot;
   }
 
   @override
@@ -296,6 +305,7 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+    await _holdIfRequested(MatrixRtcInvocationType.selectAudioRoute);
   }
 
   @override
@@ -389,13 +399,34 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
-    return List<KiteCallParticipant>.unmodifiable(callParticipants);
+    final snapshot = List<KiteCallParticipant>.unmodifiable(callParticipants);
+    await _holdIfRequested(MatrixRtcInvocationType.participants);
+    return snapshot;
   }
 
   bool get hasHeldStart => _heldStart != null;
   bool get hasHeldMediaInterruption => _heldMediaInterruption != null;
   bool get hasHeldAppState => _heldAppState != null;
   bool get hasHeldReconnect => _heldReconnect != null;
+
+  void holdNextInvocation(MatrixRtcInvocationType type) {
+    if (_holdNextInvocations.contains(type) ||
+        _heldInvocations.containsKey(type)) {
+      throw StateError('An invocation of ${type.name} is already held.');
+    }
+    _holdNextInvocations.add(type);
+  }
+
+  bool hasHeldInvocation(MatrixRtcInvocationType type) =>
+      _heldInvocations.containsKey(type);
+
+  void completeHeldInvocation(MatrixRtcInvocationType type) {
+    final completer = _heldInvocations.remove(type);
+    if (completer == null) {
+      throw StateError('No held ${type.name} invocation is available.');
+    }
+    completer.complete();
+  }
 
   void completeHeldStart() {
     final completer = _heldStart;
@@ -435,6 +466,13 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
     completer.complete();
   }
 
+  Future<void> _holdIfRequested(MatrixRtcInvocationType type) async {
+    if (!_holdNextInvocations.remove(type)) return;
+    final completer = Completer<void>();
+    _heldInvocations[type] = completer;
+    await completer.future;
+  }
+
   void _throwIfRequested() {
     final error = failNextWith;
     failNextWith = null;
@@ -455,6 +493,10 @@ final class DeterministicPictureInPicturePort
     implements CallPictureInPicturePort {
   bool supported = true;
   Object? failNextWith;
+  final Set<PictureInPictureInvocationType> _holdNextInvocations =
+      <PictureInPictureInvocationType>{};
+  final Map<PictureInPictureInvocationType, Completer<void>> _heldInvocations =
+      <PictureInPictureInvocationType, Completer<void>>{};
   final List<PictureInPictureInvocation> invocations =
       <PictureInPictureInvocation>[];
 
@@ -466,7 +508,9 @@ final class DeterministicPictureInPicturePort
       ),
     );
     _throwIfRequested();
-    return supported;
+    final snapshot = supported;
+    await _holdIfRequested(PictureInPictureInvocationType.support);
+    return snapshot;
   }
 
   @override
@@ -478,6 +522,7 @@ final class DeterministicPictureInPicturePort
       ),
     );
     _throwIfRequested();
+    await _holdIfRequested(PictureInPictureInvocationType.enter);
   }
 
   @override
@@ -489,6 +534,33 @@ final class DeterministicPictureInPicturePort
       ),
     );
     _throwIfRequested();
+    await _holdIfRequested(PictureInPictureInvocationType.exit);
+  }
+
+  void holdNextInvocation(PictureInPictureInvocationType type) {
+    if (_holdNextInvocations.contains(type) ||
+        _heldInvocations.containsKey(type)) {
+      throw StateError('A ${type.name} invocation is already held.');
+    }
+    _holdNextInvocations.add(type);
+  }
+
+  bool hasHeldInvocation(PictureInPictureInvocationType type) =>
+      _heldInvocations.containsKey(type);
+
+  void completeHeldInvocation(PictureInPictureInvocationType type) {
+    final completer = _heldInvocations.remove(type);
+    if (completer == null) {
+      throw StateError('No held ${type.name} invocation is available.');
+    }
+    completer.complete();
+  }
+
+  Future<void> _holdIfRequested(PictureInPictureInvocationType type) async {
+    if (!_holdNextInvocations.remove(type)) return;
+    final completer = Completer<void>();
+    _heldInvocations[type] = completer;
+    await completer.future;
   }
 
   void _throwIfRequested() {
