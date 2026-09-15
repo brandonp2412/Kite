@@ -71,7 +71,7 @@ class _DeviceVerificationScreenState extends State<DeviceVerificationScreen> {
                       ? const LinearProgressIndicator()
                       : null,
                 ),
-                _TrustSummary(trust: trust),
+                _TrustSummary(trust: trust, statusUnavailable: error != null),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(
                     KiteSpacing.md,
@@ -140,29 +140,36 @@ class _DeviceVerificationScreenState extends State<DeviceVerificationScreen> {
 }
 
 class _TrustSummary extends StatelessWidget {
-  const _TrustSummary({required this.trust});
+  const _TrustSummary({required this.trust, required this.statusUnavailable});
 
   final CrossSigningTrustState trust;
+  final bool statusUnavailable;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, title, detail) = switch (trust) {
-      CrossSigningTrustState.verified => (
-        Icons.verified_user_rounded,
-        'Device verified',
-        'Cross-signing reports this device as trusted.',
-      ),
-      CrossSigningTrustState.unverified => (
-        Icons.gpp_maybe_outlined,
-        'Verification required',
-        'Compare with another trusted Matrix device to continue securely.',
-      ),
-      CrossSigningTrustState.unknown => (
-        Icons.shield_outlined,
-        'Checking verification',
-        'Waiting for cross-signing trust state from the Matrix SDK.',
-      ),
-    };
+    final (icon, title, detail) = statusUnavailable
+        ? (
+            Icons.gpp_bad_outlined,
+            'Verification status unavailable',
+            'Kite could not confirm cross-signing trust. Verification remains required.',
+          )
+        : switch (trust) {
+            CrossSigningTrustState.verified => (
+              Icons.verified_user_rounded,
+              'Device verified',
+              'Cross-signing reports this device as trusted.',
+            ),
+            CrossSigningTrustState.unverified => (
+              Icons.gpp_maybe_outlined,
+              'Verification required',
+              'Compare with another trusted Matrix device to continue securely.',
+            ),
+            CrossSigningTrustState.unknown => (
+              Icons.shield_outlined,
+              'Checking verification',
+              'Waiting for cross-signing trust state from the Matrix SDK.',
+            ),
+          };
 
     return Container(
       key: const Key('verification-trust-summary'),

@@ -94,9 +94,10 @@ final class _RegistrationGateway implements AccountRegistrationGateway {
 }
 
 final class _VerificationGateway implements DeviceVerificationGateway {
-  _VerificationGateway(this.trust);
+  _VerificationGateway(this.trust, {this.trustFailure});
 
   CrossSigningTrustState trust;
+  Object? trustFailure;
 
   @override
   Future<void> cancelVerification(String transactionId) async {}
@@ -112,7 +113,10 @@ final class _VerificationGateway implements DeviceVerificationGateway {
   ) async => throw UnimplementedError();
 
   @override
-  Future<CrossSigningTrustState> loadCrossSigningTrust() async => trust;
+  Future<CrossSigningTrustState> loadCrossSigningTrust() async {
+    if (trustFailure case final error?) throw error;
+    return trust;
+  }
 
   @override
   Future<DeviceVerificationSession> startQrVerification() async =>
@@ -193,6 +197,50 @@ void main() {
     expect(find.text('Authenticated content'), findsNothing);
     expect(find.text('Verification required'), findsOneWidget);
   });
+
+  testWidgets(
+    'verification lookup failure stays fail-closed without an endless spinner',
+    (tester) async {
+      final lifecycle = SessionLifecycleController(_SessionGateway(_session()));
+      final verification = DeviceVerificationController(
+        _VerificationGateway(
+          CrossSigningTrustState.unknown,
+          trustFailure: StateError('access_token=secret'),
+        ),
+      );
+      addTearDown(lifecycle.dispose);
+      addTearDown(verification.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SessionGate(
+            lifecycleController: lifecycle,
+            authenticationGateway: _AuthenticationGateway(),
+            verificationController: verification,
+            authenticatedBuilder: (context) =>
+                const Scaffold(body: Text('Authenticated content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('verification-status-loading')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('mandatory-device-verification')),
+        findsOneWidget,
+      );
+      expect(find.text('Verification status unavailable'), findsOneWidget);
+      expect(
+        verification.errorMessage.value,
+        'Kite could not read device verification status.',
+      );
+      expect(verification.errorMessage.value, isNot(contains('secret')));
+      expect(find.text('Authenticated content'), findsNothing);
+    },
+  );
 
   testWidgets('registration completes through the signed-out session flow', (
     tester,

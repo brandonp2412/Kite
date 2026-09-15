@@ -83,6 +83,8 @@ class _SessionGateState extends State<SessionGate> {
         final verificationTrust =
             widget.verificationController.trustState.value;
         final verificationBusy = widget.verificationController.isBusy.value;
+        final verificationError =
+            widget.verificationController.errorMessage.value;
 
         if (lifecycleState is SessionRestoring) {
           return const _SessionProgress(
@@ -139,8 +141,9 @@ class _SessionGateState extends State<SessionGate> {
         }
 
         if (lifecycleState is SessionAuthenticated) {
-          if (verificationTrust == CrossSigningTrustState.unknown ||
-              verificationBusy) {
+          if (verificationBusy ||
+              (verificationTrust == CrossSigningTrustState.unknown &&
+                  verificationError == null)) {
             return const _SessionProgress(
               key: Key('verification-status-loading'),
               label: 'Checking device verification…',
