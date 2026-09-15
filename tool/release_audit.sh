@@ -15,6 +15,7 @@ reviewed_lock_sha="fe287dd286aa3c3d9acb6f2c389a0c5eeb1aca5d944345762b6594ae0f1ea
 
 printf '%s\n' 'Kite release audit: Android security surface'
 rg -q 'android:allowBackup="false"' "$main_manifest" || fail 'Android backups must be explicitly disabled for account/session data.'
+rg -q 'android:enableOnBackInvokedCallback="true"' "$main_manifest" || fail 'Android predictive-back callback support must remain enabled.'
 rg -q 'android:usesCleartextTraffic="false"' "$main_manifest" || fail 'Cleartext Android traffic must be explicitly disabled.'
 
 exported_count="$(rg -o 'android:exported="true"' "$main_manifest" | wc -l | tr -d ' ')"
