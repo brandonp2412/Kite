@@ -480,9 +480,13 @@ class _RoomList extends StatelessWidget {
               builder: (context) {
                 final room = store.roomSignal(roomId).value;
                 final selected = selectedRoomId.value == room.id;
+                final unreadThreadCount = threadController
+                    .unreadThreadCountForRoom(room.id)
+                    .value;
                 return _RoomListRow(
                   room: room,
                   selected: selected,
+                  unreadThreadCount: unreadThreadCount,
                   onTap: () {
                     final handler = onRoomTap;
                     if (handler != null) {
@@ -505,11 +509,13 @@ class _RoomListRow extends StatelessWidget {
   const _RoomListRow({
     required this.room,
     required this.selected,
+    required this.unreadThreadCount,
     required this.onTap,
   });
 
   final RoomListEntry room;
   final bool selected;
+  final int unreadThreadCount;
   final VoidCallback onTap;
 
   @override
@@ -535,6 +541,8 @@ class _RoomListRow extends StatelessWidget {
       if (room.hasActiveCall) 'Active call',
       if (room.isMuted) 'Muted',
       if (room.isFavourite) 'Favourite',
+      if (unreadThreadCount > 0)
+        '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
     ].join(', ');
 
     return Semantics(
@@ -641,7 +649,10 @@ class _RoomListRow extends StatelessWidget {
                   width: 52,
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: _RoomIndicators(room: room),
+                    child: _RoomIndicators(
+                      room: room,
+                      unreadThreadCount: unreadThreadCount,
+                    ),
                   ),
                 ),
               ],
@@ -654,9 +665,10 @@ class _RoomListRow extends StatelessWidget {
 }
 
 class _RoomIndicators extends StatelessWidget {
-  const _RoomIndicators({required this.room});
+  const _RoomIndicators({required this.room, required this.unreadThreadCount});
 
   final RoomListEntry room;
+  final int unreadThreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -665,8 +677,9 @@ class _RoomIndicators extends StatelessWidget {
         theme.extension<KiteSemanticColors>() ??
         KiteSemanticColors.forBrightness(theme.brightness, theme.colorScheme);
     final textTheme = theme.textTheme;
+    Widget primary;
     if (room.hasMention) {
-      return Container(
+      primary = Container(
         key: Key('room-mention-${room.id}'),
         constraints: const BoxConstraints(minWidth: 26, minHeight: 24),
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -686,9 +699,8 @@ class _RoomIndicators extends StatelessWidget {
           ),
         ),
       );
-    }
-    if (room.unreadCount > 0) {
-      return Container(
+    } else if (room.unreadCount > 0) {
+      primary = Container(
         key: Key('room-unread-${room.id}'),
         constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -708,9 +720,8 @@ class _RoomIndicators extends StatelessWidget {
           ),
         ),
       );
-    }
-    if (room.hasMutedActivity) {
-      return Container(
+    } else if (room.hasMutedActivity) {
+      primary = Container(
         key: Key('room-muted-activity-${room.id}'),
         width: 9,
         height: 9,
@@ -720,8 +731,37 @@ class _RoomIndicators extends StatelessWidget {
           shape: BoxShape.circle,
         ),
       );
+    } else {
+      primary = const SizedBox(width: 24, height: 24);
     }
-    return const SizedBox(width: 24, height: 24);
+
+    if (unreadThreadCount <= 0) return primary;
+    return SizedBox(
+      width: 52,
+      height: 24,
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: <Widget>[
+          primary,
+          Positioned(
+            left: 3,
+            child: Semantics(
+              label:
+                  '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
+              child: Container(
+                key: Key('room-thread-unread-${room.id}'),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: colors.unread,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

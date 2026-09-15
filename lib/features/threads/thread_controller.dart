@@ -125,6 +125,7 @@ class ThreadReply {
     required this.body,
     required this.mine,
     required this.timeLabel,
+    this.attachment,
     TimelineSendState sendState = TimelineSendState.sent,
   }) : sendState = signal(sendState);
 
@@ -133,6 +134,7 @@ class ThreadReply {
   final String body;
   final bool mine;
   final String timeLabel;
+  final TimelineAttachment? attachment;
   final Signal<TimelineSendState> sendState;
 }
 
@@ -211,6 +213,32 @@ class ThreadController {
       _latestReadReplyId.putIfAbsent(key, () => signal(replies.first.id));
       return signal(replies);
     });
+  }
+
+  void applyThreadSnapshot({
+    required String roomId,
+    required TimelineMessage parent,
+    required List<ThreadReply> replies,
+    required bool hasMore,
+    required int unreadCount,
+    String? latestReadReplyId,
+  }) {
+    if (unreadCount < 0 || unreadCount > replies.length) {
+      throw ArgumentError.value(
+        unreadCount,
+        'unreadCount',
+        'Unread reply count must be between zero and the reply count',
+      );
+    }
+    final key = _key(roomId, parent.id);
+    final snapshot = List<ThreadReply>.unmodifiable(replies);
+    _threads.putIfAbsent(key, () => signal(snapshot)).value = snapshot;
+    _hasMore.putIfAbsent(key, () => signal(hasMore)).value = hasMore;
+    _isLoadingOlder.putIfAbsent(key, () => signal(false)).value = false;
+    _unreadCount.putIfAbsent(key, () => signal(unreadCount)).value =
+        unreadCount;
+    _latestReadReplyId.putIfAbsent(key, () => signal(latestReadReplyId)).value =
+        latestReadReplyId;
   }
 
   Signal<bool> hasMoreFor({
