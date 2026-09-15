@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
@@ -8,16 +10,22 @@ final class _PrivacyGateway implements UserProfileGateway {
   Set<String> blocked = <String>{'@blocked:example.org'};
   Object? loadFailure;
   Object? updateFailure;
+  Completer<Set<String>>? deferredIgnored;
+  Completer<Set<String>>? deferredBlocked;
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async {
     if (loadFailure case final error?) throw error;
+    final deferred = deferredIgnored;
+    if (deferred != null) return deferred.future;
     return <String>{...ignored};
   }
 
   @override
   Future<Set<String>> loadBlockedUserIds() async {
     if (loadFailure case final error?) throw error;
+    final deferred = deferredBlocked;
+    if (deferred != null) return deferred.future;
     return <String>{...blocked};
   }
 
@@ -115,6 +123,59 @@ void main() {
       expect(find.textContaining('secret'), findsNothing);
     },
   );
+
+  testWidgets('privacy refresh shows progress and disables stale actions', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final gateway = _PrivacyGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+    await controller.refreshPrivacyControls();
+    gateway.deferredIgnored = Completer<Set<String>>();
+    gateway.deferredBlocked = Completer<Set<String>>();
+
+    await tester.pumpWidget(
+      MaterialApp(home: PrivacyUserControlsScreen(controller: controller)),
+    );
+    await tester.pump();
+
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const Key('unignore-user-@ignored:example.org')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const Key('unblock-user-@blocked:example.org')),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    gateway.deferredIgnored!.complete(<String>{...gateway.ignored});
+    gateway.deferredBlocked!.complete(<String>{...gateway.blocked});
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const Key('unignore-user-@ignored:example.org')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+  });
 
   testWidgets('invalid gateway IDs never replace known privacy state', (
     tester,
