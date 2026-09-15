@@ -13,6 +13,16 @@ final class KiteNotification {
   final KiteNotificationKind kind;
   final AppDestination destination;
 
+  String get routingId =>
+      routingIdFor(accountId: destination.accountId, notificationId: id);
+
+  static String routingIdFor({
+    required String accountId,
+    required String notificationId,
+  }) =>
+      '${accountId.length}:$accountId'
+      '${notificationId.length}:$notificationId';
+
   bool get clearsWhenRead => switch (kind) {
     KiteNotificationKind.message ||
     KiteNotificationKind.mention ||
@@ -157,8 +167,8 @@ final class NotificationCoordinator {
   final AccountActivationPort _accounts;
   final AppNavigationPort _navigation;
 
-  Future<bool> tap(String notificationId) async {
-    final notification = _notifications.notification(notificationId);
+  Future<bool> tap(String routingId) async {
+    final notification = _notifications.notification(routingId);
     if (notification == null) return false;
 
     final destination = notification.destination;
@@ -180,7 +190,7 @@ final class NotificationCoordinator {
               notification.clearsWhenRead &&
               notification.destination.roomId == roomId,
         )
-        .map((notification) => notification.id)
+        .map((notification) => notification.routingId)
         .toList(growable: false);
 
     return _cancelAndRemove(idsToRemove);
@@ -201,7 +211,7 @@ final class NotificationCoordinator {
               notification.destination.eventId != null &&
               readEventIds.contains(notification.destination.eventId),
         )
-        .map((notification) => notification.id)
+        .map((notification) => notification.routingId)
         .toList(growable: false);
 
     return _cancelAndRemove(idsToRemove);

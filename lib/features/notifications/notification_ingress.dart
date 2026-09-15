@@ -8,6 +8,7 @@ enum NotificationIngressFailure {
   missingKind,
   unsupportedKind,
   missingAccountId,
+  invalidAccountId,
   missingRoomId,
   invalidRoomId,
   missingEventId,
@@ -45,14 +46,14 @@ final class NotificationIngressParser {
     required NotificationIngressTransport transport,
     required Map<String, String?> data,
   }) {
-    final notificationId = _value(data, 'notification_id');
+    final notificationId = _trimmedValue(data, 'notification_id');
     if (notificationId == null) {
       return NotificationIngressResult.rejected(
         transport: transport,
         failure: NotificationIngressFailure.missingNotificationId,
       );
     }
-    final rawKind = _value(data, 'kind');
+    final rawKind = _trimmedValue(data, 'kind');
     if (rawKind == null) {
       return NotificationIngressResult.rejected(
         transport: transport,
@@ -73,14 +74,20 @@ final class NotificationIngressParser {
         failure: NotificationIngressFailure.unsupportedKind,
       );
     }
-    final accountId = _value(data, 'account_id');
+    final accountId = _exactValue(data, 'account_id');
     if (accountId == null) {
       return NotificationIngressResult.rejected(
         transport: transport,
         failure: NotificationIngressFailure.missingAccountId,
       );
     }
-    final roomId = _value(data, 'room_id');
+    if (!_isExactOpaqueTargetId(accountId)) {
+      return NotificationIngressResult.rejected(
+        transport: transport,
+        failure: NotificationIngressFailure.invalidAccountId,
+      );
+    }
+    final roomId = _exactValue(data, 'room_id');
     if (roomId == null) {
       return NotificationIngressResult.rejected(
         transport: transport,
@@ -95,9 +102,9 @@ final class NotificationIngressParser {
       );
     }
 
-    final eventId = _value(data, 'event_id');
-    final threadRootEventId = _value(data, 'thread_root_event_id');
-    final callId = _value(data, 'call_id');
+    final eventId = _exactValue(data, 'event_id');
+    final threadRootEventId = _exactValue(data, 'thread_root_event_id');
+    final callId = _exactValue(data, 'call_id');
     final destination = switch (kind) {
       KiteNotificationKind.message || KiteNotificationKind.mention =>
         eventId == null
@@ -190,8 +197,13 @@ final class NotificationIngressParser {
     );
   }
 
-  static String? _value(Map<String, String?> data, String key) {
+  static String? _trimmedValue(Map<String, String?> data, String key) {
     final value = data[key]?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  static String? _exactValue(Map<String, String?> data, String key) {
+    final value = data[key];
     return value == null || value.isEmpty ? null : value;
   }
 
@@ -208,6 +220,9 @@ final class NotificationIngressParser {
 
   static bool _isOpaqueTargetId(String value) =>
       value.isNotEmpty && !value.contains(RegExp(r'\s'));
+
+  static bool _isExactOpaqueTargetId(String value) =>
+      value == value.trim() && _isOpaqueTargetId(value);
 }
 
 abstract interface class NotificationIngressAccountPort {

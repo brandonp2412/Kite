@@ -100,16 +100,16 @@ void main() {
   });
 
   test(
-    'parser trims transport metadata but never rewrites target identity',
+    'parser trims transport metadata but preserves exact routing identity',
     () {
       final result = parser.parse(
         transport: NotificationIngressTransport.fcm,
         data: <String, String?>{
           'notification_id': ' push-1 ',
           'kind': ' message ',
-          'account_id': ' work ',
-          'room_id': ' !room:example.org ',
-          'event_id': r' $event ',
+          'account_id': 'work',
+          'room_id': '!room:example.org',
+          'event_id': r'$event',
         },
       );
 
@@ -125,6 +125,30 @@ void main() {
       );
     },
   );
+
+  test('routing identifiers with altered whitespace are rejected', () {
+    NotificationIngressFailure? failureFor(Map<String, String?> payload) =>
+        parser
+            .parse(transport: NotificationIngressTransport.fcm, data: payload)
+            .failure;
+
+    expect(
+      failureFor(base('invite')..['account_id'] = ' work '),
+      NotificationIngressFailure.invalidAccountId,
+    );
+    expect(
+      failureFor(base('invite')..['room_id'] = ' !room:example.org '),
+      NotificationIngressFailure.invalidRoomId,
+    );
+    expect(
+      failureFor(base('message')..['event_id'] = r' $event '),
+      NotificationIngressFailure.invalidEventId,
+    );
+    expect(
+      failureFor(base('call')..['call_id'] = ' call-1 '),
+      NotificationIngressFailure.invalidCallId,
+    );
+  });
 
   test('missing required routing metadata is rejected deterministically', () {
     NotificationIngressFailure? failureFor(Map<String, String?> payload) =>

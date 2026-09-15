@@ -5,6 +5,12 @@ import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 void main() {
+  String routingId(String notificationId, {String accountId = 'work'}) =>
+      KiteNotification.routingIdFor(
+        accountId: accountId,
+        notificationId: notificationId,
+      );
+
   group('notification routing', () {
     test(
       'tap activates the owning account and opens exact call destination',
@@ -30,7 +36,7 @@ void main() {
           navigation: navigation,
         );
 
-        expect(await coordinator.tap('notification-1'), isTrue);
+        expect(await coordinator.tap(routingId('notification-1')), isTrue);
         expect(accounts.activeAccountId, 'work');
         expect(accounts.activations, <String>['work']);
         expect(navigation.opened, <AppDestination>[destination]);
@@ -79,11 +85,53 @@ void main() {
         navigation: navigation,
       );
 
-      expect(await coordinator.tap('room'), isTrue);
-      expect(await coordinator.tap('event'), isTrue);
-      expect(await coordinator.tap('thread'), isTrue);
+      expect(await coordinator.tap(routingId('room')), isTrue);
+      expect(await coordinator.tap(routingId('event')), isTrue);
+      expect(await coordinator.tap(routingId('thread')), isTrue);
       expect(accounts.activations, isEmpty);
       expect(navigation.opened, <AppDestination>[room, event, thread]);
+    });
+
+    test('same source notification id remains isolated per account', () async {
+      const workDestination = AppDestination.room(
+        accountId: 'work',
+        roomId: '!work:example.org',
+      );
+      const personalDestination = AppDestination.room(
+        accountId: 'personal',
+        roomId: '!personal:example.org',
+      );
+      final notifications = FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'shared-id',
+          kind: KiteNotificationKind.invite,
+          destination: workDestination,
+        ),
+        const KiteNotification(
+          id: 'shared-id',
+          kind: KiteNotificationKind.invite,
+          destination: personalDestination,
+        ),
+      ]);
+      final accounts = FakeAccountActivationPort('personal');
+      final navigation = FakeAppNavigationPort();
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
+        accounts: accounts,
+        navigation: navigation,
+      );
+
+      expect(await coordinator.tap(routingId('shared-id')), isTrue);
+      expect(
+        await coordinator.tap(routingId('shared-id', accountId: 'personal')),
+        isTrue,
+      );
+      expect(accounts.activations, <String>['work', 'personal']);
+      expect(navigation.opened, <AppDestination>[
+        workDestination,
+        personalDestination,
+      ]);
     });
 
     test('unknown notification is ignored without navigation', () async {
@@ -352,18 +400,23 @@ void main() {
           3,
         );
         expect(cancellations.cancelledIds, <String>[
-          'message',
-          'mention',
-          'thread',
+          routingId('message'),
+          routingId('mention'),
+          routingId('thread'),
         ]);
         expect(notifications.removedIds, <String>[
-          'message',
-          'mention',
-          'thread',
+          routingId('message'),
+          routingId('mention'),
+          routingId('thread'),
         ]);
-        expect(notifications.notification('invite'), isNotNull);
-        expect(notifications.notification('call'), isNotNull);
-        expect(notifications.notification('other-account'), isNotNull);
+        expect(notifications.notification(routingId('invite')), isNotNull);
+        expect(notifications.notification(routingId('call')), isNotNull);
+        expect(
+          notifications.notification(
+            routingId('other-account', accountId: 'personal'),
+          ),
+          isNotNull,
+        );
       },
     );
 
@@ -414,10 +467,15 @@ void main() {
           ),
           1,
         );
-        expect(cancellations.cancelledIds, <String>['read']);
-        expect(notifications.notification('read'), isNull);
-        expect(notifications.notification('unread'), isNotNull);
-        expect(notifications.notification('other-account'), isNotNull);
+        expect(cancellations.cancelledIds, <String>[routingId('read')]);
+        expect(notifications.notification(routingId('read')), isNull);
+        expect(notifications.notification(routingId('unread')), isNotNull);
+        expect(
+          notifications.notification(
+            routingId('other-account', accountId: 'personal'),
+          ),
+          isNotNull,
+        );
       },
     );
   });

@@ -136,8 +136,9 @@ void main() {
       );
       final groupKey = notification(id: 'one').groupKey;
 
-      expect(await coordinator.cancel('one'), isTrue);
-      expect(delivery.cancelledIds, <String>['one']);
+      final oneRoutingId = notification(id: 'one').routingId;
+      expect(await coordinator.cancel(oneRoutingId), isTrue);
+      expect(delivery.cancelledIds, <String>[oneRoutingId]);
       expect(delivery.cancelledSummaryGroupKeys, <String>[groupKey]);
       expect(coordinator.activePresentations, hasLength(1));
 

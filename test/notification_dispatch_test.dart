@@ -6,6 +6,12 @@ import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 void main() {
+  String routingId(String notificationId, {String accountId = 'work'}) =>
+      KiteNotification.routingIdFor(
+        accountId: accountId,
+        notificationId: notificationId,
+      );
+
   test(
     'dispatch maps message, mention, invite, thread, and call to exact targets',
     () async {
@@ -72,7 +78,7 @@ void main() {
       }
 
       expect(
-        repository.notification('message')!.destination,
+        repository.notification(routingId('message'))!.destination,
         const AppDestination.event(
           accountId: 'work',
           roomId: '!team:example.org',
@@ -80,18 +86,18 @@ void main() {
         ),
       );
       expect(
-        repository.notification('mention')!.kind,
+        repository.notification(routingId('mention'))!.kind,
         KiteNotificationKind.mention,
       );
       expect(
-        repository.notification('invite')!.destination,
+        repository.notification(routingId('invite'))!.destination,
         const AppDestination.room(
           accountId: 'work',
           roomId: '!invite:example.org',
         ),
       );
       expect(
-        repository.notification('thread')!.destination,
+        repository.notification(routingId('thread'))!.destination,
         const AppDestination.thread(
           accountId: 'work',
           roomId: '!team:example.org',
@@ -100,7 +106,9 @@ void main() {
         ),
       );
       expect(
-        repository.notification('call')!.destination,
+        repository
+            .notification(routingId('call', accountId: 'personal'))!
+            .destination,
         const AppDestination.call(
           accountId: 'personal',
           roomId: '!calls:example.org',
@@ -156,7 +164,7 @@ void main() {
 
       expect(result, isNull);
       expect(policy.evaluatedIds, <String>['muted-message']);
-      expect(repository.notification('muted-message'), isNull);
+      expect(repository.notification(routingId('muted-message')), isNull);
       expect(platform.shown, isEmpty);
 
       await expectLater(
@@ -202,7 +210,7 @@ void main() {
       ),
       throwsArgumentError,
     );
-    expect(repository.notification('bad-thread'), isNull);
+    expect(repository.notification(routingId('bad-thread')), isNull);
 
     await expectLater(
       dispatcher.dispatch(
@@ -217,7 +225,7 @@ void main() {
       ),
       throwsArgumentError,
     );
-    expect(repository.notification('bad-call'), isNull);
+    expect(repository.notification(routingId('bad-call')), isNull);
 
     for (final invalid in <MatrixNotificationEvent>[
       const MatrixNotificationEvent(
@@ -249,7 +257,7 @@ void main() {
       ),
     ]) {
       await expectLater(dispatcher.dispatch(invalid), throwsArgumentError);
-      expect(repository.notification(invalid.id), isNull);
+      expect(repository.notification(routingId(invalid.id)), isNull);
     }
     expect(platform.shown, isEmpty);
 
@@ -268,6 +276,6 @@ void main() {
       ),
       throwsStateError,
     );
-    expect(repository.notification('failed'), isNull);
+    expect(repository.notification(routingId('failed')), isNull);
   });
 }
