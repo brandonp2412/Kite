@@ -125,19 +125,28 @@ void main() {
       ),
     );
 
+    expect(find.text('Security action recommended'), findsOneWidget);
+    expect(
+      find.text(
+        'Verify untrusted sessions and review encrypted-backup recovery.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Verification required'), findsOneWidget);
     expect(find.text('Recovery needs attention'), findsOneWidget);
     expect(find.text('2 devices · 1 unverified'), findsOneWidget);
     expect(find.text('Enabled'), findsOneWidget);
 
+    await tester.tap(find.byKey(const Key('security-review-verification')));
+    await tester.tap(find.byKey(const Key('security-review-recovery')));
     await tester.tap(find.byKey(const Key('privacy-security-verification')));
     await tester.tap(find.byKey(const Key('privacy-security-recovery')));
     await tester.tap(find.byKey(const Key('privacy-security-sessions')));
     await tester.tap(find.byKey(const Key('privacy-security-user-controls')));
     await tester.tap(find.byKey(const Key('privacy-security-app-lock')));
 
-    expect(verificationOpens, 1);
-    expect(recoveryOpens, 1);
+    expect(verificationOpens, 2);
+    expect(recoveryOpens, 2);
     expect(sessionOpens, 1);
     expect(userControlsOpens, 1);
     expect(appLockOpens, 1);

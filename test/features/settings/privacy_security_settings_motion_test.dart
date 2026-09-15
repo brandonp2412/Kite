@@ -116,15 +116,18 @@ void main() {
 
       final list = find.byKey(const Key('privacy-security-list'));
       final loading = find.byKey(const Key('privacy-security-loading-slot'));
+      final alert = find.byKey(const Key('privacy-security-alert-slot'));
       final status = find.byKey(const Key('privacy-security-status-slot'));
       final initialList = _rectOf(tester, list);
       final initialLoading = _rectOf(tester, loading);
+      final initialAlert = _rectOf(tester, alert);
       final initialStatus = _rectOf(tester, status);
 
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
         expect(_rectOf(tester, list), initialList);
         expect(_rectOf(tester, loading), initialLoading);
+        expect(_rectOf(tester, alert), initialAlert);
         expect(_rectOf(tester, status), initialStatus);
         expect(tester.takeException(), isNull);
       }
@@ -141,6 +144,7 @@ void main() {
       await tester.pump();
 
       expect(_rectOf(tester, loading), initialLoading);
+      expect(_rectOf(tester, alert), initialAlert);
       expect(_rectOf(tester, status), initialStatus);
     },
   );
