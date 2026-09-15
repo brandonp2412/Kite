@@ -27,9 +27,13 @@ final class _FakeAccountGateway implements AccountManagementGateway {
 final class _FakeSessionGateway implements SessionDeviceGateway {
   List<SessionDevice> loaded = const <SessionDevice>[];
   final signedOut = <String>[];
+  int loadCalls = 0;
 
   @override
-  Future<List<SessionDevice>> loadDevices() async => loaded;
+  Future<List<SessionDevice>> loadDevices() async {
+    loadCalls += 1;
+    return loaded;
+  }
 
   @override
   Future<void> signOutDevice(String deviceId) async {
@@ -66,6 +70,13 @@ const _remoteDevice = SessionDevice(
   displayName: 'Phone',
   isCurrent: false,
   verification: SessionDeviceVerification.unverified,
+);
+
+const _personalCurrentDevice = SessionDevice(
+  deviceId: 'PERSONAL_CURRENT',
+  displayName: 'Personal phone',
+  isCurrent: true,
+  verification: SessionDeviceVerification.verified,
 );
 
 Widget _app({
@@ -133,12 +144,17 @@ void main() {
       expect(find.textContaining('CURRENT · Verified'), findsOneWidget);
       expect(find.textContaining('PHONE · Unverified'), findsOneWidget);
 
+      sessionGateway.loaded = const <SessionDevice>[_personalCurrentDevice];
       await tester.tap(find.byKey(const Key('activate-account-personal')));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(accountGateway.activated, <String>['personal']);
       expect(accounts.activeAccount?.accountId, 'personal');
       expect(activatedAccount?.accountId, 'personal');
+      expect(sessionGateway.loadCalls, 2);
+      expect(find.byKey(const Key('device-CURRENT')), findsNothing);
+      expect(find.byKey(const Key('device-PHONE')), findsNothing);
+      expect(find.byKey(const Key('device-PERSONAL_CURRENT')), findsOneWidget);
     },
   );
 

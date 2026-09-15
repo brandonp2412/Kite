@@ -59,6 +59,29 @@ void main() {
     },
   );
 
+  test('account change reset removes previous account device state', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.devices.value, isEmpty);
+    expect(controller.currentDevice, isNull);
+
+    gateway.loaded = const <SessionDevice>[
+      SessionDevice(
+        deviceId: 'PERSONAL',
+        isCurrent: true,
+        verification: SessionDeviceVerification.verified,
+      ),
+    ];
+    await controller.load();
+
+    expect(controller.currentDevice?.deviceId, 'PERSONAL');
+  });
+
   test(
     'remote sign-out removes only the device after gateway success',
     () async {
@@ -93,6 +116,8 @@ void main() {
 
     gateway.loaded = const <SessionDevice>[_current, _remote];
     await controller.load();
+    expect(controller.devices.value, hasLength(2));
+    expect(controller.resetForAccountChange(), isFalse);
     expect(controller.devices.value, hasLength(2));
     expect(await controller.signOutRemoteDevice('REMOTE'), isFalse);
     expect(gateway.signedOutDeviceIds, <String>['REMOTE']);

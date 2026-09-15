@@ -60,6 +60,13 @@ final class SessionDeviceController {
     }
   }
 
+  bool resetForAccountChange() {
+    if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return false;
+    devices.value = const <SessionDevice>[];
+    errorMessage.value = null;
+    return true;
+  }
+
   Future<bool> signOutRemoteDevice(String deviceId) async {
     if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return false;
     final device = _findDevice(deviceId);
