@@ -31,8 +31,12 @@ final class MatrixSessionRuntime
       return false;
     }
 
-    await accounts.activateCached(snapshot.accountId);
-    navigationTarget.value = snapshot.navigationTarget;
+    await accounts.activateCached(
+      snapshot.accountId,
+      onActivated: () {
+        navigationTarget.value = snapshot.navigationTarget;
+      },
+    );
     return true;
   }
 
@@ -70,9 +74,27 @@ final class MatrixSessionRuntime
     String accountId, {
     MatrixNavigationTarget target = const MatrixNavigationTarget.home(),
   }) async {
-    final cache = await accounts.activate(accountId);
-    await _recordNavigation(target);
-    return cache;
+    final previousAccountId = accounts.activeAccountId.value;
+    final previousTarget = navigationTarget.value;
+    try {
+      return await accounts.activate(
+        accountId,
+        onActivated: () => _recordNavigation(target),
+      );
+    } catch (error, stackTrace) {
+      navigationTarget.value = previousTarget;
+      try {
+        if (previousAccountId == null) {
+          await restoration.clear();
+        } else {
+          await restoration.record(
+            accountId: previousAccountId,
+            navigationTarget: previousTarget,
+          );
+        }
+      } catch (_) {}
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> navigate(MatrixNavigationTarget target) async {

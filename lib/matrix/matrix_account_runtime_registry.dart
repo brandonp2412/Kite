@@ -72,19 +72,33 @@ final class MatrixAccountRuntimeRegistry {
     );
   }
 
-  Future<MatrixPresentationCache> activate(String accountId) {
+  Future<MatrixPresentationCache> activate(
+    String accountId, {
+    FutureOr<void> Function()? onActivated,
+  }) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
     return _enqueue<MatrixPresentationCache>(
-      () => _activate(normalizedAccountId, startSync: true),
+      () => _activate(
+        normalizedAccountId,
+        startSync: true,
+        onActivated: onActivated,
+      ),
     );
   }
 
-  Future<MatrixPresentationCache> activateCached(String accountId) {
+  Future<MatrixPresentationCache> activateCached(
+    String accountId, {
+    FutureOr<void> Function()? onActivated,
+  }) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
     return _enqueue<MatrixPresentationCache>(
-      () => _activate(normalizedAccountId, startSync: false),
+      () => _activate(
+        normalizedAccountId,
+        startSync: false,
+        onActivated: onActivated,
+      ),
     );
   }
 
@@ -184,6 +198,7 @@ final class MatrixAccountRuntimeRegistry {
   Future<MatrixPresentationCache> _activate(
     String accountId, {
     required bool startSync,
+    FutureOr<void> Function()? onActivated,
   }) async {
     final currentId = activeAccountId.value;
     final current = currentId == null ? null : _runtimes[currentId];
@@ -191,6 +206,7 @@ final class MatrixAccountRuntimeRegistry {
     await _ensureHydrated(accountId, next);
 
     if (identical(current, next)) {
+      await onActivated?.call();
       if (startSync) {
         await next.runtime.start();
       }
@@ -202,10 +218,11 @@ final class MatrixAccountRuntimeRegistry {
     }
 
     activeAccountId.value = accountId;
-    if (!startSync) return next.cache;
-
     try {
-      await next.runtime.start();
+      await onActivated?.call();
+      if (startSync) {
+        await next.runtime.start();
+      }
     } catch (_) {
       activeAccountId.value = currentId;
       if (current != null) {
