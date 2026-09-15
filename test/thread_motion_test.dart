@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
@@ -474,6 +475,128 @@ void main() {
     expect(find.byKey(const Key('thread-summary-alice-98')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+  testWidgets(
+    'retargeting a mounted thread keeps focus and composer state scoped',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+          pageSize: 24,
+        ),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      final firstParent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+      final secondParent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-81');
+
+      Widget threadFor(TimelineMessage parent, String focusedReplyId) {
+        return MaterialApp(
+          theme: KiteTheme.light,
+          home: ThreadView(
+            key: const ValueKey<String>('retargeted-thread-view'),
+            roomId: 'alice',
+            parent: parent,
+            focusedReplyId: focusedReplyId,
+          ),
+        );
+      }
+
+      await tester.pumpWidget(threadFor(firstParent, 'alice-98-thread-0'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsOneWidget,
+      );
+
+      final panel = find.byKey(const Key('thread-panel'));
+      final composer = find.byKey(const Key('thread-composer'));
+      final list = find.byKey(const Key('thread-reply-list'));
+      final panelRect = _rectOf(tester, panel);
+      final composerRect = _rectOf(tester, composer);
+      final listRect = _rectOf(tester, list);
+
+      await tester.enterText(
+        find.byKey(const Key('thread-composer-field')),
+        'draft for the first thread',
+      );
+      await tester.pump();
+      await tester.pumpWidget(threadFor(firstParent, 'alice-98-thread-2'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        findsOneWidget,
+      );
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: firstParent)
+            .value,
+        'alice-98-thread-2',
+      );
+      expect(_rectOf(tester, panel), panelRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(_rectOf(tester, list), listRect);
+
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, panel), panelRect);
+        expect(_rectOf(tester, composer), composerRect);
+        expect(_rectOf(tester, list), listRect);
+        expect(tester.takeException(), isNull);
+      }
+
+      await tester.pumpWidget(threadFor(secondParent, 'alice-81-thread-1'));
+      await tester.pumpAndSettle();
+
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: firstParent)
+            .value,
+        isNull,
+      );
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: secondParent)
+            .value,
+        'alice-81-thread-1',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('thread-composer-field')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(
+        find.byKey(const Key('thread-focused-alice-81-thread-1')),
+        findsOneWidget,
+      );
+      expect(_rectOf(tester, panel), panelRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(_rectOf(tester, list), listRect);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'focused thread destination stays scoped and geometry-stable at 120 Hz',
     (tester) async {

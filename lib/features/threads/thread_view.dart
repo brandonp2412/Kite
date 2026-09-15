@@ -110,6 +110,49 @@ class _ThreadViewState extends State<ThreadView> {
   }
 
   @override
+  void didUpdateWidget(ThreadView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final threadChanged =
+        oldWidget.roomId != widget.roomId ||
+        oldWidget.parent.id != widget.parent.id;
+    final focusChanged = oldWidget.focusedReplyId != widget.focusedReplyId;
+    if (!threadChanged && !focusChanged) return;
+
+    final previousFocus = oldWidget.focusedReplyId;
+    if (previousFocus != null) {
+      threadController.clearFocus(
+        roomId: oldWidget.roomId,
+        parent: oldWidget.parent,
+        onlyIfReplyId: previousFocus,
+      );
+    }
+
+    if (threadChanged) {
+      _composerController.clear();
+      _pendingAttachment.value = null;
+      _replyKeys.clear();
+      _initialUnreadBoundaryReplyId = _captureUnreadBoundaryReplyId();
+    }
+
+    final focusedReplyId = widget.focusedReplyId;
+    if (focusedReplyId != null) {
+      threadController.focusReply(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        replyId: focusedReplyId,
+      );
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (threadChanged) {
+        threadController.markRead(roomId: widget.roomId, parent: widget.parent);
+      }
+      _revealFocusedReply();
+    });
+  }
+
+  @override
   void dispose() {
     final focusedReplyId = widget.focusedReplyId;
     if (focusedReplyId != null) {

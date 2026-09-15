@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
@@ -451,6 +452,69 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets(
+    'retargeting a mounted thread focus stays within the frame contract',
+    (tester) async {
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+        ),
+      );
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+
+      Widget threadFor(String focusedReplyId) {
+        return MaterialApp(
+          theme: KiteTheme.dark,
+          home: ThreadView(
+            key: const ValueKey<String>('retargeted-thread-view'),
+            roomId: 'alice',
+            parent: parent,
+            focusedReplyId: focusedReplyId,
+          ),
+        );
+      }
+
+      await tester.pumpWidget(threadFor('alice-98-thread-0'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsOneWidget,
+      );
+
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          await tester.pumpWidget(threadFor('alice-98-thread-2'));
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: virtualizedBenchmark
+            ? PerformanceContract.gateVirtualizedTotalSpan
+            : PerformanceContract.gatePhysicalTotalSpan,
+      );
+
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        findsOneWidget,
+      );
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['thread_focus_retarget'] = <String, dynamic>{
+        'journey': 'retarget_thread_focus',
+        'fixture': 'deterministic_thread_v1',
+        'iterations': 1,
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
 
   testWidgets(
     'opening a focused thread destination stays within the frame contract',
