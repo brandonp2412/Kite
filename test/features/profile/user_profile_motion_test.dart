@@ -8,6 +8,7 @@ import 'package:kite/features/profile/user_profile_screen.dart';
 
 final class _DeferredProfileGateway implements UserProfileGateway {
   final ignoreWrite = Completer<void>();
+  Completer<MatrixUserProfile>? ownProfileLoad;
 
   @override
   Future<Set<String>> loadBlockedUserIds() async => const <String>{};
@@ -16,8 +17,11 @@ final class _DeferredProfileGateway implements UserProfileGateway {
   Future<Set<String>> loadIgnoredUserIds() async => const <String>{};
 
   @override
-  Future<MatrixUserProfile> loadOwnProfile() async =>
-      const MatrixUserProfile(userId: '@brandon:example.org');
+  Future<MatrixUserProfile> loadOwnProfile() async {
+    final deferred = ownProfileLoad;
+    if (deferred != null) return deferred.future;
+    return const MatrixUserProfile(userId: '@brandon:example.org');
+  }
 
   @override
   Future<MatrixUserProfile> loadProfile(String userId) async =>
@@ -54,6 +58,58 @@ Rect _rectOf(WidgetTester tester, Finder finder) {
 }
 
 void main() {
+  testWidgets('profile load reserves final geometry at 120 Hz', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final gateway = _DeferredProfileGateway()
+      ..ownProfileLoad = Completer<MatrixUserProfile>();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserProfileScreen.own(
+          controller: controller,
+          pickAvatar: () async => null,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final content = find.byKey(const Key('profile-content-slot'));
+    final status = find.byKey(const Key('profile-status-slot'));
+    final initialContent = _rectOf(tester, content);
+    final initialStatus = _rectOf(tester, status);
+    expect(find.text('Loading profile…'), findsOneWidget);
+
+    gateway.ownProfileLoad!.complete(
+      MatrixUserProfile(
+        userId: '@brandon:example.org',
+        displayName: 'Brandon',
+        avatarUri: Uri.parse('mxc://example.org/avatar'),
+      ),
+    );
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, content), initialContent);
+      expect(_rectOf(tester, status), initialStatus);
+      expect(tester.takeException(), isNull);
+    }
+
+    await tester.pumpAndSettle();
+    expect(find.text('Brandon'), findsWidgets);
+    expect(find.byKey(const Key('remove-profile-avatar')), findsOneWidget);
+    expect(_rectOf(tester, content), initialContent);
+    expect(_rectOf(tester, status), initialStatus);
+  });
+
   testWidgets('display-name editor keeps profile geometry stable at 120 Hz', (
     tester,
   ) async {

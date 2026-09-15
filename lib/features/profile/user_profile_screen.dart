@@ -154,47 +154,33 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   child: loading ? const LinearProgressIndicator() : null,
                 ),
                 if (profile == null)
-                  SizedBox(
-                    key: const Key('profile-empty-state'),
-                    height: 260,
-                    child: Center(
-                      child: Text(
-                        loading ? 'Loading profile…' : 'Profile unavailable',
-                        style: KiteTypography.body,
-                      ),
-                    ),
+                  _ProfilePlaceholder(
+                    isOwnProfile: widget.isOwnProfile,
+                    canChangeAvatar: widget.pickAvatar != null,
+                    loading: loading,
                   )
-                else ...<Widget>[
-                  _ProfileHeader(
+                else
+                  _ProfileContent(
                     profile: profile,
+                    isOwnProfile: widget.isOwnProfile,
+                    busy: busy,
+                    canChangeAvatar: widget.pickAvatar != null,
                     imageProvider: widget.avatarImageProvider?.call(
                       profile.avatarUri,
                     ),
+                    ignored: widget.controller.isIgnored(profile.userId),
+                    blocked: widget.controller.isBlocked(profile.userId),
+                    onEditDisplayName: () => _editDisplayName(profile),
+                    onChangeAvatar: _changeAvatar,
+                    onRemoveAvatar: profile.avatarUri == null
+                        ? null
+                        : () => widget.controller.updateAvatar(null),
+                    onMessage: () => _openDirectMessage(profile),
+                    onIgnoredChanged: (value) =>
+                        widget.controller.setIgnored(profile.userId, value),
+                    onBlockedChanged: (value) =>
+                        widget.controller.setBlocked(profile.userId, value),
                   ),
-                  if (widget.isOwnProfile)
-                    _OwnProfileActions(
-                      profile: profile,
-                      busy: busy,
-                      canChangeAvatar: widget.pickAvatar != null,
-                      onEditDisplayName: () => _editDisplayName(profile),
-                      onChangeAvatar: _changeAvatar,
-                      onRemoveAvatar: profile.avatarUri == null
-                          ? null
-                          : () => widget.controller.updateAvatar(null),
-                    )
-                  else
-                    _OtherProfileActions(
-                      profile: profile,
-                      busy: busy,
-                      ignored: widget.controller.isIgnored(profile.userId),
-                      blocked: widget.controller.isBlocked(profile.userId),
-                      onMessage: () => _openDirectMessage(profile),
-                      onIgnoredChanged: (value) =>
-                          widget.controller.setIgnored(profile.userId, value),
-                      onBlockedChanged: (value) =>
-                          widget.controller.setBlocked(profile.userId, value),
-                    ),
-                ],
                 SizedBox(
                   key: const Key('profile-status-slot'),
                   height: 64,
@@ -224,6 +210,129 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _ProfilePlaceholder extends StatelessWidget {
+  const _ProfilePlaceholder({
+    required this.isOwnProfile,
+    required this.canChangeAvatar,
+    required this.loading,
+  });
+
+  final bool isOwnProfile;
+  final bool canChangeAvatar;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    const placeholderProfile = MatrixUserProfile(
+      userId: '@loading:example.org',
+      displayName: 'Loading profile',
+      avatarUri: null,
+    );
+    return Stack(
+      key: const Key('profile-content-slot'),
+      children: <Widget>[
+        Visibility(
+          visible: false,
+          maintainAnimation: true,
+          maintainSize: true,
+          maintainState: true,
+          child: _ProfileContent(
+            profile: placeholderProfile,
+            isOwnProfile: isOwnProfile,
+            busy: true,
+            canChangeAvatar: canChangeAvatar,
+            imageProvider: null,
+            ignored: false,
+            blocked: false,
+            onEditDisplayName: _noop,
+            onChangeAvatar: _noop,
+            onRemoveAvatar: null,
+            onMessage: _noop,
+            onIgnoredChanged: _noopBool,
+            onBlockedChanged: _noopBool,
+            keyed: false,
+          ),
+        ),
+        Positioned.fill(
+          child: Center(
+            child: Text(
+              loading ? 'Loading profile…' : 'Profile unavailable',
+              key: const Key('profile-empty-state'),
+              style: KiteTypography.body,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static void _noop() {}
+  static void _noopBool(bool _) {}
+}
+
+class _ProfileContent extends StatelessWidget {
+  const _ProfileContent({
+    required this.profile,
+    required this.isOwnProfile,
+    required this.busy,
+    required this.canChangeAvatar,
+    required this.imageProvider,
+    required this.ignored,
+    required this.blocked,
+    required this.onEditDisplayName,
+    required this.onChangeAvatar,
+    required this.onRemoveAvatar,
+    required this.onMessage,
+    required this.onIgnoredChanged,
+    required this.onBlockedChanged,
+    this.keyed = true,
+  });
+
+  final MatrixUserProfile profile;
+  final bool isOwnProfile;
+  final bool busy;
+  final bool canChangeAvatar;
+  final ImageProvider<Object>? imageProvider;
+  final bool ignored;
+  final bool blocked;
+  final VoidCallback onEditDisplayName;
+  final VoidCallback onChangeAvatar;
+  final VoidCallback? onRemoveAvatar;
+  final VoidCallback onMessage;
+  final ValueChanged<bool> onIgnoredChanged;
+  final ValueChanged<bool> onBlockedChanged;
+  final bool keyed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: keyed ? const Key('profile-content-slot') : null,
+      children: <Widget>[
+        _ProfileHeader(profile: profile, imageProvider: imageProvider),
+        if (isOwnProfile)
+          _OwnProfileActions(
+            profile: profile,
+            busy: busy,
+            canChangeAvatar: canChangeAvatar,
+            onEditDisplayName: onEditDisplayName,
+            onChangeAvatar: onChangeAvatar,
+            onRemoveAvatar: onRemoveAvatar,
+          )
+        else
+          _OtherProfileActions(
+            profile: profile,
+            busy: busy,
+            ignored: ignored,
+            blocked: blocked,
+            onMessage: onMessage,
+            onIgnoredChanged: onIgnoredChanged,
+            onBlockedChanged: onBlockedChanged,
+          ),
+      ],
     );
   }
 }
@@ -323,8 +432,12 @@ class _OwnProfileActions extends StatelessWidget {
             enabled: !busy,
             onTap: busy ? null : onChangeAvatar,
           ),
-        if (profile.avatarUri != null)
-          ListTile(
+        Visibility(
+          visible: profile.avatarUri != null,
+          maintainAnimation: true,
+          maintainSize: true,
+          maintainState: true,
+          child: ListTile(
             key: const Key('remove-profile-avatar'),
             leading: Icon(
               Icons.delete_outline_rounded,
@@ -334,9 +447,10 @@ class _OwnProfileActions extends StatelessWidget {
               'Remove avatar',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-            enabled: !busy,
-            onTap: busy ? null : onRemoveAvatar,
+            enabled: !busy && profile.avatarUri != null,
+            onTap: busy || profile.avatarUri == null ? null : onRemoveAvatar,
           ),
+        ),
       ],
     );
   }
