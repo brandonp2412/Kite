@@ -114,12 +114,16 @@ final class FakeAccountActivationPort implements AccountActivationPort {
   String? _activeAccountId;
   final List<String> activations = <String>[];
   bool activates = true;
+  Object? failNextWith;
 
   @override
   String? get activeAccountId => _activeAccountId;
 
   @override
   Future<void> activateAccount(String accountId) async {
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
     activations.add(accountId);
     if (activates) _activeAccountId = accountId;
   }
@@ -127,9 +131,13 @@ final class FakeAccountActivationPort implements AccountActivationPort {
 
 final class FakeAppNavigationPort implements AppNavigationPort {
   final List<AppDestination> opened = <AppDestination>[];
+  Object? failNextWith;
 
   @override
   Future<void> open(AppDestination destination) async {
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
     opened.add(destination);
   }
 }

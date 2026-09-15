@@ -126,6 +126,38 @@ void main() {
       },
     );
 
+    test('tap contains account and navigation adapter failures', () async {
+      const destination = AppDestination.room(
+        accountId: 'work',
+        roomId: '!team:example.org',
+      );
+      final notifications = FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'notification-1',
+          kind: KiteNotificationKind.invite,
+          destination: destination,
+        ),
+      ]);
+      final accounts = FakeAccountActivationPort('personal')
+        ..failNextWith = StateError('access_token=secret');
+      final navigation = FakeAppNavigationPort();
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
+        accounts: accounts,
+        navigation: navigation,
+      );
+
+      expect(await coordinator.tap('notification-1'), isFalse);
+      expect(navigation.opened, isEmpty);
+
+      accounts.activates = true;
+      navigation.failNextWith = StateError('route failed');
+      expect(await coordinator.tap('notification-1'), isFalse);
+      expect(accounts.activeAccountId, 'work');
+      expect(navigation.opened, isEmpty);
+    });
+
     test('unknown notification is ignored without navigation', () async {
       final notifications = FakeNotificationRepository();
       final accounts = FakeAccountActivationPort('work');

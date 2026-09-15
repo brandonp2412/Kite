@@ -166,12 +166,16 @@ final class NotificationCoordinator {
     if (notification == null) return false;
 
     final destination = notification.destination;
-    if (_accounts.activeAccountId != destination.accountId) {
-      await _accounts.activateAccount(destination.accountId);
-      if (_accounts.activeAccountId != destination.accountId) return false;
+    try {
+      if (_accounts.activeAccountId != destination.accountId) {
+        await _accounts.activateAccount(destination.accountId);
+        if (_accounts.activeAccountId != destination.accountId) return false;
+      }
+      await _navigation.open(destination);
+      return true;
+    } catch (_) {
+      return false;
     }
-    await _navigation.open(destination);
-    return true;
   }
 
   Future<int> markRoomRead({
