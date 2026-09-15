@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/encryption_trust_controller.dart';
 
@@ -13,11 +15,14 @@ final class _FakeEncryptionTrustGateway implements EncryptionTrustGateway {
   bool ignoreHistorySharingUpdate = false;
   String? loadedRoomId;
   (String, bool)? historySharingUpdate;
+  Completer<RoomEncryptionTrust>? deferredLoad;
 
   @override
   Future<RoomEncryptionTrust> loadRoomTrust(String roomId) async {
     if (failure case final error?) throw error;
     loadedRoomId = roomId;
+    final deferred = deferredLoad;
+    if (deferred != null) return deferred.future;
     return current;
   }
 
@@ -71,6 +76,25 @@ void main() {
     expect(controller.state.value, isNull);
     expect(controller.warningMessage, isNull);
     expect(controller.errorMessage.value, isNull);
+  });
+
+  test('account reset invalidates an in-flight room trust load', () async {
+    final deferred = Completer<RoomEncryptionTrust>();
+    final gateway = _FakeEncryptionTrustGateway()..deferredLoad = deferred;
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    final loading = controller.load('!room:example.org');
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isBusy.value, isTrue);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.isBusy.value, isFalse);
+    deferred.complete(gateway.current);
+    expect(await loading, isFalse);
+
+    expect(controller.state.value, isNull);
+    expect(controller.warningMessage, isNull);
   });
 
   test('loads SDK-owned encryption and device trust state', () async {

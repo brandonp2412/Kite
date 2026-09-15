@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
 
@@ -14,6 +16,7 @@ final class _FakeEncryptionRecoveryGateway
   String? passphrase;
   int createCalls = 0;
   int historicalRecoveryCalls = 0;
+  Completer<EncryptionRecoveryStatus>? deferredStatus;
 
   @override
   Future<EncryptionRecoveryStatus> createEncryptedBackup() async {
@@ -30,6 +33,8 @@ final class _FakeEncryptionRecoveryGateway
   @override
   Future<EncryptionRecoveryStatus> loadRecoveryStatus() async {
     if (failure case final error?) throw error;
+    final deferred = deferredStatus;
+    if (deferred != null) return deferred.future;
     return overrideResult ?? current;
   }
 
@@ -104,6 +109,25 @@ void main() {
     expect(controller.status.value, isNull);
     expect(controller.errorMessage.value, isNull);
     expect(controller.needsRecoveryAttention, isFalse);
+  });
+
+  test('account reset invalidates an in-flight recovery refresh', () async {
+    final deferred = Completer<EncryptionRecoveryStatus>();
+    final gateway = _FakeEncryptionRecoveryGateway()..deferredStatus = deferred;
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+
+    final refresh = controller.refresh();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isBusy.value, isTrue);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.isBusy.value, isFalse);
+    deferred.complete(gateway.current);
+    expect(await refresh, isFalse);
+
+    expect(controller.status.value, isNull);
+    expect(controller.errorMessage.value, isNull);
   });
 
   test('backup creation is delegated to the Matrix SDK boundary', () async {

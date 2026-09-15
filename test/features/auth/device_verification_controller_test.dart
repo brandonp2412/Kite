@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/device_verification_controller.dart';
 
@@ -12,6 +14,7 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   String? cancelledTransactionId;
   int trustReads = 0;
   bool confirmationUpdatesTrust = true;
+  Completer<CrossSigningTrustState>? deferredTrust;
 
   @override
   Future<void> cancelVerification(String transactionId) async {
@@ -55,6 +58,8 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   Future<CrossSigningTrustState> loadCrossSigningTrust() async {
     if (failure case final error?) throw error;
     trustReads += 1;
+    final deferred = deferredTrust;
+    if (deferred != null) return deferred.future;
     return trust;
   }
 
@@ -108,6 +113,25 @@ void main() {
     expect(controller.trustState.value, CrossSigningTrustState.unknown);
     expect(controller.session.value, isNull);
     expect(controller.errorMessage.value, isNull);
+    expect(controller.requiresVerification, isTrue);
+  });
+
+  test('account reset invalidates an in-flight trust refresh', () async {
+    final deferred = Completer<CrossSigningTrustState>();
+    final gateway = _FakeVerificationGateway()..deferredTrust = deferred;
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    final loading = controller.loadTrust();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isBusy.value, isTrue);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.isBusy.value, isFalse);
+    deferred.complete(CrossSigningTrustState.verified);
+    await loading;
+
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
     expect(controller.requiresVerification, isTrue);
   });
 
