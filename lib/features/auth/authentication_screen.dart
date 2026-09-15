@@ -211,7 +211,8 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                     : 'Continue',
                               ),
                             ),
-                            if (widget.scanQrCode != null) ...<Widget>[
+                            if (widget.scanQrCode != null &&
+                                !widget.lockHomeserver) ...<Widget>[
                               const SizedBox(height: 12),
                               OutlinedButton.icon(
                                 key: const Key('qr-device-login'),
@@ -237,7 +238,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                               TextField(
                                 key: const Key('username-field'),
                                 controller: _usernameController,
-                                enabled: !busy,
+                                enabled: !busy && widget.expectedUserId == null,
                                 autocorrect: false,
                                 textInputAction: TextInputAction.next,
                                 autofillHints: const <String>[
@@ -297,7 +298,8 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 child: const Text('Continue with SSO'),
                               ),
                             ],
-                            if (methods.registrationAvailable) ...<Widget>[
+                            if (methods.registrationAvailable &&
+                                !widget.lockHomeserver) ...<Widget>[
                               const SizedBox(height: 12),
                               if (widget.onRegistrationRequested == null &&
                                   widget.registrationGateway == null)

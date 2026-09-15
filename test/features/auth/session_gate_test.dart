@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/auth/account_registration_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/device_verification_controller.dart';
 import 'package:kite/features/auth/session_gate.dart';
@@ -27,11 +28,16 @@ final class _SessionGateway implements SessionLifecycleGateway {
 }
 
 final class _AuthenticationGateway implements AuthenticationGateway {
+  _AuthenticationGateway({this.registrationAvailable = false});
+
+  final bool registrationAvailable;
+
   @override
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async =>
       HomeserverLoginMethods(
         homeserver: homeserver,
         methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+        registrationAvailable: registrationAvailable,
       );
 
   AuthenticatedSession _session(HomeserverAddress homeserver) =>
@@ -61,6 +67,30 @@ final class _AuthenticationGateway implements AuthenticationGateway {
   Future<AuthenticatedSession> loginWithSso({
     required HomeserverAddress homeserver,
   }) async => _session(homeserver);
+}
+
+final class _RegistrationGateway implements AccountRegistrationGateway {
+  @override
+  Future<AccountRegistrationStep> begin(HomeserverAddress homeserver) async =>
+      const RegistrationCredentialsStep();
+
+  @override
+  Future<AccountRegistrationStep> submitCredentials({
+    required HomeserverAddress homeserver,
+    required String username,
+    required String password,
+  }) async => RegistrationCompleteStep(
+    AuthenticatedSession(
+      userId: '@${username.trim()}:${homeserver.uri.host}',
+      deviceId: 'REGISTERED_DEVICE',
+      homeserver: homeserver,
+    ),
+  );
+
+  @override
+  Future<AccountRegistrationStep> continueInteractiveAuthentication({
+    required HomeserverAddress homeserver,
+  }) async => throw StateError('Interactive authentication not requested.');
 }
 
 final class _VerificationGateway implements DeviceVerificationGateway {
@@ -162,6 +192,60 @@ void main() {
     );
     expect(find.text('Authenticated content'), findsNothing);
     expect(find.text('Verification required'), findsOneWidget);
+  });
+
+  testWidgets('registration completes through the signed-out session flow', (
+    tester,
+  ) async {
+    final sessionGateway = _SessionGateway(null);
+    final lifecycle = SessionLifecycleController(sessionGateway);
+    final verification = DeviceVerificationController(
+      _VerificationGateway(CrossSigningTrustState.verified),
+    );
+    addTearDown(lifecycle.dispose);
+    addTearDown(verification.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SessionGate(
+          lifecycleController: lifecycle,
+          authenticationGateway: _AuthenticationGateway(
+            registrationAvailable: true,
+          ),
+          registrationGateway: _RegistrationGateway(),
+          verificationController: verification,
+          authenticatedBuilder: (context) =>
+              const Scaffold(body: Text('Authenticated content')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('registration-available')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('registration-heading')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('registration-username')),
+      'alice',
+    );
+    await tester.enterText(
+      find.byKey(const Key('registration-password')),
+      'registration-password',
+    );
+    await tester.tap(find.byKey(const Key('registration-submit-credentials')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Authenticated content'), findsOneWidget);
+    expect(sessionGateway.persisted?.userId, '@alice:matrix.example.org');
+    expect(sessionGateway.persisted?.deviceId, 'REGISTERED_DEVICE');
+    expect(verification.trustState.value, CrossSigningTrustState.verified);
   });
 
   testWidgets('soft logout returns to authentication with explicit notice', (
