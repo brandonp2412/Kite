@@ -289,6 +289,59 @@ void main() {
   );
 
   test(
+    'sync arriving during persistence schedules one latest follow-up save',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+      );
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.flushPresentationWrites();
+      final savesBefore = presentationStore.saveCalls;
+      final boundary = boundaries['@alice:example.org']!;
+      final blockedSave = Completer<void>();
+      presentationStore.blockNextSave = blockedSave;
+
+      boundary.emit(
+        const MatrixSyncBatch(
+          cursor: 'in-flight-1',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+      while (presentationStore.saveCalls == savesBefore) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      boundary.emit(
+        const MatrixSyncBatch(
+          cursor: 'in-flight-2',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+      boundary.emit(
+        const MatrixSyncBatch(
+          cursor: 'in-flight-3',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+      blockedSave.complete();
+      await registry.flushPresentationWrites();
+
+      expect(presentationStore.saveCalls, savesBefore + 2);
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'in-flight-3',
+      );
+    },
+  );
+
+  test(
     'failed account activation restores the previous account sync and state',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -547,6 +600,7 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
 
   final Map<String, MatrixPresentationSnapshot> snapshots;
   int saveCalls = 0;
+  Completer<void>? blockNextSave;
 
   @override
   Future<void> clear(String accountId) async {
@@ -564,6 +618,9 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
     MatrixPresentationSnapshot snapshot,
   ) async {
     saveCalls += 1;
+    final gate = blockNextSave;
+    blockNextSave = null;
+    if (gate != null) await gate.future;
     snapshots[accountId] = snapshot;
   }
 }
