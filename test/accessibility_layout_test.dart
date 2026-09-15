@@ -1,6 +1,8 @@
 import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart'
+    show CustomSemanticsAction, OrdinalSortKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/design/kite_theme.dart';
@@ -39,6 +41,50 @@ void main() {
       semantics.dispose();
     },
   );
+
+  testWidgets('timeline messages expose TalkBack message actions', (
+    tester,
+  ) async {
+    await setViewport(tester, const Size(1200, 800));
+    selectRoom('alice');
+    final semantics = tester.ensureSemantics();
+
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final incoming = tester
+        .getSemantics(find.byKey(const Key('message-bubble-alice-98')))
+        .getSemanticsData();
+    final mine = tester
+        .getSemantics(find.byKey(const Key('message-bubble-alice-99')))
+        .getSemanticsData();
+
+    final incomingLabels = incoming.customSemanticsActionIds!
+        .map((id) => CustomSemanticsAction.getAction(id)?.label)
+        .toSet();
+    final mineLabels = mine.customSemanticsActionIds!
+        .map((id) => CustomSemanticsAction.getAction(id)?.label)
+        .toSet();
+
+    expect(incomingLabels, <String?>{'Reply', 'Copy text'});
+    expect(mineLabels, <String?>{
+      'Reply',
+      'Copy text',
+      'Edit message',
+      'Delete message',
+    });
+
+    final olderNode = tester.getSemantics(
+      find.byKey(const Key('message-row-alice-98')),
+    );
+    final newerNode = tester.getSemantics(
+      find.byKey(const Key('message-row-alice-99')),
+    );
+    expect((olderNode.sortKey! as OrdinalSortKey).order, 98);
+    expect((newerNode.sortKey! as OrdinalSortKey).order, 99);
+    expect(olderNode.sortKey!.compareTo(newerNode.sortKey!), lessThan(0));
+    semantics.dispose();
+  });
 
   for (final entry in <String, Size>{
     'phone portrait': const Size(390, 844),

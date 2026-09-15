@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:kite/app/kite_app.dart';
@@ -321,6 +324,7 @@ class _Timeline extends StatelessWidget {
               key: ValueKey<String>(message.id),
               roomId: roomId,
               message: message,
+              semanticsOrder: (messages.length - 1 - index).toDouble(),
               onReply: onReply,
               onEdit: onEdit,
             );
@@ -336,12 +340,14 @@ class _MessageRow extends StatelessWidget {
     super.key,
     required this.roomId,
     required this.message,
+    required this.semanticsOrder,
     required this.onReply,
     required this.onEdit,
   });
 
   final String roomId;
   final TimelineMessage message;
+  final double semanticsOrder;
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
 
@@ -357,6 +363,13 @@ class _MessageRow extends StatelessWidget {
       builder: (sheetContext) => _MessageActionSheet(message: message),
     );
     if (!context.mounted || action == null) return;
+    await _performAction(context, action);
+  }
+
+  Future<void> _performAction(
+    BuildContext context,
+    _MessageAction action,
+  ) async {
     switch (action) {
       case _MessageAction.reply:
         onReply(roomId, message);
@@ -406,96 +419,119 @@ class _MessageRow extends StatelessWidget {
       bottomRight: Radius.circular(mine ? KiteRadii.sm : KiteRadii.md),
     );
 
+    final localizations = AppLocalizations.of(context);
     final bubble = GestureDetector(
       onLongPress: () => _showActions(context),
       onSecondaryTap: () => _showActions(context),
-      child: DecoratedBox(
-        key: Key('message-bubble-${message.id}'),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: bubbleRadius,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            KiteSpacing.sm,
-            KiteSpacing.xs,
-            KiteSpacing.xs,
-            KiteSpacing.xs,
+      child: Semantics(
+        customSemanticsActions: message.redacted
+            ? const <CustomSemanticsAction, VoidCallback>{}
+            : <CustomSemanticsAction, VoidCallback>{
+                CustomSemanticsAction(label: localizations.replyAction): () =>
+                    unawaited(_performAction(context, _MessageAction.reply)),
+                CustomSemanticsAction(
+                  label: localizations.copyTextAction,
+                ): () =>
+                    unawaited(_performAction(context, _MessageAction.copy)),
+                if (message.mine)
+                  CustomSemanticsAction(
+                    label: localizations.editMessageAction,
+                  ): () =>
+                      unawaited(_performAction(context, _MessageAction.edit)),
+                if (message.mine)
+                  CustomSemanticsAction(
+                    label: localizations.deleteMessageAction,
+                  ): () =>
+                      unawaited(_performAction(context, _MessageAction.redact)),
+              },
+        child: DecoratedBox(
+          key: Key('message-bubble-${message.id}'),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: bubbleRadius,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              if (message.isReply) ...<Widget>[
-                _MessageReplyPreview(message: message),
-                const SizedBox(height: KiteSpacing.xs),
-              ],
-              SignalBuilder(
-                builder: (context) {
-                  if (message.redacted) {
-                    return Row(
-                      key: Key('message-redacted-${message.id}'),
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(
-                          Icons.block_rounded,
-                          size: 16,
-                          color: colors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: KiteSpacing.xs),
-                        Text(
-                          AppLocalizations.of(context).messageDeleted,
-                          style: KiteTypography.body.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                  return Text(
-                    message.body,
-                    key: Key('message-body-${message.id}'),
-                    textDirection: _eventTextDirection(
-                      message.body,
-                      Directionality.of(context),
-                    ),
-                    style: KiteTypography.body.copyWith(
-                      color: colors.onSurface,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: KiteSpacing.xxs),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    message.timeLabel,
-                    style: KiteTypography.metadata.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 11,
-                    ),
-                  ),
-                  SignalBuilder(
-                    builder: (context) => message.edited
-                        ? Text(
-                            ' · ${AppLocalizations.of(context).editedLabel}',
-                            key: Key('edited-${message.id}'),
-                            style: KiteTypography.metadata.copyWith(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 11,
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                  if (mine) ...<Widget>[
-                    const SizedBox(width: KiteSpacing.xxs),
-                    _MessageSendState(roomId: roomId, message: message),
-                  ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              KiteSpacing.sm,
+              KiteSpacing.xs,
+              KiteSpacing.xs,
+              KiteSpacing.xs,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (message.isReply) ...<Widget>[
+                  _MessageReplyPreview(message: message),
+                  const SizedBox(height: KiteSpacing.xs),
                 ],
-              ),
-            ],
+                SignalBuilder(
+                  builder: (context) {
+                    if (message.redacted) {
+                      return Row(
+                        key: Key('message-redacted-${message.id}'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.block_rounded,
+                            size: 16,
+                            color: colors.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: KiteSpacing.xs),
+                          Text(
+                            AppLocalizations.of(context).messageDeleted,
+                            style: KiteTypography.body.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return Text(
+                      message.body,
+                      key: Key('message-body-${message.id}'),
+                      textDirection: _eventTextDirection(
+                        message.body,
+                        Directionality.of(context),
+                      ),
+                      style: KiteTypography.body.copyWith(
+                        color: colors.onSurface,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: KiteSpacing.xxs),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      message.timeLabel,
+                      style: KiteTypography.metadata.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                    SignalBuilder(
+                      builder: (context) => message.edited
+                          ? Text(
+                              ' · ${AppLocalizations.of(context).editedLabel}',
+                              key: Key('edited-${message.id}'),
+                              style: KiteTypography.metadata.copyWith(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 11,
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    if (mine) ...<Widget>[
+                      const SizedBox(width: KiteSpacing.xxs),
+                      _MessageSendState(roomId: roomId, message: message),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -515,52 +551,55 @@ class _MessageRow extends StatelessWidget {
       ],
     );
 
-    return Padding(
-      key: Key('message-row-${message.id}'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: KiteSpacing.md,
-        vertical: KiteSpacing.xxs,
-      ),
-      child: Row(
-        mainAxisAlignment: mine
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: <Widget>[
-          if (!mine) ...<Widget>[
-            _MessageAvatar(sender: message.sender),
-            const SizedBox(width: KiteSpacing.xs),
-          ],
-          Flexible(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: mine
-                  ? threadedBubble
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            left: KiteSpacing.xxs,
-                            bottom: KiteSpacing.xxs,
-                          ),
-                          child: Text(
-                            message.sender,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: KiteTypography.metadata.copyWith(
-                              color: colors.primary,
-                              fontWeight: FontWeight.w600,
+    return Semantics(
+      sortKey: OrdinalSortKey(semanticsOrder),
+      child: Padding(
+        key: Key('message-row-${message.id}'),
+        padding: const EdgeInsets.symmetric(
+          horizontal: KiteSpacing.md,
+          vertical: KiteSpacing.xxs,
+        ),
+        child: Row(
+          mainAxisAlignment: mine
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            if (!mine) ...<Widget>[
+              _MessageAvatar(sender: message.sender),
+              const SizedBox(width: KiteSpacing.xs),
+            ],
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: mine
+                    ? threadedBubble
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: KiteSpacing.xxs,
+                              bottom: KiteSpacing.xxs,
+                            ),
+                            child: Text(
+                              message.sender,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KiteTypography.metadata.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                        threadedBubble,
-                      ],
-                    ),
+                          threadedBubble,
+                        ],
+                      ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
