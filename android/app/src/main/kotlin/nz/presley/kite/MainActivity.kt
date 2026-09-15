@@ -208,6 +208,12 @@ class MainActivity : FlutterActivity() {
 
     private fun isBiometricAvailable(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val manager = getSystemService(BiometricManager::class.java)
+            return manager?.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG,
+            ) == BiometricManager.BIOMETRIC_SUCCESS
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val manager = getSystemService(BiometricManager::class.java)
             return manager?.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
@@ -229,11 +235,16 @@ class MainActivity : FlutterActivity() {
             if (completed.compareAndSet(false, true)) result.success(value)
         }
 
-        val prompt = BiometricPrompt.Builder(this)
+        val promptBuilder = BiometricPrompt.Builder(this)
             .setTitle("Unlock Kite")
             .setSubtitle("Confirm your identity to continue")
             .setNegativeButton("Use PIN", mainExecutor) { _, _ -> complete(false) }
-            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            promptBuilder.setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG,
+            )
+        }
+        val prompt = promptBuilder.build()
         prompt.authenticate(
             android.os.CancellationSignal(),
             mainExecutor,
