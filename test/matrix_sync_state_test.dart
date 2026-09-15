@@ -44,6 +44,38 @@ void main() {
     await engine.close();
   });
 
+  test('presentation apply failures become recoverable sync state', () async {
+    final engine = _StateFakeMatrixEngine();
+    final failure = StateError('deterministic presentation failure');
+    var failApply = true;
+    final coordinator = MatrixSyncCoordinator(
+      engine: engine,
+      applyBatch: (_) {
+        if (failApply) throw failure;
+      },
+    );
+
+    await coordinator.start();
+    expect(coordinator.isRunning, isTrue);
+    expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
+    expect(coordinator.state.value.error, same(failure));
+
+    failApply = false;
+    engine.emit(
+      const MatrixSyncBatch(
+        cursor: 'presentation-recovered',
+        rooms: <MatrixRoomDelta>[],
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+    expect(coordinator.state.value.error, isNull);
+
+    await coordinator.stop();
+    await engine.close();
+  });
+
   test(
     'sync coordinator accepts synchronous on-listen adapter batches',
     () async {

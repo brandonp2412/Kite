@@ -66,12 +66,18 @@ final class MatrixSyncCoordinator {
       subscription = engine.syncBatches.listen(
         (syncBatch) {
           if (!identical(_activeRun, run)) return;
-          batch(() {
-            applyBatch(syncBatch);
+          try {
+            batch(() {
+              applyBatch(syncBatch);
+              if (identical(_activeRun, run)) {
+                state.value = const MatrixSyncState.running();
+              }
+            });
+          } catch (error, stackTrace) {
             if (identical(_activeRun, run)) {
-              state.value = const MatrixSyncState.running();
+              state.value = MatrixSyncState.failed(error, stackTrace);
             }
-          });
+          }
         },
         onError: (Object error, StackTrace stackTrace) {
           if (identical(_activeRun, run)) {
