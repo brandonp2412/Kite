@@ -97,16 +97,21 @@ class MainActivity : FlutterActivity() {
     private fun loadSettings(): Map<String, Any> {
         val preferences = preferences()
         val enabled = preferences.getBoolean(ENABLED_KEY, false)
+        val biometricsEnabled = preferences.getBoolean(BIOMETRICS_KEY, false)
+        val hideNotificationContents = preferences.getBoolean(
+            HIDE_NOTIFICATIONS_KEY,
+            false,
+        )
         if (enabled && !preferences.contains(PIN_VERIFIER_KEY)) {
             error("App lock credential state is incomplete.")
         }
+        if (!enabled && (biometricsEnabled || hideNotificationContents)) {
+            error("App lock settings are inconsistent.")
+        }
         return mapOf(
             "enabled" to enabled,
-            "biometricsEnabled" to preferences.getBoolean(BIOMETRICS_KEY, false),
-            "hideNotificationContents" to preferences.getBoolean(
-                HIDE_NOTIFICATIONS_KEY,
-                false,
-            ),
+            "biometricsEnabled" to biometricsEnabled,
+            "hideNotificationContents" to hideNotificationContents,
         )
     }
 
@@ -126,11 +131,15 @@ class MainActivity : FlutterActivity() {
     private fun requiredPin(call: MethodCall): String {
         val pin = call.argument<String>("pin")
             ?: throw IllegalArgumentException("Missing app lock PIN.")
-        require(PIN_PATTERN.matches(pin)) { "PIN must contain at least four digits." }
+        require(PIN_PATTERN.matches(pin)) { "PIN must contain 4 to 64 digits." }
         return pin
     }
 
     private fun persistSettings(settings: AppLockSettings) {
+        require(
+            settings.enabled ||
+                (!settings.biometricsEnabled && !settings.hideNotificationContents),
+        ) { "Disabled app lock cannot retain protected settings." }
         val committed = preferences().edit()
             .putBoolean(ENABLED_KEY, settings.enabled)
             .putBoolean(BIOMETRICS_KEY, settings.biometricsEnabled)
@@ -258,6 +267,6 @@ class MainActivity : FlutterActivity() {
         const val ANDROID_KEY_STORE = "AndroidKeyStore"
         const val HMAC_KEY_ALIAS = "kite_app_lock_hmac_v1"
         const val HMAC_ALGORITHM = "HmacSHA256"
-        val PIN_PATTERN = Regex("^[0-9]{4,}$")
+        val PIN_PATTERN = Regex("^[0-9]{4,64}$")
     }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/session_device_controller.dart';
 
@@ -6,6 +8,7 @@ final class _FakeSessionDeviceGateway implements SessionDeviceGateway {
   Object? loadError;
   Object? signOutError;
   final signedOutDeviceIds = <String>[];
+  Completer<void>? deferredSignOut;
 
   @override
   Future<List<SessionDevice>> loadDevices() async {
@@ -17,6 +20,7 @@ final class _FakeSessionDeviceGateway implements SessionDeviceGateway {
   Future<void> signOutDevice(String deviceId) async {
     signedOutDeviceIds.add(deviceId);
     if (signOutError case final error?) throw error;
+    await deferredSignOut?.future;
   }
 }
 
@@ -74,6 +78,31 @@ void main() {
       expect(controller.currentDevice?.deviceId, 'CURRENT');
     },
   );
+
+  test('device refresh cannot race an in-flight remote sign-out', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote]
+      ..deferredSignOut = Completer<void>();
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    final signOut = controller.signOutRemoteDevice('REMOTE');
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.signingOutDeviceIds.value, <String>{'REMOTE'});
+
+    gateway.loaded = const <SessionDevice>[_current, _remote];
+    await controller.load();
+    expect(controller.devices.value, hasLength(2));
+    expect(await controller.signOutRemoteDevice('REMOTE'), isFalse);
+    expect(gateway.signedOutDeviceIds, <String>['REMOTE']);
+
+    gateway.deferredSignOut!.complete();
+    expect(await signOut, isTrue);
+    expect(controller.devices.value.map((device) => device.deviceId), <String>[
+      'CURRENT',
+    ]);
+  });
 
   test(
     'current device cannot be remotely signed out through the device list',

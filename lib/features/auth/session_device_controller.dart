@@ -42,7 +42,7 @@ final class SessionDeviceController {
   }
 
   Future<void> load() async {
-    if (isLoading.value) return;
+    if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return;
 
     isLoading.value = true;
     errorMessage.value = null;
@@ -61,6 +61,7 @@ final class SessionDeviceController {
   }
 
   Future<bool> signOutRemoteDevice(String deviceId) async {
+    if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return false;
     final device = _findDevice(deviceId);
     if (device == null) {
       errorMessage.value = 'That signed-in device is no longer available.';
@@ -71,8 +72,6 @@ final class SessionDeviceController {
           'Sign out of this device from Kite account settings instead.';
       return false;
     }
-    if (signingOutDeviceIds.value.contains(deviceId)) return false;
-
     errorMessage.value = null;
     signingOutDeviceIds.value = <String>{
       ...signingOutDeviceIds.value,

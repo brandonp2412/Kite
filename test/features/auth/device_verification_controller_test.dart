@@ -11,6 +11,7 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   String? returnedSasTransactionId;
   String? cancelledTransactionId;
   int trustReads = 0;
+  bool confirmationUpdatesTrust = true;
 
   @override
   Future<void> cancelVerification(String transactionId) async {
@@ -24,7 +25,9 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   ) async {
     if (failure case final error?) throw error;
     confirmedQrTransactionId = transactionId;
-    trust = CrossSigningTrustState.verified;
+    if (confirmationUpdatesTrust) {
+      trust = CrossSigningTrustState.verified;
+    }
     return DeviceVerificationSession(
       transactionId: returnedQrTransactionId ?? transactionId,
       method: DeviceVerificationMethod.qr,
@@ -38,7 +41,9 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   ) async {
     if (failure case final error?) throw error;
     confirmedSasTransactionId = transactionId;
-    trust = CrossSigningTrustState.verified;
+    if (confirmationUpdatesTrust) {
+      trust = CrossSigningTrustState.verified;
+    }
     return DeviceVerificationSession(
       transactionId: returnedSasTransactionId ?? transactionId,
       method: DeviceVerificationMethod.sas,
@@ -180,6 +185,27 @@ void main() {
     );
   });
 
+  test(
+    'verified transaction does not bypass unverified cross-signing trust',
+    () async {
+      final gateway = _FakeVerificationGateway()
+        ..confirmationUpdatesTrust = false;
+      final controller = DeviceVerificationController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(await controller.startQrVerification(), isTrue);
+      final original = controller.session.value;
+      expect(await controller.confirmQrVerification(), isFalse);
+
+      expect(controller.session.value, same(original));
+      expect(controller.trustState.value, CrossSigningTrustState.unverified);
+      expect(controller.requiresVerification, isTrue);
+      expect(
+        controller.errorMessage.value,
+        'Kite could not confirm cross-signing trust for this device.',
+      );
+    },
+  );
   test(
     'method mismatch is rejected before the wrong SDK confirmation',
     () async {

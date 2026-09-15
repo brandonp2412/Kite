@@ -177,6 +177,41 @@ void main() {
     expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
   });
 
+  testWidgets('rejected password login clears the credential field', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway()
+      ..passwordError = const AuthenticationRejectedException(
+        'Incorrect username or password.',
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(home: AuthenticationScreen(gateway: gateway)),
+    );
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'credential-that-must-not-linger',
+    );
+
+    await tester.tap(find.byKey(const Key('password-login')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.password, 'credential-that-must-not-linger');
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.controller?.text, isEmpty);
+    expect(find.text('credential-that-must-not-linger'), findsNothing);
+    expect(find.text('Incorrect username or password.'), findsOneWidget);
+  });
+
   testWidgets(
     'soft-logout context rediscovers and locks the expected account',
     (tester) async {

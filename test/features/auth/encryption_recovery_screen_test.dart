@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
@@ -11,6 +13,7 @@ final class _FakeRecoveryGateway implements EncryptionRecoveryGateway {
   );
   String? recoveryKey;
   String? passphrase;
+  Completer<EncryptionRecoveryStatus>? deferredRecoveryKey;
   int createCalls = 0;
   int historyCalls = 0;
 
@@ -57,6 +60,8 @@ final class _FakeRecoveryGateway implements EncryptionRecoveryGateway {
     String recoveryKey,
   ) async {
     this.recoveryKey = recoveryKey;
+    final deferred = deferredRecoveryKey;
+    if (deferred != null) return deferred.future;
     status = const EncryptionRecoveryStatus(
       backupState: EncryptedBackupState.ready,
       historicalRecoveryState: HistoricalRecoveryState.available,
@@ -109,6 +114,45 @@ void main() {
       controller.status.value?.historicalRecoveryState,
       HistoricalRecoveryState.complete,
     );
+  });
+
+  testWidgets('recovery key leaves the text field before SDK completion', (
+    tester,
+  ) async {
+    final gateway = _FakeRecoveryGateway()
+      ..deferredRecoveryKey = Completer<EncryptionRecoveryStatus>();
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    await tester.pumpWidget(_app(controller));
+
+    await tester.enterText(
+      find.byKey(const Key('recovery-key-field')),
+      'TRANSIENT-RECOVERY-KEY',
+    );
+    await tester.tap(find.byKey(const Key('restore-recovery-key')));
+    await tester.pump();
+
+    expect(gateway.recoveryKey, 'TRANSIENT-RECOVERY-KEY');
+    expect(controller.isBusy.value, isTrue);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('recovery-key-field')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(find.textContaining('TRANSIENT-RECOVERY-KEY'), findsNothing);
+
+    gateway.deferredRecoveryKey!.complete(
+      const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.ready,
+        historicalRecoveryState: HistoricalRecoveryState.available,
+        hasUnverifiedSessions: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.isBusy.value, isFalse);
   });
 
   testWidgets(

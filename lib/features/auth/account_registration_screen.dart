@@ -53,11 +53,12 @@ class _AccountRegistrationScreenState extends State<AccountRegistrationScreen> {
   }
 
   Future<void> _submitCredentials() async {
+    final password = _passwordController.text;
+    _passwordController.clear();
     final succeeded = await _controller.submitCredentials(
       username: _usernameController.text,
-      password: _passwordController.text,
+      password: password,
     );
-    _passwordController.clear();
     if (succeeded) _completeIfNeeded();
   }
 

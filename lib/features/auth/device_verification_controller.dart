@@ -205,10 +205,16 @@ final class DeviceVerificationController {
         errorMessage.value = 'Kite received an invalid verification state.';
         return false;
       }
-      session.value = next;
       if (next.stage == DeviceVerificationStage.verified) {
-        trustState.value = await _gateway.loadCrossSigningTrust();
+        final trust = await _gateway.loadCrossSigningTrust();
+        trustState.value = trust;
+        if (trust != CrossSigningTrustState.verified) {
+          errorMessage.value =
+              'Kite could not confirm cross-signing trust for this device.';
+          return false;
+        }
       }
+      session.value = next;
       return true;
     } catch (_) {
       errorMessage.value = failureMessage;

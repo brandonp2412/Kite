@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/account_registration_controller.dart';
@@ -11,6 +13,7 @@ final class _ScreenRegistrationGateway implements AccountRegistrationGateway {
   String? username;
   String? password;
   int interactiveCalls = 0;
+  Completer<AccountRegistrationStep>? deferredCredentials;
 
   @override
   Future<AccountRegistrationStep> begin(HomeserverAddress homeserver) async =>
@@ -24,6 +27,8 @@ final class _ScreenRegistrationGateway implements AccountRegistrationGateway {
   }) async {
     this.username = username;
     this.password = password;
+    final deferred = deferredCredentials;
+    if (deferred != null) return deferred.future;
     return const RegistrationInteractiveStep(
       publicInstructions: 'Confirm the homeserver challenge to continue.',
     );
@@ -45,6 +50,49 @@ final class _ScreenRegistrationGateway implements AccountRegistrationGateway {
 }
 
 void main() {
+  testWidgets('registration clears password while submission is pending', (
+    tester,
+  ) async {
+    final homeserver = HomeserverAddress.parse('matrix.example.org');
+    final gateway = _ScreenRegistrationGateway(homeserver)
+      ..deferredCredentials = Completer<AccountRegistrationStep>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AccountRegistrationScreen(
+          homeserver: homeserver,
+          gateway: gateway,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('registration-username')),
+      'alice',
+    );
+    await tester.enterText(
+      find.byKey(const Key('registration-password')),
+      'transient-registration-secret',
+    );
+
+    await tester.tap(find.byKey(const Key('registration-submit-credentials')));
+    await tester.pump();
+
+    expect(gateway.password, 'transient-registration-secret');
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const Key('registration-password')),
+    );
+    expect(passwordField.controller?.text, isEmpty);
+    expect(find.text('transient-registration-secret'), findsNothing);
+
+    gateway.deferredCredentials!.complete(
+      const RegistrationInteractiveStep(
+        publicInstructions: 'Continue securely.',
+      ),
+    );
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('registration clears the password before interactive auth', (
     tester,
   ) async {
