@@ -13,6 +13,12 @@ import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 import 'performance_benchmark_harness.dart';
 
+String _routingId(String notificationId, {String accountId = 'work'}) =>
+    KiteNotification.routingIdFor(
+      accountId: accountId,
+      notificationId: notificationId,
+    );
+
 final class _BenchmarkNavigationPort implements AppNavigationPort {
   _BenchmarkNavigationPort(this.revision);
 
@@ -159,7 +165,7 @@ void main() {
           ]) {
             await dispatcher.dispatch(event);
           }
-          expect(await coordinator.tap('thread'), isTrue);
+          expect(await coordinator.tap(_routingId('thread')), isTrue);
           await tester.pump();
 
           fcm.emit(const <String, String?>{
@@ -231,12 +237,12 @@ void main() {
       expect(navigation.lastDestination?.kind, AppDestinationKind.thread);
       expect(navigation.lastDestination?.eventId, r'$reply');
       expect(navigation.lastDestination?.threadRootEventId, r'$root');
-      expect(notifications.notification('thread'), isNull);
-      expect(notifications.notification('message'), isNull);
-      expect(notifications.notification('remote-read'), isNull);
-      expect(notifications.notification('invite'), isNotNull);
+      expect(notifications.notification(_routingId('thread')), isNull);
+      expect(notifications.notification(_routingId('message')), isNull);
+      expect(notifications.notification(_routingId('remote-read')), isNull);
+      expect(notifications.notification(_routingId('invite')), isNotNull);
       expect(
-        notifications.notification('call')?.destination,
+        notifications.notification(_routingId('call'))?.destination,
         const AppDestination.call(
           accountId: 'work',
           roomId: '!calls:example.org',
@@ -244,12 +250,12 @@ void main() {
         ),
       );
       expect(notificationDelivery.cancelledIds.take(3), <String>[
-        'thread',
-        'message',
-        'remote-read',
+        _routingId('thread'),
+        _routingId('message'),
+        _routingId('remote-read'),
       ]);
       expect(
-        notifications.notification('ingress-call')?.destination,
+        notifications.notification(_routingId('ingress-call'))?.destination,
         const AppDestination.call(
           accountId: 'work',
           roomId: '!calls:example.org',
@@ -257,7 +263,9 @@ void main() {
         ),
       );
       expect(
-        notifications.notification('ingress-invite')?.destination,
+        notifications
+            .notification(_routingId('ingress-invite', accountId: 'personal'))
+            ?.destination,
         const AppDestination.room(
           accountId: 'personal',
           roomId: '!invite:example.org',
