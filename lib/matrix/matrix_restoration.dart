@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:kite/matrix/matrix_navigation.dart';
+import 'package:kite/matrix/recoverable_file.dart';
 
 final class MatrixRestorationSnapshot {
   const MatrixRestorationSnapshot({
@@ -32,42 +33,42 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
 
   @override
   Future<MatrixRestorationSnapshot?> load() async {
-    if (!await file.exists()) return null;
-
-    final contents = await file.readAsString();
-    if (contents.trim().isEmpty) return null;
+    final contents = await RecoverableFile(file).readCandidates();
+    if (contents.isEmpty) return null;
 
     return Isolate.run<MatrixRestorationSnapshot?>(() {
-      try {
-        final decoded = jsonDecode(contents);
-        if (decoded is! Map<String, dynamic>) return null;
-        if (decoded['version'] != _schemaVersion) return null;
+      for (final candidate in contents) {
+        if (candidate.trim().isEmpty) continue;
+        try {
+          final decoded = jsonDecode(candidate);
+          if (decoded is! Map<String, dynamic>) continue;
+          if (decoded['version'] != _schemaVersion) continue;
 
-        final accountId = decoded['accountId'];
-        final target = decoded['navigationTarget'];
-        if (accountId is! String || accountId.isEmpty || target is! Map) {
-          return null;
+          final accountId = decoded['accountId'];
+          final target = decoded['navigationTarget'];
+          if (accountId is! String || accountId.isEmpty || target is! Map) {
+            continue;
+          }
+
+          final navigationTarget = _decodeNavigationTarget(
+            Map<String, dynamic>.from(target),
+          );
+          if (navigationTarget == null) continue;
+
+          return MatrixRestorationSnapshot(
+            accountId: accountId,
+            navigationTarget: navigationTarget,
+          );
+        } on FormatException {
+          continue;
         }
-
-        final navigationTarget = _decodeNavigationTarget(
-          Map<String, dynamic>.from(target),
-        );
-        if (navigationTarget == null) return null;
-
-        return MatrixRestorationSnapshot(
-          accountId: accountId,
-          navigationTarget: navigationTarget,
-        );
-      } on FormatException {
-        return null;
       }
+      return null;
     });
   }
 
   @override
   Future<void> save(MatrixRestorationSnapshot snapshot) async {
-    await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.tmp');
     final payload = await Isolate.run<String>(() {
       final document = <String, Object?>{
         'version': _schemaVersion,
@@ -77,17 +78,11 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
       return jsonEncode(document);
     });
 
-    await temporary.writeAsString(payload, flush: true);
-    if (await file.exists()) await file.delete();
-    await temporary.rename(file.path);
+    await RecoverableFile(file).replaceWithString(payload);
   }
 
   @override
-  Future<void> clear() async {
-    final temporary = File('${file.path}.tmp');
-    if (await temporary.exists()) await temporary.delete();
-    if (await file.exists()) await file.delete();
-  }
+  Future<void> clear() => RecoverableFile(file).clear();
 
   static Map<String, Object?> _encodeNavigationTarget(
     MatrixNavigationTarget target,

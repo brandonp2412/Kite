@@ -7,7 +7,7 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
   MatrixLifecycleBinding(this._runtime, {WidgetsBinding? binding})
     : _binding = binding ?? WidgetsBinding.instance;
 
-  final MatrixRuntimeCoordinator _runtime;
+  final MatrixActivityRuntime _runtime;
   final WidgetsBinding _binding;
   bool _attached = false;
 
@@ -17,9 +17,15 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
     if (_attached) return;
     _binding.addObserver(this);
     _attached = true;
-    final lifecycleState = _binding.lifecycleState;
-    if (lifecycleState != null) {
-      await handleLifecycleState(lifecycleState);
+    try {
+      final lifecycleState = _binding.lifecycleState;
+      if (lifecycleState != null) {
+        await handleLifecycleState(lifecycleState);
+      }
+    } catch (error, stackTrace) {
+      _binding.removeObserver(this);
+      _attached = false;
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -52,7 +58,7 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
 final class MatrixConnectivityBinding {
   MatrixConnectivityBinding(this._runtime, this._initialState, this._changes);
 
-  final MatrixRuntimeCoordinator _runtime;
+  final MatrixConnectivityRuntime _runtime;
   final MatrixNetworkState _initialState;
   final Stream<MatrixNetworkState> _changes;
   StreamSubscription<MatrixNetworkState>? _subscription;
@@ -61,10 +67,23 @@ final class MatrixConnectivityBinding {
 
   Future<void> attach() async {
     if (_subscription != null) return;
-    await _runtime.updateNetworkState(_initialState);
-    _subscription = _changes.listen((state) {
+
+    final initialUpdate = _runtime.updateNetworkState(_initialState);
+    late final StreamSubscription<MatrixNetworkState> subscription;
+    subscription = _changes.listen((state) {
       unawaited(_runtime.updateNetworkState(state));
     });
+    _subscription = subscription;
+
+    try {
+      await initialUpdate;
+    } catch (error, stackTrace) {
+      if (identical(_subscription, subscription)) {
+        _subscription = null;
+      }
+      await subscription.cancel();
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> detach() async {

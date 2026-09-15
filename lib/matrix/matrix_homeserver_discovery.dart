@@ -68,7 +68,7 @@ final class MatrixHomeserverDiscovery {
       );
     }
 
-    final discovered = _parseAbsoluteHttpUri(baseUrl.trim());
+    final discovered = _parseHomeserverBaseUri(baseUrl.trim());
     return MatrixHomeserverDiscoveryResult(
       enteredServer: enteredServer,
       homeserverBaseUrl: discovered,
@@ -84,7 +84,11 @@ final class MatrixHomeserverDiscovery {
       );
     }
     final candidate = trimmed.contains('://') ? trimmed : 'https://$trimmed';
-    final uri = _parseAbsoluteHttpUri(candidate);
+    return _parseHomeserverBaseUri(candidate);
+  }
+
+  static Uri _parseHomeserverBaseUri(String value) {
+    final uri = _parseAbsoluteHttpUri(value);
     if (uri.query.isNotEmpty ||
         uri.fragment.isNotEmpty ||
         uri.userInfo.isNotEmpty) {

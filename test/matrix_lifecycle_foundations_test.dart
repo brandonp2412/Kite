@@ -166,6 +166,32 @@ void main() {
       },
     );
 
+    test('close is terminal and cannot race a late queued send', () async {
+      final store = _FakeEncryptedOutboxStore();
+      final outbox = MatrixOutbox(
+        store: store,
+        transport: _FakeSendTransport(),
+        initialNetworkState: MatrixNetworkState.offline,
+      );
+      final now = DateTime.utc(2026, 9, 15, 1);
+
+      await outbox.hydrate(now: now);
+      final closing = outbox.close();
+
+      expect(
+        () => outbox.enqueue(_message('late', 'txn-late'), now: now),
+        throwsStateError,
+      );
+      expect(
+        () => outbox.updateNetworkState(MatrixNetworkState.online, now: now),
+        throwsStateError,
+      );
+
+      await closing;
+      await outbox.close();
+      expect(store.pending, isEmpty);
+    });
+
     test('rejects plaintext outbox persistence', () {
       expect(
         () => MatrixOutbox(
@@ -225,6 +251,31 @@ void main() {
         throwsA(isA<MatrixHomeserverDiscoveryException>()),
       );
     });
+
+    test(
+      'rejects unsafe components in discovered homeserver base URLs',
+      () async {
+        for (final baseUrl in <String>[
+          'https://user:secret@matrix.example.org',
+          'https://matrix.example.org?token=secret',
+          'https://matrix.example.org/#fragment',
+        ]) {
+          final discovery = MatrixHomeserverDiscovery(
+            _FakeWellKnownClient(
+              document: <String, Object?>{
+                'm.homeserver': <String, Object?>{'base_url': baseUrl},
+              },
+            ),
+          );
+
+          await expectLater(
+            discovery.discover('example.org'),
+            throwsA(isA<MatrixHomeserverDiscoveryException>()),
+            reason: baseUrl,
+          );
+        }
+      },
+    );
   });
 
   group('MatrixDeepLinkParser', () {
@@ -276,6 +327,24 @@ void main() {
       );
       expect(parser.parse(Uri.parse('https://example.org/room')), isNull);
     });
+
+    test('matrix scheme path segments are decoded exactly once', () {
+      expect(
+        parser.parse(Uri.parse('matrix:r/%2521literal:example.org')),
+        const MatrixNavigationTarget.room('!%21literal:example.org'),
+      );
+    });
+
+    test(
+      'malformed matrix.to fragment encoding is rejected without throwing',
+      () {
+        expect(
+          () => parser.parse(Uri.parse('https://matrix.to/#/%E0%A4%A')),
+          returnsNormally,
+        );
+        expect(parser.parse(Uri.parse('https://matrix.to/#/%E0%A4%A')), isNull);
+      },
+    );
   });
 
   test(

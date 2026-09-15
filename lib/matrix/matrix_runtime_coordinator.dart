@@ -2,22 +2,39 @@ import 'dart:async';
 
 import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/matrix_pagination_controller.dart';
+import 'package:signals/signals.dart';
 
 enum MatrixAppActivity { foreground, background }
 
 enum MatrixNetworkState { online, offline }
 
-final class MatrixRuntimeCoordinator {
+abstract interface class MatrixActivityRuntime {
+  Future<void> updateActivity(MatrixAppActivity activity);
+}
+
+abstract interface class MatrixConnectivityRuntime {
+  Future<void> updateNetworkState(MatrixNetworkState state);
+}
+
+final class MatrixRuntimeCoordinator
+    implements MatrixActivityRuntime, MatrixConnectivityRuntime {
   MatrixRuntimeCoordinator({
     required MatrixEngine engine,
     required void Function(MatrixSyncBatch) applyBatch,
+    required void Function(MatrixPaginationPage) applyPagination,
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
   }) : _sync = MatrixSyncCoordinator(engine: engine, applyBatch: applyBatch),
+       _pagination = MatrixBackPaginationController(
+         engine: engine,
+         applyPage: applyPagination,
+       ),
        _activity = initialActivity,
        _networkState = initialNetworkState;
 
   final MatrixSyncCoordinator _sync;
+  final MatrixBackPaginationController _pagination;
 
   MatrixAppActivity _activity;
   MatrixNetworkState _networkState;
@@ -31,56 +48,86 @@ final class MatrixRuntimeCoordinator {
 
   bool get isSyncing => _sync.isRunning;
 
-  Future<void> start() async {
-    if (_started) {
-      await _enqueueReconcile();
-      return;
-    }
-    _started = true;
-    try {
-      await _enqueueReconcile();
-    } catch (_) {
-      _started = false;
-      rethrow;
-    }
+  ReadonlySignal<MatrixSyncState> get syncState => _sync.state;
+
+  ReadonlySignal<MatrixPaginationState> paginationState(String roomId) {
+    return _pagination.stateSignal(roomId);
   }
 
-  Future<void> updateActivity(MatrixAppActivity activity) async {
-    final stateChanged = _activity != activity;
-    _activity = activity;
-    if (!stateChanged && shouldSync == _sync.isRunning) return;
-    await _enqueueReconcile();
-  }
-
-  Future<void> updateNetworkState(MatrixNetworkState state) async {
-    final stateChanged = _networkState != state;
-    _networkState = state;
-    if (!stateChanged && shouldSync == _sync.isRunning) return;
-    await _enqueueReconcile();
-  }
-
-  Future<void> stop() async {
-    if (!_started && !_sync.isRunning) return;
-    _started = false;
-    await _enqueueReconcile();
-  }
-
-  Future<void> _enqueueReconcile() {
-    final reconcile = _transition.then<void>(
-      (_) => _reconcile(),
-      onError: (Object _, StackTrace _) => _reconcile(),
+  Future<void> onTimelineViewportChanged({
+    required String roomId,
+    required int oldestVisibleIndex,
+    required bool hasMoreHistory,
+  }) {
+    if (!shouldSync) return Future<void>.value();
+    return _pagination.maybePaginate(
+      roomId: roomId,
+      firstVisibleIndex: oldestVisibleIndex,
+      hasMoreHistory: hasMoreHistory,
     );
-    _transition = reconcile.then<void>(
+  }
+
+  Future<void> start() {
+    return _enqueueTransition(() async {
+      if (_started) {
+        await _reconcile();
+        return;
+      }
+      _started = true;
+      try {
+        await _reconcile();
+      } catch (_) {
+        _started = false;
+        rethrow;
+      }
+    });
+  }
+
+  @override
+  Future<void> updateActivity(MatrixAppActivity activity) {
+    return _enqueueTransition(() async {
+      final stateChanged = _activity != activity;
+      _activity = activity;
+      if (!stateChanged && shouldSync == _sync.isRunning) return;
+      await _reconcile();
+    });
+  }
+
+  @override
+  Future<void> updateNetworkState(MatrixNetworkState state) {
+    return _enqueueTransition(() async {
+      final stateChanged = _networkState != state;
+      _networkState = state;
+      if (!stateChanged && shouldSync == _sync.isRunning) return;
+      await _reconcile();
+    });
+  }
+
+  Future<void> stop() {
+    return _enqueueTransition(() async {
+      if (!_started && !_sync.isRunning) return;
+      _started = false;
+      await _reconcile();
+    });
+  }
+
+  Future<void> _enqueueTransition(Future<void> Function() action) {
+    final transition = _transition.then<void>(
+      (_) => action(),
+      onError: (Object _, StackTrace _) => action(),
+    );
+    _transition = transition.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
     );
-    return reconcile;
+    return transition;
   }
 
   Future<void> _reconcile() async {
     if (shouldSync) {
       await _sync.start();
     } else {
+      _pagination.cancelInFlight();
       await _sync.stop();
     }
   }

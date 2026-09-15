@@ -62,9 +62,7 @@ final class MatrixAccountStoreRegistry {
     }
 
     final removed = _stores.remove(normalizedAccountId);
-    if (removed == null) return false;
-    _accountByEncryptionKeyId.remove(removed.encryptionKeyId);
-    return true;
+    return removed != null;
   }
 
   Iterable<MatrixSdkStoreConfiguration> get stores =>

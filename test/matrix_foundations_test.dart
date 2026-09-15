@@ -28,7 +28,7 @@ void main() {
       expect(boundary.openCalls, 0);
     });
 
-    test('rejects SDK boundaries without Sliding Sync support', () {
+    test('rejects SDK boundaries without incremental sync support', () {
       final boundary = _FakeSdkBoundary(
         capabilities: const <MatrixSdkCapability>{
           MatrixSdkCapability.auditedEncryption,
@@ -48,7 +48,7 @@ void main() {
         capabilities: const <MatrixSdkCapability>{
           MatrixSdkCapability.auditedEncryption,
           MatrixSdkCapability.encryptedPersistentStore,
-          MatrixSdkCapability.slidingSync,
+          MatrixSdkCapability.incrementalSync,
         },
       );
       final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
@@ -65,7 +65,7 @@ void main() {
         capabilities: const <MatrixSdkCapability>{
           MatrixSdkCapability.auditedEncryption,
           MatrixSdkCapability.encryptedPersistentStore,
-          MatrixSdkCapability.slidingSync,
+          MatrixSdkCapability.incrementalSync,
           MatrixSdkCapability.backPagination,
         },
       );
@@ -82,6 +82,7 @@ void main() {
       expect(boundary.openedStore, same(_store));
       expect(boundary.startCalls, 1);
       expect(boundary.lastSyncConfiguration?.initialRoomListLimit, 200);
+      expect(boundary.lastSyncConfiguration?.initialTimelineEventLimit, 1);
       expect(boundary.lastSyncConfiguration?.timelineEventLimit, 20);
       expect(boundary.lastSyncConfiguration?.resumeFromCursor, isNull);
       expect(boundary.stopCalls, 1);
@@ -90,7 +91,7 @@ void main() {
     });
 
     test(
-      'Sliding Sync populates the initial room list then updates leaf state',
+      'initial SDK sync populates the room list then updates leaf state',
       () async {
         final initialRooms = List<MatrixRoomDelta>.generate(200, (index) {
           final roomId = '!room$index:kite.test';
@@ -113,7 +114,7 @@ void main() {
           capabilities: const <MatrixSdkCapability>{
             MatrixSdkCapability.auditedEncryption,
             MatrixSdkCapability.encryptedPersistentStore,
-            MatrixSdkCapability.slidingSync,
+            MatrixSdkCapability.incrementalSync,
             MatrixSdkCapability.backPagination,
           },
           startBatch: MatrixSyncBatch(cursor: 'initial', rooms: initialRooms),
@@ -179,27 +180,23 @@ void main() {
           capabilities: const <MatrixSdkCapability>{
             MatrixSdkCapability.auditedEncryption,
             MatrixSdkCapability.encryptedPersistentStore,
-            MatrixSdkCapability.slidingSync,
+            MatrixSdkCapability.incrementalSync,
             MatrixSdkCapability.backPagination,
           },
-          paginationBatches: <String, MatrixSyncBatch>{
-            roomId: MatrixSyncBatch(
-              cursor: 'history-1',
-              rooms: <MatrixRoomDelta>[
-                MatrixRoomDelta(
+          paginationPages: <String, MatrixPaginationPage>{
+            roomId: MatrixPaginationPage(
+              roomId: roomId,
+              events: <MatrixTimelineEvent>[
+                MatrixTimelineEvent(
+                  eventId: r'$older:kite.test',
                   roomId: roomId,
-                  timelineEvents: <MatrixTimelineEvent>[
-                    MatrixTimelineEvent(
-                      eventId: r'$older:kite.test',
-                      roomId: roomId,
-                      senderId: '@alice:kite.test',
-                      type: 'm.room.message',
-                      originServerTimestamp: DateTime.utc(2026, 9, 15, 1),
-                      streamPosition: 1,
-                    ),
-                  ],
+                  senderId: '@alice:kite.test',
+                  type: 'm.room.message',
+                  originServerTimestamp: DateTime.utc(2026, 9, 15, 1),
+                  streamPosition: 1,
                 ),
               ],
+              reachedStart: true,
             ),
           },
         );
@@ -236,10 +233,12 @@ void main() {
         );
 
         await sync.start();
-        await engine.paginateBackwards(roomId);
+        final page = await engine.paginateBackwards(roomId);
+        cache.applyPagination(page);
 
         expect(boundary.paginatedRooms, <String>[roomId]);
-        expect(cache.lastSyncCursor, 'history-1');
+        expect(page.reachedStart, isTrue);
+        expect(cache.lastSyncCursor, isNull);
         expect(
           cache.timelineSignal(roomId).value.map((event) => event.eventId),
           <String>[r'$older:kite.test', r'$newer:kite.test'],
@@ -264,6 +263,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: applied.add,
+        applyPagination: (_) {},
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -299,6 +299,7 @@ void main() {
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
       applyBatch: (_) {},
+      applyPagination: (_) {},
       initialActivity: MatrixAppActivity.foreground,
       initialNetworkState: MatrixNetworkState.online,
     );
@@ -321,6 +322,7 @@ void main() {
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
       applyBatch: applied.add,
+      applyPagination: (_) {},
       initialActivity: MatrixAppActivity.foreground,
       initialNetworkState: MatrixNetworkState.online,
     );
@@ -346,6 +348,19 @@ void main() {
     await engine.close();
   });
 
+  testWidgets('failed initial lifecycle update leaves observer detached', (
+    tester,
+  ) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final runtime = _FailingActivityRuntime();
+    final binding = MatrixLifecycleBinding(runtime, binding: tester.binding);
+
+    await expectLater(binding.attach(), throwsA(isA<StateError>()));
+
+    expect(binding.isAttached, isFalse);
+    expect(runtime.states, <MatrixAppActivity>[MatrixAppActivity.foreground]);
+  });
+
   test(
     'connectivity binding forwards loss and recovery without cache reset',
     () async {
@@ -367,6 +382,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: cache.applySync,
+        applyPagination: cache.applyPagination,
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -415,11 +431,62 @@ void main() {
   );
 
   test(
+    'connectivity binding observes changes while initial state is applying',
+    () async {
+      final runtime = _ControlledConnectivityRuntime();
+      final changes = StreamController<MatrixNetworkState>.broadcast(
+        sync: true,
+      );
+      final binding = MatrixConnectivityBinding(
+        runtime,
+        MatrixNetworkState.online,
+        changes.stream,
+      );
+
+      final attach = binding.attach();
+      expect(binding.isAttached, isTrue);
+      expect(runtime.states, <MatrixNetworkState>[MatrixNetworkState.online]);
+
+      changes.add(MatrixNetworkState.offline);
+      expect(runtime.states, <MatrixNetworkState>[
+        MatrixNetworkState.online,
+        MatrixNetworkState.offline,
+      ]);
+
+      runtime.completeInitialUpdate();
+      await attach;
+      await binding.detach();
+      await changes.close();
+    },
+  );
+
+  test('failed initial connectivity update leaves binding detached', () async {
+    final runtime = _ControlledConnectivityRuntime();
+    final changes = StreamController<MatrixNetworkState>.broadcast(sync: true);
+    final binding = MatrixConnectivityBinding(
+      runtime,
+      MatrixNetworkState.online,
+      changes.stream,
+    );
+
+    final attach = binding.attach();
+    runtime.failInitialUpdate(StateError('deterministic connectivity failure'));
+
+    await expectLater(attach, throwsA(isA<StateError>()));
+    expect(binding.isAttached, isFalse);
+
+    changes.add(MatrixNetworkState.offline);
+    expect(runtime.states, <MatrixNetworkState>[MatrixNetworkState.online]);
+    await changes.close();
+  });
+
+  test(
     'near-edge pagination coalesces one in-flight request per room',
     () async {
       final engine = _FakeMatrixEngine();
       final controller = MatrixBackPaginationController(
         engine: engine,
+        applyPage: (_) {},
         edgeThreshold: 5,
       );
 
@@ -472,7 +539,10 @@ void main() {
     'failed near-edge pagination clears in-flight state for retry',
     () async {
       final engine = _FakeMatrixEngine();
-      final controller = MatrixBackPaginationController(engine: engine);
+      final controller = MatrixBackPaginationController(
+        engine: engine,
+        applyPage: (_) {},
+      );
 
       final failed = controller.maybePaginate(
         roomId: '!alpha:kite.test',
@@ -510,13 +580,13 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   _FakeSdkBoundary({
     required this.capabilities,
     this.startBatch,
-    this.paginationBatches = const <String, MatrixSyncBatch>{},
+    this.paginationPages = const <String, MatrixPaginationPage>{},
   });
 
   @override
   final Set<MatrixSdkCapability> capabilities;
   final MatrixSyncBatch? startBatch;
-  final Map<String, MatrixSyncBatch> paginationBatches;
+  final Map<String, MatrixPaginationPage> paginationPages;
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
@@ -551,10 +621,14 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) async {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
     paginatedRooms.add(roomId);
-    final batch = paginationBatches[roomId];
-    if (batch != null) _sync.add(batch);
+    return paginationPages[roomId] ??
+        MatrixPaginationPage(
+          roomId: roomId,
+          events: const <MatrixTimelineEvent>[],
+          reachedStart: false,
+        );
   }
 
   @override
@@ -566,13 +640,42 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   void emit(MatrixSyncBatch batch) => _sync.add(batch);
 }
 
+final class _FailingActivityRuntime implements MatrixActivityRuntime {
+  final List<MatrixAppActivity> states = <MatrixAppActivity>[];
+
+  @override
+  Future<void> updateActivity(MatrixAppActivity activity) async {
+    states.add(activity);
+    throw StateError('deterministic lifecycle failure');
+  }
+}
+
+final class _ControlledConnectivityRuntime
+    implements MatrixConnectivityRuntime {
+  final Completer<void> _initialUpdate = Completer<void>();
+  final List<MatrixNetworkState> states = <MatrixNetworkState>[];
+  var _updateCount = 0;
+
+  @override
+  Future<void> updateNetworkState(MatrixNetworkState state) {
+    states.add(state);
+    _updateCount += 1;
+    if (_updateCount == 1) return _initialUpdate.future;
+    return Future<void>.value();
+  }
+
+  void completeInitialUpdate() => _initialUpdate.complete();
+
+  void failInitialUpdate(Object error) => _initialUpdate.completeError(error);
+}
+
 final class _FakeMatrixEngine implements MatrixEngine {
   _FakeMatrixEngine({this.startFailuresRemaining = 0});
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
   final List<String> paginationCalls = <String>[];
-  Completer<void>? _pagination;
+  Completer<MatrixPaginationPage>? _pagination;
   int startFailuresRemaining;
   int startCalls = 0;
   int stopCalls = 0;
@@ -601,15 +704,21 @@ final class _FakeMatrixEngine implements MatrixEngine {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) {
     paginationCalls.add(roomId);
-    final pagination = Completer<void>();
+    final pagination = Completer<MatrixPaginationPage>();
     _pagination = pagination;
     return pagination.future;
   }
 
-  void completePagination() {
-    _pagination!.complete();
+  void completePagination({bool reachedStart = false}) {
+    _pagination!.complete(
+      MatrixPaginationPage(
+        roomId: paginationCalls.last,
+        events: const <MatrixTimelineEvent>[],
+        reachedStart: reachedStart,
+      ),
+    );
     _pagination = null;
   }
 

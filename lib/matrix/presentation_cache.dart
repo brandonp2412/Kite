@@ -16,16 +16,32 @@ final class MatrixPresentationCache {
 
   String? lastSyncCursor;
 
-  MatrixPresentationSnapshot snapshot() {
+  MatrixPresentationSnapshot snapshot({
+    int? roomLimit,
+    int? timelineEventLimitPerRoom,
+  }) {
+    assert(roomLimit == null || roomLimit > 0);
+    assert(timelineEventLimitPerRoom == null || timelineEventLimitPerRoom > 0);
+    final orderedRoomIds = roomLimit == null
+        ? roomOrder.value
+        : roomOrder.value.take(roomLimit);
+    final persistedRoomIds = orderedRoomIds.toSet();
+    final preservesCompleteRoomSet =
+        roomLimit == null || roomOrder.value.length <= roomLimit;
+
     return MatrixPresentationSnapshot(
       rooms: <MatrixRoomSummary>[
-        for (final roomId in roomOrder.value) ?_roomSummaries[roomId]?.value,
+        for (final roomId in orderedRoomIds) ?_roomSummaries[roomId]?.value,
       ],
       timelines: <String, List<MatrixTimelineEvent>>{
-        for (final entry in _timelines.entries)
-          if (entry.value.value.isNotEmpty) entry.key: entry.value.value,
+        for (final roomId in persistedRoomIds)
+          if (_timelines[roomId]?.value.isNotEmpty ?? false)
+            roomId: _recentEvents(
+              _timelines[roomId]!.value,
+              timelineEventLimitPerRoom,
+            ),
       },
-      syncCursor: lastSyncCursor,
+      syncCursor: preservesCompleteRoomSet ? lastSyncCursor : null,
     );
   }
 
@@ -44,44 +60,88 @@ final class MatrixPresentationCache {
   }
 
   void restore(MatrixPresentationSnapshot snapshot) {
-    lastSyncCursor = snapshot.syncCursor;
-    for (final summary in snapshot.rooms) {
-      roomSummarySignal(summary.roomId).value = summary;
-    }
-    for (final entry in snapshot.timelines.entries) {
-      timelineSignal(entry.key).value = _mergeEvents(
-        const <MatrixTimelineEvent>[],
-        entry.value,
-      );
-    }
-    _refreshRoomOrder();
+    batch(() {
+      lastSyncCursor = snapshot.syncCursor;
+
+      final restoredRoomIds = snapshot.rooms
+          .map((summary) => summary.roomId)
+          .toSet();
+      for (final entry in _roomSummaries.entries) {
+        if (!restoredRoomIds.contains(entry.key) && entry.value.value != null) {
+          entry.value.value = null;
+        }
+      }
+      for (final summary in snapshot.rooms) {
+        final summarySignal = roomSummarySignal(summary.roomId);
+        if (!_sameSummary(summarySignal.value, summary)) {
+          summarySignal.value = summary;
+        }
+      }
+
+      final restoredTimelineIds = snapshot.timelines.keys.toSet();
+      for (final entry in _timelines.entries) {
+        if (!restoredTimelineIds.contains(entry.key) &&
+            entry.value.value.isNotEmpty) {
+          entry.value.value = const <MatrixTimelineEvent>[];
+        }
+      }
+      for (final entry in snapshot.timelines.entries) {
+        final timeline = timelineSignal(entry.key);
+        final restored = _mergeEvents(
+          const <MatrixTimelineEvent>[],
+          entry.value,
+        );
+        if (!_sameTimeline(timeline.value, restored)) {
+          timeline.value = restored;
+        }
+      }
+      _refreshRoomOrder();
+    });
   }
 
-  void applySync(MatrixSyncBatch batch) {
-    for (final room in batch.rooms) {
-      final summary = room.summary;
-      if (summary != null) {
-        final summarySignal = roomSummarySignal(room.roomId);
-        final current = summarySignal.value;
-        if (current == null ||
-            summary.streamPosition >= current.streamPosition) {
-          if (!_sameSummary(current, summary)) {
-            summarySignal.value = summary;
+  void applyPagination(MatrixPaginationPage page) {
+    if (page.events.isEmpty) return;
+    final timeline = timelineSignal(page.roomId);
+    final merged = _mergeEvents(timeline.value, page.events);
+    if (!_sameTimeline(timeline.value, merged)) {
+      timeline.value = merged;
+    }
+  }
+
+  void applySync(MatrixSyncBatch syncBatch) {
+    batch(() {
+      var roomOrderDirty = false;
+      for (final room in syncBatch.rooms) {
+        final summary = room.summary;
+        if (summary != null) {
+          final summarySignal = roomSummarySignal(room.roomId);
+          final current = summarySignal.value;
+          if (current == null ||
+              summary.streamPosition >= current.streamPosition) {
+            if (!_sameSummary(current, summary)) {
+              roomOrderDirty =
+                  roomOrderDirty || _changesRoomOrder(current, summary);
+              summarySignal.value = summary;
+            }
+          }
+        }
+
+        if (room.timelineEvents.isNotEmpty) {
+          final timeline = timelineSignal(room.roomId);
+          final merged = _mergeEvents(timeline.value, room.timelineEvents);
+          if (!_sameTimeline(timeline.value, merged)) {
+            timeline.value = merged;
           }
         }
       }
 
-      if (room.timelineEvents.isNotEmpty) {
-        final timeline = timelineSignal(room.roomId);
-        final merged = _mergeEvents(timeline.value, room.timelineEvents);
-        if (!_sameTimeline(timeline.value, merged)) {
-          timeline.value = merged;
-        }
+      if (syncBatch.commitCursor) {
+        lastSyncCursor = syncBatch.cursor;
       }
-    }
-
-    lastSyncCursor = batch.cursor;
-    _refreshRoomOrder();
+      if (roomOrderDirty) {
+        _refreshRoomOrder();
+      }
+    });
   }
 
   void _refreshRoomOrder() {
@@ -103,6 +163,14 @@ final class MatrixPresentationCache {
     if (!_sameStrings(roomOrder.value, ids)) {
       roomOrder.value = ids;
     }
+  }
+
+  static List<MatrixTimelineEvent> _recentEvents(
+    List<MatrixTimelineEvent> events,
+    int? limit,
+  ) {
+    if (limit == null || events.length <= limit) return events;
+    return events.sublist(events.length - limit);
   }
 
   static List<MatrixTimelineEvent> _mergeEvents(
@@ -142,6 +210,15 @@ final class MatrixPresentationCache {
     return left.originServerTimestamp.compareTo(right.originServerTimestamp);
   }
 
+  static bool _changesRoomOrder(
+    MatrixRoomSummary? current,
+    MatrixRoomSummary next,
+  ) {
+    return current == null ||
+        current.lastActivity != next.lastActivity ||
+        current.streamPosition != next.streamPosition;
+  }
+
   static bool _sameSummary(MatrixRoomSummary? left, MatrixRoomSummary right) {
     if (left == null) return false;
     return left.roomId == right.roomId &&
@@ -167,11 +244,33 @@ final class MatrixPresentationCache {
           a.roomId != b.roomId ||
           a.senderId != b.senderId ||
           a.type != b.type ||
-          a.content.toString() != b.content.toString()) {
+          !_sameJsonValue(a.content, b.content)) {
         return false;
       }
     }
     return true;
+  }
+
+  static bool _sameJsonValue(Object? left, Object? right) {
+    if (identical(left, right)) return true;
+    if (left is Map && right is Map) {
+      if (left.length != right.length) return false;
+      for (final entry in left.entries) {
+        if (!right.containsKey(entry.key) ||
+            !_sameJsonValue(entry.value, right[entry.key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    if (left is List && right is List) {
+      if (left.length != right.length) return false;
+      for (var index = 0; index < left.length; index += 1) {
+        if (!_sameJsonValue(left[index], right[index])) return false;
+      }
+      return true;
+    }
+    return left == right;
   }
 
   static bool _sameStrings(List<String> left, List<String> right) {

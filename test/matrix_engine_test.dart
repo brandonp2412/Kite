@@ -63,7 +63,13 @@ final class _FakeMatrixEngine implements MatrixEngine {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) async {}
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
+    return MatrixPaginationPage(
+      roomId: roomId,
+      events: const <MatrixTimelineEvent>[],
+      reachedStart: true,
+    );
+  }
 
   void emit(MatrixSyncBatch batch) => _sync.add(batch);
 

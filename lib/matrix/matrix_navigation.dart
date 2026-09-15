@@ -87,7 +87,6 @@ final class MatrixDeepLinkParser {
   MatrixNavigationTarget? _parseMatrixUri(Uri uri) {
     final segments = uri.pathSegments
         .where((segment) => segment.isNotEmpty)
-        .map(Uri.decodeComponent)
         .toList(growable: false);
     if (segments.isEmpty) return null;
 
@@ -122,15 +121,18 @@ final class MatrixDeepLinkParser {
 
     final queryIndex = fragment.indexOf('?');
     final path = queryIndex < 0 ? fragment : fragment.substring(0, queryIndex);
-    final query = queryIndex < 0
-        ? const <String, String>{}
-        : Uri.splitQueryString(fragment.substring(queryIndex + 1));
-    final segments = path
-        .split('/')
-        .where((segment) => segment.isNotEmpty)
-        .map(Uri.decodeComponent)
-        .toList(growable: false);
-    if (segments.isEmpty) return null;
+    late final Map<String, String> query;
+    try {
+      query = queryIndex < 0
+          ? const <String, String>{}
+          : Uri.splitQueryString(fragment.substring(queryIndex + 1));
+    } on FormatException {
+      return null;
+    }
+    final segments = _decodeSegments(
+      path.split('/').where((segment) => segment.isNotEmpty),
+    );
+    if (segments == null || segments.isEmpty) return null;
 
     final first = segments.first;
     if (first.startsWith('@')) {
@@ -144,6 +146,18 @@ final class MatrixDeepLinkParser {
       return MatrixNavigationTarget.event(first, segments[1]);
     }
     return _targetForAction(first, query['action']);
+  }
+
+  static List<String>? _decodeSegments(Iterable<String> encodedSegments) {
+    final decoded = <String>[];
+    try {
+      for (final segment in encodedSegments) {
+        decoded.add(Uri.decodeComponent(segment));
+      }
+    } on FormatException {
+      return null;
+    }
+    return List<String>.unmodifiable(decoded);
   }
 
   static MatrixNavigationTarget _targetForAction(String room, String? action) {

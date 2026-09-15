@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:kite/matrix/matrix_account_store_registry.dart';
-import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/matrix_engine.dart';
+import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_cache.dart';
@@ -9,6 +10,13 @@ import 'package:kite/matrix/presentation_store.dart';
 import 'package:signals/signals.dart';
 
 typedef MatrixSdkBoundaryFactory = MatrixSdkBoundary Function(String accountId);
+typedef MatrixPresentationRetryDelay = Future<void> Function(int attempt);
+
+const int _matrixPresentationWriteMaxAttempts = 3;
+
+Future<void> _defaultMatrixPresentationRetryDelay(int attempt) {
+  return Future<void>.delayed(Duration(milliseconds: 50 * attempt));
+}
 
 final class MatrixAccountRuntimeRegistry {
   MatrixAccountRuntimeRegistry({
@@ -17,16 +25,27 @@ final class MatrixAccountRuntimeRegistry {
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
     this.presentationStore,
-  }) : _activity = initialActivity,
-       _networkState = initialNetworkState;
+    this.presentationRoomLimit = 200,
+    this.presentationTimelineEventLimit = 50,
+    MatrixPresentationRetryDelay? presentationRetryDelay,
+  }) : assert(presentationRoomLimit > 0),
+       assert(presentationTimelineEventLimit > 0),
+       _activity = initialActivity,
+       _networkState = initialNetworkState,
+       _presentationRetryDelay =
+           presentationRetryDelay ?? _defaultMatrixPresentationRetryDelay;
 
   final MatrixAccountStoreRegistry storeRegistry;
   final MatrixSdkBoundaryFactory boundaryFactory;
   final MatrixPresentationStore? presentationStore;
+  final int presentationRoomLimit;
+  final int presentationTimelineEventLimit;
+  final MatrixPresentationRetryDelay _presentationRetryDelay;
   final Map<String, _MatrixAccountRuntime> _runtimes =
       <String, _MatrixAccountRuntime>{};
   final Map<String, Future<void>> _presentationWrites =
       <String, Future<void>>{};
+  final Set<String> _presentationDirty = <String>{};
 
   final Signal<String?> activeAccountId = signal<String?>(null);
 
@@ -47,19 +66,56 @@ final class MatrixAccountRuntimeRegistry {
     return accountId == null ? null : _runtimes[accountId]?.cache;
   }
 
-  Future<MatrixPresentationCache> activate(String accountId) {
-    final normalizedAccountId = _normalizeAccountId(accountId);
+  ReadonlySignal<MatrixSyncState>? get activeSyncState {
+    return _activeRuntime?.runtime.syncState;
+  }
+
+  ReadonlySignal<MatrixPaginationState>? activePaginationState(String roomId) {
+    return _activeRuntime?.runtime.paginationState(roomId);
+  }
+
+  Future<void> onTimelineViewportChanged({
+    required String roomId,
+    required int oldestVisibleIndex,
+    required bool hasMoreHistory,
+  }) {
     _ensureNotDisposed();
-    return _enqueue<MatrixPresentationCache>(
-      () => _activate(normalizedAccountId, startSync: true),
+    final active = _activeRuntime;
+    if (active == null) return Future<void>.value();
+    return active.runtime.onTimelineViewportChanged(
+      roomId: roomId,
+      oldestVisibleIndex: oldestVisibleIndex,
+      hasMoreHistory: hasMoreHistory,
     );
   }
 
-  Future<MatrixPresentationCache> activateCached(String accountId) {
+  Future<MatrixPresentationCache> activate(
+    String accountId, {
+    FutureOr<void> Function()? onActivated,
+  }) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
     return _enqueue<MatrixPresentationCache>(
-      () => _activate(normalizedAccountId, startSync: false),
+      () => _activate(
+        normalizedAccountId,
+        startSync: true,
+        onActivated: onActivated,
+      ),
+    );
+  }
+
+  Future<MatrixPresentationCache> activateCached(
+    String accountId, {
+    FutureOr<void> Function()? onActivated,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    return _enqueue<MatrixPresentationCache>(
+      () => _activate(
+        normalizedAccountId,
+        startSync: false,
+        onActivated: onActivated,
+      ),
     );
   }
 
@@ -95,17 +151,27 @@ final class MatrixAccountRuntimeRegistry {
     });
   }
 
-  Future<void> deactivate() {
+  Future<void> deactivate({FutureOr<void> Function()? onDeactivated}) {
     _ensureNotDisposed();
     return _enqueue<void>(() async {
       final active = _activeRuntime;
-      if (active == null) return;
-      await active.runtime.stop();
-      activeAccountId.value = null;
+      if (active != null) {
+        await active.runtime.stop();
+      }
+
+      FutureOr<void>? deactivation;
+      batch(() {
+        activeAccountId.value = null;
+        deactivation = onDeactivated?.call();
+      });
+      await deactivation;
     });
   }
 
-  Future<bool> removeAccount(String accountId) {
+  Future<bool> removeAccount(
+    String accountId, {
+    FutureOr<void> Function()? onActiveRemoved,
+  }) {
     final normalizedAccountId = accountId.trim();
     if (normalizedAccountId.isEmpty) {
       throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
@@ -115,12 +181,27 @@ final class MatrixAccountRuntimeRegistry {
     return _enqueue<bool>(() async {
       final runtime = _runtimes[normalizedAccountId];
       if (runtime != null) {
+        await runtime.runtime.stop();
         await runtime.engine.close();
         _runtimes.remove(normalizedAccountId);
       }
+      FutureOr<void>? activeRemoval;
       if (activeAccountId.value == normalizedAccountId) {
-        activeAccountId.value = null;
+        batch(() {
+          activeAccountId.value = null;
+          activeRemoval = onActiveRemoved?.call();
+        });
+        await activeRemoval;
       }
+
+      await flushPresentationWrites(normalizedAccountId);
+      final presentation = presentationStore;
+      if (presentation != null) {
+        await presentation.clear(normalizedAccountId);
+      }
+      _presentationDirty.remove(normalizedAccountId);
+      _presentationWrites.remove(normalizedAccountId);
+
       final removedStore = storeRegistry.removeAccount(normalizedAccountId);
       return runtime != null || removedStore;
     });
@@ -152,6 +233,7 @@ final class MatrixAccountRuntimeRegistry {
   Future<MatrixPresentationCache> _activate(
     String accountId, {
     required bool startSync,
+    FutureOr<void> Function()? onActivated,
   }) async {
     final currentId = activeAccountId.value;
     final current = currentId == null ? null : _runtimes[currentId];
@@ -159,6 +241,7 @@ final class MatrixAccountRuntimeRegistry {
     await _ensureHydrated(accountId, next);
 
     if (identical(current, next)) {
+      await onActivated?.call();
       if (startSync) {
         await next.runtime.start();
       }
@@ -169,17 +252,46 @@ final class MatrixAccountRuntimeRegistry {
       await current.runtime.stop();
     }
 
-    activeAccountId.value = accountId;
-    if (!startSync) return next.cache;
+    FutureOr<void>? activation;
+    Object? synchronousActivationError;
+    StackTrace? synchronousActivationStackTrace;
+    batch(() {
+      activeAccountId.value = accountId;
+      try {
+        activation = onActivated?.call();
+      } catch (error, stackTrace) {
+        activeAccountId.value = currentId;
+        synchronousActivationError = error;
+        synchronousActivationStackTrace = stackTrace;
+      }
+    });
+
+    final synchronousError = synchronousActivationError;
+    if (synchronousError != null) {
+      if (current != null) {
+        try {
+          await current.runtime.start();
+        } catch (_) {}
+      }
+      Error.throwWithStackTrace(
+        synchronousError,
+        synchronousActivationStackTrace!,
+      );
+    }
 
     try {
-      await next.runtime.start();
-    } catch (_) {
+      await activation;
+      if (startSync) {
+        await next.runtime.start();
+      }
+    } catch (error, stackTrace) {
       activeAccountId.value = currentId;
       if (current != null) {
-        await current.runtime.start();
+        try {
+          await current.runtime.start();
+        } catch (_) {}
       }
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
     }
     return next.cache;
   }
@@ -199,9 +311,14 @@ final class MatrixAccountRuntimeRegistry {
       engine: engine,
       applyBatch: (batch) {
         cache.applySync(batch);
-        final store = presentationStore;
-        if (store != null) {
-          unawaited(_persistPresentation(accountId, cache.snapshot()));
+        if (presentationStore != null) {
+          unawaited(_schedulePresentationWrite(accountId, cache));
+        }
+      },
+      applyPagination: (page) {
+        cache.applyPagination(page);
+        if (presentationStore != null) {
+          unawaited(_schedulePresentationWrite(accountId, cache));
         }
       },
       initialActivity: _activity,
@@ -228,35 +345,65 @@ final class MatrixAccountRuntimeRegistry {
     runtime.hydrated = true;
   }
 
-  Future<void> _persistPresentation(
+  Future<void> _schedulePresentationWrite(
     String accountId,
-    MatrixPresentationSnapshot snapshot,
+    MatrixPresentationCache cache,
   ) {
     final store = presentationStore;
     if (store == null) return Future<void>.value();
 
-    final previous = _presentationWrites[accountId] ?? Future<void>.value();
-    final write = previous.then<void>(
-      (_) => store.save(accountId, snapshot),
-      onError: (Object _, StackTrace _) => store.save(accountId, snapshot),
-    );
-    final guarded = write.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
-    _presentationWrites[accountId] = guarded;
-    return guarded.whenComplete(() {
+    _presentationDirty.add(accountId);
+    final pending = _presentationWrites[accountId];
+    if (pending != null) return pending;
+
+    late final Future<void> guarded;
+    final write = Future<void>(() async {
+      var failureAttempts = 0;
+      while (true) {
+        await Future<void>.delayed(Duration.zero);
+        if (!_presentationDirty.remove(accountId)) return;
+        final snapshot = cache.snapshot(
+          roomLimit: presentationRoomLimit,
+          timelineEventLimitPerRoom: presentationTimelineEventLimit,
+        );
+        try {
+          await store.save(accountId, snapshot);
+          failureAttempts = 0;
+        } catch (_) {
+          failureAttempts += 1;
+          _presentationDirty.add(accountId);
+          if (failureAttempts >= _matrixPresentationWriteMaxAttempts) return;
+          await _presentationRetryDelay(failureAttempts);
+        }
+      }
+    });
+    guarded = write.whenComplete(() {
       if (identical(_presentationWrites[accountId], guarded)) {
         _presentationWrites.remove(accountId);
       }
     });
+    _presentationWrites[accountId] = guarded;
+    return guarded;
   }
 
   Future<void> flushPresentationWrites([String? accountId]) async {
     if (accountId != null) {
-      final pending = _presentationWrites[accountId.trim()];
+      final normalizedAccountId = accountId.trim();
+      final runtime = _runtimes[normalizedAccountId];
+      if (runtime != null && _presentationDirty.contains(normalizedAccountId)) {
+        await _schedulePresentationWrite(normalizedAccountId, runtime.cache);
+        return;
+      }
+      final pending = _presentationWrites[normalizedAccountId];
       if (pending != null) await pending;
       return;
+    }
+
+    for (final dirtyAccountId in List<String>.of(_presentationDirty)) {
+      final runtime = _runtimes[dirtyAccountId];
+      if (runtime != null) {
+        unawaited(_schedulePresentationWrite(dirtyAccountId, runtime.cache));
+      }
     }
     await Future.wait<void>(List<Future<void>>.of(_presentationWrites.values));
   }

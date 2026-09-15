@@ -111,6 +111,7 @@ final class MatrixOutbox {
 
   MatrixNetworkState _networkState;
   bool _hydrated = false;
+  bool _closed = false;
   Future<void> _transition = Future<void>.value();
 
   Stream<MatrixOutboxItem> get transitions => _transitions.stream;
@@ -119,6 +120,7 @@ final class MatrixOutbox {
       List<MatrixOutboxItem>.unmodifiable(_pending);
 
   Future<void> hydrate({required DateTime now}) {
+    _ensureOpen();
     return _enqueueTransition(() async {
       if (_hydrated) return;
       final stored = await _store.loadPending();
@@ -144,6 +146,7 @@ final class MatrixOutbox {
   }
 
   Future<void> enqueue(MatrixOutboxItem item, {required DateTime now}) {
+    _ensureOpen();
     return _enqueueTransition(() async {
       _requireHydrated();
       if (_pending.any((pending) => pending.localId == item.localId)) {
@@ -176,6 +179,7 @@ final class MatrixOutbox {
     MatrixNetworkState state, {
     required DateTime now,
   }) {
+    _ensureOpen();
     return _enqueueTransition(() async {
       _requireHydrated();
       _networkState = state;
@@ -186,6 +190,7 @@ final class MatrixOutbox {
   }
 
   Future<void> retryDue(DateTime now) {
+    _ensureOpen();
     return _enqueueTransition(() async {
       _requireHydrated();
       if (_networkState == MatrixNetworkState.online) {
@@ -195,6 +200,7 @@ final class MatrixOutbox {
   }
 
   Future<void> retry(String localId, {required DateTime now}) {
+    _ensureOpen();
     return _enqueueTransition(() async {
       _requireHydrated();
       final index = _pending.indexWhere((item) => item.localId == localId);
@@ -217,9 +223,18 @@ final class MatrixOutbox {
     });
   }
 
-  Future<void> close() async {
-    await _transition;
-    await _transitions.close();
+  Future<void> close() {
+    if (_closed) return _transition;
+    _closed = true;
+    final closing = _transition.then<void>(
+      (_) => _transitions.close(),
+      onError: (Object _, StackTrace _) => _transitions.close(),
+    );
+    _transition = closing.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return closing;
   }
 
   Future<void> _flushEligible(DateTime now) async {
@@ -309,6 +324,12 @@ final class MatrixOutbox {
   void _requireHydrated() {
     if (!_hydrated) {
       throw StateError('Matrix outbox must be hydrated before use');
+    }
+  }
+
+  void _ensureOpen() {
+    if (_closed) {
+      throw StateError('Matrix outbox is closed');
     }
   }
 

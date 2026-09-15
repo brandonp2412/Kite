@@ -1,18 +1,22 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_navigation.dart';
 import 'package:kite/matrix/matrix_restoration.dart';
+import 'package:kite/matrix/matrix_runtime_bindings.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 import 'package:kite/matrix/matrix_session_runtime.dart';
 import 'package:kite/matrix/presentation_store.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('process recreation restores account cache and navigation before sync resumes', () async {
     final directory = await Directory.systemTemp.createTemp(
       'kite-session-runtime-test-',
@@ -90,6 +94,350 @@ void main() {
   });
 
   test(
+    'session facade forwards lifecycle and connectivity to active account',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-lifecycle-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(
+          FileMatrixRestorationStore(
+            File('${directory.path}/restoration.json'),
+          ),
+        ),
+        isAccountAvailable: (_) => true,
+      );
+
+      await session.activateAccount('@alice:example.org');
+      final boundary = boundaries['@alice:example.org']!;
+      expect(boundary.startCalls, 1);
+      expect(session.syncState, isNotNull);
+
+      final lifecycle = MatrixLifecycleBinding(session);
+      await lifecycle.handleLifecycleState(AppLifecycleState.paused);
+      expect(boundary.stopCalls, 1);
+      await lifecycle.handleLifecycleState(AppLifecycleState.resumed);
+      expect(boundary.startCalls, 2);
+
+      final changes = StreamController<MatrixNetworkState>.broadcast(
+        sync: true,
+      );
+      final connectivity = MatrixConnectivityBinding(
+        session,
+        MatrixNetworkState.online,
+        changes.stream,
+      );
+      await connectivity.attach();
+      changes.add(MatrixNetworkState.offline);
+      while (boundary.stopCalls < 2) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      changes.add(MatrixNetworkState.online);
+      while (boundary.startCalls < 3) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(boundary.stopCalls, 2);
+      expect(boundary.startCalls, 3);
+      await connectivity.detach();
+      await changes.close();
+    },
+  );
+
+  test('account switch exposes matching navigation before slow sync startup completes', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-switch-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final bobStartGate = Completer<void>();
+    final boundaries = <String, _FakeBoundary>{};
+    final restorationStore = FileMatrixRestorationStore(
+      File('${directory.path}/restoration.json'),
+    );
+    final registry = _registry(
+      boundaries,
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+      startGates: <String, Completer<void>>{'@bob:example.org': bobStartGate},
+    );
+    addTearDown(registry.dispose);
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(restorationStore),
+      isAccountAvailable: (_) => true,
+    );
+    const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+    const bobTarget = MatrixNavigationTarget.event(
+      '!bob:example.org',
+      r'$bob-event:example.org',
+    );
+
+    await session.activateAccount('@alice:example.org', target: aliceTarget);
+    final switching = session.activateAccount(
+      '@bob:example.org',
+      target: bobTarget,
+    );
+    while (registry.activeAccountId.value != '@bob:example.org') {
+      await Future<void>.delayed(Duration.zero);
+    }
+    while ((boundaries['@bob:example.org']?.startCalls ?? 0) == 0) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(session.navigationTarget.value, bobTarget);
+    final persistedDuringStart = await restorationStore.load();
+    expect(persistedDuringStart?.accountId, '@bob:example.org');
+    expect(persistedDuringStart?.navigationTarget, bobTarget);
+
+    bobStartGate.complete();
+    await switching;
+    expect(registry.activeAccountId.value, '@bob:example.org');
+    expect(session.navigationTarget.value, bobTarget);
+  });
+
+  test(
+    'failed account switch restores prior navigation and restoration',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-switch-failure-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final boundaries = <String, _FakeBoundary>{};
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+        failStartFor: <String>{'@broken:example.org'},
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const aliceTarget = MatrixNavigationTarget.event(
+        '!alice:example.org',
+        r'$alice-event:example.org',
+      );
+      const brokenTarget = MatrixNavigationTarget.room('!broken:example.org');
+
+      await session.activateAccount('@alice:example.org', target: aliceTarget);
+      await expectLater(
+        session.activateAccount('@broken:example.org', target: brokenTarget),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(session.navigationTarget.value, aliceTarget);
+      final restored = await restorationStore.load();
+      expect(restored?.accountId, '@alice:example.org');
+      expect(restored?.navigationTarget, aliceTarget);
+    },
+  );
+
+  test(
+    'queued account switch failure rolls navigation back to preceding switch',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-switch-order-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final boundaries = <String, _FakeBoundary>{};
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+        failStartFor: <String>{'@broken:example.org'},
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+      const bobTarget = MatrixNavigationTarget.room('!bob:example.org');
+      const brokenTarget = MatrixNavigationTarget.room('!broken:example.org');
+
+      await session.activateAccount('@alice:example.org', target: aliceTarget);
+      final bobSwitch = session.activateAccount(
+        '@bob:example.org',
+        target: bobTarget,
+      );
+      final brokenSwitch = session.activateAccount(
+        '@broken:example.org',
+        target: brokenTarget,
+      );
+
+      await bobSwitch;
+      await expectLater(brokenSwitch, throwsA(isA<StateError>()));
+
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(session.navigationTarget.value, bobTarget);
+      final restored = await restorationStore.load();
+      expect(restored?.accountId, '@bob:example.org');
+      expect(restored?.navigationTarget, bobTarget);
+    },
+  );
+
+  test(
+    'removing the active account clears navigation and process restoration',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-remove-active-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const target = MatrixNavigationTarget.event(
+        '!alice:example.org',
+        r'$alice-event:example.org',
+      );
+
+      await session.activateAccount('@alice:example.org', target: target);
+      expect(await restorationStore.load(), isNotNull);
+
+      expect(await session.removeAccount('@alice:example.org'), isTrue);
+
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.cacheFor('@alice:example.org'), isNull);
+      expect(
+        session.navigationTarget.value,
+        const MatrixNavigationTarget.home(),
+      );
+      expect(await restorationStore.load(), isNull);
+    },
+  );
+
+  test(
+    'removing an inactive account preserves active navigation and restoration',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-remove-inactive-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const bobTarget = MatrixNavigationTarget.room('!bob:example.org');
+      const aliceTarget = MatrixNavigationTarget.event(
+        '!alice:example.org',
+        r'$alice-event:example.org',
+      );
+
+      await session.activateAccount('@bob:example.org', target: bobTarget);
+      await session.activateAccount('@alice:example.org', target: aliceTarget);
+
+      expect(await session.removeAccount('@bob:example.org'), isTrue);
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.cacheFor('@bob:example.org'), isNull);
+      expect(session.navigationTarget.value, aliceTarget);
+      final restored = await restorationStore.load();
+      expect(restored?.accountId, '@alice:example.org');
+      expect(restored?.navigationTarget, aliceTarget);
+    },
+  );
+
+  test(
+    'queued navigation after active account removal cannot persist stale state',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-remove-queue-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+
+      await session.activateAccount('@alice:example.org');
+      final removal = session.removeAccount('@alice:example.org');
+      final navigation = session.navigate(
+        const MatrixNavigationTarget.room('!stale:example.org'),
+      );
+
+      expect(await removal, isTrue);
+      await expectLater(navigation, throwsStateError);
+      expect(
+        session.navigationTarget.value,
+        const MatrixNavigationTarget.home(),
+      );
+      expect(await restorationStore.load(), isNull);
+    },
+  );
+
+  test(
     'stale process restoration is cleared without opening an SDK store',
     () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -136,15 +484,23 @@ void main() {
 
 MatrixAccountRuntimeRegistry _registry(
   Map<String, _FakeBoundary> boundaries,
-  MatrixPresentationStore presentationStore,
-) {
+  MatrixPresentationStore presentationStore, {
+  Map<String, Completer<void>> startGates = const <String, Completer<void>>{},
+  Set<String> failStartFor = const <String>{},
+}) {
   return MatrixAccountRuntimeRegistry(
     storeRegistry: MatrixAccountStoreRegistry(
       rootPath: '/data/kite/matrix',
       encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
     ),
-    boundaryFactory: (accountId) =>
-        boundaries.putIfAbsent(accountId, () => _FakeBoundary(accountId)),
+    boundaryFactory: (accountId) => boundaries.putIfAbsent(
+      accountId,
+      () => _FakeBoundary(
+        accountId,
+        startGate: startGates[accountId],
+        failStart: failStartFor.contains(accountId),
+      ),
+    ),
     initialActivity: MatrixAppActivity.foreground,
     initialNetworkState: MatrixNetworkState.online,
     presentationStore: presentationStore,
@@ -152,21 +508,24 @@ MatrixAccountRuntimeRegistry _registry(
 }
 
 final class _FakeBoundary implements MatrixSdkBoundary {
-  _FakeBoundary(this.accountId);
+  _FakeBoundary(this.accountId, {this.startGate, this.failStart = false});
 
   final String accountId;
+  final Completer<void>? startGate;
+  final bool failStart;
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
   int openCalls = 0;
   int startCalls = 0;
   MatrixSdkSyncConfiguration? lastSyncConfiguration;
+  int stopCalls = 0;
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
     MatrixSdkCapability.auditedEncryption,
     MatrixSdkCapability.encryptedPersistentStore,
-    MatrixSdkCapability.slidingSync,
+    MatrixSdkCapability.incrementalSync,
     MatrixSdkCapability.backPagination,
   };
 
@@ -182,6 +541,8 @@ final class _FakeBoundary implements MatrixSdkBoundary {
   Future<void> startSync(MatrixSdkSyncConfiguration configuration) async {
     startCalls += 1;
     lastSyncConfiguration = configuration;
+    if (failStart) throw StateError('deterministic start failure');
+    await startGate?.future;
     final localpart = accountId.substring(1, accountId.indexOf(':'));
     _sync.add(
       MatrixSyncBatch(
@@ -203,10 +564,18 @@ final class _FakeBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> stopSync() async {}
+  Future<void> stopSync() async {
+    stopCalls += 1;
+  }
 
   @override
-  Future<void> paginateBackwards(String roomId) async {}
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
+    return MatrixPaginationPage(
+      roomId: roomId,
+      events: const <MatrixTimelineEvent>[],
+      reachedStart: true,
+    );
+  }
 
   @override
   Future<void> close() async {
