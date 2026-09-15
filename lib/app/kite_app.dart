@@ -28,7 +28,7 @@ class KiteApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Kite',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
       theme: KiteTheme.light,
       darkTheme: darkThemeVariant == KiteDarkThemeVariant.trueBlack

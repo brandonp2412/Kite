@@ -485,94 +485,101 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
             final members = _controller.members.value;
             final loading = _controller.isLoading.value;
             final errorMessage = _controller.errorMessage.value;
+            final horizontalInset = KiteLayout.centeredHorizontalInset(context);
 
-            return Column(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    KiteSpacing.md,
-                    KiteSpacing.sm,
-                    KiteSpacing.md,
-                    KiteSpacing.sm,
-                  ),
-                  child: TextField(
-                    key: const Key('member-search'),
-                    controller: _searchController,
-                    autocorrect: false,
-                    textInputAction: TextInputAction.search,
-                    decoration: const InputDecoration(
-                      hintText: 'Search members',
-                      prefixIcon: Icon(Icons.search),
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalInset),
+              child: Column(
+                key: const Key('member-content'),
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      KiteSpacing.md,
+                      KiteSpacing.sm,
+                      KiteSpacing.md,
+                      KiteSpacing.sm,
                     ),
-                    onChanged: _controller.search,
+                    child: TextField(
+                      key: const Key('member-search'),
+                      controller: _searchController,
+                      autocorrect: false,
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        hintText: 'Search members',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: _controller.search,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  height: 4,
-                  child: loading
-                      ? const LinearProgressIndicator(
-                          key: Key('member-search-progress'),
-                        )
-                      : null,
-                ),
-                SizedBox(
-                  height: 36,
-                  child: Center(
-                    child: Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        errorMessage ?? '',
-                        key: const Key('member-error'),
-                        textAlign: TextAlign.center,
-                        style: KiteTypography.metadata.copyWith(
-                          color: Theme.of(context).colorScheme.error,
+                  SizedBox(
+                    height: 4,
+                    child: loading
+                        ? const LinearProgressIndicator(
+                            key: Key('member-search-progress'),
+                          )
+                        : null,
+                  ),
+                  SizedBox(
+                    height: 36,
+                    child: Center(
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          errorMessage ?? '',
+                          key: const Key('member-error'),
+                          textAlign: TextAlign.center,
+                          style: KiteTypography.metadata.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: members.isEmpty && !loading
-                      ? const _EmptyMembers()
-                      : ListView.builder(
-                          key: const Key('member-list'),
-                          itemCount: members.length,
-                          itemExtent: 72,
-                          itemBuilder: (context, index) {
-                            final member = members[index];
-                            return Semantics(
-                              button: true,
-                              label:
-                                  '${member.displayName}, ${_roleLabel(member.powerLevel)}',
-                              child: ListTile(
-                                key: Key('member-${member.userId}'),
-                                minTileHeight: 72,
-                                leading: _MemberAvatar(member: member),
-                                title: Text(
-                                  member.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(
-                                  member.userId,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: Text(
-                                  _roleLabel(member.powerLevel),
-                                  style: KiteTypography.metadata.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                  Expanded(
+                    child: members.isEmpty && !loading
+                        ? errorMessage != null
+                              ? _MemberLoadError(onRetry: _controller.load)
+                              : const _EmptyMembers()
+                        : ListView.builder(
+                            key: const Key('member-list'),
+                            itemCount: members.length,
+                            itemExtent: 72,
+                            itemBuilder: (context, index) {
+                              final member = members[index];
+                              return Semantics(
+                                button: true,
+                                label:
+                                    '${member.displayName}, ${_roleLabel(member.powerLevel)}',
+                                child: ListTile(
+                                  key: Key('member-${member.userId}'),
+                                  minTileHeight: 72,
+                                  leading: _MemberAvatar(member: member),
+                                  title: Text(
+                                    member.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
+                                  subtitle: Text(
+                                    member.userId,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: Text(
+                                    _roleLabel(member.powerLevel),
+                                    style: KiteTypography.metadata.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                                  ),
+                                  onTap: () => _openMember(member),
                                 ),
-                                onTap: () => _openMember(member),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -636,6 +643,48 @@ class _InviteMemberDialogState extends State<_InviteMemberDialog> {
           child: const Text('Invite'),
         ),
       ],
+    );
+  }
+}
+
+class _MemberLoadError extends StatelessWidget {
+  const _MemberLoadError({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(KiteSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 40,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: KiteSpacing.sm),
+            const Text('Could not load members', style: KiteTypography.title),
+            const SizedBox(height: KiteSpacing.xs),
+            Text(
+              'Check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: KiteTypography.metadata.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: KiteSpacing.md),
+            FilledButton.tonalIcon(
+              key: const Key('member-load-retry'),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

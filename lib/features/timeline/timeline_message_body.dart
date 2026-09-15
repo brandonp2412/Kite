@@ -93,9 +93,10 @@ abstract final class TimelineBodyParser {
 }
 
 class TimelineMessageBody extends StatelessWidget {
-  const TimelineMessageBody({super.key, required this.body});
+  const TimelineMessageBody({super.key, required this.body, this.textKey});
 
   final String body;
+  final Key? textKey;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +108,10 @@ class TimelineMessageBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         for (var index = 0; index < blocks.length; index++) ...<Widget>[
-          _TimelineBodyBlockView(block: blocks[index]),
+          _TimelineBodyBlockView(
+            block: blocks[index],
+            textKey: index == 0 ? textKey : null,
+          ),
           if (index != blocks.length - 1)
             const SizedBox(height: KiteSpacing.xs),
         ],
@@ -117,9 +121,10 @@ class TimelineMessageBody extends StatelessWidget {
 }
 
 class _TimelineBodyBlockView extends StatelessWidget {
-  const _TimelineBodyBlockView({required this.block});
+  const _TimelineBodyBlockView({required this.block, this.textKey});
 
   final TimelineBodyBlock block;
+  final Key? textKey;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +132,7 @@ class _TimelineBodyBlockView extends StatelessWidget {
     return switch (block.type) {
       TimelineBodyBlockType.paragraph => Text.rich(
         TextSpan(children: _inlineSpans(block.text, context)),
-        key: const Key('timeline-body-paragraph'),
+        key: textKey ?? const Key('timeline-body-paragraph'),
         style: KiteTypography.body.copyWith(color: colors.onSurface),
         textDirection: _directionFor(block.text),
       ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/media_viewer_fixture.dart';
 import 'package:kite/design/kite_theme.dart';
@@ -45,7 +46,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fixture.loadCounts, <int>[1, 1, 0]);
-    expect(find.text('2 of 3'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byKey(const Key('media-page-fixture-1'))).label,
+      contains('2 of 3'),
+    );
     expect(find.byKey(const Key('media-full-fixture-1')), findsOneWidget);
     expect(find.byKey(const Key('media-full-fixture-0')), findsNothing);
   });
@@ -184,5 +188,46 @@ void main() {
       0,
     );
     expect(find.byKey(const Key('media-full-fixture-0')), findsOneWidget);
+  });
+
+  testWidgets('arrow keys browse media without wrapping past either edge', (
+    tester,
+  ) async {
+    final fixture = await pumpViewer(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('media-full-fixture-1')), findsOneWidget);
+    expect(fixture.loadCounts, <int>[1, 1, 0]);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('media-full-fixture-0')), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('media-full-fixture-0')), findsOneWidget);
+  });
+
+  testWidgets('media controls expose labelled 48dp accessibility targets', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpViewer(tester, onSave: (_) async {}, onShare: (_) async {});
+
+    for (final entry in <Key, String>{
+      const Key('media-close'): 'Close media viewer',
+      const Key('media-save'): 'Save media',
+      const Key('media-share'): 'Share media',
+    }.entries) {
+      final targetFinder = find.byKey(entry.key);
+      final size = tester.getSize(targetFinder);
+      final node = tester.getSemantics(targetFinder);
+      expect(size.width, greaterThanOrEqualTo(48));
+      expect(size.height, greaterThanOrEqualTo(48));
+      expect(node.label, contains(entry.value));
+    }
+
+    semantics.dispose();
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kite/features/settings/settings_layout.dart';
 import 'package:kite/features/settings/support_settings_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -47,7 +48,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
           return ListView(
             key: const Key('support-settings-list'),
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: SettingsLayout.listPadding(context),
             children: <Widget>[
               const _SectionTitle(label: 'Storage'),
               _UsageTile(
@@ -109,9 +110,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               ),
               const Divider(height: 1),
               const _SectionTitle(label: 'About'),
-              SizedBox(
+              ConstrainedBox(
                 key: const Key('about-info'),
-                height: 132,
+                constraints: const BoxConstraints(minHeight: 132),
                 child: about == null
                     ? const Center(child: Text('App information unavailable'))
                     : Column(
@@ -142,9 +143,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                         ],
                       ),
               ),
-              SizedBox(
+              ConstrainedBox(
                 key: const Key('support-settings-status'),
-                height: 64,
+                constraints: const BoxConstraints(minHeight: 64),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Align(

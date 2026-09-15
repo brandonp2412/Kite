@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -183,6 +184,24 @@ class _MediaViewerState extends State<MediaViewer> {
     if (navigator?.canPop() ?? false) navigator!.pop();
   }
 
+  void _movePage(int delta) {
+    final target = (_currentIndex.peek() + delta).clamp(
+      0,
+      widget.items.length - 1,
+    );
+    if (target == _currentIndex.peek()) return;
+    final duration = KiteMotion.resolve(context, KiteMotion.standard);
+    if (duration == Duration.zero) {
+      _pageController.jumpToPage(target);
+      return;
+    }
+    _pageController.animateToPage(
+      target,
+      duration: duration,
+      curve: KiteMotion.standardCurve,
+    );
+  }
+
   Future<void> _runAction(
     _MediaViewerAction action,
     MediaViewerItem item,
@@ -226,61 +245,77 @@ class _MediaViewerState extends State<MediaViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: const Key('media-viewer'),
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          GestureDetector(
-            key: const Key('media-gesture-surface'),
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggleControls,
-            onVerticalDragStart: _onVerticalDragStart,
-            onVerticalDragUpdate: _onVerticalDragUpdate,
-            onVerticalDragEnd: _onVerticalDragEnd,
-            child: SignalBuilder(
-              builder: (context) {
-                final offset = _dismissOffset.value;
-                final isDragging = _isDismissDragging.value;
-                return AnimatedSlide(
-                  key: const Key('media-dismiss-slide'),
-                  offset: Offset(0, offset / MediaQuery.sizeOf(context).height),
-                  duration: isDragging
-                      ? Duration.zero
-                      : KiteMotion.resolve(context, KiteMotion.standard),
-                  curve: KiteMotion.standardCurve,
-                  child: PageView.builder(
-                    key: const Key('media-page-view'),
-                    controller: _pageController,
-                    onPageChanged: _onPageChanged,
-                    itemCount: widget.items.length,
-                    itemBuilder: (context, index) => _MediaPage(
-                      item: widget.items[index],
-                      index: index,
-                      resolvedMedia: _resolvedMedia,
-                    ),
-                  ),
-                );
-              },
-            ),
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.escape): _dismiss,
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+            _movePage(-1),
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+            _movePage(1),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          key: const Key('media-viewer'),
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              GestureDetector(
+                key: const Key('media-gesture-surface'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleControls,
+                onVerticalDragStart: _onVerticalDragStart,
+                onVerticalDragUpdate: _onVerticalDragUpdate,
+                onVerticalDragEnd: _onVerticalDragEnd,
+                child: SignalBuilder(
+                  builder: (context) {
+                    final offset = _dismissOffset.value;
+                    final isDragging = _isDismissDragging.value;
+                    return AnimatedSlide(
+                      key: const Key('media-dismiss-slide'),
+                      offset: Offset(
+                        0,
+                        offset / MediaQuery.sizeOf(context).height,
+                      ),
+                      duration: isDragging
+                          ? Duration.zero
+                          : KiteMotion.resolve(context, KiteMotion.standard),
+                      curve: KiteMotion.standardCurve,
+                      child: PageView.builder(
+                        key: const Key('media-page-view'),
+                        controller: _pageController,
+                        onPageChanged: _onPageChanged,
+                        itemCount: widget.items.length,
+                        itemBuilder: (context, index) => _MediaPage(
+                          item: widget.items[index],
+                          index: index,
+                          itemCount: widget.items.length,
+                          resolvedMedia: _resolvedMedia,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              _MediaTopControls(
+                currentIndex: _currentIndex,
+                visible: _controlsVisible,
+                pendingAction: _pendingAction,
+                items: widget.items,
+                onDismiss: _dismiss,
+                onSave: widget.onSave,
+                onShare: widget.onShare,
+                onRunAction: _runAction,
+              ),
+              _MediaCaptionOverlay(
+                currentIndex: _currentIndex,
+                visible: _controlsVisible,
+                items: widget.items,
+              ),
+            ],
           ),
-          _MediaTopControls(
-            currentIndex: _currentIndex,
-            visible: _controlsVisible,
-            pendingAction: _pendingAction,
-            items: widget.items,
-            onDismiss: _dismiss,
-            onSave: widget.onSave,
-            onShare: widget.onShare,
-            onRunAction: _runAction,
-          ),
-          _MediaCaptionOverlay(
-            currentIndex: _currentIndex,
-            visible: _controlsVisible,
-            items: widget.items,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -290,17 +325,19 @@ class _MediaPage extends StatelessWidget {
   const _MediaPage({
     required this.item,
     required this.index,
+    required this.itemCount,
     required this.resolvedMedia,
   });
 
   final MediaViewerItem item;
   final int index;
+  final int itemCount;
   final ReadonlySignal<_ResolvedMedia?> resolvedMedia;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: item.semanticLabel,
+      label: '${item.semanticLabel}, ${index + 1} of $itemCount',
       image: true,
       child: Stack(
         key: Key('media-page-${item.id}'),
@@ -503,25 +540,32 @@ class _MediaControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: 48,
-      child: IconButton(
-        tooltip: tooltip,
-        style: IconButton.styleFrom(
-          foregroundColor: Colors.white,
-          backgroundColor: Colors.black.withValues(alpha: 0.58),
+    return Semantics(
+      button: true,
+      label: tooltip,
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: SizedBox.square(
+          dimension: 48,
+          child: IconButton(
+            tooltip: tooltip,
+            style: IconButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Colors.black.withValues(alpha: 0.58),
+            ),
+            onPressed: onPressed,
+            icon: busy
+                ? const SizedBox.square(
+                    key: Key('media-action-progress'),
+                    dimension: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(icon),
+          ),
         ),
-        onPressed: onPressed,
-        icon: busy
-            ? const SizedBox.square(
-                key: Key('media-action-progress'),
-                dimension: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Icon(icon),
       ),
     );
   }

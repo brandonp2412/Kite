@@ -64,6 +64,18 @@ abstract final class KiteRadii {
   static const double pill = 999;
 }
 
+abstract final class KiteLayout {
+  static const double readableContentMaxWidth = 720;
+
+  static double centeredHorizontalInset(
+    BuildContext context, {
+    double maxWidth = readableContentMaxWidth,
+  }) {
+    final width = MediaQuery.sizeOf(context).width;
+    return width > maxWidth ? (width - maxWidth) / 2 : 0;
+  }
+}
+
 abstract final class KiteElevation {
   static const double flat = 0;
   static const double raised = 1;
@@ -165,6 +177,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
     required this.canvas,
     required this.navigation,
     required this.field,
+    required this.focus,
     required this.selected,
     required this.unread,
     required this.mention,
@@ -174,6 +187,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
   final Color canvas;
   final Color navigation;
   final Color field;
+  final Color focus;
   final Color selected;
   final Color unread;
   final Color mention;
@@ -181,13 +195,27 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
 
   factory KiteSemanticColors.forBrightness(
     Brightness brightness,
-    ColorScheme scheme,
-  ) {
+    ColorScheme scheme, {
+    bool trueBlack = false,
+  }) {
     final dark = brightness == Brightness.dark;
     return KiteSemanticColors(
-      canvas: dark ? const Color(0xFF111513) : const Color(0xFFF7F8F7),
-      navigation: dark ? const Color(0xFF0D100F) : const Color(0xFFF1F3F2),
-      field: dark ? const Color(0xFF1B201E) : const Color(0xFFEEF1EF),
+      canvas: trueBlack
+          ? Colors.black
+          : dark
+          ? const Color(0xFF111513)
+          : const Color(0xFFF7F8F7),
+      navigation: trueBlack
+          ? Colors.black
+          : dark
+          ? const Color(0xFF0D100F)
+          : const Color(0xFFF1F3F2),
+      field: trueBlack
+          ? const Color(0xFF111513)
+          : dark
+          ? const Color(0xFF1B201E)
+          : const Color(0xFFEEF1EF),
+      focus: scheme.primary,
       selected: scheme.primaryContainer,
       unread: scheme.primary,
       mention: scheme.tertiary,
@@ -200,6 +228,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
     Color? canvas,
     Color? navigation,
     Color? field,
+    Color? focus,
     Color? selected,
     Color? unread,
     Color? mention,
@@ -209,6 +238,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
       canvas: canvas ?? this.canvas,
       navigation: navigation ?? this.navigation,
       field: field ?? this.field,
+      focus: focus ?? this.focus,
       selected: selected ?? this.selected,
       unread: unread ?? this.unread,
       mention: mention ?? this.mention,
@@ -226,6 +256,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
       canvas: Color.lerp(canvas, other.canvas, t)!,
       navigation: Color.lerp(navigation, other.navigation, t)!,
       field: Color.lerp(field, other.field, t)!,
+      focus: Color.lerp(focus, other.focus, t)!,
       selected: Color.lerp(selected, other.selected, t)!,
       unread: Color.lerp(unread, other.unread, t)!,
       mention: Color.lerp(mention, other.mention, t)!,

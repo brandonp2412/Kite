@@ -1,9 +1,59 @@
 {
   "@@locale": "en",
+  "appTitle": "Kite",
+  "chatsTitle": "Chats",
+  "encryptedConversation": "Encrypted conversation",
+  "messageCopied": "Message copied",
+  "messageDeleted": "Message deleted",
+  "editedLabel": "edited",
+  "sendingLabel": "Sending",
+  "sentLabel": "Sent",
+  "retrySendingLabel": "Retry sending",
+  "messageFailedRetryLabel": "Message failed. Retry sending",
+  "replyAction": "Reply",
+  "copyTextAction": "Copy text",
+  "editMessageAction": "Edit message",
+  "deleteMessageAction": "Delete message",
+  "deleteMessageTitle": "Delete message?",
+  "deleteMessageBody": "This removes the message for everyone in the room. This action cannot be undone.",
+  "cancelAction": "Cancel",
+  "deleteAction": "Delete",
+  "addAttachmentTooltip": "Add attachment",
+  "editMessageHint": "Edit message…",
   "messageHint": "Message",
+  "saveEditTooltip": "Save edit",
+  "sendMessageTooltip": "Send message",
+  "editingMessageLabel": "Editing message",
+  "replyingToLabel": "Replying to {sender}",
+  "@replyingToLabel": {
+    "placeholders": {
+      "sender": {"type": "String"}
+    }
+  },
+  "cancelEditTooltip": "Cancel edit",
+  "cancelReplyTooltip": "Cancel reply",
+  "avatarLabel": "{sender} avatar",
+  "@avatarLabel": {
+    "placeholders": {
+      "sender": {"type": "String"}
+    }
+  },
+  "messageCount": "{count, plural, =0{No messages} =1{1 message} other{{count} messages}}",
+  "@messageCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "roomCount": "{count, plural, =0{No rooms} =1{1 room} other{{count} rooms}}",
   "@roomCount": {
     "description": "Number of rooms shown in a room collection.",
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "unreadThreadRepliesLabel": "{count, plural, =1{1 unread thread reply} other{{count} unread thread replies}}",
+  "@unreadThreadRepliesLabel": {
+    "description": "Accessibility label for the number of unread replies across a room's threads.",
     "placeholders": {
       "count": {"type": "int"}
     }

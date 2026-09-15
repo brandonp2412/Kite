@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+device="${1:-}"
+if [[ -z "$device" ]]; then
+  device="$(adb devices -l | awk '/model:WayDroid/{print $1; exit}')"
+fi
+
+if [[ -z "$device" ]]; then
+  printf '%s\n' 'No Waydroid ADB device found. Pass a device id as the first argument.' >&2
+  exit 2
+fi
+
+common=(
+  timeout --signal=TERM --kill-after=15s 5m
+  flutter drive
+  --profile
+  --no-dds
+  --dart-define=KITE_VIRTUALIZED_BENCHMARK=true
+  --driver=test_driver/integration_test.dart
+  --target=integration_test/scroll_performance_test.dart
+  -d "$device"
+)
+
+printf '1/3 scroll baseline on %s: must PASS\n' "$device"
+"${common[@]}"
+
+printf '2/3 injected 40ms scroll stall: must FAIL\n'
+if "${common[@]}" --dart-define=KITE_ARTIFICIAL_SCROLL_JITTER=true; then
+  printf '%s\n' 'ERROR: scroll jitter injector did not trip the benchmark.' >&2
+  exit 1
+fi
+
+printf '3/3 clean scroll rerun: must PASS\n'
+"${common[@]}"
+
+printf '%s\n' 'Scroll jitter harness verified: PASS -> expected FAIL -> PASS.'

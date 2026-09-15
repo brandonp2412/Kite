@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kite/features/settings/settings_controller.dart';
+import 'package:kite/features/settings/settings_layout.dart';
 import 'package:signals/signals_flutter.dart';
 
 final class NotificationSoundOption {
@@ -58,7 +59,7 @@ class _NotificationSettingsScreenState
 
           return ListView(
             key: const Key('notification-settings-list'),
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: SettingsLayout.listPadding(context),
             children: <Widget>[
               SwitchListTile.adaptive(
                 key: const Key('notification-master'),
@@ -97,6 +98,7 @@ class _NotificationSettingsScreenState
                         notifications.roomMode(roomId),
                       ),
                       initialValue: notifications.roomMode(roomId),
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Room notifications',
                       ),
@@ -231,6 +233,7 @@ class _SoundPicker extends StatelessWidget {
         child: DropdownButtonFormField<String>(
           key: ValueKey<String>('$label:$currentId'),
           initialValue: currentId,
+          isExpanded: true,
           decoration: InputDecoration(labelText: label),
           items: <DropdownMenuItem<String>>[
             const DropdownMenuItem<String>(
