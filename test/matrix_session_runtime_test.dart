@@ -253,6 +253,7 @@ void main() {
       );
 
       expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
       expect(session.navigationTarget.value, aliceTarget);
       final restored = await restorationStore.load();
       expect(restored?.accountId, '@alice:example.org');
@@ -355,6 +356,7 @@ void main() {
       isNot(contains('@bob:example.org|!alice:example.org')),
     );
     expect(observedPairs.last, '@alice:example.org|!alice:example.org');
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
     expect(restorationStore.snapshot?.accountId, '@alice:example.org');
     expect(restorationStore.snapshot?.navigationTarget, aliceTarget);
   });

@@ -816,6 +816,53 @@ void main() {
       expect(boundaries['@alice:example.org']!.stopCalls, 1);
       expect(boundaries['@alice:example.org']!.startCalls, 2);
       expect(boundaries['@bob:example.org']!.startCalls, 0);
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+    },
+  );
+
+  test(
+    'failed first activation keeps the persisted presentation snapshot intact',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final cachedSnapshot = MatrixPresentationSnapshot(
+        syncCursor: 'persisted-bob-cursor',
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!bob:example.org',
+            displayName: 'Cached Bob room',
+            lastActivity: DateTime.utc(2026, 9, 15, 2),
+            streamPosition: 4,
+          ),
+        ],
+      );
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{
+          '@bob:example.org': cachedSnapshot,
+        },
+      );
+      final registry = _registry(
+        boundaries,
+        failStartFor: '@bob:example.org',
+        presentationStore: presentationStore,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@bob:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(registry.storeRegistry.stores, isEmpty);
+      expect(
+        presentationStore.snapshots['@bob:example.org'],
+        same(cachedSnapshot),
+      );
     },
   );
 
@@ -842,6 +889,38 @@ void main() {
       expect(aliceBoundary.stopCalls, 1);
       expect(aliceBoundary.startCalls, 2);
       expect(boundaries['@broken:example.org']!.startCalls, 1);
+      expect(boundaries['@broken:example.org']!.closeCalls, 1);
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+    },
+  );
+
+  test(
+    'failed previous-account stop discards the unopened next-account runtime',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      boundaries['@alice:example.org']!.stopFailuresRemaining = 1;
+
+      await expectLater(
+        registry.activate('@bob:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(boundaries['@bob:example.org']!.startCalls, 0);
+      expect(boundaries['@bob:example.org']!.closeCalls, 0);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
     },
   );
 

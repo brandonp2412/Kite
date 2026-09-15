@@ -289,6 +289,7 @@ final class MatrixAccountRuntimeRegistry {
   }) async {
     final currentId = activeAccountId.value;
     final current = currentId == null ? null : _runtimes[currentId];
+    final nextWasLoaded = _runtimes.containsKey(accountId);
     final next = _runtimeFor(accountId);
     await _ensureHydrated(accountId, next);
 
@@ -301,7 +302,14 @@ final class MatrixAccountRuntimeRegistry {
     }
 
     if (current != null) {
-      await current.runtime.stop();
+      try {
+        await current.runtime.stop();
+      } catch (error, stackTrace) {
+        if (!nextWasLoaded) {
+          await _discardFailedNewRuntime(accountId, next);
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      }
     }
 
     await next.runtime.updateActivity(_activity);
@@ -331,6 +339,9 @@ final class MatrixAccountRuntimeRegistry {
           await current.runtime.start();
         } catch (_) {}
       }
+      if (!nextWasLoaded) {
+        await _discardFailedNewRuntime(accountId, next);
+      }
       Error.throwWithStackTrace(
         synchronousError,
         synchronousActivationStackTrace!,
@@ -354,9 +365,32 @@ final class MatrixAccountRuntimeRegistry {
           await current.runtime.start();
         } catch (_) {}
       }
+      if (!nextWasLoaded) {
+        await _discardFailedNewRuntime(accountId, next);
+      }
       Error.throwWithStackTrace(error, stackTrace);
     }
     return next.cache;
+  }
+
+  Future<void> _discardFailedNewRuntime(
+    String accountId,
+    _MatrixAccountRuntime runtime,
+  ) async {
+    if (!identical(_runtimes[accountId], runtime)) return;
+
+    try {
+      await runtime.runtime.stop();
+      await flushPresentationWrites(accountId);
+      if (_presentationDirty.contains(accountId)) return;
+      await runtime.engine.close();
+    } catch (_) {
+      return;
+    }
+
+    if (!identical(_runtimes[accountId], runtime)) return;
+    _runtimes.remove(accountId);
+    storeRegistry.removeAccount(accountId);
   }
 
   _MatrixAccountRuntime _runtimeFor(String accountId) {
