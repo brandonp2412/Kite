@@ -8,6 +8,7 @@ class RoomSettingsScreen extends StatefulWidget {
   const RoomSettingsScreen({
     required this.roomId,
     required this.coordinator,
+    this.avatarMedia,
     this.initialDetails,
     this.onSaved,
     super.key,
@@ -15,6 +16,7 @@ class RoomSettingsScreen extends StatefulWidget {
 
   final String roomId;
   final RoomManagementCoordinator coordinator;
+  final RoomAvatarMediaPort? avatarMedia;
   final KiteRoomDetails? initialDetails;
   final ValueChanged<KiteRoomDetails>? onSaved;
 
@@ -33,9 +35,11 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
       KiteRoomHistoryVisibility.joined;
   KiteRoomNotificationMode _notificationMode =
       KiteRoomNotificationMode.allMessages;
+  Uri? _avatarUrl;
   bool _encryptionEnabled = false;
   bool _loading = true;
   bool _saving = false;
+  bool _avatarBusy = false;
   String? _error;
 
   @override
@@ -86,10 +90,50 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
     _name.text = details.name ?? '';
     _topic.text = details.topic ?? '';
     _alias.text = details.canonicalAlias ?? '';
+    _avatarUrl = details.avatarUrl;
     _joinRule = details.joinRule;
     _historyVisibility = details.historyVisibility;
     _notificationMode = details.notificationMode;
     _encryptionEnabled = details.encryptionEnabled;
+  }
+
+  Future<void> _chooseAvatar() async {
+    final media = widget.avatarMedia;
+    if (media == null || _avatarBusy || _saving) return;
+    setState(() {
+      _avatarBusy = true;
+      _error = null;
+    });
+    try {
+      final selection = await media.chooseAndUploadAvatar(
+        roomId: widget.roomId,
+        currentAvatarUrl: _avatarUrl,
+      );
+      if (!mounted || selection == null) return;
+      final avatarUrl = selection.avatarUrl;
+      if (avatarUrl != null && avatarUrl.scheme != 'mxc') {
+        setState(
+          () => _error =
+              'Room avatars must use an mxc URI supplied by the Matrix SDK.',
+        );
+        return;
+      }
+      setState(() => _avatarUrl = avatarUrl);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Kite could not prepare the room avatar.');
+      }
+    } finally {
+      if (mounted) setState(() => _avatarBusy = false);
+    }
+  }
+
+  void _removeAvatar() {
+    if (_avatarBusy || _saving || _avatarUrl == null) return;
+    setState(() {
+      _avatarUrl = null;
+      _error = null;
+    });
   }
 
   Future<void> _save() async {
@@ -110,6 +154,12 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
       }
       if (topic != previous.topic) {
         await widget.coordinator.setTopic(roomId: widget.roomId, topic: topic);
+      }
+      if (_avatarUrl != previous.avatarUrl) {
+        await widget.coordinator.setAvatar(
+          roomId: widget.roomId,
+          avatarUrl: _avatarUrl,
+        );
       }
       if (!previous.isDirect && alias != previous.canonicalAlias) {
         await widget.coordinator.setCanonicalAlias(
@@ -143,7 +193,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
         roomId: previous.roomId,
         name: name,
         topic: topic,
-        avatarUrl: previous.avatarUrl,
+        avatarUrl: _avatarUrl,
         canonicalAlias: previous.isDirect ? previous.canonicalAlias : alias,
         joinRule: previous.isDirect ? previous.joinRule : _joinRule,
         encryptionEnabled: previous.encryptionEnabled || _encryptionEnabled,
@@ -198,6 +248,15 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                     children: <Widget>[
                       const _SectionTitle('Room profile'),
                       const SizedBox(height: KiteSpacing.sm),
+                      if (widget.avatarMedia != null) ...<Widget>[
+                        _RoomAvatarEditor(
+                          avatarUrl: _avatarUrl,
+                          busy: _avatarBusy,
+                          onChoose: _chooseAvatar,
+                          onRemove: _avatarUrl == null ? null : _removeAvatar,
+                        ),
+                        const SizedBox(height: KiteSpacing.md),
+                      ],
                       TextField(
                         key: const Key('room-settings-name'),
                         controller: _name,
@@ -385,6 +444,88 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
       return false;
     }
     return capabilities.supports(rule);
+  }
+}
+
+class _RoomAvatarEditor extends StatelessWidget {
+  const _RoomAvatarEditor({
+    required this.avatarUrl,
+    required this.busy,
+    required this.onChoose,
+    required this.onRemove,
+  });
+
+  final Uri? avatarUrl;
+  final bool busy;
+  final VoidCallback onChoose;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      container: true,
+      label: 'Room avatar',
+      child: Row(
+        key: const Key('room-settings-avatar-editor'),
+        children: <Widget>[
+          CircleAvatar(
+            key: const Key('room-settings-avatar-preview'),
+            radius: 28,
+            backgroundColor: colors.secondaryContainer,
+            foregroundColor: colors.onSecondaryContainer,
+            child: Icon(
+              avatarUrl == null ? Icons.group_outlined : Icons.group_rounded,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: KiteSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  avatarUrl == null ? 'No room avatar' : 'Room avatar selected',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: KiteTypography.metadata,
+                ),
+                const SizedBox(height: KiteSpacing.xs),
+                Wrap(
+                  spacing: KiteSpacing.sm,
+                  runSpacing: KiteSpacing.xs,
+                  children: <Widget>[
+                    OutlinedButton.icon(
+                      key: const Key('room-settings-avatar-choose'),
+                      onPressed: busy ? null : onChoose,
+                      icon: SizedBox.square(
+                        dimension: 18,
+                        child: busy
+                            ? const CircularProgressIndicator(strokeWidth: 2)
+                            : const Icon(Icons.photo_outlined, size: 18),
+                      ),
+                      label: Text(
+                        avatarUrl == null ? 'Choose photo' : 'Replace',
+                      ),
+                    ),
+                    if (avatarUrl != null)
+                      TextButton.icon(
+                        key: const Key('room-settings-avatar-remove'),
+                        onPressed: busy ? null : onRemove,
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                        ),
+                        label: const Text('Remove'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

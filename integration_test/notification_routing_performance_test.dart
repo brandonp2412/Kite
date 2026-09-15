@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
+import 'package:kite/features/notifications/notification_ingress.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
@@ -56,12 +58,26 @@ void main() {
         accounts: accounts,
         navigation: navigation,
       );
+      final ingress = NotificationIngressCoordinator(
+        onAccepted: (result) async {
+          final notification = result.notification!;
+          notifications.upsertNotification(notification);
+          await deliveryCoordinator.upsert(
+            notification: notification,
+            content: KiteNotificationContent(
+              title: 'Ingress ${result.transport.name}',
+              body: 'Resolved by the deterministic Matrix notification adapter',
+            ),
+          );
+        },
+      );
       await tester.pumpWidget(
         MaterialApp(
-          home: ValueListenableBuilder<int>(
-            valueListenable: revision,
-            builder: (context, value, child) => Scaffold(
-              body: Text(
+          theme: KiteTheme.light,
+          home: Scaffold(
+            body: ValueListenableBuilder<int>(
+              valueListenable: revision,
+              builder: (context, value, child) => Text(
                 'notification-revision-$value',
                 key: const Key('notification-routing-benchmark-status'),
               ),
@@ -69,6 +85,10 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+      revision.value = 1;
+      await tester.pumpAndSettle();
+      revision.value = 0;
       await tester.pumpAndSettle();
 
       final result = await measureFrames(
@@ -118,6 +138,32 @@ void main() {
           await tester.pump();
 
           expect(
+            (await ingress.receive(
+              transport: NotificationIngressTransport.fcm,
+              data: const <String, String?>{
+                'notification_id': 'ingress-call',
+                'kind': 'call',
+                'account_id': 'work',
+                'room_id': '!calls:example.org',
+                'call_id': 'rtc-42',
+              },
+            )).accepted,
+            isTrue,
+          );
+          expect(
+            (await ingress.receive(
+              transport: NotificationIngressTransport.backgroundSync,
+              data: const <String, String?>{
+                'notification_id': 'ingress-invite',
+                'kind': 'invite',
+                'account_id': 'personal',
+                'room_id': '!invite:example.org',
+              },
+            )).accepted,
+            isTrue,
+          );
+
+          expect(
             await coordinator.markRoomRead(
               accountId: 'work',
               roomId: '!team:example.org',
@@ -153,7 +199,7 @@ void main() {
           }
           notificationPrivacy.hideNotificationContents = true;
           await deliveryCoordinator.refreshPrivacy();
-          expect(deliveryCoordinator.activePresentations, hasLength(49));
+          expect(deliveryCoordinator.activePresentations, hasLength(51));
           expect(
             deliveryCoordinator.activePresentations.every(
               (presentation) => presentation.contentsHidden,
@@ -180,6 +226,21 @@ void main() {
         'message',
         'remote-read',
       ]);
+      expect(
+        notifications.notification('ingress-call')?.destination,
+        const AppDestination.call(
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          callId: 'rtc-42',
+        ),
+      );
+      expect(
+        notifications.notification('ingress-invite')?.destination,
+        const AppDestination.room(
+          accountId: 'personal',
+          roomId: '!invite:example.org',
+        ),
+      );
 
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['notification_routing_reconciliation'] =
