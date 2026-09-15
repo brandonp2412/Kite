@@ -54,9 +54,11 @@ abstract interface class ThreadPaginationPort {
 class DeterministicThreadPaginationPort implements ThreadPaginationPort {
   const DeterministicThreadPaginationPort({
     this.latency = const Duration(milliseconds: 90),
-  });
+    this.pageSize = 2,
+  }) : assert(pageSize > 0);
 
   final Duration latency;
+  final int pageSize;
 
   @override
   Future<ThreadPage> loadOlder({
@@ -69,22 +71,19 @@ class DeterministicThreadPaginationPort implements ThreadPaginationPort {
       return const ThreadPage(replies: <ThreadReply>[], hasMore: false);
     }
     return ThreadPage(
-      replies: <ThreadReply>[
-        ThreadReply(
-          id: '$parentEventId-thread-older-0',
-          sender: 'Mina',
-          body: 'I added the earlier context here.',
-          mine: false,
-          timeLabel: '09:58',
-        ),
-        ThreadReply(
-          id: '$parentEventId-thread-older-1',
-          sender: 'You',
-          body: 'Thanks — that fills in the missing part.',
-          mine: true,
-          timeLabel: '10:02',
-        ),
-      ],
+      replies: List<ThreadReply>.generate(pageSize, (index) {
+        return ThreadReply(
+          id: '$parentEventId-thread-older-$index',
+          sender: index.isEven ? 'Mina' : 'You',
+          body: switch (index) {
+            0 => 'I added the earlier context here.',
+            1 => 'Thanks — that fills in the missing part.',
+            _ => 'Earlier thread context ${index + 1}',
+          },
+          mine: index.isOdd,
+          timeLabel: '09:${(30 + index).toString().padLeft(2, '0')}',
+        );
+      }, growable: false),
       hasMore: false,
     );
   }
@@ -439,6 +438,30 @@ class ThreadController {
       roomUnread.value = nextUnread < 0 ? 0 : nextUnread;
     }
     _latestReadReplyId[key]?.value = replies.isEmpty ? null : replies.last.id;
+  }
+
+  Future<bool> ensureReplyAvailable({
+    required String roomId,
+    required TimelineMessage parent,
+    required String replyId,
+    int maxPages = 20,
+  }) async {
+    if (maxPages < 0) {
+      throw ArgumentError.value(maxPages, 'maxPages', 'Must not be negative');
+    }
+    final replies = repliesFor(roomId: roomId, parent: parent);
+    if (replies.value.any((reply) => reply.id == replyId)) return true;
+
+    var remainingPages = maxPages;
+    while (remainingPages > 0 &&
+        hasMoreFor(roomId: roomId, parent: parent).value) {
+      final previousLength = replies.value.length;
+      await loadOlder(roomId: roomId, parent: parent);
+      if (replies.value.any((reply) => reply.id == replyId)) return true;
+      if (replies.value.length == previousLength) break;
+      remainingPages -= 1;
+    }
+    return false;
   }
 
   Future<void> loadOlder({

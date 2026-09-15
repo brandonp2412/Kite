@@ -267,6 +267,65 @@ void main() {
   });
 
   test(
+    'focused reply lookup paginates older thread pages with a hard bound',
+    () async {
+      final controller = ThreadController(
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+        ),
+      );
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+
+      expect(
+        controller
+            .repliesFor(roomId: 'alice', parent: parent)
+            .value
+            .any((reply) => reply.id == 'alice-98-thread-older-0'),
+        isFalse,
+      );
+      expect(
+        await controller.ensureReplyAvailable(
+          roomId: 'alice',
+          parent: parent,
+          replyId: 'alice-98-thread-older-0',
+        ),
+        isTrue,
+      );
+      expect(
+        controller
+            .repliesFor(roomId: 'alice', parent: parent)
+            .value
+            .any((reply) => reply.id == 'alice-98-thread-older-0'),
+        isTrue,
+      );
+      expect(
+        await controller.ensureReplyAvailable(
+          roomId: 'alice',
+          parent: parent,
+          replyId: 'missing-reply',
+          maxPages: 0,
+        ),
+        isFalse,
+      );
+      await expectLater(
+        controller.ensureReplyAvailable(
+          roomId: 'alice',
+          parent: parent,
+          replyId: 'missing-reply',
+          maxPages: -1,
+        ),
+        throwsArgumentError,
+      );
+    },
+  );
+
+  test(
     'failed thread reply retries without duplicating the local event',
     () async {
       final port = _ControlledThreadPort();

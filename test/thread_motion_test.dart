@@ -379,7 +379,13 @@ void main() {
       display.refreshRate = PerformanceContract.motionRefreshRateHz;
       addTearDown(display.resetRefreshRate);
 
-      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+          pageSize: 24,
+        ),
+      );
       timelineController.reset(sendPort: DeterministicTimelineSendPort());
       selectRoom('alice');
       await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
@@ -402,7 +408,7 @@ void main() {
       final destination = AppDestination.thread(
         accountId: '@alice:kite.test',
         roomId: 'alice',
-        eventId: 'alice-98-thread-2',
+        eventId: 'alice-98-thread-older-0',
         threadRootEventId: 'alice-98',
       );
       final navigatorContext = tester.element(
@@ -417,14 +423,19 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final focused = find.byKey(const Key('thread-focused-alice-98-thread-2'));
+      final focused = find.byKey(
+        const Key('thread-focused-alice-98-thread-older-0'),
+      );
       final focusedRow = find.byKey(
-        const Key('thread-reply-alice-98-thread-2'),
+        const Key('thread-reply-alice-98-thread-older-0'),
       );
       final list = find.byKey(const Key('thread-reply-list'));
       expect(focused, findsOneWidget);
+      expect(find.text('27 replies'), findsOneWidget);
       final focusedRect = _rectOf(tester, focusedRow);
       final listRect = _rectOf(tester, list);
+      expect(focusedRect.top, greaterThanOrEqualTo(listRect.top));
+      expect(focusedRect.bottom, lessThanOrEqualTo(listRect.bottom));
 
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
@@ -444,7 +455,7 @@ void main() {
         isNull,
       );
       expect(
-        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        find.byKey(const Key('thread-focused-alice-98-thread-older-0')),
         findsNothing,
       );
     },

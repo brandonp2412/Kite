@@ -85,7 +85,9 @@ class ThreadView extends StatefulWidget {
 class _ThreadViewState extends State<ThreadView> {
   final TextEditingController _composerController = TextEditingController();
   final FocusNode _composerFocusNode = FocusNode();
+  final ScrollController _replyScrollController = ScrollController();
   final Signal<TimelineAttachment?> _pendingAttachment = signal(null);
+  final Map<String, GlobalKey> _replyKeys = <String, GlobalKey>{};
 
   @override
   void initState() {
@@ -101,6 +103,7 @@ class _ThreadViewState extends State<ThreadView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       threadController.markRead(roomId: widget.roomId, parent: widget.parent);
+      _revealFocusedReply();
     });
   }
 
@@ -116,7 +119,61 @@ class _ThreadViewState extends State<ThreadView> {
     }
     _composerController.dispose();
     _composerFocusNode.dispose();
+    _replyScrollController.dispose();
     super.dispose();
+  }
+
+  GlobalKey _replyKey(String replyId) {
+    return _replyKeys.putIfAbsent(replyId, () => GlobalKey());
+  }
+
+  Future<void> _revealFocusedReply() async {
+    final replyId = widget.focusedReplyId;
+    if (replyId == null) return;
+    try {
+      final available = await threadController.ensureReplyAvailable(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        replyId: replyId,
+      );
+      if (!mounted || !available) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _positionFocusedReply(replyId, attempt: 0);
+      });
+    } catch (_) {
+      return;
+    }
+  }
+
+  void _positionFocusedReply(String replyId, {required int attempt}) {
+    if (!mounted || !_replyScrollController.hasClients) return;
+    final targetContext = _replyKeys[replyId]?.currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        alignment: 0.5,
+        duration: Duration.zero,
+      );
+      return;
+    }
+    if (attempt >= 2) return;
+
+    final replies = threadController
+        .repliesFor(roomId: widget.roomId, parent: widget.parent)
+        .value;
+    final replyIndex = replies.indexWhere((reply) => reply.id == replyId);
+    if (replyIndex == -1 || replies.length < 2) return;
+    final reverseIndex = replies.length - 1 - replyIndex;
+    final fraction = reverseIndex / (replies.length - 1);
+    final position = _replyScrollController.position;
+    position.jumpTo(
+      (position.maxScrollExtent * fraction)
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _positionFocusedReply(replyId, attempt: attempt + 1);
+    });
   }
 
   Future<void> _pickAttachment() async {
@@ -283,6 +340,7 @@ class _ThreadViewState extends State<ThreadView> {
                     children: <Widget>[
                       ListView.builder(
                         key: const Key('thread-reply-list'),
+                        controller: _replyScrollController,
                         reverse: true,
                         padding: const EdgeInsets.fromLTRB(
                           KiteSpacing.md,
@@ -293,12 +351,15 @@ class _ThreadViewState extends State<ThreadView> {
                         itemCount: replies.length,
                         itemBuilder: (context, index) {
                           final reply = replies[replies.length - 1 - index];
-                          return _ThreadReplyRow(
-                            key: ValueKey<String>(reply.id),
-                            roomId: widget.roomId,
-                            parent: widget.parent,
-                            reply: reply,
-                            focusSignal: focusSignal,
+                          return KeyedSubtree(
+                            key: _replyKey(reply.id),
+                            child: _ThreadReplyRow(
+                              key: ValueKey<String>(reply.id),
+                              roomId: widget.roomId,
+                              parent: widget.parent,
+                              reply: reply,
+                              focusSignal: focusSignal,
+                            ),
                           );
                         },
                       ),
@@ -659,6 +720,9 @@ class _ThreadReplyRow extends StatelessWidget {
           child: DecoratedBox(
             key: focused ? Key('thread-focused-${reply.id}') : null,
             decoration: BoxDecoration(
+              color: focused
+                  ? colors.primaryContainer.withValues(alpha: 0.24)
+                  : Colors.transparent,
               border: Border(
                 left: BorderSide(
                   width: 2,

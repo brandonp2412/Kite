@@ -367,6 +367,13 @@ void main() {
   testWidgets(
     'opening a focused thread destination stays within the frame contract',
     (tester) async {
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+          pageSize: 24,
+        ),
+      );
       await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
       await tester.pumpAndSettle();
       final parent = timelineController
@@ -376,7 +383,7 @@ void main() {
       final destination = AppDestination.thread(
         accountId: '@alice:kite.test',
         roomId: 'alice',
-        eventId: 'alice-98-thread-2',
+        eventId: 'alice-98-thread-older-0',
         threadRootEventId: 'alice-98',
       );
       final navigatorContext = tester.element(
@@ -401,9 +408,10 @@ void main() {
       );
 
       expect(
-        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        find.byKey(const Key('thread-focused-alice-98-thread-older-0')),
         findsOneWidget,
       );
+      expect(find.text('27 replies'), findsOneWidget);
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['thread_focus_open'] = <String, dynamic>{
         'journey': 'open_focused_thread_reply',
