@@ -177,6 +177,40 @@ void main() {
     expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
   });
 
+  testWidgets(
+    'soft-logout context rediscovers and locks the expected account',
+    (tester) async {
+      final gateway = _FakeAuthenticationGateway();
+      final homeserver = HomeserverAddress.parse('matrix.example.org');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(
+            gateway: gateway,
+            initialHomeserver: homeserver,
+            expectedUserId: '@alice:matrix.example.org',
+            lockHomeserver: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(gateway.discoveredHomeserver?.uri, homeserver.uri);
+      expect(find.byKey(const Key('homeserver-field')), findsNothing);
+      expect(find.byKey(const Key('change-homeserver')), findsNothing);
+      expect(
+        find.text(
+          'Sign back in as @alice:matrix.example.org on matrix.example.org.',
+        ),
+        findsOneWidget,
+      );
+      final username = tester.widget<TextField>(
+        find.byKey(const Key('username-field')),
+      );
+      expect(username.controller?.text, '@alice:matrix.example.org');
+    },
+  );
+
   testWidgets('only renders authentication methods advertised by discovery', (
     tester,
   ) async {

@@ -86,11 +86,13 @@ final class SessionLifecycleController {
       final sameAccount = session.userId == current.session.userId;
       final sameHomeserver =
           session.homeserver.uri == current.session.homeserver.uri;
-      if (sameAccount && sameHomeserver) {
+      final sameDevice = session.deviceId == current.session.deviceId;
+      if (sameAccount && sameHomeserver && sameDevice) {
         await acceptAuthenticatedSession(session);
         return;
       }
-      errorMessage.value = 'Sign in again with the same account to continue.';
+      errorMessage.value =
+          'Sign in again with the same account and device to continue.';
     }
   }
 

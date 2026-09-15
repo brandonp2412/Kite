@@ -90,6 +90,9 @@ class _SessionGateState extends State<SessionGate> {
 
         if (lifecycleState is SessionSignedOut ||
             lifecycleState is SessionSoftLoggedOut) {
+          final softLogout = lifecycleState is SessionSoftLoggedOut
+              ? lifecycleState
+              : null;
           return Stack(
             children: <Widget>[
               AuthenticationScreen(
@@ -97,6 +100,9 @@ class _SessionGateState extends State<SessionGate> {
                 gateway: widget.authenticationGateway,
                 scanQrCode: widget.scanLoginQrCode,
                 onAuthenticated: _authenticated,
+                initialHomeserver: softLogout?.session.homeserver,
+                expectedUserId: softLogout?.session.userId,
+                lockHomeserver: softLogout != null,
               ),
               if (lifecycleState is SessionSoftLoggedOut)
                 const Positioned(

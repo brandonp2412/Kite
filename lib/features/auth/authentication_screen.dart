@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kite/features/auth/account_registration_controller.dart';
 import 'package:kite/features/auth/account_registration_screen.dart';
@@ -15,6 +17,9 @@ class AuthenticationScreen extends StatefulWidget {
     this.scanQrCode,
     this.onRegistrationRequested,
     this.registrationGateway,
+    this.initialHomeserver,
+    this.expectedUserId,
+    this.lockHomeserver = false,
     super.key,
   });
 
@@ -24,6 +29,9 @@ class AuthenticationScreen extends StatefulWidget {
   final AuthenticationQrScanner? scanQrCode;
   final ValueChanged<HomeserverAddress>? onRegistrationRequested;
   final AccountRegistrationGateway? registrationGateway;
+  final HomeserverAddress? initialHomeserver;
+  final String? expectedUserId;
+  final bool lockHomeserver;
 
   @override
   State<AuthenticationScreen> createState() => _AuthenticationScreenState();
@@ -41,9 +49,17 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     super.initState();
     _ownsController = widget.controller == null;
     _controller = widget.controller ?? AuthenticationController(widget.gateway);
-    _homeserverController = TextEditingController();
-    _usernameController = TextEditingController();
+    _homeserverController = TextEditingController(
+      text: widget.initialHomeserver?.uri.toString() ?? '',
+    );
+    _usernameController = TextEditingController(
+      text: widget.expectedUserId ?? '',
+    );
     _passwordController = TextEditingController();
+    final initialHomeserver = widget.initialHomeserver;
+    if (initialHomeserver != null) {
+      unawaited(_controller.discover(initialHomeserver.uri.toString()));
+    }
   }
 
   @override
@@ -153,8 +169,12 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                               alignment: Alignment.topLeft,
                               child: Text(
                                 methods == null
-                                    ? 'Choose the Matrix homeserver that hosts your account.'
-                                    : 'Continue with ${methods.homeserver.displayName}.',
+                                    ? widget.expectedUserId == null
+                                          ? 'Choose the Matrix homeserver that hosts your account.'
+                                          : 'Checking ${widget.initialHomeserver?.displayName ?? 'your homeserver'} for ${widget.expectedUserId}.'
+                                    : widget.expectedUserId == null
+                                    ? 'Continue with ${methods.homeserver.displayName}.'
+                                    : 'Sign back in as ${widget.expectedUserId} on ${methods.homeserver.displayName}.',
                               ),
                             ),
                           ),
@@ -163,7 +183,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                             TextField(
                               key: const Key('homeserver-field'),
                               controller: _homeserverController,
-                              enabled: !busy,
+                              enabled: !busy && !widget.lockHomeserver,
                               autocorrect: false,
                               enableSuggestions: false,
                               keyboardType: TextInputType.url,
@@ -173,12 +193,14 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 labelText: 'Homeserver',
                                 hintText: 'matrix.example.org',
                               ),
-                              onSubmitted: busy ? null : _controller.discover,
+                              onSubmitted: busy || widget.lockHomeserver
+                                  ? null
+                                  : _controller.discover,
                             ),
                             const SizedBox(height: 16),
                             FilledButton(
                               key: const Key('discover-homeserver'),
-                              onPressed: busy
+                              onPressed: busy || widget.lockHomeserver
                                   ? null
                                   : () => _controller.discover(
                                       _homeserverController.text,
@@ -199,14 +221,15 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                               ),
                             ],
                           ] else if (session == null) ...<Widget>[
-                            TextButton.icon(
-                              key: const Key('change-homeserver'),
-                              onPressed: busy
-                                  ? null
-                                  : _controller.changeHomeserver,
-                              icon: const Icon(Icons.arrow_back),
-                              label: const Text('Use a different homeserver'),
-                            ),
+                            if (!widget.lockHomeserver)
+                              TextButton.icon(
+                                key: const Key('change-homeserver'),
+                                onPressed: busy
+                                    ? null
+                                    : _controller.changeHomeserver,
+                                icon: const Icon(Icons.arrow_back),
+                                label: const Text('Use a different homeserver'),
+                              ),
                             if (methods.supports(
                               AuthenticationMethod.password,
                             )) ...<Widget>[

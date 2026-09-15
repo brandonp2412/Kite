@@ -101,13 +101,20 @@ void main() {
       expect(controller.state.value, isA<SessionSoftLoggedOut>());
       expect(
         controller.errorMessage.value,
-        'Sign in again with the same account to continue.',
+        'Sign in again with the same account and device to continue.',
       );
 
-      final replacement = _session(deviceId: 'NEW_DEVICE');
+      await controller.resumeAfterSoftLogout(_session(deviceId: 'NEW_DEVICE'));
+      expect(controller.state.value, isA<SessionSoftLoggedOut>());
+      expect(
+        controller.errorMessage.value,
+        'Sign in again with the same account and device to continue.',
+      );
+
+      final replacement = _session();
       await controller.resumeAfterSoftLogout(replacement);
       expect(controller.state.value, isA<SessionAuthenticated>());
-      expect(gateway.persisted?.deviceId, 'NEW_DEVICE');
+      expect(gateway.persisted?.deviceId, 'DEVICE');
     },
   );
 
