@@ -6,6 +6,14 @@ import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:kite/l10n/kite_local_formats.dart';
 
 void main() {
+  test('generated localization handles message plurals', () {
+    final l10n = lookupAppLocalizations(const Locale('en', 'NZ'));
+
+    expect(l10n.messageCount(0), 'No messages');
+    expect(l10n.messageCount(1), '1 message');
+    expect(l10n.messageCount(42), '42 messages');
+  });
+
   testWidgets('Kite exposes translated UI strings and plural rules', (
     tester,
   ) async {

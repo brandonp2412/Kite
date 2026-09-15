@@ -84,7 +84,7 @@ class _CompactHomeHeader extends StatelessWidget {
         child: Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            'Chats',
+            AppLocalizations.of(context).chatsTitle,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
         ),
@@ -261,7 +261,7 @@ class _ChatHeader extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       Text(
-                        'Encrypted conversation',
+                        AppLocalizations.of(context).encryptedConversation,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -355,10 +355,10 @@ class _MessageRow extends StatelessWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(
-              content: Text('Message copied'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context).messageCopied),
               behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 2),
+              duration: const Duration(seconds: 2),
             ),
           );
       case _MessageAction.redact:
@@ -431,7 +431,7 @@ class _MessageRow extends StatelessWidget {
                         ),
                         const SizedBox(width: KiteSpacing.xs),
                         Text(
-                          'Message deleted',
+                          AppLocalizations.of(context).messageDeleted,
                           style: KiteTypography.body.copyWith(
                             color: colors.onSurfaceVariant,
                             fontStyle: FontStyle.italic,
@@ -463,7 +463,7 @@ class _MessageRow extends StatelessWidget {
                   SignalBuilder(
                     builder: (context) => message.edited
                         ? Text(
-                            ' · edited',
+                            ' · ${AppLocalizations.of(context).editedLabel}',
                             key: Key('edited-${message.id}'),
                             style: KiteTypography.metadata.copyWith(
                               color: colors.onSurfaceVariant,
@@ -767,27 +767,27 @@ class _MessageActionSheet extends StatelessWidget {
             _MessageActionButton(
               key: const Key('message-action-reply'),
               icon: Icons.reply_rounded,
-              label: 'Reply',
+              label: AppLocalizations.of(context).replyAction,
               onTap: () => Navigator.of(context).pop(_MessageAction.reply),
             ),
             _MessageActionButton(
               key: const Key('message-action-copy'),
               icon: Icons.content_copy_rounded,
-              label: 'Copy text',
+              label: AppLocalizations.of(context).copyTextAction,
               onTap: () => Navigator.of(context).pop(_MessageAction.copy),
             ),
             if (message.mine)
               _MessageActionButton(
                 key: const Key('message-action-edit'),
                 icon: Icons.edit_outlined,
-                label: 'Edit message',
+                label: AppLocalizations.of(context).editMessageAction,
                 onTap: () => Navigator.of(context).pop(_MessageAction.edit),
               ),
             if (message.mine)
               _MessageActionButton(
                 key: const Key('message-action-delete'),
                 icon: Icons.delete_outline_rounded,
-                label: 'Delete message',
+                label: AppLocalizations.of(context).deleteMessageAction,
                 destructive: true,
                 onTap: () => Navigator.of(context).pop(_MessageAction.redact),
               ),
@@ -860,7 +860,7 @@ class _DeleteMessageDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Delete message?',
+                AppLocalizations.of(context).deleteMessageTitle,
                 style: KiteTypography.title.copyWith(
                   color: colors.onSurface,
                   fontWeight: FontWeight.w700,
@@ -868,7 +868,7 @@ class _DeleteMessageDialog extends StatelessWidget {
               ),
               const SizedBox(height: KiteSpacing.sm),
               Text(
-                'This removes the message for everyone in the room. This action cannot be undone.',
+                AppLocalizations.of(context).deleteMessageBody,
                 style: KiteTypography.body.copyWith(
                   color: colors.onSurfaceVariant,
                 ),
@@ -880,7 +880,7 @@ class _DeleteMessageDialog extends StatelessWidget {
                   TextButton(
                     key: const Key('delete-message-cancel'),
                     onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel'),
+                    child: Text(AppLocalizations.of(context).cancelAction),
                   ),
                   const SizedBox(width: KiteSpacing.sm),
                   FilledButton(
@@ -890,7 +890,7 @@ class _DeleteMessageDialog extends StatelessWidget {
                       backgroundColor: colors.error,
                       foregroundColor: colors.onError,
                     ),
-                    child: const Text('Delete'),
+                    child: Text(AppLocalizations.of(context).deleteAction),
                   ),
                 ],
               ),
@@ -912,7 +912,7 @@ class _MessageAvatar extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Semantics(
       image: true,
-      label: '$sender avatar',
+      label: AppLocalizations.of(context).avatarLabel(sender),
       child: CircleAvatar(
         radius: 16,
         backgroundColor: colors.secondaryContainer,
@@ -948,7 +948,7 @@ class _MessageSendState extends StatelessWidget {
                 Icons.schedule_rounded,
                 size: 14,
                 color: colors.onSurfaceVariant,
-                semanticLabel: 'Sending',
+                semanticLabel: AppLocalizations.of(context).sendingLabel,
               ),
             ),
             TimelineSendState.sent => Center(
@@ -956,11 +956,11 @@ class _MessageSendState extends StatelessWidget {
                 Icons.done_rounded,
                 size: 15,
                 color: colors.onSurfaceVariant,
-                semanticLabel: 'Sent',
+                semanticLabel: AppLocalizations.of(context).sentLabel,
               ),
             ),
             TimelineSendState.failed => Tooltip(
-              message: 'Retry sending',
+              message: AppLocalizations.of(context).retrySendingLabel,
               child: InkWell(
                 key: Key('retry-${message.id}'),
                 borderRadius: BorderRadius.circular(KiteRadii.pill),
@@ -970,7 +970,8 @@ class _MessageSendState extends StatelessWidget {
                     Icons.error_rounded,
                     size: 16,
                     color: colors.error,
-                    semanticLabel: 'Message failed. Retry sending',
+                    semanticLabel: AppLocalizations.of(context)
+                        .messageFailedRetryLabel,
                   ),
                 ),
               ),
@@ -1106,7 +1107,8 @@ class _ComposerState extends State<_Composer> {
                       children: <Widget>[
                         IconButton(
                           key: const Key('composer-attach'),
-                          tooltip: 'Add attachment',
+                          tooltip: AppLocalizations.of(context)
+                              .addAttachmentTooltip,
                           onPressed: () {},
                           icon: const Icon(Icons.add_circle_outline_rounded),
                         ),
@@ -1122,12 +1124,8 @@ class _ComposerState extends State<_Composer> {
                             style: KiteTypography.body,
                             decoration: InputDecoration(
                               hintText: activeMode == _ComposerMode.edit
-                                  ? 'Edit message…'
-                                  : Localizations.of<AppLocalizations>(
-                                          context,
-                                          AppLocalizations,
-                                        )?.messageHint ??
-                                        'Message…',
+                                  ? AppLocalizations.of(context).editMessageHint
+                                  : AppLocalizations.of(context).messageHint,
                               isDense: true,
                               filled: true,
                               fillColor: context.kiteColors.field,
@@ -1167,7 +1165,10 @@ class _ComposerState extends State<_Composer> {
                             final editing = activeMode == _ComposerMode.edit;
                             return IconButton.filled(
                               key: const Key('composer-send'),
-                              tooltip: editing ? 'Save edit' : 'Send message',
+                              tooltip: editing
+                                  ? AppLocalizations.of(context).saveEditTooltip
+                                  : AppLocalizations.of(context)
+                                        .sendMessageTooltip,
                               onPressed: enabled ? _send : null,
                               style: IconButton.styleFrom(
                                 minimumSize: const Size.square(44),
@@ -1249,7 +1250,10 @@ class _ComposerContextBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  editing ? 'Editing message' : 'Replying to ${message.sender}',
+                  editing
+                      ? AppLocalizations.of(context).editingMessageLabel
+                      : AppLocalizations.of(context)
+                            .replyingToLabel(message.sender),
                   key: const Key('composer-context-label'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1274,7 +1278,9 @@ class _ComposerContextBar extends StatelessWidget {
           ),
           IconButton(
             key: const Key('composer-context-close'),
-            tooltip: editing ? 'Cancel edit' : 'Cancel reply',
+            tooltip: editing
+                ? AppLocalizations.of(context).cancelEditTooltip
+                : AppLocalizations.of(context).cancelReplyTooltip,
             onPressed: onClose,
             icon: const Icon(Icons.close_rounded, size: 19),
           ),

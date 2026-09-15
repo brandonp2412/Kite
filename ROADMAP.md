@@ -351,7 +351,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Reduced motion.
 - [ ] Colour is never the sole carrier of unread/error/selection state.
 - [ ] Accessible media labels and call controls.
-- [ ] Localisation framework and plural handling.
+- [x] Localisation framework and plural handling.
 - [ ] Date/time/number formatting by locale.
 - [ ] Phone portrait/landscape layouts.
 - [ ] Foldable/tablet layout.

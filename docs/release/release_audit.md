@@ -22,8 +22,8 @@ This closes the clean-install test item only. The current Gradle release build s
 
 The reviewed `pubspec.lock` SHA-256 is:
 
-`cdd8459a752084813f8dbc9b3a33cb3d66d58286b3fe50e21c11eddfe3f978fd`
+`fe287dd286aa3c3d9acb6f2c389a0c5eeb1aca5d944345762b6594ae0f1ea289`
 
-The lock contains only SDK or hosted packages. The executable audit rejects Git/path dependencies and requires a non-empty license or copying file for every hosted package resolved by the lock. It recognizes only the reviewed BSD-family, Apache-2.0, and MIT license texts; unknown license text fails the gate for manual review. The current baseline contains 36 hosted packages: 25 BSD-family, 9 Apache-2.0, and 2 MIT.
+The lock contains only SDK or hosted packages. The executable audit rejects Git/path dependencies and requires a non-empty license or copying file for every hosted package resolved by the lock. It recognizes only the reviewed BSD-family, Apache-2.0, and MIT license texts; unknown license text fails the gate for manual review. The current baseline contains 37 hosted packages: 26 BSD-family, 9 Apache-2.0, and 2 MIT. The added `intl` 0.20.3 dependency is BSD-family and is required by Flutter's generated localisation/plural support.
 
 Any `pubspec.lock` change deliberately fails the release audit until the changed dependency graph and licenses are reviewed and the pinned digest is updated. This makes dependency/license review an ongoing release gate instead of a one-time document.
