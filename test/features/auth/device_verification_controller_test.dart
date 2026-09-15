@@ -7,6 +7,8 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   String? scannedQrCode;
   String? confirmedQrTransactionId;
   String? confirmedSasTransactionId;
+  String? returnedQrTransactionId;
+  String? returnedSasTransactionId;
   String? cancelledTransactionId;
   int trustReads = 0;
 
@@ -24,7 +26,7 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
     confirmedQrTransactionId = transactionId;
     trust = CrossSigningTrustState.verified;
     return DeviceVerificationSession(
-      transactionId: transactionId,
+      transactionId: returnedQrTransactionId ?? transactionId,
       method: DeviceVerificationMethod.qr,
       stage: DeviceVerificationStage.verified,
     );
@@ -38,7 +40,7 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
     confirmedSasTransactionId = transactionId;
     trust = CrossSigningTrustState.verified;
     return DeviceVerificationSession(
-      transactionId: transactionId,
+      transactionId: returnedSasTransactionId ?? transactionId,
       method: DeviceVerificationMethod.sas,
       stage: DeviceVerificationStage.verified,
     );
@@ -157,6 +159,26 @@ void main() {
       expect(controller.trustState.value, CrossSigningTrustState.verified);
     },
   );
+
+  test('confirmation cannot switch verification transactions', () async {
+    final gateway = _FakeVerificationGateway()
+      ..returnedQrTransactionId = 'different-transaction';
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.startQrVerification(), isTrue);
+    final original = controller.session.value;
+    expect(await controller.confirmQrVerification(), isFalse);
+
+    expect(gateway.confirmedQrTransactionId, 'qr-transaction');
+    expect(controller.session.value, same(original));
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(gateway.trustReads, 0);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid verification state.',
+    );
+  });
 
   test(
     'method mismatch is rejected before the wrong SDK confirmation',

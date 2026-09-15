@@ -134,6 +134,7 @@ final class DeviceVerificationController {
     return _runSessionAction(
       () => _gateway.confirmQrVerification(current.transactionId),
       expectedMethod: DeviceVerificationMethod.qr,
+      expectedTransactionId: current.transactionId,
       failureMessage: 'Kite could not confirm QR verification.',
     );
   }
@@ -159,6 +160,7 @@ final class DeviceVerificationController {
     return _runSessionAction(
       () => _gateway.confirmSasVerification(current.transactionId),
       expectedMethod: DeviceVerificationMethod.sas,
+      expectedTransactionId: current.transactionId,
       failureMessage: 'Kite could not confirm emoji verification.',
     );
   }
@@ -188,6 +190,7 @@ final class DeviceVerificationController {
   Future<bool> _runSessionAction(
     Future<DeviceVerificationSession> Function() action, {
     required DeviceVerificationMethod expectedMethod,
+    String? expectedTransactionId,
     required String failureMessage,
   }) async {
     if (isBusy.value) return false;
@@ -196,7 +199,9 @@ final class DeviceVerificationController {
     errorMessage.value = null;
     try {
       final next = await action();
-      if (next.method != expectedMethod) {
+      if (next.method != expectedMethod ||
+          (expectedTransactionId != null &&
+              next.transactionId != expectedTransactionId)) {
         errorMessage.value = 'Kite received an invalid verification state.';
         return false;
       }
