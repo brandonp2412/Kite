@@ -21,21 +21,34 @@ void _injectScrollJitter() {
   }
 }
 
-class _ScrollJitterTrap extends StatelessWidget {
+class _ScrollJitterTrap extends StatefulWidget {
   const _ScrollJitterTrap({required this.child});
 
   final Widget child;
 
   @override
+  State<_ScrollJitterTrap> createState() => _ScrollJitterTrapState();
+}
+
+class _ScrollJitterTrapState extends State<_ScrollJitterTrap> {
+  bool _injectNextBuild = false;
+
+  @override
   Widget build(BuildContext context) {
-    if (!_scrollJitterEnabled) return child;
+    if (_injectNextBuild) {
+      _injectNextBuild = false;
+      _injectScrollJitter();
+    }
+    if (!_scrollJitterEnabled) return widget.child;
 
     return NotificationListener<ScrollUpdateNotification>(
       onNotification: (notification) {
-        _injectScrollJitter();
+        if (!_injectNextBuild) {
+          setState(() => _injectNextBuild = true);
+        }
         return false;
       },
-      child: child,
+      child: widget.child,
     );
   }
 }
