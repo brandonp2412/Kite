@@ -80,6 +80,82 @@ void main() {
     expect(saved?.notificationMode, KiteRoomNotificationMode.mentionsOnly);
   });
 
+  testWidgets(
+    'room avatar selection is uploaded before the Matrix state event',
+    (tester) async {
+      _useTallView(tester);
+      final fixture = _fixture();
+      final avatarMedia = DeterministicRoomAvatarMediaPort(
+        nextSelection: KiteRoomAvatarSelection(
+          Uri.parse('mxc://example.org/room-avatar'),
+        ),
+      );
+      KiteRoomDetails? saved;
+      await tester.pumpWidget(
+        _app(
+          fixture,
+          avatarMedia: avatarMedia,
+          onSaved: (value) => saved = value,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('room-settings-avatar-choose')));
+      await tester.pumpAndSettle();
+
+      expect(avatarMedia.invocations, hasLength(1));
+      expect(avatarMedia.invocations.single.roomId, _roomId);
+      expect(avatarMedia.invocations.single.currentAvatarUrl, isNull);
+      expect(
+        find.byKey(const Key('room-settings-avatar-remove')),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(find.byKey(const Key('room-settings-save')));
+      await tester.tap(find.byKey(const Key('room-settings-save')));
+      await tester.pumpAndSettle();
+
+      final avatarMutation = fixture.rooms.invocations
+          .where(
+            (entry) => entry.type == RoomManagementInvocationType.setAvatar,
+          )
+          .single;
+      expect(
+        avatarMutation.avatarUrl,
+        Uri.parse('mxc://example.org/room-avatar'),
+      );
+      expect(saved?.avatarUrl, Uri.parse('mxc://example.org/room-avatar'));
+    },
+  );
+
+  testWidgets('non-Matrix avatar uploads are rejected before room mutation', (
+    tester,
+  ) async {
+    _useTallView(tester);
+    final fixture = _fixture();
+    final avatarMedia = DeterministicRoomAvatarMediaPort(
+      nextSelection: KiteRoomAvatarSelection(
+        Uri.parse('https://example.org/avatar.png'),
+      ),
+    );
+    await tester.pumpWidget(_app(fixture, avatarMedia: avatarMedia));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('room-settings-avatar-choose')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Room avatars must use an mxc URI supplied by the Matrix SDK.'),
+      findsOneWidget,
+    );
+    expect(
+      fixture.rooms.invocations.where(
+        (entry) => entry.type == RoomManagementInvocationType.setAvatar,
+      ),
+      isEmpty,
+    );
+  });
+
   testWidgets('direct rooms hide address and access policy controls', (
     tester,
   ) async {
@@ -202,6 +278,7 @@ void _useTallView(WidgetTester tester) {
 
 Widget _app(
   _RoomSettingsFixture fixture, {
+  RoomAvatarMediaPort? avatarMedia,
   ValueChanged<KiteRoomDetails>? onSaved,
 }) {
   return MaterialApp(
@@ -209,6 +286,7 @@ Widget _app(
     home: RoomSettingsScreen(
       roomId: _roomId,
       coordinator: fixture.coordinator,
+      avatarMedia: avatarMedia,
       onSaved: onSaved,
     ),
   );

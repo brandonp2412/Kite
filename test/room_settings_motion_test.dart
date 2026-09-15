@@ -40,22 +40,48 @@ void main() {
         rooms: rooms,
         directMetadata: DeterministicDirectRoomMetadataPort(),
       );
+      final avatarMedia = DeterministicRoomAvatarMediaPort(
+        nextSelection: KiteRoomAvatarSelection(
+          Uri.parse('mxc://example.org/stable-avatar'),
+        ),
+      );
       await tester.pumpWidget(
         MaterialApp(
           theme: KiteTheme.light,
-          home: RoomSettingsScreen(roomId: _roomId, coordinator: coordinator),
+          home: RoomSettingsScreen(
+            roomId: _roomId,
+            coordinator: coordinator,
+            avatarMedia: avatarMedia,
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
       final appBar = find.byType(AppBar);
+      final avatarEditor = find.byKey(const Key('room-settings-avatar-editor'));
       final name = find.byKey(const Key('room-settings-name'));
       final errorSlot = find.byKey(const Key('room-settings-error-slot'));
       final save = find.byKey(const Key('room-settings-save'));
       final appBarRect = _rectOf(tester, appBar);
+      final avatarEditorRect = _rectOf(tester, avatarEditor);
       final nameRect = _rectOf(tester, name);
       final errorRect = _rectOf(tester, errorSlot);
       final saveRect = _rectOf(tester, save);
+
+      await tester.tap(find.byKey(const Key('room-settings-avatar-choose')));
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, appBar), appBarRect);
+        expect(_rectOf(tester, avatarEditor), avatarEditorRect);
+        expect(_rectOf(tester, name), nameRect);
+        expect(_rectOf(tester, errorSlot), errorRect);
+        expect(_rectOf(tester, save), saveRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(
+        find.byKey(const Key('room-settings-avatar-remove')),
+        findsOneWidget,
+      );
 
       await tester.enterText(
         find.byKey(const Key('room-settings-alias')),

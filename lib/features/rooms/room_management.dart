@@ -119,6 +119,21 @@ abstract interface class RoomManagementPort {
   });
 }
 
+final class KiteRoomAvatarSelection {
+  const KiteRoomAvatarSelection(this.avatarUrl);
+
+  const KiteRoomAvatarSelection.remove() : avatarUrl = null;
+
+  final Uri? avatarUrl;
+}
+
+abstract interface class RoomAvatarMediaPort {
+  Future<KiteRoomAvatarSelection?> chooseAndUploadAvatar({
+    required String roomId,
+    required Uri? currentAvatarUrl,
+  });
+}
+
 abstract interface class DirectRoomMetadataPort {
   Future<void> replaceDirectRoomMapping({
     required String roomId,

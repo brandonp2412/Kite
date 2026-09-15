@@ -41,13 +41,38 @@ void main() {
       rooms: rooms,
       directMetadata: DeterministicDirectRoomMetadataPort(),
     );
+    final avatarMedia = DeterministicRoomAvatarMediaPort(
+      nextSelection: KiteRoomAvatarSelection(
+        Uri.parse('mxc://example.org/avatar-warm'),
+      ),
+    );
     await tester.pumpWidget(
       MaterialApp(
         theme: KiteTheme.light,
-        home: RoomSettingsScreen(roomId: _roomId, coordinator: coordinator),
+        home: RoomSettingsScreen(
+          roomId: _roomId,
+          coordinator: coordinator,
+          avatarMedia: avatarMedia,
+        ),
       ),
     );
     await tester.pumpAndSettle();
+    final avatarChoose = find.byKey(const Key('room-settings-avatar-choose'));
+    await tester.tap(avatarChoose);
+    await tester.pumpAndSettle();
+    avatarMedia.nextSelection = KiteRoomAvatarSelection(
+      Uri.parse('mxc://example.org/avatar-measured'),
+    );
+    final avatarResult = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(avatarChoose);
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+    expect(avatarMedia.invocations, hasLength(2));
+
     final topic = tester.widget<TextField>(
       find.byKey(const Key('room-settings-topic')),
     );
@@ -82,6 +107,12 @@ void main() {
       'After',
     );
     binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_settings_avatar_selection'] = <String, dynamic>{
+      'journey': 'room_settings_avatar_selection',
+      'fixture': 'deterministic_room_avatar_media_v1',
+      ...avatarResult,
+      'result': 'PASS',
+    };
     binding.reportData!['room_settings_save'] = <String, dynamic>{
       'journey': 'save_room_settings',
       'fixture': 'deterministic_room_management_v1',

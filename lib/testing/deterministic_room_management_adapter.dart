@@ -258,3 +258,39 @@ final class DeterministicDirectRoomMetadataPort
     );
   }
 }
+
+final class RoomAvatarMediaInvocation {
+  const RoomAvatarMediaInvocation({
+    required this.roomId,
+    required this.currentAvatarUrl,
+  });
+
+  final String roomId;
+  final Uri? currentAvatarUrl;
+}
+
+final class DeterministicRoomAvatarMediaPort implements RoomAvatarMediaPort {
+  DeterministicRoomAvatarMediaPort({this.nextSelection});
+
+  KiteRoomAvatarSelection? nextSelection;
+  Object? failNextWith;
+  final List<RoomAvatarMediaInvocation> invocations =
+      <RoomAvatarMediaInvocation>[];
+
+  @override
+  Future<KiteRoomAvatarSelection?> chooseAndUploadAvatar({
+    required String roomId,
+    required Uri? currentAvatarUrl,
+  }) async {
+    invocations.add(
+      RoomAvatarMediaInvocation(
+        roomId: roomId,
+        currentAvatarUrl: currentAvatarUrl,
+      ),
+    );
+    final error = failNextWith;
+    failNextWith = null;
+    if (error != null) throw error;
+    return nextSelection;
+  }
+}
