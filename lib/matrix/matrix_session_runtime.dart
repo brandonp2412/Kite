@@ -95,7 +95,11 @@ final class MatrixSessionRuntime
       try {
         return await accounts.activate(
           normalizedAccountId,
-          onActivated: () => _recordNavigation(target),
+          onActivated: () =>
+              _recordNavigation(target, rollbackVisibleOnFailure: false),
+          onActivationRolledBack: () {
+            navigationTarget.value = previousTarget;
+          },
         );
       } catch (error, stackTrace) {
         navigationTarget.value = previousTarget;
@@ -155,7 +159,10 @@ final class MatrixSessionRuntime
     });
   }
 
-  Future<void> _recordNavigation(MatrixNavigationTarget target) async {
+  Future<void> _recordNavigation(
+    MatrixNavigationTarget target, {
+    bool rollbackVisibleOnFailure = true,
+  }) async {
     final accountId = accounts.activeAccountId.value;
     if (accountId == null) {
       throw StateError('Cannot persist navigation without an active account');
@@ -172,7 +179,9 @@ final class MatrixSessionRuntime
     try {
       await restoration.record(accountId: accountId, navigationTarget: target);
     } catch (error, stackTrace) {
-      navigationTarget.value = previousTarget;
+      if (rollbackVisibleOnFailure) {
+        navigationTarget.value = previousTarget;
+      }
       Error.throwWithStackTrace(error, stackTrace);
     }
   }

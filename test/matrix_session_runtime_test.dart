@@ -18,6 +18,7 @@ import 'package:kite/matrix/matrix_session_routing_adapter.dart';
 import 'package:kite/matrix/matrix_session_runtime.dart';
 import 'package:kite/matrix/presentation_store.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
+import 'package:signals/signals.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -258,6 +259,105 @@ void main() {
       expect(restored?.navigationTarget, aliceTarget);
     },
   );
+
+  test('failed account switch rolls account and navigation back atomically', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-switch-atomic-rollback-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final boundaries = <String, _FakeBoundary>{};
+    final registry = _registry(
+      boundaries,
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+      failStartFor: <String>{'@broken:example.org'},
+    );
+    addTearDown(registry.dispose);
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(
+        FileMatrixRestorationStore(File('${directory.path}/restoration.json')),
+      ),
+      isAccountAvailable: (_) => true,
+    );
+    const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+    const brokenTarget = MatrixNavigationTarget.room('!broken:example.org');
+
+    await session.activateAccount('@alice:example.org', target: aliceTarget);
+    final observedPairs = <String>[];
+    final disposeEffect = effect(() {
+      observedPairs.add(
+        '${registry.activeAccountId.value}|${session.navigationTarget.value.roomIdOrAlias}',
+      );
+    });
+    addTearDown(disposeEffect);
+
+    await expectLater(
+      session.activateAccount('@broken:example.org', target: brokenTarget),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(observedPairs, contains('@broken:example.org|!broken:example.org'));
+    expect(
+      observedPairs,
+      isNot(contains('@alice:example.org|!broken:example.org')),
+    );
+    expect(
+      observedPairs,
+      isNot(contains('@broken:example.org|!alice:example.org')),
+    );
+    expect(observedPairs.last, '@alice:example.org|!alice:example.org');
+  });
+
+  test('failed account persistence rolls account and navigation back atomically', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-switch-persistence-rollback-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final registry = _registry(
+      <String, _FakeBoundary>{},
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+    );
+    addTearDown(registry.dispose);
+    final restorationStore = _ControllableRestorationStore();
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(restorationStore),
+      isAccountAvailable: (_) => true,
+    );
+    const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+    const bobTarget = MatrixNavigationTarget.room('!bob:example.org');
+
+    await session.activateAccount('@alice:example.org', target: aliceTarget);
+    final observedPairs = <String>[];
+    final disposeEffect = effect(() {
+      observedPairs.add(
+        '${registry.activeAccountId.value}|${session.navigationTarget.value.roomIdOrAlias}',
+      );
+    });
+    addTearDown(disposeEffect);
+    restorationStore.failNextSave = true;
+
+    await expectLater(
+      session.activateAccount('@bob:example.org', target: bobTarget),
+      throwsStateError,
+    );
+
+    expect(
+      observedPairs,
+      isNot(contains('@alice:example.org|!bob:example.org')),
+    );
+    expect(
+      observedPairs,
+      isNot(contains('@bob:example.org|!alice:example.org')),
+    );
+    expect(observedPairs.last, '@alice:example.org|!alice:example.org');
+    expect(restorationStore.snapshot?.accountId, '@alice:example.org');
+    expect(restorationStore.snapshot?.navigationTarget, aliceTarget);
+  });
 
   test(
     'queued account switch failure rolls navigation back to preceding switch',

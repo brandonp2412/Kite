@@ -102,6 +102,7 @@ final class MatrixAccountRuntimeRegistry {
   Future<MatrixPresentationCache> activate(
     String accountId, {
     FutureOr<void> Function()? onActivated,
+    void Function()? onActivationRolledBack,
   }) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
@@ -110,6 +111,7 @@ final class MatrixAccountRuntimeRegistry {
         normalizedAccountId,
         startSync: true,
         onActivated: onActivated,
+        onActivationRolledBack: onActivationRolledBack,
       ),
     );
   }
@@ -117,6 +119,7 @@ final class MatrixAccountRuntimeRegistry {
   Future<MatrixPresentationCache> activateCached(
     String accountId, {
     FutureOr<void> Function()? onActivated,
+    void Function()? onActivationRolledBack,
   }) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
@@ -125,6 +128,7 @@ final class MatrixAccountRuntimeRegistry {
         normalizedAccountId,
         startSync: false,
         onActivated: onActivated,
+        onActivationRolledBack: onActivationRolledBack,
       ),
     );
   }
@@ -281,6 +285,7 @@ final class MatrixAccountRuntimeRegistry {
     String accountId, {
     required bool startSync,
     FutureOr<void> Function()? onActivated,
+    void Function()? onActivationRolledBack,
   }) async {
     final currentId = activeAccountId.value;
     final current = currentId == null ? null : _runtimes[currentId];
@@ -311,6 +316,9 @@ final class MatrixAccountRuntimeRegistry {
         activation = onActivated?.call();
       } catch (error, stackTrace) {
         activeAccountId.value = currentId;
+        try {
+          onActivationRolledBack?.call();
+        } catch (_) {}
         synchronousActivationError = error;
         synchronousActivationStackTrace = stackTrace;
       }
@@ -335,7 +343,12 @@ final class MatrixAccountRuntimeRegistry {
         await next.runtime.start();
       }
     } catch (error, stackTrace) {
-      activeAccountId.value = currentId;
+      batch(() {
+        activeAccountId.value = currentId;
+        try {
+          onActivationRolledBack?.call();
+        } catch (_) {}
+      });
       if (current != null) {
         try {
           await current.runtime.start();
