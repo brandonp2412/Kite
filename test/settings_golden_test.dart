@@ -4,6 +4,7 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/settings/general_settings_screen.dart';
 import 'package:kite/features/settings/notification_settings_screen.dart';
 import 'package:kite/features/settings/settings_controller.dart';
+import 'package:kite/features/settings/settings_layout.dart';
 import 'package:kite/features/settings/support_settings_controller.dart';
 import 'package:kite/features/settings/support_settings_screen.dart';
 
@@ -84,6 +85,12 @@ Future<void> _configureViewport(WidgetTester tester) async {
   addTearDown(tester.view.resetPhysicalSize);
 }
 
+void _expectCenteredSettingsContent(WidgetTester tester, Finder finder) {
+  final rect = tester.getRect(finder);
+  expect(rect.width, SettingsLayout.maxContentWidth);
+  expect(rect.center.dx, 600);
+}
+
 Widget _materialApp({required ThemeMode themeMode, required Widget home}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -122,6 +129,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      _expectCenteredSettingsContent(
+        tester,
+        find.byKey(const Key('appearance-system')),
+      );
 
       await expectLater(
         find.byType(GeneralSettingsScreen),
@@ -155,6 +166,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      _expectCenteredSettingsContent(
+        tester,
+        find.byKey(const Key('notification-master')),
+      );
 
       await expectLater(
         find.byType(NotificationSettingsScreen),
@@ -180,6 +195,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      _expectCenteredSettingsContent(
+        tester,
+        find.byKey(const Key('media-cache-usage')),
+      );
 
       await expectLater(
         find.byType(SupportSettingsScreen),

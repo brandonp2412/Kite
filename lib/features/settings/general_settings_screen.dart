@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kite/features/settings/settings_controller.dart';
+import 'package:kite/features/settings/settings_layout.dart';
 import 'package:signals/signals_flutter.dart';
 
 final class KiteLanguageOption {
@@ -63,7 +64,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
 
           return ListView(
             key: const Key('general-settings-list'),
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: SettingsLayout.listPadding(context),
             children: <Widget>[
               const _SectionTitle(label: 'Appearance'),
               RadioGroup<KiteAppearanceMode>(
