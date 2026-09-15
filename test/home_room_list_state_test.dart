@@ -111,6 +111,22 @@ void main() {
     },
   );
 
+  test('favourite state stays leaf-level and preserves section identity', () {
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    final aliceSignal = store.roomSignal('alice');
+
+    store.toggleFavourite('alice');
+    expect(store.roomSignal('alice'), same(aliceSignal));
+    expect(aliceSignal.value.isFavourite, isTrue);
+    expect(store.sectionIdFor('alice'), 'people');
+
+    store.toggleFavourite('alice');
+    expect(aliceSignal.value.isFavourite, isFalse);
+    expect(store.sectionIdFor('alice'), 'people');
+  });
+
   test('room-list store rejects duplicate IDs', () {
     const room = RoomListEntry(
       id: 'duplicate',
@@ -188,7 +204,16 @@ void main() {
 
       await tester.longPress(find.byKey(const Key('room-alice')));
       await tester.pumpAndSettle();
+      expect(find.text('Room options'), findsOneWidget);
       expect(find.text('Move to section'), findsOneWidget);
+      expect(find.text('Add to favourites'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
+      await tester.pumpAndSettle();
+      expect(aliceSignal.value.isFavourite, isTrue);
+      expect(store.sectionIdFor('alice'), 'people');
+      expect(find.text('Remove from favourites'), findsOneWidget);
+
       await tester.tap(find.byKey(const Key('room-section-move-alice-rooms')));
       await tester.pumpAndSettle();
 

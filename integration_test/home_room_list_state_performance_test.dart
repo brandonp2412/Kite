@@ -160,49 +160,55 @@ void main() {
     };
   });
 
-  testWidgets('section collapse and room move have zero late Flutter frames', (
-    tester,
-  ) async {
-    final store = RoomListStateStore(
-      deterministicRoomListEntries(BenchmarkFixture.rooms),
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: KiteTheme.light,
-        home: MediaQuery(
-          data: const MediaQueryData(size: Size(390, 844)),
-          child: HomeScreen(roomListStore: store),
+  testWidgets(
+    'section, favourite and room move have zero late Flutter frames',
+    (tester) async {
+      final store = RoomListStateStore(
+        deterministicRoomListEntries(BenchmarkFixture.rooms),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(390, 844)),
+            child: HomeScreen(roomListStore: store),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final result = await measureFrames(
-      binding: binding,
-      action: () async {
-        await tester.tap(
-          find.byKey(const Key('room-section-toggle-favourites')),
-        );
-        await tester.pumpAndSettle();
-        await tester.longPress(find.byKey(const Key('room-alice')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('room-section-move-alice-rooms')),
-        );
-        await tester.pumpAndSettle();
-      },
-      enforceTotalSpan: enforceTotalSpan,
-    );
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          await tester.tap(
+            find.byKey(const Key('room-section-toggle-favourites')),
+          );
+          await tester.pumpAndSettle();
+          await tester.longPress(find.byKey(const Key('room-alice')));
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.byKey(const Key('room-favourite-toggle-alice')),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.byKey(const Key('room-section-move-alice-rooms')),
+          );
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: enforceTotalSpan,
+      );
 
-    expect(store.sectionIdFor('alice'), 'rooms');
-    binding.reportData ??= <String, dynamic>{};
-    binding.reportData!['room_list_sections'] = <String, dynamic>{
-      'journey': 'room_list_section_collapse_move',
-      'fixture': 'deterministic_sections_v1',
-      ...result,
-      'result': 'PASS',
-    };
-  });
+      expect(store.roomSignal('alice').value.isFavourite, isTrue);
+      expect(store.sectionIdFor('alice'), 'rooms');
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['room_list_sections'] = <String, dynamic>{
+        'journey': 'room_list_section_favourite_move',
+        'fixture': 'deterministic_sections_v1',
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
 
   testWidgets('visible room state mutation has zero late Flutter frames', (
     tester,

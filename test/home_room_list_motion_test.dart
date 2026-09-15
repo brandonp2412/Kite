@@ -134,6 +134,15 @@ void main() {
         expect(tester.takeException(), isNull);
       }
       expect(find.text('Move to section'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(tester.getRect(list), listRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(store.roomSignal('alice').value.isFavourite, isTrue);
+      expect(store.sectionIdFor('alice'), 'people');
     },
   );
 

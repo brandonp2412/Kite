@@ -289,6 +289,14 @@ final class RoomListStateStore {
     collapsedSectionIds.value = Set<String>.unmodifiable(next);
   }
 
+  void toggleFavourite(String roomId) {
+    final target = _rooms[roomId];
+    if (target == null) {
+      throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
+    }
+    update(target.value.copyWith(isFavourite: !target.value.isFavourite));
+  }
+
   void moveRoomToSection(String roomId, String sectionId) {
     if (!_sectionByRoom.containsKey(roomId)) {
       throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');

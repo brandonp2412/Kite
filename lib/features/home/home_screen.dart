@@ -480,6 +480,7 @@ class _RoomList extends StatelessWidget {
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
+        key: Key('room-options-sheet-$roomId'),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             KiteSpacing.lg,
@@ -492,11 +493,42 @@ class _RoomList extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Move to section',
+                'Room options',
                 style: Theme.of(sheetContext).textTheme.titleLarge
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: KiteSpacing.sm),
+              SignalBuilder(
+                builder: (context) {
+                  final favourite = store.roomSignal(roomId).value.isFavourite;
+                  return ListTile(
+                    key: Key('room-favourite-toggle-$roomId'),
+                    contentPadding: EdgeInsets.zero,
+                    minTileHeight: 52,
+                    leading: Icon(
+                      favourite
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: favourite
+                          ? Theme.of(sheetContext).colorScheme.primary
+                          : Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(
+                      favourite
+                          ? 'Remove from favourites'
+                          : 'Add to favourites',
+                    ),
+                    onTap: () => store.toggleFavourite(roomId),
+                  );
+                },
+              ),
+              const Divider(height: KiteSpacing.lg),
+              Text(
+                'Move to section',
+                style: Theme.of(sheetContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: KiteSpacing.xs),
               for (final section in store.sections)
                 ListTile(
                   key: Key('room-section-move-$roomId-${section.id}'),
