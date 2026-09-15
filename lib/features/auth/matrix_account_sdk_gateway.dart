@@ -167,7 +167,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<CrossSigningTrustState> loadCrossSigningTrust() {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.crossSigning,
       () async => _crossSigningTrust(await _boundary.loadCrossSigningTrust()),
     );
@@ -175,7 +175,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<DeviceVerificationSession> startQrVerification() {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.qrVerification,
       () async => _verificationSession(await _boundary.startQrVerification()),
     );
@@ -183,7 +183,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<DeviceVerificationSession> submitScannedQrCode(String qrCodeData) {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.qrVerification,
       () async =>
           _verificationSession(await _boundary.submitScannedQrCode(qrCodeData)),
@@ -194,7 +194,7 @@ final class MatrixAccountSdkGateway
   Future<DeviceVerificationSession> confirmQrVerification(
     String transactionId,
   ) {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.qrVerification,
       () async => _verificationSession(
         await _boundary.confirmQrVerification(transactionId),
@@ -204,7 +204,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<DeviceVerificationSession> startSasVerification() {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.sasVerification,
       () async => _verificationSession(await _boundary.startSasVerification()),
     );
@@ -214,7 +214,7 @@ final class MatrixAccountSdkGateway
   Future<DeviceVerificationSession> confirmSasVerification(
     String transactionId,
   ) {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.sasVerification,
       () async => _verificationSession(
         await _boundary.confirmSasVerification(transactionId),
@@ -224,7 +224,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<void> cancelVerification(String transactionId) {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.crossSigning,
       () => _boundary.cancelVerification(transactionId),
     );
@@ -232,7 +232,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<EncryptionRecoveryStatus> loadRecoveryStatus() {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.encryptedBackup,
       () async => _recoveryStatus(await _boundary.loadRecoveryStatus()),
     );
@@ -240,7 +240,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<EncryptionRecoveryStatus> createEncryptedBackup() {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.encryptedBackup,
       () async => _recoveryStatus(await _boundary.createEncryptedBackup()),
     );
@@ -248,7 +248,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<EncryptionRecoveryStatus> restoreWithRecoveryKey(String recoveryKey) {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.encryptedBackup,
       () async => _recoveryStatus(
         await _boundary.restoreBackupWithRecoveryKey(recoveryKey),
@@ -258,7 +258,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<EncryptionRecoveryStatus> restoreWithPassphrase(String passphrase) {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.encryptedBackup,
       () async => _recoveryStatus(
         await _boundary.restoreBackupWithPassphrase(passphrase),
@@ -268,7 +268,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<EncryptionRecoveryStatus> recoverHistoricalMessages() {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.historicalMessageRecovery,
       () async => _recoveryStatus(await _boundary.recoverHistoricalMessages()),
     );
@@ -276,7 +276,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<RoomEncryptionTrust> loadRoomTrust(String roomId) {
-    return _run(
+    return _runAudited(
       MatrixAccountSdkCapability.roomEncryptionTrust,
       () async => _roomTrust(await _boundary.loadRoomEncryptionTrust(roomId)),
     );
@@ -287,13 +287,16 @@ final class MatrixAccountSdkGateway
     required String roomId,
     required bool enabled,
   }) {
-    return _run(MatrixAccountSdkCapability.encryptedHistorySharing, () async {
-      final trust = await _boundary.setEncryptedHistorySharing(
-        roomId: roomId,
-        enabled: enabled,
-      );
-      return _roomTrust(trust);
-    });
+    return _runAudited(
+      MatrixAccountSdkCapability.encryptedHistorySharing,
+      () async {
+        final trust = await _boundary.setEncryptedHistorySharing(
+          roomId: roomId,
+          enabled: enabled,
+        );
+        return _roomTrust(trust);
+      },
+    );
   }
 
   @override
@@ -461,7 +464,7 @@ final class MatrixAccountSdkGateway
     required String accountId,
     required String encryptedPayload,
   }) {
-    return _run(MatrixAccountSdkCapability.pushNotifications, () async {
+    return _runAudited(MatrixAccountSdkCapability.pushNotifications, () async {
       final decoded = await _boundary.processEncryptedPushPayload(
         accountId: accountId,
         encryptedPayload: encryptedPayload,
@@ -487,6 +490,17 @@ final class MatrixAccountSdkGateway
   ) async {
     requireMatrixAccountCapability(_boundary, capability);
     return action();
+  }
+
+  Future<T> _runAudited<T>(
+    MatrixAccountSdkCapability capability,
+    Future<T> Function() action,
+  ) async {
+    requireMatrixAccountCapability(
+      _boundary,
+      MatrixAccountSdkCapability.auditedEncryption,
+    );
+    return _run(capability, action);
   }
 
   Future<T> _authenticationAction<T>(

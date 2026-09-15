@@ -1,6 +1,7 @@
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
 enum MatrixAccountSdkCapability {
+  auditedEncryption,
   homeserverDiscovery,
   passwordAuthentication,
   oidcAuthentication,

@@ -167,6 +167,19 @@ void main() {
     },
   );
 
+  test('cryptographic operations require an audited SDK capability', () async {
+    final boundary = _FakeAccountBoundary(<MatrixAccountSdkCapability>{
+      MatrixAccountSdkCapability.qrVerification,
+    });
+    final gateway = MatrixAccountSdkGateway(boundary);
+
+    await expectLater(
+      gateway.submitScannedQrCode('opaque-verification-secret'),
+      throwsA(isA<MatrixSdkContractException>()),
+    );
+    expect(boundary.receivedVerificationQrCode, isNull);
+  });
+
   test(
     'SDK authentication failures expose only their public message',
     () async {
@@ -202,6 +215,7 @@ void main() {
 
   test('verification and recovery secrets remain opaque SDK inputs', () async {
     final boundary = _FakeAccountBoundary(<MatrixAccountSdkCapability>{
+      MatrixAccountSdkCapability.auditedEncryption,
       MatrixAccountSdkCapability.qrVerification,
       MatrixAccountSdkCapability.encryptedBackup,
     });
@@ -229,6 +243,7 @@ void main() {
     'push tokens and encrypted payloads stay behind the SDK boundary',
     () async {
       final boundary = _FakeAccountBoundary(<MatrixAccountSdkCapability>{
+        MatrixAccountSdkCapability.auditedEncryption,
         MatrixAccountSdkCapability.pushNotifications,
       });
       final gateway = MatrixAccountSdkGateway(boundary);

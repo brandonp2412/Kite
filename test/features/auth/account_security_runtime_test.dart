@@ -7,6 +7,7 @@ final class _RuntimeBoundary implements MatrixAccountSdkBoundary {
   @override
   final Set<MatrixAccountSdkCapability> accountCapabilities =
       <MatrixAccountSdkCapability>{
+        MatrixAccountSdkCapability.auditedEncryption,
         MatrixAccountSdkCapability.homeserverDiscovery,
         MatrixAccountSdkCapability.accountRegistration,
         MatrixAccountSdkCapability.encryptedBackup,
