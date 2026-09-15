@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/auth/account_registration_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/authentication_screen.dart';
 import 'package:kite/features/auth/device_verification_controller.dart';
@@ -15,6 +16,7 @@ class SessionGate extends StatefulWidget {
     required this.authenticationGateway,
     required this.verificationController,
     required this.authenticatedBuilder,
+    this.registrationGateway,
     this.scanLoginQrCode,
     this.scanVerificationQrCode,
     this.verificationQrBuilder,
@@ -26,6 +28,7 @@ class SessionGate extends StatefulWidget {
   final AuthenticationGateway authenticationGateway;
   final DeviceVerificationController verificationController;
   final WidgetBuilder authenticatedBuilder;
+  final AccountRegistrationGateway? registrationGateway;
   final AuthenticationQrScanner? scanLoginQrCode;
   final VerificationQrScanner? scanVerificationQrCode;
   final VerificationQrBuilder? verificationQrBuilder;
@@ -99,6 +102,7 @@ class _SessionGateState extends State<SessionGate> {
                 key: ValueKey<int>(_authenticationGeneration),
                 gateway: widget.authenticationGateway,
                 scanQrCode: widget.scanLoginQrCode,
+                registrationGateway: widget.registrationGateway,
                 onAuthenticated: _authenticated,
                 initialHomeserver: softLogout?.session.homeserver,
                 expectedUserId: softLogout?.session.userId,

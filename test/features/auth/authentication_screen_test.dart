@@ -182,6 +182,11 @@ void main() {
     (tester) async {
       final gateway = _FakeAuthenticationGateway();
       final homeserver = HomeserverAddress.parse('matrix.example.org');
+      gateway.discoveryResult = HomeserverLoginMethods(
+        homeserver: homeserver,
+        methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+        registrationAvailable: true,
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -190,6 +195,8 @@ void main() {
             initialHomeserver: homeserver,
             expectedUserId: '@alice:matrix.example.org',
             lockHomeserver: true,
+            registrationGateway: _FakeRegistrationGateway(),
+            scanQrCode: () async => 'OTHER-DEVICE-LOGIN',
           ),
         ),
       );
@@ -208,6 +215,9 @@ void main() {
         find.byKey(const Key('username-field')),
       );
       expect(username.controller?.text, '@alice:matrix.example.org');
+      expect(username.enabled, isFalse);
+      expect(find.byKey(const Key('qr-device-login')), findsNothing);
+      expect(find.byKey(const Key('registration-available')), findsNothing);
     },
   );
 
