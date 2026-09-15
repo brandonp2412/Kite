@@ -139,8 +139,12 @@ class _RoomList extends StatelessWidget {
               leading: CircleAvatar(child: Text(room.name.characters.first)),
               title: Text(
                 room.name,
+                key: Key('room-title-${room.id}'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: selected
+                    ? const TextStyle(fontWeight: FontWeight.w700)
+                    : null,
               ),
               subtitle: Text(
                 room.subtitle,
