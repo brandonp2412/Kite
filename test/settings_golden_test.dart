@@ -257,6 +257,36 @@ void main() {
     );
   }
 
+  testWidgets('general settings survive 200% phone text scaling', (
+    tester,
+  ) async {
+    await _configureViewport(tester, size: const Size(390, 844));
+    final controller = SettingsController(_GoldenSettingsGateway());
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(390, 844),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: GeneralSettingsScreen(
+            controller: controller,
+            loadOnInit: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('appearance-system')), findsOneWidget);
+    expect(find.byKey(const Key('language-picker')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('notification settings survive 200% phone text scaling', (
     tester,
   ) async {
@@ -292,6 +322,42 @@ void main() {
 
     expect(find.byKey(const Key('notification-master')), findsOneWidget);
     expect(find.byKey(const Key('room-notification-mode')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('support settings survive 200% phone text scaling', (
+    tester,
+  ) async {
+    await _configureViewport(tester, size: const Size(390, 844));
+    final controller = SupportSettingsController(_GoldenSupportGateway());
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(390, 844),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: SupportSettingsScreen(
+            controller: controller,
+            loadOnInit: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('support-settings-list')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('problem-description')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('problem-description')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
