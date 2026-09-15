@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_pagination_controller.dart';
+import 'package:signals/signals.dart';
 
 void main() {
   test(
@@ -42,6 +43,43 @@ void main() {
       expect(state.value.phase, MatrixPaginationPhase.idle);
       expect(state.value.reachedStart, isFalse);
       expect(pages, hasLength(1));
+      await engine.close();
+    },
+  );
+
+  test(
+    'pagination publishes timeline and loading completion atomically',
+    () async {
+      final engine = _PaginationFakeMatrixEngine();
+      final appliedPages = signal(0);
+      final controller = MatrixBackPaginationController(
+        engine: engine,
+        applyPage: (_) => appliedPages.value += 1,
+      );
+      final state = controller.stateSignal('!room:kite.test');
+      var effectRuns = 0;
+      final dispose = effect(() {
+        effectRuns += 1;
+        state.value;
+        appliedPages.value;
+      });
+      addTearDown(dispose);
+
+      expect(effectRuns, 1);
+      final pagination = controller.maybePaginate(
+        roomId: '!room:kite.test',
+        firstVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(effectRuns, 2);
+      expect(state.value.phase, MatrixPaginationPhase.loading);
+
+      engine.completePagination();
+      await pagination;
+
+      expect(appliedPages.value, 1);
+      expect(state.value.phase, MatrixPaginationPhase.idle);
+      expect(effectRuns, 3);
       await engine.close();
     },
   );

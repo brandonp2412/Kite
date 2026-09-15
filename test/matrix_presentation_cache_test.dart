@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/presentation_cache.dart';
+import 'package:signals/signals.dart';
 
 void main() {
   test('restored presentation data is readable synchronously before sync', () {
@@ -316,6 +317,135 @@ void main() {
       isTrue,
     );
     expect(cache.lastSyncCursor, 'second');
+  });
+
+  test('restoration publishes cached presentation signals atomically', () {
+    final cache = MatrixPresentationCache();
+    final alpha = cache.roomSummarySignal('!alpha:kite.test');
+    final beta = cache.roomSummarySignal('!beta:kite.test');
+    var effectRuns = 0;
+    final dispose = effect(() {
+      effectRuns += 1;
+      alpha.value;
+      beta.value;
+      cache.roomOrder.value;
+    });
+    addTearDown(dispose);
+
+    expect(effectRuns, 1);
+
+    cache.restore(
+      MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          _summary(
+            roomId: '!alpha:kite.test',
+            displayName: 'Alpha',
+            position: 9,
+            second: 9,
+          ),
+          _summary(
+            roomId: '!beta:kite.test',
+            displayName: 'Beta',
+            position: 8,
+            second: 8,
+          ),
+        ],
+        syncCursor: 'cached',
+      ),
+    );
+
+    expect(effectRuns, 2);
+    expect(cache.lastSyncCursor, 'cached');
+    expect(cache.roomOrder.value, <String>[
+      '!alpha:kite.test',
+      '!beta:kite.test',
+    ]);
+  });
+
+  test(
+    'partial sync presentation chunks do not advance the persisted cursor',
+    () {
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: const <MatrixRoomSummary>[],
+          syncCursor: 'previous',
+        ),
+      );
+
+      cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'next',
+          commitCursor: false,
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!alpha:kite.test',
+              summary: _summary(
+                roomId: '!alpha:kite.test',
+                displayName: 'Alpha',
+                position: 9,
+                second: 9,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      expect(cache.lastSyncCursor, 'previous');
+      expect(cache.roomOrder.value, <String>['!alpha:kite.test']);
+
+      cache.applySync(
+        const MatrixSyncBatch(cursor: 'next', rooms: <MatrixRoomDelta>[]),
+      );
+      expect(cache.lastSyncCursor, 'next');
+    },
+  );
+
+  test('sync publishes related presentation signal changes atomically', () {
+    final cache = MatrixPresentationCache();
+    final alpha = cache.roomSummarySignal('!alpha:kite.test');
+    final beta = cache.roomSummarySignal('!beta:kite.test');
+    var effectRuns = 0;
+    final dispose = effect(() {
+      effectRuns += 1;
+      alpha.value;
+      beta.value;
+      cache.roomOrder.value;
+    });
+    addTearDown(dispose);
+
+    expect(effectRuns, 1);
+
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 'initial',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:kite.test',
+            summary: _summary(
+              roomId: '!alpha:kite.test',
+              displayName: 'Alpha',
+              position: 9,
+              second: 9,
+            ),
+          ),
+          MatrixRoomDelta(
+            roomId: '!beta:kite.test',
+            summary: _summary(
+              roomId: '!beta:kite.test',
+              displayName: 'Beta',
+              position: 8,
+              second: 8,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    expect(effectRuns, 2);
+    expect(cache.roomOrder.value, <String>[
+      '!alpha:kite.test',
+      '!beta:kite.test',
+    ]);
   });
 
   test('leaf summary changes preserve room-order identity', () {

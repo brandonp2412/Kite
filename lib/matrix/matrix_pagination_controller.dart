@@ -105,8 +105,12 @@ final class MatrixBackPaginationController {
       if (page.roomId != roomId) {
         throw StateError('Matrix pagination room mismatch');
       }
-      applyPage(page);
-      state.value = MatrixPaginationState.idle(reachedStart: page.reachedStart);
+      batch(() {
+        applyPage(page);
+        state.value = MatrixPaginationState.idle(
+          reachedStart: page.reachedStart,
+        );
+      });
     } catch (error, stackTrace) {
       state.value = MatrixPaginationState.failed(
         error,

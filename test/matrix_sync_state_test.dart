@@ -5,6 +5,7 @@ import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
+import 'package:signals/signals.dart';
 
 void main() {
   test('sync coordinator exposes narrow recoverable sync state', () async {
@@ -40,6 +41,33 @@ void main() {
 
     await coordinator.stop();
     expect(coordinator.state.value.phase, MatrixSyncPhase.idle);
+    await engine.close();
+  });
+
+  test('sync batch and running state publish atomically', () async {
+    final engine = _StateFakeMatrixEngine();
+    final appliedCursor = signal<String?>(null);
+    late final MatrixSyncCoordinator coordinator;
+    coordinator = MatrixSyncCoordinator(
+      engine: engine,
+      applyBatch: (syncBatch) => appliedCursor.value = syncBatch.cursor,
+    );
+    var effectRuns = 0;
+    final dispose = effect(() {
+      effectRuns += 1;
+      coordinator.state.value;
+      appliedCursor.value;
+    });
+    addTearDown(dispose);
+
+    expect(effectRuns, 1);
+    await coordinator.start();
+
+    expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+    expect(appliedCursor.value, 'start-1');
+    expect(effectRuns, 3);
+
+    await coordinator.stop();
     await engine.close();
   });
 
@@ -196,32 +224,35 @@ void main() {
     expect(engine.stopCalls, 1);
   });
 
-  test('unexpected sync stream closure resets the engine before retry', () async {
-    final engine = _StateFakeMatrixEngine();
-    final applied = <String>[];
-    final coordinator = MatrixSyncCoordinator(
-      engine: engine,
-      applyBatch: (batch) => applied.add(batch.cursor),
-    );
+  test(
+    'unexpected sync stream closure resets the engine before retry',
+    () async {
+      final engine = _StateFakeMatrixEngine();
+      final applied = <String>[];
+      final coordinator = MatrixSyncCoordinator(
+        engine: engine,
+        applyBatch: (batch) => applied.add(batch.cursor),
+      );
 
-    await coordinator.start();
-    expect(engine.startCalls, 1);
-    expect(applied, <String>['start-1']);
+      await coordinator.start();
+      expect(engine.startCalls, 1);
+      expect(applied, <String>['start-1']);
 
-    await engine.close();
-    await Future<void>.delayed(Duration.zero);
-    expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
+      await engine.close();
+      await Future<void>.delayed(Duration.zero);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
 
-    await coordinator.start();
-    expect(engine.stopCalls, 1);
-    expect(engine.startCalls, 2);
-    expect(applied, <String>['start-1', 'start-2']);
-    expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+      await coordinator.start();
+      expect(engine.stopCalls, 1);
+      expect(engine.startCalls, 2);
+      expect(applied, <String>['start-1', 'start-2']);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.running);
 
-    await coordinator.stop();
-    expect(engine.stopCalls, 2);
-    await engine.close();
-  });
+      await coordinator.stop();
+      expect(engine.stopCalls, 2);
+      await engine.close();
+    },
+  );
 
   test('failed engine start is observable and retryable', () async {
     final engine = _StateFakeMatrixEngine(startFailuresRemaining: 1);

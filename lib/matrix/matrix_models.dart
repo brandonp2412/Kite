@@ -51,10 +51,15 @@ final class MatrixRoomDelta {
 }
 
 final class MatrixSyncBatch {
-  const MatrixSyncBatch({required this.cursor, required this.rooms});
+  const MatrixSyncBatch({
+    required this.cursor,
+    required this.rooms,
+    this.commitCursor = true,
+  });
 
   final String cursor;
   final List<MatrixRoomDelta> rooms;
+  final bool commitCursor;
 }
 
 final class MatrixPaginationPage {

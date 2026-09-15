@@ -12,6 +12,14 @@ void main() {
         "cursor": "s42",
         "rooms": [
           {
+            "roomId": "!empty:kite.test",
+            "displayName": "Empty",
+            "unreadCount": 0,
+            "latestEventTimestamp": 500,
+            "prevBatch": null,
+            "events": []
+          },
+          {
             "roomId": "!alpha:kite.test",
             "displayName": "Alpha",
             "unreadCount": 3,
@@ -33,14 +41,6 @@ void main() {
                 "content": {"msgtype": "m.text", "body": "two"}
               }
             ]
-          },
-          {
-            "roomId": "!empty:kite.test",
-            "displayName": "Empty",
-            "unreadCount": 0,
-            "latestEventTimestamp": 500,
-            "prevBatch": null,
-            "events": []
           }
         ]
       }

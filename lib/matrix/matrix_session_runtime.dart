@@ -117,8 +117,11 @@ final class MatrixSessionRuntime
 
   Future<void> deactivate({bool clearRestoration = true}) {
     return _enqueue<void>(() async {
-      await accounts.deactivate();
-      navigationTarget.value = const MatrixNavigationTarget.home();
+      await accounts.deactivate(
+        onDeactivated: () {
+          navigationTarget.value = const MatrixNavigationTarget.home();
+        },
+      );
       if (clearRestoration) {
         await restoration.clear();
       }

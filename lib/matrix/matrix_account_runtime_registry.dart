@@ -151,13 +151,20 @@ final class MatrixAccountRuntimeRegistry {
     });
   }
 
-  Future<void> deactivate() {
+  Future<void> deactivate({FutureOr<void> Function()? onDeactivated}) {
     _ensureNotDisposed();
     return _enqueue<void>(() async {
       final active = _activeRuntime;
-      if (active == null) return;
-      await active.runtime.stop();
-      activeAccountId.value = null;
+      if (active != null) {
+        await active.runtime.stop();
+      }
+
+      FutureOr<void>? deactivation;
+      batch(() {
+        activeAccountId.value = null;
+        deactivation = onDeactivated?.call();
+      });
+      await deactivation;
     });
   }
 
@@ -237,9 +244,35 @@ final class MatrixAccountRuntimeRegistry {
       await current.runtime.stop();
     }
 
-    activeAccountId.value = accountId;
+    FutureOr<void>? activation;
+    Object? synchronousActivationError;
+    StackTrace? synchronousActivationStackTrace;
+    batch(() {
+      activeAccountId.value = accountId;
+      try {
+        activation = onActivated?.call();
+      } catch (error, stackTrace) {
+        activeAccountId.value = currentId;
+        synchronousActivationError = error;
+        synchronousActivationStackTrace = stackTrace;
+      }
+    });
+
+    final synchronousError = synchronousActivationError;
+    if (synchronousError != null) {
+      if (current != null) {
+        try {
+          await current.runtime.start();
+        } catch (_) {}
+      }
+      Error.throwWithStackTrace(
+        synchronousError,
+        synchronousActivationStackTrace!,
+      );
+    }
+
     try {
-      await onActivated?.call();
+      await activation;
       if (startSync) {
         await next.runtime.start();
       }

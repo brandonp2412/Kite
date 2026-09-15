@@ -55,6 +55,20 @@ final class MatrixRustSyncCodec {
       );
     }
 
+    rooms.sort((left, right) {
+      final leftSummary = left.summary!;
+      final rightSummary = right.summary!;
+      final activity = rightSummary.lastActivity.compareTo(
+        leftSummary.lastActivity,
+      );
+      if (activity != 0) return activity;
+      final position = rightSummary.streamPosition.compareTo(
+        leftSummary.streamPosition,
+      );
+      if (position != 0) return position;
+      return left.roomId.compareTo(right.roomId);
+    });
+
     return MatrixRustSyncDecodeResult(
       batch: MatrixSyncBatch(cursor: cursor, rooms: rooms),
     );

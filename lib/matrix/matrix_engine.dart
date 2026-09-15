@@ -60,11 +60,13 @@ final class MatrixSyncCoordinator {
     state.value = const MatrixSyncState.starting();
     late final StreamSubscription<MatrixSyncBatch> subscription;
     subscription = engine.syncBatches.listen(
-      (batch) {
-        applyBatch(batch);
-        if (identical(_subscription, subscription)) {
-          state.value = const MatrixSyncState.running();
-        }
+      (syncBatch) {
+        batch(() {
+          applyBatch(syncBatch);
+          if (identical(_subscription, subscription)) {
+            state.value = const MatrixSyncState.running();
+          }
+        });
       },
       onError: (Object error, StackTrace stackTrace) {
         if (identical(_subscription, subscription)) {

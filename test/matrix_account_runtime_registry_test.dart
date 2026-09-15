@@ -8,6 +8,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_store.dart';
+import 'package:signals/signals.dart';
 
 void main() {
   test(
@@ -61,6 +62,59 @@ void main() {
         '@alice:example.org',
         '@bob:example.org',
       ]);
+    },
+  );
+
+  test(
+    'cached account and navigation restoration publish atomically',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+      final restoredTarget = signal('home');
+      var effectRuns = 0;
+      final dispose = effect(() {
+        effectRuns += 1;
+        registry.activeAccountId.value;
+        restoredTarget.value;
+      });
+      addTearDown(dispose);
+
+      expect(effectRuns, 1);
+      await registry.activateCached(
+        '@alice:example.org',
+        onActivated: () => restoredTarget.value = 'room',
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(restoredTarget.value, 'room');
+      expect(effectRuns, 2);
+    },
+  );
+
+  test(
+    'account deactivation and navigation reset publish atomically',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+      final target = signal('room');
+      await registry.activateCached('@alice:example.org');
+
+      var effectRuns = 0;
+      final dispose = effect(() {
+        effectRuns += 1;
+        registry.activeAccountId.value;
+        target.value;
+      });
+      addTearDown(dispose);
+
+      expect(effectRuns, 1);
+      await registry.deactivate(onDeactivated: () => target.value = 'home');
+
+      expect(registry.activeAccountId.value, isNull);
+      expect(target.value, 'home');
+      expect(effectRuns, 2);
     },
   );
 
@@ -253,6 +307,68 @@ void main() {
   });
 
   test(
+    'partial initial room chunks persist presentation without advancing cursor',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+      );
+      addTearDown(registry.dispose);
+
+      final cache = await registry.activate('@alice:example.org');
+      await registry.flushPresentationWrites('@alice:example.org');
+      expect(cache.lastSyncCursor, 'alice-start-1');
+
+      boundaries['@alice:example.org']!.emit(
+        MatrixSyncBatch(
+          cursor: 'alice-next',
+          commitCursor: false,
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!new:example.org',
+              summary: MatrixRoomSummary(
+                roomId: '!new:example.org',
+                displayName: 'New room',
+                lastActivity: DateTime.utc(2026, 9, 15, 4),
+                streamPosition: 2,
+              ),
+            ),
+          ],
+        ),
+      );
+      await registry.flushPresentationWrites('@alice:example.org');
+
+      expect(cache.roomSummarySignal('!new:example.org').value, isNotNull);
+      expect(cache.lastSyncCursor, 'alice-start-1');
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'alice-start-1',
+      );
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.rooms.any(
+          (room) => room.roomId == '!new:example.org',
+        ),
+        isTrue,
+      );
+
+      boundaries['@alice:example.org']!.emit(
+        const MatrixSyncBatch(cursor: 'alice-next', rooms: <MatrixRoomDelta>[]),
+      );
+      await registry.flushPresentationWrites('@alice:example.org');
+
+      expect(cache.lastSyncCursor, 'alice-next');
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'alice-next',
+      );
+    },
+  );
+
+  test(
     'burst sync persistence coalesces to the latest presentation snapshot',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -417,6 +533,36 @@ void main() {
       'persist-after-recovery',
     );
   });
+
+  test(
+    'synchronous activation callback failure never exposes the failed account',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      final observedAccounts = <String?>[];
+      final dispose = effect(() {
+        observedAccounts.add(registry.activeAccountId.value);
+      });
+      addTearDown(dispose);
+
+      await expectLater(
+        registry.activateCached(
+          '@bob:example.org',
+          onActivated: () => throw StateError('navigation restore failed'),
+        ),
+        throwsStateError,
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(observedAccounts, isNot(contains('@bob:example.org')));
+      expect(boundaries['@alice:example.org']!.stopCalls, 1);
+      expect(boundaries['@alice:example.org']!.startCalls, 2);
+      expect(boundaries['@bob:example.org']!.startCalls, 0);
+    },
+  );
 
   test(
     'failed account activation restores the previous account sync and state',

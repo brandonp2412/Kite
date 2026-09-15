@@ -136,6 +136,105 @@ void main() {
   );
 
   test(
+    'cold initial room population yields bounded chunks before cursor commit',
+    () async {
+      final client = _FakeRustClient();
+      final boundary = MatrixRustSdkBoundary(
+        bridge: _FakeRustBridge(client),
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: _RecordingCodecExecutor(),
+      );
+      final batches = <MatrixSyncBatch>[];
+      final subscription = boundary.syncBatches.listen(batches.add);
+      addTearDown(subscription.cancel);
+      addTearDown(boundary.close);
+
+      await boundary.open(
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:example.org',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: 'alice-key',
+        ),
+      );
+      await boundary.startSync(
+        const MatrixSdkSyncConfiguration(
+          initialRoomListLimit: 1,
+          initialTimelineEventLimit: 1,
+          timelineEventLimit: 20,
+        ),
+      );
+
+      await client.firstSyncReturned.future;
+      while (batches.where((batch) => batch.cursor == 'sync-1').length < 2) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      await boundary.stopSync();
+
+      final initial = batches
+          .where((batch) => batch.cursor == 'sync-1')
+          .toList(growable: false);
+      expect(initial, hasLength(2));
+      expect(initial.map((batch) => batch.rooms.length), <int>[1, 1]);
+      expect(initial.map((batch) => batch.commitCursor), <bool>[false, true]);
+      expect(
+        initial.expand((batch) => batch.rooms).map((room) => room.roomId),
+        <String>['!room:kite.test', '!second:kite.test'],
+      );
+      expect(client.syncTimelineEventLimits.first, 1);
+    },
+  );
+
+  test(
+    'stopping cold sync between room chunks never publishes the new cursor',
+    () async {
+      final client = _FakeRustClient();
+      final boundary = MatrixRustSdkBoundary(
+        bridge: _FakeRustBridge(client),
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: _RecordingCodecExecutor(),
+      );
+      final batches = <MatrixSyncBatch>[];
+      final stopped = Completer<void>();
+      late final StreamSubscription<MatrixSyncBatch> subscription;
+      subscription = boundary.syncBatches.listen((batch) {
+        batches.add(batch);
+        if (batches.length == 1 && !stopped.isCompleted) {
+          boundary.stopSync().then(
+            stopped.complete,
+            onError: stopped.completeError,
+          );
+        }
+      });
+      addTearDown(subscription.cancel);
+      addTearDown(boundary.close);
+
+      await boundary.open(
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:example.org',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: 'alice-key',
+        ),
+      );
+      await boundary.startSync(
+        const MatrixSdkSyncConfiguration(
+          initialRoomListLimit: 1,
+          initialTimelineEventLimit: 1,
+          timelineEventLimit: 20,
+        ),
+      );
+      await stopped.future;
+
+      expect(batches, hasLength(1));
+      expect(batches.single.cursor, 'sync-1');
+      expect(batches.single.commitCursor, isFalse);
+      expect(batches.single.rooms.single.roomId, '!room:kite.test');
+      expect(client.syncTokens, <String?>[null]);
+    },
+  );
+
+  test(
     'native boundary streams sync and pagination through Matrix models',
     () async {
       final client = _FakeRustClient();
@@ -165,6 +264,7 @@ void main() {
       );
       await boundary.startSync(
         const MatrixSdkSyncConfiguration(
+          initialRoomListLimit: 1,
           initialTimelineEventLimit: 3,
           timelineEventLimit: 17,
           resumeFromCursor: 'resume-42',
@@ -184,9 +284,9 @@ void main() {
       expect(client.syncTimelineEventLimits.take(2), <int>[17, 17]);
       expect(client.syncTokens.take(2), <String?>['resume-42', 'sync-1']);
       expect(batches.first.cursor, 'sync-1');
-      expect(batches.first.rooms.single.summary!.displayName, 'Native room');
+      expect(batches.first.rooms.first.summary!.displayName, 'Native room');
       expect(
-        batches.first.rooms.single.timelineEvents.single.eventId,
+        batches.first.rooms.first.timelineEvents.single.eventId,
         r'$event1',
       );
 
@@ -507,6 +607,13 @@ final class _FakeRustClient implements MatrixRustClient {
                   "content": {"body": "new"}
                 }
               ]
+            },
+            {
+              "roomId": "!second:kite.test",
+              "displayName": "Second room",
+              "unreadCount": 0,
+              "prevBatch": "back-2",
+              "events": []
             }
           ]
         }

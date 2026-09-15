@@ -58,38 +58,43 @@ final class MatrixPresentationCache {
   }
 
   void restore(MatrixPresentationSnapshot snapshot) {
-    lastSyncCursor = snapshot.syncCursor;
+    batch(() {
+      lastSyncCursor = snapshot.syncCursor;
 
-    final restoredRoomIds = snapshot.rooms
-        .map((summary) => summary.roomId)
-        .toSet();
-    for (final entry in _roomSummaries.entries) {
-      if (!restoredRoomIds.contains(entry.key) && entry.value.value != null) {
-        entry.value.value = null;
+      final restoredRoomIds = snapshot.rooms
+          .map((summary) => summary.roomId)
+          .toSet();
+      for (final entry in _roomSummaries.entries) {
+        if (!restoredRoomIds.contains(entry.key) && entry.value.value != null) {
+          entry.value.value = null;
+        }
       }
-    }
-    for (final summary in snapshot.rooms) {
-      final summarySignal = roomSummarySignal(summary.roomId);
-      if (!_sameSummary(summarySignal.value, summary)) {
-        summarySignal.value = summary;
+      for (final summary in snapshot.rooms) {
+        final summarySignal = roomSummarySignal(summary.roomId);
+        if (!_sameSummary(summarySignal.value, summary)) {
+          summarySignal.value = summary;
+        }
       }
-    }
 
-    final restoredTimelineIds = snapshot.timelines.keys.toSet();
-    for (final entry in _timelines.entries) {
-      if (!restoredTimelineIds.contains(entry.key) &&
-          entry.value.value.isNotEmpty) {
-        entry.value.value = const <MatrixTimelineEvent>[];
+      final restoredTimelineIds = snapshot.timelines.keys.toSet();
+      for (final entry in _timelines.entries) {
+        if (!restoredTimelineIds.contains(entry.key) &&
+            entry.value.value.isNotEmpty) {
+          entry.value.value = const <MatrixTimelineEvent>[];
+        }
       }
-    }
-    for (final entry in snapshot.timelines.entries) {
-      final timeline = timelineSignal(entry.key);
-      final restored = _mergeEvents(const <MatrixTimelineEvent>[], entry.value);
-      if (!_sameTimeline(timeline.value, restored)) {
-        timeline.value = restored;
+      for (final entry in snapshot.timelines.entries) {
+        final timeline = timelineSignal(entry.key);
+        final restored = _mergeEvents(
+          const <MatrixTimelineEvent>[],
+          entry.value,
+        );
+        if (!_sameTimeline(timeline.value, restored)) {
+          timeline.value = restored;
+        }
       }
-    }
-    _refreshRoomOrder();
+      _refreshRoomOrder();
+    });
   }
 
   void applyPagination(MatrixPaginationPage page) {
@@ -101,36 +106,40 @@ final class MatrixPresentationCache {
     }
   }
 
-  void applySync(MatrixSyncBatch batch) {
-    var roomOrderDirty = false;
-    for (final room in batch.rooms) {
-      final summary = room.summary;
-      if (summary != null) {
-        final summarySignal = roomSummarySignal(room.roomId);
-        final current = summarySignal.value;
-        if (current == null ||
-            summary.streamPosition >= current.streamPosition) {
-          if (!_sameSummary(current, summary)) {
-            roomOrderDirty =
-                roomOrderDirty || _changesRoomOrder(current, summary);
-            summarySignal.value = summary;
+  void applySync(MatrixSyncBatch syncBatch) {
+    batch(() {
+      var roomOrderDirty = false;
+      for (final room in syncBatch.rooms) {
+        final summary = room.summary;
+        if (summary != null) {
+          final summarySignal = roomSummarySignal(room.roomId);
+          final current = summarySignal.value;
+          if (current == null ||
+              summary.streamPosition >= current.streamPosition) {
+            if (!_sameSummary(current, summary)) {
+              roomOrderDirty =
+                  roomOrderDirty || _changesRoomOrder(current, summary);
+              summarySignal.value = summary;
+            }
+          }
+        }
+
+        if (room.timelineEvents.isNotEmpty) {
+          final timeline = timelineSignal(room.roomId);
+          final merged = _mergeEvents(timeline.value, room.timelineEvents);
+          if (!_sameTimeline(timeline.value, merged)) {
+            timeline.value = merged;
           }
         }
       }
 
-      if (room.timelineEvents.isNotEmpty) {
-        final timeline = timelineSignal(room.roomId);
-        final merged = _mergeEvents(timeline.value, room.timelineEvents);
-        if (!_sameTimeline(timeline.value, merged)) {
-          timeline.value = merged;
-        }
+      if (syncBatch.commitCursor) {
+        lastSyncCursor = syncBatch.cursor;
       }
-    }
-
-    lastSyncCursor = batch.cursor;
-    if (roomOrderDirty) {
-      _refreshRoomOrder();
-    }
+      if (roomOrderDirty) {
+        _refreshRoomOrder();
+      }
+    });
   }
 
   void _refreshRoomOrder() {

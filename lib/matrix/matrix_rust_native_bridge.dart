@@ -596,7 +596,13 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
             DiagnosticMetric.itemCount: decoded.batch.rooms.length,
           },
         );
-        _syncBatches.add(decoded.batch);
+        final fullyPublished = await _publishSyncBatch(
+          decoded.batch,
+          roomChunkSize: firstRequest && isColdStart
+              ? configuration.initialRoomListLimit
+              : null,
+        );
+        if (!fullyPublished) return;
         syncToken = decoded.batch.cursor;
         firstRequest = false;
         failureAttempt = 0;
@@ -622,6 +628,41 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         await _waitForRetry(_matrixRustRetryDelayForAttempt(failureAttempt));
       }
     }
+  }
+
+  Future<bool> _publishSyncBatch(
+    MatrixSyncBatch syncBatch, {
+    required int? roomChunkSize,
+  }) async {
+    if (roomChunkSize == null || syncBatch.rooms.length <= roomChunkSize) {
+      _syncBatches.add(syncBatch);
+      return true;
+    }
+
+    for (
+      var start = 0;
+      start < syncBatch.rooms.length;
+      start += roomChunkSize
+    ) {
+      if (!_syncRequested) return false;
+      final end = start + roomChunkSize < syncBatch.rooms.length
+          ? start + roomChunkSize
+          : syncBatch.rooms.length;
+      final isFinalChunk = end == syncBatch.rooms.length;
+      _syncBatches.add(
+        MatrixSyncBatch(
+          cursor: syncBatch.cursor,
+          rooms: List<MatrixRoomDelta>.unmodifiable(
+            syncBatch.rooms.sublist(start, end),
+          ),
+          commitCursor: isFinalChunk,
+        ),
+      );
+      if (!isFinalChunk) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return true;
   }
 
   void _reportFailure(
