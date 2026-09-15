@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_models.dart';
@@ -11,8 +13,10 @@ import 'package:kite/matrix/matrix_restoration.dart';
 import 'package:kite/matrix/matrix_runtime_bindings.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
+import 'package:kite/matrix/matrix_session_routing_adapter.dart';
 import 'package:kite/matrix/matrix_session_runtime.dart';
 import 'package:kite/matrix/presentation_store.dart';
+import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -472,6 +476,145 @@ void main() {
         const MatrixNavigationTarget.home(),
       );
       expect(await restorationStore.load(), isNull);
+    },
+  );
+
+  test('notification routing switches account and preserves thread and call identity', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-notification-routing-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final restorationStore = FileMatrixRestorationStore(
+      File('${directory.path}/restoration.json'),
+    );
+    final boundaries = <String, _FakeBoundary>{};
+    final registry = _registry(
+      boundaries,
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+    );
+    addTearDown(registry.dispose);
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(restorationStore),
+      isAccountAvailable: (_) => true,
+    );
+    await session.activateAccount('@alice:example.org');
+
+    final routing = MatrixSessionRoutingAdapter(session);
+    final notifications = FakeNotificationRepository(<KiteNotification>[
+      const KiteNotification(
+        id: 'thread-notification',
+        kind: KiteNotificationKind.thread,
+        destination: AppDestination.thread(
+          accountId: '@bob:example.org',
+          roomId: '!team:example.org',
+          eventId: r'$reply',
+          threadRootEventId: r'$root',
+        ),
+      ),
+      const KiteNotification(
+        id: 'call-notification',
+        kind: KiteNotificationKind.call,
+        destination: AppDestination.call(
+          accountId: '@bob:example.org',
+          roomId: '!calls:example.org',
+          callId: 'call-7',
+        ),
+      ),
+    ]);
+    final coordinator = NotificationCoordinator(
+      notifications: notifications,
+      cancellations: FakeNotificationCancellationPort(),
+      accounts: routing,
+      navigation: routing,
+    );
+
+    expect(
+      await coordinator.tap(
+        KiteNotification.routingIdFor(
+          accountId: '@bob:example.org',
+          notificationId: 'thread-notification',
+        ),
+      ),
+      isTrue,
+    );
+    expect(registry.activeAccountId.value, '@bob:example.org');
+    expect(
+      session.navigationTarget.value,
+      const MatrixNavigationTarget.thread(
+        '!team:example.org',
+        r'$reply',
+        r'$root',
+      ),
+    );
+    expect(
+      (await restorationStore.load())?.navigationTarget,
+      session.navigationTarget.value,
+    );
+
+    expect(
+      await coordinator.tap(
+        KiteNotification.routingIdFor(
+          accountId: '@bob:example.org',
+          notificationId: 'call-notification',
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      session.navigationTarget.value,
+      const MatrixNavigationTarget.call('!calls:example.org', callId: 'call-7'),
+    );
+    expect(
+      (await restorationStore.load())?.navigationTarget,
+      session.navigationTarget.value,
+    );
+  });
+
+  test(
+    'session routing refuses cross-account navigation before activation',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-routing-guard-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final registry = _registry(
+        <String, _FakeBoundary>{},
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(
+          FileMatrixRestorationStore(
+            File('${directory.path}/restoration.json'),
+          ),
+        ),
+        isAccountAvailable: (_) => true,
+      );
+      await session.activateAccount('@alice:example.org');
+      final routing = MatrixSessionRoutingAdapter(session);
+
+      await expectLater(
+        routing.open(
+          const AppDestination.room(
+            accountId: '@bob:example.org',
+            roomId: '!team:example.org',
+          ),
+        ),
+        throwsStateError,
+      );
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(
+        session.navigationTarget.value,
+        const MatrixNavigationTarget.home(),
+      );
     },
   );
 

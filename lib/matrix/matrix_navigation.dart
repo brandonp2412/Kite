@@ -1,13 +1,15 @@
 import 'dart:async';
 
-enum MatrixNavigationKind { home, room, event, user, invite, call }
+enum MatrixNavigationKind { home, room, event, thread, user, invite, call }
 
 final class MatrixNavigationTarget {
   const MatrixNavigationTarget._({
     required this.kind,
     this.roomIdOrAlias,
     this.eventId,
+    this.threadRootEventId,
     this.userId,
+    this.callId,
   });
 
   const MatrixNavigationTarget.home() : this._(kind: MatrixNavigationKind.home);
@@ -22,19 +24,36 @@ final class MatrixNavigationTarget {
         eventId: eventId,
       );
 
+  const MatrixNavigationTarget.thread(
+    String roomIdOrAlias,
+    String eventId,
+    String threadRootEventId,
+  ) : this._(
+        kind: MatrixNavigationKind.thread,
+        roomIdOrAlias: roomIdOrAlias,
+        eventId: eventId,
+        threadRootEventId: threadRootEventId,
+      );
+
   const MatrixNavigationTarget.user(String userId)
     : this._(kind: MatrixNavigationKind.user, userId: userId);
 
   const MatrixNavigationTarget.invite(String roomIdOrAlias)
     : this._(kind: MatrixNavigationKind.invite, roomIdOrAlias: roomIdOrAlias);
 
-  const MatrixNavigationTarget.call(String roomIdOrAlias)
-    : this._(kind: MatrixNavigationKind.call, roomIdOrAlias: roomIdOrAlias);
+  const MatrixNavigationTarget.call(String roomIdOrAlias, {String? callId})
+    : this._(
+        kind: MatrixNavigationKind.call,
+        roomIdOrAlias: roomIdOrAlias,
+        callId: callId,
+      );
 
   final MatrixNavigationKind kind;
   final String? roomIdOrAlias;
   final String? eventId;
+  final String? threadRootEventId;
   final String? userId;
+  final String? callId;
 
   @override
   bool operator ==(Object other) {
@@ -42,11 +61,20 @@ final class MatrixNavigationTarget {
         other.kind == kind &&
         other.roomIdOrAlias == roomIdOrAlias &&
         other.eventId == eventId &&
-        other.userId == userId;
+        other.threadRootEventId == threadRootEventId &&
+        other.userId == userId &&
+        other.callId == callId;
   }
 
   @override
-  int get hashCode => Object.hash(kind, roomIdOrAlias, eventId, userId);
+  int get hashCode => Object.hash(
+    kind,
+    roomIdOrAlias,
+    eventId,
+    threadRootEventId,
+    userId,
+    callId,
+  );
 }
 
 typedef MatrixNavigationHandler = FutureOr<void> Function(

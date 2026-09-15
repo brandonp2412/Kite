@@ -90,10 +90,16 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
     final payload = <String, Object?>{'kind': target.kind.name};
     final roomId = target.roomIdOrAlias;
     final eventId = target.eventId;
+    final threadRootEventId = target.threadRootEventId;
     final userId = target.userId;
+    final callId = target.callId;
     if (roomId != null) payload['roomIdOrAlias'] = roomId;
     if (eventId != null) payload['eventId'] = eventId;
+    if (threadRootEventId != null) {
+      payload['threadRootEventId'] = threadRootEventId;
+    }
     if (userId != null) payload['userId'] = userId;
+    if (callId != null) payload['callId'] = callId;
     return payload;
   }
 
@@ -103,7 +109,9 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
     final kind = payload['kind'];
     final roomId = payload['roomIdOrAlias'];
     final eventId = payload['eventId'];
+    final threadRootEventId = payload['threadRootEventId'];
     final userId = payload['userId'];
+    final callId = payload['callId'];
 
     if (kind == MatrixNavigationKind.home.name) {
       return const MatrixNavigationTarget.home();
@@ -116,6 +124,16 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
         _isNonEmpty(eventId)) {
       return MatrixNavigationTarget.event(roomId as String, eventId as String);
     }
+    if (kind == MatrixNavigationKind.thread.name &&
+        _isNonEmpty(roomId) &&
+        _isNonEmpty(eventId) &&
+        _isNonEmpty(threadRootEventId)) {
+      return MatrixNavigationTarget.thread(
+        roomId as String,
+        eventId as String,
+        threadRootEventId as String,
+      );
+    }
     if (kind == MatrixNavigationKind.user.name && _isNonEmpty(userId)) {
       return MatrixNavigationTarget.user(userId as String);
     }
@@ -123,7 +141,11 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
       return MatrixNavigationTarget.invite(roomId as String);
     }
     if (kind == MatrixNavigationKind.call.name && _isNonEmpty(roomId)) {
-      return MatrixNavigationTarget.call(roomId as String);
+      if (callId != null && !_isNonEmpty(callId)) return null;
+      return MatrixNavigationTarget.call(
+        roomId as String,
+        callId: callId as String?,
+      );
     }
     return null;
   }
