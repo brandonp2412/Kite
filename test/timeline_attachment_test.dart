@@ -2,6 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_media_viewer.dart';
+
+class _RecordingTimelineMediaActionPort implements TimelineMediaActionPort {
+  final List<({String action, String roomId, String eventId})> calls =
+      <({String action, String roomId, String eventId})>[];
+
+  @override
+  Future<void> save({
+    required String roomId,
+    required TimelineMessage message,
+  }) async {
+    calls.add((action: 'save', roomId: roomId, eventId: message.id));
+  }
+
+  @override
+  Future<void> share({
+    required String roomId,
+    required TimelineMessage message,
+  }) async {
+    calls.add((action: 'share', roomId: roomId, eventId: message.id));
+  }
+}
 
 void main() {
   tearDown(() {
@@ -87,5 +109,165 @@ void main() {
       timelineController.messagesFor('alice').value,
       hasLength(initialCount),
     );
+  });
+
+  testWidgets('timeline media opens viewer and browses adjacent media only', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      attachmentSendPort: const DeterministicTimelineAttachmentSendPort(
+        latency: Duration.zero,
+      ),
+    );
+    selectRoom('alice');
+    final first = timelineController.sendAttachment(
+      'alice',
+      const TimelineAttachment(
+        id: 'viewer-image',
+        kind: TimelineAttachmentKind.image,
+        name: 'harbour.jpg',
+        sizeLabel: '2.2 MB · Photo',
+      ),
+      caption: 'Harbour at dusk',
+    );
+    final second = timelineController.sendAttachment(
+      'alice',
+      const TimelineAttachment(
+        id: 'viewer-video',
+        kind: TimelineAttachmentKind.video,
+        name: 'walk.mp4',
+        sizeLabel: '8.5 MB · Video',
+      ),
+      caption: 'Evening walk',
+    );
+    final file = timelineController.sendAttachment(
+      'alice',
+      const TimelineAttachment(
+        id: 'viewer-file',
+        kind: TimelineAttachmentKind.file,
+        name: 'notes.pdf',
+        sizeLabel: '420 KB · PDF',
+      ),
+    );
+
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(Key('message-attachment-open-${first.id}')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(Key('message-attachment-open-${second.id}')),
+      findsOneWidget,
+    );
+    expect(find.byKey(Key('message-attachment-open-${file.id}')), findsNothing);
+
+    await tester.tap(find.byKey(Key('message-attachment-open-${first.id}')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('media-viewer')), findsOneWidget);
+    expect(find.text('1 of 2'), findsOneWidget);
+    expect(
+      tester
+          .widget<RichText>(find.byKey(const Key('media-caption')))
+          .text
+          .toPlainText(),
+      'Harbour at dusk',
+    );
+    expect(find.byKey(Key('media-full-${first.id}')), findsOneWidget);
+
+    await tester.fling(
+      find.byKey(const Key('media-page-view')),
+      const Offset(-520, 0),
+      1200,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 of 2'), findsOneWidget);
+    expect(
+      tester
+          .widget<RichText>(find.byKey(const Key('media-caption')))
+          .text
+          .toPlainText(),
+      'Evening walk',
+    );
+    expect(find.byKey(Key('media-full-${second.id}')), findsOneWidget);
+    expect(find.byKey(Key('media-full-${first.id}')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('media-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('media-viewer')), findsNothing);
+  });
+
+  test('timeline media actions stay scoped to their room and event', () async {
+    final port = _RecordingTimelineMediaActionPort();
+    final messages = <TimelineMessage>[
+      TimelineMessage(
+        id: 'image-event',
+        sender: 'Alice',
+        body: 'Image caption',
+        mine: false,
+        timeLabel: '10:00',
+        attachment: const TimelineAttachment(
+          id: 'image',
+          kind: TimelineAttachmentKind.image,
+          name: 'image.jpg',
+          sizeLabel: '2 MB · Photo',
+        ),
+      ),
+      TimelineMessage(
+        id: 'file-event',
+        sender: 'Alice',
+        body: '',
+        mine: false,
+        timeLabel: '10:01',
+        attachment: const TimelineAttachment(
+          id: 'file',
+          kind: TimelineAttachmentKind.file,
+          name: 'notes.pdf',
+          sizeLabel: '400 KB · PDF',
+        ),
+      ),
+      TimelineMessage(
+        id: 'video-event',
+        sender: 'Alice',
+        body: 'Video caption',
+        mine: false,
+        timeLabel: '10:02',
+        attachment: const TimelineAttachment(
+          id: 'video',
+          kind: TimelineAttachmentKind.video,
+          name: 'clip.mp4',
+          sizeLabel: '8 MB · Video',
+        ),
+      ),
+    ];
+    final model = TimelineMediaViewerModel.fromMessages(
+      roomId: 'alice',
+      messages: messages,
+      initialMessageId: 'image-event',
+      actionPort: port,
+    );
+
+    expect(model.items.map((item) => item.id), <String>[
+      'image-event',
+      'video-event',
+    ]);
+    expect(model.initialIndex, 0);
+
+    await model.onSave(model.items.first);
+    await model.onShare(model.items.last);
+
+    expect(port.calls, <({String action, String roomId, String eventId})>[
+      (action: 'save', roomId: 'alice', eventId: 'image-event'),
+      (action: 'share', roomId: 'alice', eventId: 'video-event'),
+    ]);
   });
 }

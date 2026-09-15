@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_media_viewer.dart';
 
 const deterministicComposerAttachments = <TimelineAttachment>[
   TimelineAttachment(
@@ -190,87 +191,85 @@ class TimelineAttachmentCard extends StatelessWidget {
     super.key,
     required this.messageId,
     required this.attachment,
+    this.heroTag,
+    this.onTap,
   });
 
   final String messageId;
   final TimelineAttachment attachment;
+  final Object? heroTag;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final imageLike = attachment.kind != TimelineAttachmentKind.file;
-    return Container(
-      key: Key('message-attachment-$messageId'),
-      width: imageLike ? 250 : 230,
-      height: imageLike ? 132 : 58,
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(KiteRadii.sm),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.7),
-          width: KiteStroke.hairline,
-        ),
-      ),
-      child: imageLike
-          ? Stack(
-              fit: StackFit.expand,
+    final borderRadius = BorderRadius.circular(KiteRadii.sm);
+    final media = TimelineMediaVisual(attachment: attachment);
+    final content = imageLike
+        ? heroTag == null
+              ? media
+              : Hero(tag: heroTag!, child: media)
+        : Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.sm),
+            child: Row(
               children: <Widget>[
-                Center(
-                  child: Icon(
-                    _attachmentIcon(attachment.kind),
-                    size: 42,
-                    color: colors.primary,
-                  ),
-                ),
-                Positioned(
-                  left: KiteSpacing.sm,
-                  right: KiteSpacing.sm,
-                  bottom: KiteSpacing.xs,
-                  child: Text(
-                    attachment.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: KiteTypography.metadata.copyWith(
-                      color: colors.onSurface,
-                      fontWeight: FontWeight.w700,
-                    ),
+                Icon(Icons.insert_drive_file_outlined, color: colors.primary),
+                const SizedBox(width: KiteSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        attachment.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KiteTypography.body.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        attachment.sizeLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KiteTypography.metadata.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            )
-          : Padding(
-              padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.sm),
-              child: Row(
-                children: <Widget>[
-                  Icon(Icons.insert_drive_file_outlined, color: colors.primary),
-                  const SizedBox(width: KiteSpacing.sm),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          attachment.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: KiteTypography.body.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          attachment.sizeLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: KiteTypography.metadata.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ),
+          );
+
+    return Semantics(
+      button: onTap != null,
+      label: imageLike ? '${attachment.name}, open media' : attachment.name,
+      child: SizedBox(
+        key: Key('message-attachment-$messageId'),
+        width: imageLike ? 250 : 230,
+        height: imageLike ? 132 : 58,
+        child: Material(
+          color: colors.surface.withValues(alpha: 0.45),
+          shape: RoundedRectangleBorder(
+            borderRadius: borderRadius,
+            side: BorderSide(
+              color: colors.outlineVariant.withValues(alpha: 0.7),
+              width: KiteStroke.hairline,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: onTap == null
+              ? content
+              : InkWell(
+                  key: Key('message-attachment-open-$messageId'),
+                  onTap: onTap,
+                  child: content,
+                ),
+        ),
+      ),
     );
   }
 }

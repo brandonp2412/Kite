@@ -7,11 +7,13 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/home/spaces_screen.dart';
+import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
+import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -939,6 +941,22 @@ class _MessageRow extends StatelessWidget {
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
 
+  void _openMedia(BuildContext context) {
+    final model = TimelineMediaViewerModel.fromMessages(
+      roomId: roomId,
+      messages: timelineController.messagesFor(roomId).peek(),
+      initialMessageId: message.id,
+    );
+    Navigator.of(context).push(
+      MediaViewerRoute(
+        items: model.items,
+        initialIndex: model.initialIndex,
+        onSave: model.onSave,
+        onShare: model.onShare,
+      ),
+    );
+  }
+
   Future<void> _showActions(BuildContext context) async {
     final action = await showModalBottomSheet<_MessageAction>(
       context: context,
@@ -1134,6 +1152,13 @@ class _MessageRow extends StatelessWidget {
                         TimelineAttachmentCard(
                           messageId: message.id,
                           attachment: attachment,
+                          heroTag:
+                              attachment.kind == TimelineAttachmentKind.file
+                              ? null
+                              : timelineMediaHeroTag(message),
+                          onTap: attachment.kind == TimelineAttachmentKind.file
+                              ? null
+                              : () => _openMedia(context),
                         ),
                       if (attachment != null && message.body.isNotEmpty)
                         const SizedBox(height: KiteSpacing.xs),
