@@ -7,8 +7,10 @@ abstract final class KiteLocalFormats {
   }
 
   static String shortTime(BuildContext context, DateTime value) {
-    return MaterialLocalizations.of(context)
-        .formatTimeOfDay(TimeOfDay.fromDateTime(value));
+    return MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.fromDateTime(value),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
   }
 
   static String decimal(BuildContext context, num value) {

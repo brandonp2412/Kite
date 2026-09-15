@@ -636,9 +636,15 @@ class _CallControls extends StatelessWidget {
                           child: Text(route.label),
                         ),
                     ],
-                    child: const _CallMenuButton(
-                      icon: Icons.volume_up_rounded,
-                      label: 'Audio',
+                    child: Semantics(
+                      button: true,
+                      label: 'Audio route',
+                      child: ExcludeSemantics(
+                        child: _CallMenuButton(
+                          icon: Icons.volume_up_rounded,
+                          label: 'Audio',
+                        ),
+                      ),
                     ),
                   ),
                 ],

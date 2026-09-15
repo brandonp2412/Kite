@@ -86,4 +86,33 @@ void main() {
     expect(values['en']![2], '1,234.5');
     expect(values['de']![2], '1.234,5');
   });
+
+  testWidgets('time formatting respects the platform 24-hour preference', (
+    tester,
+  ) async {
+    late String formatted;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: MediaQuery(
+          data: const MediaQueryData(alwaysUse24HourFormat: true),
+          child: Builder(
+            builder: (context) {
+              formatted = KiteLocalFormats.shortTime(
+                context,
+                DateTime(2026, 4, 7, 21, 5),
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(formatted, '21:05');
+  });
 }

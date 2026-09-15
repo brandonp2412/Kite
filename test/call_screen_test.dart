@@ -129,6 +129,36 @@ void main() {
     expect(find.byKey(const Key('call-ended')), findsOneWidget);
   });
 
+  testWidgets('active call controls expose labelled accessibility targets', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+
+    await tester.pumpWidget(_app(fixture.coordinator));
+    await tester.pump();
+    await tester.pump();
+
+    for (final entry in <Key, String>{
+      const Key('call-microphone'): 'Mute',
+      const Key('call-camera'): 'Camera off',
+      const Key('call-switch-camera'): 'Flip',
+      const Key('call-audio-route'): 'Audio route',
+      const Key('call-pip'): 'PiP',
+      const Key('call-hang-up'): 'End',
+    }.entries) {
+      final finder = find.byKey(entry.key);
+      final size = tester.getSize(finder);
+      final node = tester.getSemantics(finder);
+      expect(size.width, greaterThanOrEqualTo(48));
+      expect(size.height, greaterThanOrEqualTo(48));
+      expect(node.label, contains(entry.value));
+    }
+
+    semantics.dispose();
+  });
+
   testWidgets('active voice call hydrates routes, participants, and PiP once', (
     tester,
   ) async {
