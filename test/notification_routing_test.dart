@@ -6,10 +6,12 @@ import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 final class _FakeBadgeRefreshPort implements NotificationBadgeRefreshPort {
   int refreshes = 0;
+  Object? failure;
 
   @override
   Future<void> refreshBadgeCount() async {
     refreshes += 1;
+    if (failure case final error?) throw error;
   }
 }
 
@@ -468,6 +470,95 @@ void main() {
         expect(badges.refreshes, 0);
       },
     );
+
+    test(
+      'platform cancellation exceptions do not block other read cleanup',
+      () async {
+        final notifications = FakeNotificationRepository(<KiteNotification>[
+          const KiteNotification(
+            id: 'first',
+            kind: KiteNotificationKind.message,
+            destination: AppDestination.event(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$first',
+            ),
+          ),
+          const KiteNotification(
+            id: 'second',
+            kind: KiteNotificationKind.message,
+            destination: AppDestination.event(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$second',
+            ),
+          ),
+        ]);
+        final cancellations = FakeNotificationCancellationPort()
+          ..failNextWith = StateError('platform unavailable');
+        final badges = _FakeBadgeRefreshPort();
+        final coordinator = NotificationCoordinator(
+          notifications: notifications,
+          cancellations: cancellations,
+          accounts: FakeAccountActivationPort('work'),
+          navigation: FakeAppNavigationPort(),
+          badgeRefresh: badges,
+        );
+
+        expect(
+          await coordinator.markRoomRead(
+            accountId: 'work',
+            roomId: '!team:example.org',
+          ),
+          1,
+        );
+        expect(
+          notifications.notification(_routingId('work', 'first')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('work', 'second')),
+          isNull,
+        );
+        expect(cancellations.cancelledIds, <String>[
+          _routingId('work', 'second'),
+        ]);
+        expect(badges.refreshes, 1);
+      },
+    );
+
+    test('badge failure does not undo successful read cleanup', () async {
+      final notifications = FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'message',
+          kind: KiteNotificationKind.message,
+          destination: AppDestination.event(
+            accountId: 'work',
+            roomId: '!team:example.org',
+            eventId: r'$message',
+          ),
+        ),
+      ]);
+      final badges = _FakeBadgeRefreshPort()
+        ..failure = StateError('badge unavailable');
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
+        accounts: FakeAccountActivationPort('work'),
+        navigation: FakeAppNavigationPort(),
+        badgeRefresh: badges,
+      );
+
+      expect(
+        await coordinator.markRoomRead(
+          accountId: 'work',
+          roomId: '!team:example.org',
+        ),
+        1,
+      );
+      expect(notifications.notification(_routingId('work', 'message')), isNull);
+      expect(badges.refreshes, 1);
+    });
 
     test(
       'remote read reconciliation removes only matching event notifications',

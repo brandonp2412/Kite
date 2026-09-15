@@ -224,13 +224,20 @@ final class NotificationCoordinator {
   Future<int> _cancelAndRemove(Iterable<String> notificationIds) async {
     var removed = 0;
     for (final id in notificationIds) {
-      final cancelled = await _cancellations.cancel(id);
+      bool cancelled;
+      try {
+        cancelled = await _cancellations.cancel(id);
+      } catch (_) {
+        continue;
+      }
       if (!cancelled) continue;
       _notifications.remove(id);
       removed += 1;
     }
     if (removed > 0) {
-      await _badgeRefresh?.refreshBadgeCount();
+      try {
+        await _badgeRefresh?.refreshBadgeCount();
+      } catch (_) {}
     }
     return removed;
   }
