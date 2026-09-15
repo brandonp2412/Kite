@@ -189,6 +189,8 @@ void main() {
       ),
     );
 
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('soft-logout-notice')), findsOneWidget);
     expect(
       find.text(
@@ -196,7 +198,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('homeserver-field')), findsOneWidget);
+    expect(find.byKey(const Key('homeserver-field')), findsNothing);
+    expect(find.byKey(const Key('change-homeserver')), findsNothing);
+    final username = tester.widget<TextField>(
+      find.byKey(const Key('username-field')),
+    );
+    expect(username.controller?.text, '@alice:matrix.example.org');
     expect(find.text('Authenticated content'), findsNothing);
   });
 }
