@@ -43,6 +43,89 @@ void main() {
       expect(boundary.openCalls, 0);
     });
 
+    test('rejects malformed encrypted store metadata before SDK open', () {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+      );
+
+      for (final store in <MatrixSdkStoreConfiguration>[
+        const MatrixSdkStoreConfiguration(
+          accountId: '',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: 'alice-key',
+        ),
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:kite.test',
+          storePath: '',
+          encryptionKeyId: 'alice-key',
+        ),
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:kite.test',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: '',
+        ),
+      ]) {
+        expect(
+          () => MatrixBoundaryEngine(boundary: boundary, store: store),
+          throwsArgumentError,
+        );
+      }
+      expect(boundary.openCalls, 0);
+    });
+
+    test(
+      'rejects unsafe resume cursors before opening the SDK store',
+      () async {
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.incrementalSync,
+          },
+        );
+        final cursors = <String>['', 'resume\u0000truncated'];
+
+        for (final cursor in cursors) {
+          final engine = MatrixBoundaryEngine(
+            boundary: boundary,
+            store: _store,
+            syncConfigurationProvider: () =>
+                MatrixSdkSyncConfiguration(resumeFromCursor: cursor),
+          );
+          await expectLater(engine.start(), throwsArgumentError);
+        }
+
+        expect(boundary.openCalls, 0);
+        expect(boundary.startCalls, 0);
+      },
+    );
+
+    test(
+      'back-pagination rejects blank ids and normalizes surrounding space',
+      () async {
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.incrementalSync,
+            MatrixSdkCapability.backPagination,
+          },
+        );
+        final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+
+        await expectLater(engine.paginateBackwards('   '), throwsArgumentError);
+        expect(boundary.openCalls, 0);
+
+        await engine.paginateBackwards('  !alpha:kite.test  ');
+        expect(boundary.paginatedRooms, <String>['!alpha:kite.test']);
+        await engine.close();
+      },
+    );
+
     test('back-pagination requires explicit SDK capability', () async {
       final boundary = _FakeSdkBoundary(
         capabilities: const <MatrixSdkCapability>{

@@ -68,6 +68,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     required MatrixSdkStoreConfiguration store,
     MatrixSdkSyncConfiguration Function()? syncConfigurationProvider,
   }) {
+    _validateStoreConfiguration(store);
     _requireBoundaryCapability(boundary, MatrixSdkCapability.auditedEncryption);
     _requireBoundaryCapability(
       boundary,
@@ -99,9 +100,11 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   @override
   Future<void> start() async {
-    await _ensureOpen();
     if (_started) return;
-    await _boundary.startSync(_syncConfigurationProvider());
+    final configuration = _syncConfigurationProvider();
+    _validateSyncConfiguration(configuration);
+    await _ensureOpen();
+    await _boundary.startSync(configuration);
     _started = true;
   }
 
@@ -115,8 +118,16 @@ final class MatrixBoundaryEngine implements MatrixEngine {
   @override
   Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
     _requireCapability(MatrixSdkCapability.backPagination);
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'must contain a non-empty Matrix room id without NUL bytes',
+      );
+    }
     await _ensureOpen();
-    return _boundary.paginateBackwards(roomId);
+    return _boundary.paginateBackwards(normalizedRoomId);
   }
 
   Future<void> close() async {
@@ -134,6 +145,42 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   void _requireCapability(MatrixSdkCapability capability) {
     _requireBoundaryCapability(_boundary, capability);
+  }
+
+  static void _validateStoreConfiguration(
+    MatrixSdkStoreConfiguration configuration,
+  ) {
+    if (configuration.accountId.trim().isEmpty ||
+        configuration.accountId.contains('\u0000') ||
+        configuration.storePath.trim().isEmpty ||
+        configuration.storePath.contains('\u0000') ||
+        configuration.encryptionKeyId.trim().isEmpty ||
+        configuration.encryptionKeyId.contains('\u0000')) {
+      throw ArgumentError.value(
+        configuration,
+        'store',
+        'contains an invalid account id, store path, or encryption key id',
+      );
+    }
+  }
+
+  static void _validateSyncConfiguration(
+    MatrixSdkSyncConfiguration configuration,
+  ) {
+    final cursor = configuration.resumeFromCursor;
+    if (configuration.initialRoomListLimit <= 0 ||
+        configuration.initialTimelineEventLimit <= 0 ||
+        configuration.timelineEventLimit <= 0 ||
+        configuration.initialTimelineEventLimit >
+            configuration.timelineEventLimit ||
+        cursor?.isEmpty == true ||
+        cursor?.contains('\u0000') == true) {
+      throw ArgumentError.value(
+        configuration,
+        'syncConfiguration',
+        'contains invalid Matrix sync limits or resume cursor',
+      );
+    }
   }
 
   static void _requireBoundaryCapability(

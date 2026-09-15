@@ -17,7 +17,7 @@ These rules apply to every milestone and cannot be traded away to ship a feature
 - [ ] Every new primary interaction gets a deterministic motion test and a profile-mode frame benchmark before its milestone is complete.
 - [ ] Every roadmap checkbox that changes UI or runtime behaviour must pass `tool/quality_gate.sh` before it is marked complete.
 - [ ] Physical-device release candidates must additionally pass the Android Macrobenchmark with zero build, raster, and end-to-end frame-budget violations.
-- [ ] Never implement Matrix cryptography ourselves. Use audited Matrix SDK primitives.
+- [x] Never implement Matrix cryptography ourselves. Use audited Matrix SDK primitives.
 - [ ] Offline-first rendering: cached UI renders immediately; network/sync work must never blank an already-known screen.
 - [ ] No visible loading-induced layout shift. Skeletons/placeholders reserve final geometry.
 - [ ] No broad reactive rebuilds when a leaf signal can express the dependency.
