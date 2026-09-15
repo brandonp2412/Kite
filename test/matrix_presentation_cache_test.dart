@@ -318,6 +318,54 @@ void main() {
     expect(cache.lastSyncCursor, 'second');
   });
 
+  test('leaf summary changes preserve room-order identity', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          _summary(
+            roomId: '!alpha:kite.test',
+            displayName: 'Alpha',
+            position: 9,
+            second: 9,
+            lastEventId: r'$alpha-1',
+          ),
+          _summary(
+            roomId: '!beta:kite.test',
+            displayName: 'Beta',
+            position: 8,
+            second: 8,
+          ),
+        ],
+      ),
+    );
+    final orderBefore = cache.roomOrder.value;
+
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 'metadata-only',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:kite.test',
+            summary: _summary(
+              roomId: '!alpha:kite.test',
+              displayName: 'Alice renamed this room',
+              position: 9,
+              second: 9,
+              lastEventId: r'$alpha-2',
+            ),
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      cache.roomSummarySignal('!alpha:kite.test').value?.displayName,
+      'Alice renamed this room',
+    );
+    expect(identical(orderBefore, cache.roomOrder.value), isTrue);
+    expect(cache.lastSyncCursor, 'metadata-only');
+  });
+
   test(
     'stale batches cannot regress room state or rewrite unaffected signals',
     () {

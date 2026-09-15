@@ -581,7 +581,9 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       try {
         final payload = await client.syncOnce(
           timeout: firstRequest ? Duration.zero : _matrixRustSyncPollTimeout,
-          timelineEventLimit: configuration.timelineEventLimit,
+          timelineEventLimit: firstRequest
+              ? configuration.initialTimelineEventLimit
+              : configuration.timelineEventLimit,
           since: syncToken,
         );
         if (!_syncRequested || !identical(_client, client)) return;

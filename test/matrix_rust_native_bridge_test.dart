@@ -165,20 +165,24 @@ void main() {
       );
       await boundary.startSync(
         const MatrixSdkSyncConfiguration(
+          initialTimelineEventLimit: 3,
           timelineEventLimit: 17,
           resumeFromCursor: 'resume-42',
         ),
       );
 
       await client.firstSyncReturned.future;
-      while (batches.isEmpty) {
+      while (client.syncTimelineEventLimits.length < 2 || batches.isEmpty) {
         await Future<void>.delayed(Duration.zero);
       }
       await boundary.stopSync();
 
-      expect(client.syncTimeouts.first, Duration.zero);
-      expect(client.syncTimelineEventLimits.first, 17);
-      expect(client.syncTokens.first, 'resume-42');
+      expect(client.syncTimeouts.take(2), <Duration>[
+        Duration.zero,
+        const Duration(seconds: 5),
+      ]);
+      expect(client.syncTimelineEventLimits.take(2), <int>[3, 17]);
+      expect(client.syncTokens.take(2), <String?>['resume-42', 'sync-1']);
       expect(batches.first.cursor, 'sync-1');
       expect(batches.first.rooms.single.summary!.displayName, 'Native room');
       expect(
@@ -277,6 +281,8 @@ void main() {
       ]);
       expect(batches.first.cursor, 'recovered');
       expect(client.syncCalls, greaterThanOrEqualTo(7));
+      expect(client.syncTimeouts.take(7), everyElement(Duration.zero));
+      expect(client.syncTimelineEventLimits.take(7), everyElement(1));
       final failedLogs = logSink.events
           .where(
             (event) =>
@@ -420,6 +426,8 @@ final class _RecoveringRustClient implements MatrixRustClient {
 
   final int failuresBeforeRecovery;
   final Completer<void> recovered = Completer<void>();
+  final List<Duration> syncTimeouts = <Duration>[];
+  final List<int> syncTimelineEventLimits = <int>[];
   int syncCalls = 0;
   bool _closed = false;
 
@@ -432,6 +440,8 @@ final class _RecoveringRustClient implements MatrixRustClient {
     required int timelineEventLimit,
     String? since,
   }) async {
+    syncTimeouts.add(timeout);
+    syncTimelineEventLimits.add(timelineEventLimit);
     syncCalls += 1;
     if (syncCalls <= failuresBeforeRecovery) {
       throw StateError('transient sync failure');

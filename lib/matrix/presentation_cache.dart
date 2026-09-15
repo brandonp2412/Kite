@@ -102,6 +102,7 @@ final class MatrixPresentationCache {
   }
 
   void applySync(MatrixSyncBatch batch) {
+    var roomOrderDirty = false;
     for (final room in batch.rooms) {
       final summary = room.summary;
       if (summary != null) {
@@ -110,6 +111,8 @@ final class MatrixPresentationCache {
         if (current == null ||
             summary.streamPosition >= current.streamPosition) {
           if (!_sameSummary(current, summary)) {
+            roomOrderDirty =
+                roomOrderDirty || _changesRoomOrder(current, summary);
             summarySignal.value = summary;
           }
         }
@@ -125,7 +128,9 @@ final class MatrixPresentationCache {
     }
 
     lastSyncCursor = batch.cursor;
-    _refreshRoomOrder();
+    if (roomOrderDirty) {
+      _refreshRoomOrder();
+    }
   }
 
   void _refreshRoomOrder() {
@@ -192,6 +197,15 @@ final class MatrixPresentationCache {
     final position = left.streamPosition.compareTo(right.streamPosition);
     if (position != 0) return position;
     return left.originServerTimestamp.compareTo(right.originServerTimestamp);
+  }
+
+  static bool _changesRoomOrder(
+    MatrixRoomSummary? current,
+    MatrixRoomSummary next,
+  ) {
+    return current == null ||
+        current.lastActivity != next.lastActivity ||
+        current.streamPosition != next.streamPosition;
   }
 
   static bool _sameSummary(MatrixRoomSummary? left, MatrixRoomSummary right) {
