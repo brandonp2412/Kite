@@ -87,6 +87,15 @@ final class AuthenticationController {
     );
   }
 
+  Future<void> loginWithQrCode(String qrCodeData) async {
+    if (isBusy) return;
+    if (qrCodeData.isEmpty) {
+      errorMessage.value = 'Scan a valid Matrix sign-in QR code.';
+      return;
+    }
+    await _runSignIn(() => _gateway.loginWithQrCode(qrCodeData));
+  }
+
   Future<void> _runSignIn(
     Future<AuthenticatedSession> Function() action,
   ) async {

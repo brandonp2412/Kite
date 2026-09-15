@@ -3,17 +3,23 @@ import 'package:kite/features/auth/authentication_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:signals/signals_flutter.dart';
 
+typedef AuthenticationQrScanner = Future<String?> Function();
+
 class AuthenticationScreen extends StatefulWidget {
   const AuthenticationScreen({
     required this.gateway,
     this.controller,
     this.onAuthenticated,
+    this.scanQrCode,
+    this.onRegistrationRequested,
     super.key,
   });
 
   final AuthenticationGateway gateway;
   final AuthenticationController? controller;
   final ValueChanged<AuthenticatedSession>? onAuthenticated;
+  final AuthenticationQrScanner? scanQrCode;
+  final ValueChanged<HomeserverAddress>? onRegistrationRequested;
 
   @override
   State<AuthenticationScreen> createState() => _AuthenticationScreenState();
@@ -62,6 +68,15 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
 
   Future<void> _ssoLogin() async {
     await _controller.loginWithSso();
+    _completeAuthenticationIfNeeded();
+  }
+
+  Future<void> _qrLogin() async {
+    final scanner = widget.scanQrCode;
+    if (scanner == null || _controller.isBusy) return;
+    final qrCodeData = await scanner();
+    if (!mounted || qrCodeData == null) return;
+    await _controller.loginWithQrCode(qrCodeData);
     _completeAuthenticationIfNeeded();
   }
 
@@ -146,6 +161,15 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                     : 'Continue',
                               ),
                             ),
+                            if (widget.scanQrCode != null) ...<Widget>[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                key: const Key('qr-device-login'),
+                                onPressed: busy ? null : _qrLogin,
+                                icon: const Icon(Icons.qr_code_scanner_rounded),
+                                label: const Text('Sign in with QR code'),
+                              ),
+                            ],
                           ] else if (session == null) ...<Widget>[
                             TextButton.icon(
                               key: const Key('change-homeserver'),
@@ -224,12 +248,26 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                             ],
                             if (methods.registrationAvailable) ...<Widget>[
                               const SizedBox(height: 12),
-                              Text(
-                                'This homeserver also supports account registration.',
-                                key: const Key('registration-available'),
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
+                              if (widget.onRegistrationRequested == null)
+                                Text(
+                                  'This homeserver also supports account registration.',
+                                  key: const Key('registration-available'),
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                )
+                              else
+                                TextButton.icon(
+                                  key: const Key('registration-available'),
+                                  onPressed: busy
+                                      ? null
+                                      : () => widget.onRegistrationRequested!(
+                                          methods.homeserver,
+                                        ),
+                                  icon: const Icon(
+                                    Icons.person_add_alt_1_outlined,
+                                  ),
+                                  label: const Text('Create an account'),
+                                ),
                             ],
                           ] else ...<Widget>[
                             Semantics(
