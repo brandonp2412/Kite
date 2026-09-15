@@ -45,14 +45,35 @@ final class MatrixPresentationCache {
 
   void restore(MatrixPresentationSnapshot snapshot) {
     lastSyncCursor = snapshot.syncCursor;
+
+    final restoredRoomIds = snapshot.rooms
+        .map((summary) => summary.roomId)
+        .toSet();
+    for (final entry in _roomSummaries.entries) {
+      if (!restoredRoomIds.contains(entry.key) && entry.value.value != null) {
+        entry.value.value = null;
+      }
+    }
     for (final summary in snapshot.rooms) {
-      roomSummarySignal(summary.roomId).value = summary;
+      final summarySignal = roomSummarySignal(summary.roomId);
+      if (!_sameSummary(summarySignal.value, summary)) {
+        summarySignal.value = summary;
+      }
+    }
+
+    final restoredTimelineIds = snapshot.timelines.keys.toSet();
+    for (final entry in _timelines.entries) {
+      if (!restoredTimelineIds.contains(entry.key) &&
+          entry.value.value.isNotEmpty) {
+        entry.value.value = const <MatrixTimelineEvent>[];
+      }
     }
     for (final entry in snapshot.timelines.entries) {
-      timelineSignal(entry.key).value = _mergeEvents(
-        const <MatrixTimelineEvent>[],
-        entry.value,
-      );
+      final timeline = timelineSignal(entry.key);
+      final restored = _mergeEvents(const <MatrixTimelineEvent>[], entry.value);
+      if (!_sameTimeline(timeline.value, restored)) {
+        timeline.value = restored;
+      }
     }
     _refreshRoomOrder();
   }

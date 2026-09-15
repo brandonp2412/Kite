@@ -39,6 +39,73 @@ void main() {
     expect(cache.lastSyncCursor, isNull);
   });
 
+  test(
+    'restoring a snapshot clears stale leaves without rewriting equal state',
+    () {
+      final alpha = _summary(
+        roomId: '!alpha:kite.test',
+        displayName: 'Alpha stale',
+        position: 4,
+        second: 4,
+      );
+      final beta = _summary(
+        roomId: '!beta:kite.test',
+        displayName: 'Beta stable',
+        position: 5,
+        second: 5,
+      );
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[alpha, beta],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!alpha:kite.test': <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$alpha-stale',
+                roomId: '!alpha:kite.test',
+                position: 4,
+                second: 4,
+              ),
+            ],
+            '!beta:kite.test': <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$beta-stale',
+                roomId: '!beta:kite.test',
+                position: 5,
+                second: 5,
+              ),
+            ],
+          },
+          syncCursor: 'before-restore',
+        ),
+      );
+      final betaBefore = cache.roomSummarySignal('!beta:kite.test').value;
+
+      cache.restore(
+        MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            _summary(
+              roomId: '!beta:kite.test',
+              displayName: 'Beta stable',
+              position: 5,
+              second: 5,
+            ),
+          ],
+          syncCursor: 'restored',
+        ),
+      );
+
+      expect(cache.lastSyncCursor, 'restored');
+      expect(cache.roomOrder.value, <String>['!beta:kite.test']);
+      expect(cache.roomSummarySignal('!alpha:kite.test').value, isNull);
+      expect(cache.timelineSignal('!alpha:kite.test').value, isEmpty);
+      expect(cache.timelineSignal('!beta:kite.test').value, isEmpty);
+      expect(
+        identical(betaBefore, cache.roomSummarySignal('!beta:kite.test').value),
+        isTrue,
+      );
+    },
+  );
+
   test('sync deduplicates and deterministically orders overlapping events', () {
     final cache = MatrixPresentationCache();
     cache.applySync(
