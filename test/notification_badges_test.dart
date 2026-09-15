@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_badges.dart';
@@ -28,9 +30,13 @@ final class _FakeRepository implements NotificationRepository {
 
 final class _FakeBadgePort implements NotificationBadgePort {
   final counts = <int>[];
+  Completer<void>? firstSetBlock;
+  int calls = 0;
 
   @override
   Future<void> setBadgeCount(int count) async {
+    calls += 1;
+    if (calls == 1) await firstSetBlock?.future;
     counts.add(count);
   }
 }
@@ -118,6 +124,41 @@ void main() {
       2,
     );
     expect(badges.counts, <int>[2]);
+  });
+
+  test('overlapping badge refreshes serialize and latest refresh sees current state', () async {
+    final repository = _FakeRepository(<KiteNotification>[
+      _notification(
+        id: 'message',
+        accountId: 'work',
+        kind: KiteNotificationKind.message,
+      ),
+      _notification(
+        id: 'call',
+        accountId: 'work',
+        kind: KiteNotificationKind.call,
+      ),
+    ]);
+    final firstSetBlock = Completer<void>();
+    final badges = _FakeBadgePort()..firstSetBlock = firstSetBlock;
+    final coordinator = NotificationBadgeCoordinator(
+      notifications: repository,
+      badges: badges,
+    );
+
+    final first = coordinator.refreshForAccounts(const <String>['work']);
+    await Future<void>.delayed(Duration.zero);
+    repository.remove(KiteNotification.routingIdFor('work', 'message'));
+    final second = coordinator.refreshForAccounts(const <String>['work']);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(badges.calls, 1);
+    expect(badges.counts, isEmpty);
+
+    firstSetBlock.complete();
+    expect(await first, 2);
+    expect(await second, 1);
+    expect(badges.counts, <int>[2, 1]);
   });
 
   test(
