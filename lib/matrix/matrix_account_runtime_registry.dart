@@ -218,17 +218,58 @@ final class MatrixAccountRuntimeRegistry {
   Future<void> dispose() {
     _disposed = true;
     return _enqueue<void>(() async {
-      final active = _activeRuntime;
-      if (active != null) {
-        await active.runtime.stop();
-      }
-      activeAccountId.value = null;
-      await flushPresentationWrites();
+      Object? firstFailure;
+      StackTrace? firstFailureStackTrace;
+      final stoppedAccounts = <String>{};
+      final runtimes = List<MapEntry<String, _MatrixAccountRuntime>>.of(
+        _runtimes.entries,
+      );
 
-      for (final runtime in _runtimes.values) {
-        await runtime.engine.close();
+      void captureFailure(Object error, StackTrace stackTrace) {
+        firstFailure ??= error;
+        firstFailureStackTrace ??= stackTrace;
       }
-      _runtimes.clear();
+
+      activeAccountId.value = null;
+      for (final entry in runtimes) {
+        try {
+          await entry.value.runtime.stop();
+          stoppedAccounts.add(entry.key);
+        } catch (error, stackTrace) {
+          captureFailure(error, stackTrace);
+        }
+      }
+
+      try {
+        await flushPresentationWrites();
+        if (_presentationDirty.isNotEmpty) {
+          captureFailure(
+            StateError(
+              'Matrix presentation writes remain pending after bounded retries',
+            ),
+            StackTrace.current,
+          );
+        }
+      } catch (error, stackTrace) {
+        captureFailure(error, stackTrace);
+      }
+
+      for (final entry in runtimes) {
+        if (!stoppedAccounts.contains(entry.key)) continue;
+        try {
+          await entry.value.engine.close();
+          if (!_presentationDirty.contains(entry.key)) {
+            _runtimes.remove(entry.key);
+          }
+        } catch (error, stackTrace) {
+          captureFailure(error, stackTrace);
+        }
+      }
+
+      final failure = firstFailure;
+      if (failure != null) {
+        Error.throwWithStackTrace(failure, firstFailureStackTrace!);
+      }
     });
   }
 

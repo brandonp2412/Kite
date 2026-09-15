@@ -899,6 +899,74 @@ void main() {
     },
   );
 
+  test(
+    'dispose retains dirty presentation state until persistence recovers',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+        presentationRetryDelay: (_) async {},
+      );
+
+      await registry.activate('@alice:example.org');
+      await registry.flushPresentationWrites();
+      final baselineCursor =
+          presentationStore.snapshots['@alice:example.org']?.syncCursor;
+      presentationStore.failSaveCallsRemaining = 100;
+      boundaries['@alice:example.org']!.emit(
+        const MatrixSyncBatch(
+          cursor: 'persist-before-dispose',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+
+      await expectLater(registry.dispose(), throwsStateError);
+
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(boundaries['@alice:example.org']!.closeCalls, 1);
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        baselineCursor,
+      );
+
+      presentationStore.failSaveCallsRemaining = 0;
+      await registry.dispose();
+
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(boundaries['@alice:example.org']!.closeCalls, 1);
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'persist-before-dispose',
+      );
+    },
+  );
+
+  test('dispose isolates a transient active sync stop failure', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final registry = _registry(boundaries);
+
+    await registry.activate('@alice:example.org');
+    await registry.activate('@bob:example.org');
+    await registry.activate('@alice:example.org');
+    boundaries['@alice:example.org']!.stopFailuresRemaining = 1;
+
+    await expectLater(registry.dispose(), throwsStateError);
+
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+    expect(boundaries['@alice:example.org']!.closeCalls, 0);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
+
+    await registry.dispose();
+
+    expect(registry.loadedAccountIds, isEmpty);
+    expect(boundaries['@alice:example.org']!.closeCalls, 1);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
+  });
+
   test('dispose retries cleanup after a transient SDK close failure', () async {
     final boundaries = <String, _FakeAccountBoundary>{};
     final registry = _registry(boundaries);
@@ -909,7 +977,9 @@ void main() {
 
     await expectLater(registry.dispose(), throwsStateError);
     expect(registry.activeAccountId.value, isNull);
-    expect(registry.loadedAccountIds, hasLength(2));
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+    expect(boundaries['@alice:example.org']!.closeCalls, 1);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
     expect(
       () => registry.activate('@later:example.org'),
       throwsA(isA<StateError>()),
@@ -1005,6 +1075,7 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
       syncConfigurations.isEmpty ? null : syncConfigurations.last;
   int startCalls = 0;
   int stopCalls = 0;
+  int stopFailuresRemaining = 0;
   int closeCalls = 0;
   int closeFailuresRemaining = 0;
   bool closeHadSyncListener = false;
@@ -1049,6 +1120,10 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   @override
   Future<void> stopSync() async {
     stopCalls += 1;
+    if (stopFailuresRemaining > 0) {
+      stopFailuresRemaining -= 1;
+      throw StateError('deterministic stop failure for $accountId');
+    }
   }
 
   @override
