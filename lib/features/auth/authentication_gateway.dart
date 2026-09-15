@@ -91,6 +91,9 @@ final class AuthenticationRejectedException extends AuthenticationException {
 }
 
 abstract interface class AuthenticationGateway {
+  /// Resolves authentication through the Matrix SDK. The returned homeserver
+  /// may differ from [homeserver] when trusted `.well-known` discovery selects
+  /// the actual client API base URL.
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver);
 
   Future<AuthenticatedSession> loginWithPassword({

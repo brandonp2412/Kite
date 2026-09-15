@@ -80,23 +80,28 @@ void main() {
     expect(controller.errorMessage.value, isNot(contains('secret')));
   });
 
-  test('discovery rejects login methods for another homeserver', () async {
+  test('discovery accepts the SDK-resolved well-known homeserver', () async {
+    final resolvedHomeserver = HomeserverAddress.parse(
+      'matrix-client.example.org',
+    );
     final gateway = _AuthenticationGateway()
       ..discoveryResult = HomeserverLoginMethods(
-        homeserver: HomeserverAddress.parse('other.example.org'),
+        homeserver: resolvedHomeserver,
         methods: const <AuthenticationMethod>{AuthenticationMethod.password},
       );
     final controller = AuthenticationController(gateway);
     addTearDown(controller.dispose);
 
-    await controller.discover('matrix.example.org');
+    await controller.discover('example.org');
 
-    expect(controller.loginMethods.value, isNull);
-    expect(controller.session.value, isNull);
     expect(
-      controller.errorMessage.value,
-      'Kite received invalid homeserver discovery data.',
+      controller.loginMethods.value?.homeserver.uri,
+      resolvedHomeserver.uri,
     );
+    expect(controller.errorMessage.value, isNull);
+
+    await controller.loginWithPassword(username: 'alice', password: 'secret');
+    expect(controller.session.value?.homeserver.uri, resolvedHomeserver.uri);
   });
 
   test(
