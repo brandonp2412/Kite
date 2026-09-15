@@ -31,16 +31,22 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   String? openedDmUserId;
   Completer<MatrixUserProfile>? deferredOwnProfile;
   Completer<MatrixUserProfile>? deferredViewedProfile;
+  Completer<Set<String>>? deferredIgnored;
+  Completer<Set<String>>? deferredBlocked;
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async {
     if (loadIgnoredError case final error?) throw error;
+    final deferred = deferredIgnored;
+    if (deferred != null) return deferred.future;
     return <String>{...ignored};
   }
 
   @override
   Future<Set<String>> loadBlockedUserIds() async {
     if (loadBlockedError case final error?) throw error;
+    final deferred = deferredBlocked;
+    if (deferred != null) return deferred.future;
     return <String>{...blocked};
   }
 
@@ -190,6 +196,39 @@ void main() {
     expect(controller.viewedProfile.value, isNull);
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
   });
+
+  test(
+    'publishes viewed profile before privacy controls finish loading',
+    () async {
+      final ignored = Completer<Set<String>>();
+      final blocked = Completer<Set<String>>();
+      final gateway = _FakeUserProfileGateway()
+        ..deferredIgnored = ignored
+        ..deferredBlocked = blocked;
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+
+      final loading = controller.loadUserProfile('@alice:example.org');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.viewedProfile.value?.displayName, 'Alice');
+      expect(controller.isLoading.value, isFalse);
+      expect(controller.isPrivacyLoading.value, isTrue);
+      expect(
+        await controller.openDirectMessage('@alice:example.org'),
+        '!dm:example.org',
+      );
+      expect(await controller.setIgnored('@alice:example.org', true), isFalse);
+      expect(controller.isIgnored('@alice:example.org'), isFalse);
+
+      ignored.complete(<String>{'@alice:example.org'});
+      blocked.complete(<String>{});
+      await loading;
+
+      expect(controller.isPrivacyLoading.value, isFalse);
+      expect(controller.isIgnored('@alice:example.org'), isTrue);
+    },
+  );
 
   test('same-user refresh preserves the last known profile offline', () async {
     final gateway = _FakeUserProfileGateway();

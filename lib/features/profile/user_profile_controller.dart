@@ -56,6 +56,7 @@ final class UserProfileController {
   final ignoredUserIds = signal<Set<String>>(const <String>{});
   final blockedUserIds = signal<Set<String>>(const <String>{});
   final isLoading = signal(false);
+  final isPrivacyLoading = signal(false);
   final isSaving = signal(false);
   final errorMessage = signal<String?>(null);
 
@@ -68,6 +69,7 @@ final class UserProfileController {
 
     final generation = _accountGeneration;
     final requestGeneration = ++_profileRequestGeneration;
+    isPrivacyLoading.value = false;
     isLoading.value = true;
     errorMessage.value = null;
     try {
@@ -90,26 +92,15 @@ final class UserProfileController {
   }
 
   Future<void> refreshPrivacyControls() async {
-    if (isLoading.value || isSaving.value) return;
+    if (isLoading.value || isPrivacyLoading.value || isSaving.value) return;
 
     final generation = _accountGeneration;
     final requestGeneration = ++_profileRequestGeneration;
-    isLoading.value = true;
     errorMessage.value = null;
-    try {
-      await _loadPrivacyControls(
-        generation: generation,
-        requestGeneration: requestGeneration,
-      );
-    } catch (_) {
-      if (_isCurrentRequest(generation, requestGeneration)) {
-        errorMessage.value = 'Kite could not load your privacy settings.';
-      }
-    } finally {
-      if (_isCurrentRequest(generation, requestGeneration)) {
-        isLoading.value = false;
-      }
-    }
+    await _loadPrivacyControlsWithProgress(
+      generation: generation,
+      requestGeneration: requestGeneration,
+    );
   }
 
   bool resetForAccountChange() {
@@ -120,6 +111,7 @@ final class UserProfileController {
     ignoredUserIds.value = const <String>{};
     blockedUserIds.value = const <String>{};
     isLoading.value = false;
+    isPrivacyLoading.value = false;
     isSaving.value = false;
     errorMessage.value = null;
     return true;
@@ -129,6 +121,7 @@ final class UserProfileController {
     if (isSaving.value) return;
     final generation = _accountGeneration;
     final requestGeneration = ++_profileRequestGeneration;
+    isPrivacyLoading.value = false;
     if (!_isValidUserId(userId)) {
       viewedProfile.value = null;
       isLoading.value = false;
@@ -149,7 +142,8 @@ final class UserProfileController {
         return;
       }
       viewedProfile.value = profile;
-      await _loadPrivacyControls(
+      isLoading.value = false;
+      await _loadPrivacyControlsWithProgress(
         generation: generation,
         requestGeneration: requestGeneration,
       );
@@ -252,7 +246,10 @@ final class UserProfileController {
   }
 
   Future<bool> setIgnored(String userId, bool ignored) async {
-    if (!_isValidUserId(userId) || isSaving.value || isLoading.value) {
+    if (!_isValidUserId(userId) ||
+        isSaving.value ||
+        isLoading.value ||
+        isPrivacyLoading.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -288,7 +285,10 @@ final class UserProfileController {
   }
 
   Future<bool> setBlocked(String userId, bool blocked) async {
-    if (!_isValidUserId(userId) || isSaving.value || isLoading.value) {
+    if (!_isValidUserId(userId) ||
+        isSaving.value ||
+        isLoading.value ||
+        isPrivacyLoading.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -319,6 +319,24 @@ final class UserProfileController {
     } finally {
       if (generation == _accountGeneration) {
         isSaving.value = false;
+      }
+    }
+  }
+
+  Future<void> _loadPrivacyControlsWithProgress({
+    required int generation,
+    required int requestGeneration,
+  }) async {
+    if (!_isCurrentRequest(generation, requestGeneration)) return;
+    isPrivacyLoading.value = true;
+    try {
+      await _loadPrivacyControls(
+        generation: generation,
+        requestGeneration: requestGeneration,
+      );
+    } finally {
+      if (_isCurrentRequest(generation, requestGeneration)) {
+        isPrivacyLoading.value = false;
       }
     }
   }
@@ -403,6 +421,7 @@ final class UserProfileController {
     ignoredUserIds.dispose();
     blockedUserIds.dispose();
     isLoading.dispose();
+    isPrivacyLoading.dispose();
     isSaving.dispose();
     errorMessage.dispose();
   }

@@ -176,6 +176,68 @@ void main() {
     },
   );
 
+  testWidgets(
+    'viewed profile keeps messaging available while privacy state loads',
+    (tester) async {
+      _useLargeView(tester);
+      final gateway = _FakeProfileGateway();
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+      controller.viewedProfile.value = gateway.other;
+      controller.isPrivacyLoading.value = true;
+      String? openedRoomId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UserProfileScreen.user(
+            controller: controller,
+            userId: '@alice:example.org',
+            loadOnInit: false,
+            onOpenRoom: (roomId) => openedRoomId = roomId,
+          ),
+        ),
+      );
+
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('profile-message')))
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('profile-ignore')))
+            .onChanged,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('profile-block')))
+            .onChanged,
+        isNull,
+      );
+
+      await tester.tap(find.byKey(const Key('profile-message')));
+      await tester.pump();
+      expect(openedRoomId, '!dm:example.org');
+
+      controller.isPrivacyLoading.value = false;
+      await tester.pump();
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('profile-ignore')))
+            .onChanged,
+        isNotNull,
+      );
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('profile-block')))
+            .onChanged,
+        isNotNull,
+      );
+    },
+  );
+
   testWidgets('viewed profile loads privacy state and opens a DM', (
     tester,
   ) async {

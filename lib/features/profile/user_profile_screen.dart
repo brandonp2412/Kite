@@ -140,9 +140,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ? widget.controller.ownProfile.value
                 : widget.controller.viewedProfile.value;
             final loading = widget.controller.isLoading.value;
+            final privacyLoading = widget.controller.isPrivacyLoading.value;
             final saving = widget.controller.isSaving.value;
             final error = widget.controller.errorMessage.value;
             final busy = loading || saving;
+            final privacyBusy = privacyLoading || saving;
 
             return ListView(
               key: const Key('user-profile-list'),
@@ -151,7 +153,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 SizedBox(
                   key: const Key('profile-loading-slot'),
                   height: 4,
-                  child: loading ? const LinearProgressIndicator() : null,
+                  child: loading || privacyLoading
+                      ? const LinearProgressIndicator()
+                      : null,
                 ),
                 if (profile == null)
                   _ProfilePlaceholder(
@@ -164,6 +168,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     profile: profile,
                     isOwnProfile: widget.isOwnProfile,
                     busy: busy,
+                    privacyBusy: privacyBusy,
                     canChangeAvatar: widget.pickAvatar != null,
                     imageProvider: widget.avatarImageProvider?.call(
                       profile.avatarUri,
@@ -244,6 +249,7 @@ class _ProfilePlaceholder extends StatelessWidget {
             profile: placeholderProfile,
             isOwnProfile: isOwnProfile,
             busy: true,
+            privacyBusy: true,
             canChangeAvatar: canChangeAvatar,
             imageProvider: null,
             ignored: false,
@@ -279,6 +285,7 @@ class _ProfileContent extends StatelessWidget {
     required this.profile,
     required this.isOwnProfile,
     required this.busy,
+    required this.privacyBusy,
     required this.canChangeAvatar,
     required this.imageProvider,
     required this.ignored,
@@ -295,6 +302,7 @@ class _ProfileContent extends StatelessWidget {
   final MatrixUserProfile profile;
   final bool isOwnProfile;
   final bool busy;
+  final bool privacyBusy;
   final bool canChangeAvatar;
   final ImageProvider<Object>? imageProvider;
   final bool ignored;
@@ -326,6 +334,7 @@ class _ProfileContent extends StatelessWidget {
           _OtherProfileActions(
             profile: profile,
             busy: busy,
+            privacyBusy: privacyBusy,
             ignored: ignored,
             blocked: blocked,
             onMessage: onMessage,
@@ -460,6 +469,7 @@ class _OtherProfileActions extends StatelessWidget {
   const _OtherProfileActions({
     required this.profile,
     required this.busy,
+    required this.privacyBusy,
     required this.ignored,
     required this.blocked,
     required this.onMessage,
@@ -469,6 +479,7 @@ class _OtherProfileActions extends StatelessWidget {
 
   final MatrixUserProfile profile;
   final bool busy;
+  final bool privacyBusy;
   final bool ignored;
   final bool blocked;
   final VoidCallback onMessage;
@@ -500,7 +511,7 @@ class _OtherProfileActions extends StatelessWidget {
         SwitchListTile(
           key: const Key('profile-ignore'),
           value: ignored,
-          onChanged: busy ? null : onIgnoredChanged,
+          onChanged: busy || privacyBusy ? null : onIgnoredChanged,
           secondary: const Icon(Icons.volume_off_outlined),
           title: const Text('Ignore user'),
           subtitle: const Text('Hide messages and activity from this user.'),
@@ -508,7 +519,7 @@ class _OtherProfileActions extends StatelessWidget {
         SwitchListTile(
           key: const Key('profile-block'),
           value: blocked,
-          onChanged: busy ? null : onBlockedChanged,
+          onChanged: busy || privacyBusy ? null : onBlockedChanged,
           secondary: const Icon(Icons.block_outlined),
           title: const Text('Block user'),
           subtitle: const Text('Apply the homeserver-supported block state.'),
