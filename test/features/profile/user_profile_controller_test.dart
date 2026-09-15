@@ -180,6 +180,20 @@ void main() {
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
   });
 
+  test('same-user refresh preserves the last known profile offline', () async {
+    final gateway = _FakeUserProfileGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+    await controller.loadUserProfile('@alice:example.org');
+    final knownProfile = controller.viewedProfile.value;
+
+    gateway.loadProfileError = StateError('network unavailable');
+    await controller.loadUserProfile('@alice:example.org');
+
+    expect(controller.viewedProfile.value, same(knownProfile));
+    expect(controller.errorMessage.value, 'Kite could not load that profile.');
+  });
+
   test(
     'loading a different profile clears stale user data immediately',
     () async {

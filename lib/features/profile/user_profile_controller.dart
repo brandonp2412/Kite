@@ -146,7 +146,9 @@ final class UserProfileController {
     }
 
     final generation = _accountGeneration;
-    viewedProfile.value = null;
+    if (viewedProfile.value?.userId != userId) {
+      viewedProfile.value = null;
+    }
     isLoading.value = true;
     errorMessage.value = null;
     try {
