@@ -8,6 +8,7 @@ import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -31,27 +32,20 @@ class HomeScreen extends StatelessWidget {
     if (isPhone) {
       return Scaffold(
         body: SafeArea(
-          child: Column(
-            children: <Widget>[
-              const _CompactHomeHeader(),
-              Expanded(
-                child: SizedBox.expand(
-                  key: const Key('sidebar'),
-                  child: _RoomList(
-                    rooms: roomEntries,
-                    store: roomListStore,
-                    onRoomTap: (roomId) {
-                      selectRoom(roomId);
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const _CompactChatScreen(),
-                        ),
-                      );
-                    },
+          child: SizedBox.expand(
+            key: const Key('sidebar'),
+            child: _HomeSidebar(
+              rooms: roomEntries,
+              store: roomListStore,
+              onRoomTap: (roomId) {
+                selectRoom(roomId);
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const _CompactChatScreen(),
                   ),
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           ),
         ),
       );
@@ -66,7 +60,7 @@ class HomeScreen extends StatelessWidget {
           SizedBox(
             key: const Key('sidebar'),
             width: adaptiveSidebarWidth,
-            child: _RoomList(rooms: roomEntries, store: roomListStore),
+            child: _HomeSidebar(rooms: roomEntries, store: roomListStore),
           ),
           const VerticalDivider(width: 1),
           const Expanded(child: _ChatPanel()),
@@ -76,22 +70,128 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _CompactHomeHeader extends StatelessWidget {
-  const _CompactHomeHeader();
+class _HomeSidebar extends StatefulWidget {
+  const _HomeSidebar({required this.rooms, this.store, this.onRoomTap});
+
+  final List<RoomListEntry> rooms;
+  final RoomListStateStore? store;
+  final ValueChanged<String>? onRoomTap;
+
+  @override
+  State<_HomeSidebar> createState() => _HomeSidebarState();
+}
+
+class _HomeSidebarState extends State<_HomeSidebar> {
+  late RoomListStateStore _ownedStore;
+
+  RoomListStateStore get store => widget.store ?? _ownedStore;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownedStore = RoomListStateStore(widget.rooms);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _HomeHeader(store: store),
+        _RoomFilterBar(store: store),
+        Expanded(
+          child: _RoomList(store: store, onRoomTap: widget.onRoomTap),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({required this.store});
+
+  final RoomListStateStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 72,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.md,
+          KiteSpacing.sm,
+          KiteSpacing.sm,
+          KiteSpacing.xs,
+        ),
+        child: Row(
+          children: <Widget>[
+            Semantics(
+              image: true,
+              label: 'Profile',
+              child: CircleAvatar(
+                key: const Key('home-profile'),
+                radius: 20,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Icon(
+                  Icons.person_rounded,
+                  size: 22,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            const SizedBox(width: KiteSpacing.sm),
+            Expanded(
+              child: Text(
+                'Chats',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ),
+            IconButton(
+              key: const Key('home-read-all'),
+              tooltip: 'Mark all as read',
+              onPressed: store.markAllRead,
+              icon: const Icon(Icons.done_all_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomFilterBar extends StatelessWidget {
+  const _RoomFilterBar({required this.store});
+
+  final RoomListStateStore store;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 72,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Chats',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-        ),
+      height: 48,
+      child: SignalBuilder(
+        builder: (context) {
+          final selected = store.selectedFilter.value;
+          return ListView.separated(
+            key: const Key('room-filter-row'),
+            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+            scrollDirection: Axis.horizontal,
+            itemCount: RoomListFilter.values.length,
+            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
+            itemBuilder: (context, index) {
+              final filter = RoomListFilter.values[index];
+              return ChoiceChip(
+                key: Key('room-filter-${filter.name}'),
+                label: Text(filter.label),
+                selected: selected == filter,
+                showCheckmark: false,
+                onSelected: (_) => store.selectFilter(filter),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -115,35 +215,38 @@ class _CompactChatScreen extends StatelessWidget {
 }
 
 class _RoomList extends StatelessWidget {
-  const _RoomList({required this.rooms, this.store, this.onRoomTap});
+  const _RoomList({required this.store, this.onRoomTap});
 
-  final List<RoomListEntry> rooms;
-  final RoomListStateStore? store;
+  final RoomListStateStore store;
   final ValueChanged<String>? onRoomTap;
 
   @override
   Widget build(BuildContext context) {
-    final ids = store?.roomIds ?? rooms.map((room) => room.id).toList();
-    return ListView.builder(
-      key: const Key('room-list'),
-      itemCount: ids.length,
-      itemExtent: 72,
-      itemBuilder: (context, index) {
-        final roomId = ids[index];
-        return SignalBuilder(
-          builder: (context) {
-            final room = store?.roomSignal(roomId).value ?? rooms[index];
-            final selected = selectedRoomId.value == room.id;
-            return _RoomListRow(
-              room: room,
-              selected: selected,
-              onTap: () {
-                final handler = onRoomTap;
-                if (handler != null) {
-                  handler(room.id);
-                } else {
-                  selectRoom(room.id);
-                }
+    return SignalBuilder(
+      builder: (context) {
+        final ids = store.visibleRoomIds.value;
+        return ListView.builder(
+          key: const Key('room-list'),
+          itemCount: ids.length,
+          itemExtent: 72,
+          itemBuilder: (context, index) {
+            final roomId = ids[index];
+            return SignalBuilder(
+              builder: (context) {
+                final room = store.roomSignal(roomId).value;
+                final selected = selectedRoomId.value == room.id;
+                return _RoomListRow(
+                  room: room,
+                  selected: selected,
+                  onTap: () {
+                    final handler = onRoomTap;
+                    if (handler != null) {
+                      handler(room.id);
+                    } else {
+                      selectRoom(room.id);
+                    }
+                  },
+                );
               },
             );
           },
@@ -378,8 +481,24 @@ class _RoomIndicators extends StatelessWidget {
 }
 
 typedef _ComposerAction = void Function(String roomId, TimelineMessage message);
+typedef _ReactionAction = void Function(String emoji);
 
-enum _MessageAction { reply, edit, copy, redact }
+enum _MessageAction {
+  reply,
+  edit,
+  copy,
+  forward,
+  report,
+  redact,
+  reactionPicker,
+}
+
+const _reportReasons = <String>[
+  'Spam or scam',
+  'Harassment or abuse',
+  'Inappropriate content',
+  'Other',
+];
 
 enum _ComposerMode { reply, edit }
 
@@ -533,12 +652,19 @@ class _MessageRow extends StatelessWidget {
     final action = await showModalBottomSheet<_MessageAction>(
       context: context,
       useSafeArea: true,
+      isScrollControlled: true,
       backgroundColor: context.kiteColors.canvas,
       constraints: const BoxConstraints(maxWidth: 440),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
       ),
-      builder: (sheetContext) => _MessageActionSheet(message: message),
+      builder: (sheetContext) => _MessageActionSheet(
+        message: message,
+        onReact: (emoji) {
+          timelineController.toggleReaction(message, emoji);
+          Navigator.of(sheetContext).pop();
+        },
+      ),
     );
     if (!context.mounted || action == null) return;
     switch (action) {
@@ -558,6 +684,76 @@ class _MessageRow extends StatelessWidget {
               duration: Duration(seconds: 2),
             ),
           );
+      case _MessageAction.forward:
+        final destinations = await showModalBottomSheet<List<String>>(
+          context: context,
+          useSafeArea: true,
+          isScrollControlled: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (_) =>
+              _ForwardMessageSheet(currentRoomId: roomId, message: message),
+        );
+        if (!context.mounted || destinations == null || destinations.isEmpty) {
+          return;
+        }
+        final forwarded = timelineController.forwardText(message, destinations);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Forwarded to ${forwarded.length} ${forwarded.length == 1 ? 'room' : 'rooms'}',
+              ),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.report:
+        final reason = await showModalBottomSheet<String>(
+          context: context,
+          useSafeArea: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (_) => _ReportMessageSheet(message: message),
+        );
+        if (!context.mounted || reason == null) return;
+        await timelineController.reportMessage(roomId, message, reason);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Report sent'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.reactionPicker:
+        final emoji = await showModalBottomSheet<String>(
+          context: context,
+          useSafeArea: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (_) => const _ReactionPickerSheet(),
+        );
+        if (!context.mounted || emoji == null) return;
+        timelineController.toggleReaction(message, emoji);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -637,12 +833,9 @@ class _MessageRow extends StatelessWidget {
                       ],
                     );
                   }
-                  return Text(
-                    message.body,
+                  return KeyedSubtree(
                     key: Key('message-body-${message.id}'),
-                    style: KiteTypography.body.copyWith(
-                      color: colors.onSurface,
-                    ),
+                    child: TimelineMessageBody(body: message.body),
                   );
                 },
               ),
@@ -669,6 +862,7 @@ class _MessageRow extends StatelessWidget {
                           )
                         : const SizedBox.shrink(),
                   ),
+                  _MessageReactionSummary(message: message),
                   if (mine) ...<Widget>[
                     const SizedBox(width: KiteSpacing.xxs),
                     _MessageSendState(roomId: roomId, message: message),
@@ -921,9 +1115,10 @@ class _MessageReplyPreview extends StatelessWidget {
 }
 
 class _MessageActionSheet extends StatelessWidget {
-  const _MessageActionSheet({required this.message});
+  const _MessageActionSheet({required this.message, required this.onReact});
 
   final TimelineMessage message;
+  final _ReactionAction onReact;
 
   @override
   Widget build(BuildContext context) {
@@ -936,61 +1131,532 @@ class _MessageActionSheet extends StatelessWidget {
         KiteSpacing.lg,
         KiteSpacing.lg,
       ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.76,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.outlineVariant,
+                  borderRadius: BorderRadius.circular(KiteRadii.pill),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  message.body,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: KiteTypography.body.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              if (!message.redacted) ...<Widget>[
+                _QuickReactionRow(onReact: onReact),
+                const SizedBox(height: KiteSpacing.xs),
+                _MessageActionButton(
+                  key: const Key('message-action-more-reactions'),
+                  icon: Icons.add_reaction_outlined,
+                  label: 'More reactions',
+                  onTap: () =>
+                      Navigator.of(context).pop(_MessageAction.reactionPicker),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-reply'),
+                  icon: Icons.reply_rounded,
+                  label: 'Reply',
+                  onTap: () => Navigator.of(context).pop(_MessageAction.reply),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-copy'),
+                  icon: Icons.content_copy_rounded,
+                  label: 'Copy text',
+                  onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-forward'),
+                  icon: Icons.forward_to_inbox_rounded,
+                  label: 'Forward',
+                  onTap: () =>
+                      Navigator.of(context).pop(_MessageAction.forward),
+                ),
+                if (!message.mine)
+                  _MessageActionButton(
+                    key: const Key('message-action-report'),
+                    icon: Icons.flag_outlined,
+                    label: 'Report',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.report),
+                  ),
+                if (message.mine)
+                  _MessageActionButton(
+                    key: const Key('message-action-edit'),
+                    icon: Icons.edit_outlined,
+                    label: 'Edit message',
+                    onTap: () => Navigator.of(context).pop(_MessageAction.edit),
+                  ),
+                if (message.mine)
+                  _MessageActionButton(
+                    key: const Key('message-action-delete'),
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Delete message',
+                    destructive: true,
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.redact),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ForwardMessageSheet extends StatefulWidget {
+  const _ForwardMessageSheet({
+    required this.currentRoomId,
+    required this.message,
+  });
+
+  final String currentRoomId;
+  final TimelineMessage message;
+
+  @override
+  State<_ForwardMessageSheet> createState() => _ForwardMessageSheetState();
+}
+
+class _ForwardMessageSheetState extends State<_ForwardMessageSheet> {
+  final Set<String> _selectedRoomIds = <String>{};
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final normalizedQuery = _query.trim().toLowerCase();
+    final rooms = BenchmarkFixture.rooms
+        .where((room) => room.id != widget.currentRoomId)
+        .where(
+          (room) =>
+              normalizedQuery.isEmpty ||
+              room.name.toLowerCase().contains(normalizedQuery) ||
+              room.subtitle.toLowerCase().contains(normalizedQuery),
+        )
+        .toList(growable: false);
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        key: const Key('forward-message-sheet'),
+        height: 560,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.lg,
+            KiteSpacing.sm,
+            KiteSpacing.lg,
+            KiteSpacing.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.outlineVariant,
+                    borderRadius: BorderRadius.circular(KiteRadii.pill),
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.lg),
+              Text(
+                'Forward message',
+                style: KiteTypography.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.xs),
+              Text(
+                widget.message.body,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: KiteTypography.body.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.md),
+              TextField(
+                key: const Key('forward-room-search'),
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Search rooms',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: context.kiteColors.field,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: KiteSpacing.md,
+                    vertical: KiteSpacing.sm,
+                  ),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.circular(KiteRadii.lg),
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              Expanded(
+                child: ListView.builder(
+                  key: const Key('forward-room-list'),
+                  itemCount: rooms.length,
+                  itemExtent: 56,
+                  itemBuilder: (context, index) {
+                    final room = rooms[index];
+                    final selected = _selectedRoomIds.contains(room.id);
+                    void toggle() {
+                      setState(() {
+                        if (!_selectedRoomIds.add(room.id)) {
+                          _selectedRoomIds.remove(room.id);
+                        }
+                      });
+                    }
+
+                    return InkWell(
+                      key: Key('forward-room-${room.id}'),
+                      onTap: toggle,
+                      borderRadius: BorderRadius.circular(KiteRadii.md),
+                      child: Row(
+                        children: <Widget>[
+                          CircleAvatar(
+                            radius: 17,
+                            child: Text(room.name.characters.first),
+                          ),
+                          const SizedBox(width: KiteSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              room.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KiteTypography.body.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Checkbox(value: selected, onChanged: (_) => toggle()),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const Key('forward-message-confirm'),
+                  onPressed: _selectedRoomIds.isEmpty
+                      ? null
+                      : () =>
+                            Navigator.of(context)
+                                .pop(_selectedRoomIds.toList(growable: false)),
+                  child: Text(
+                    _selectedRoomIds.isEmpty
+                        ? 'Select rooms'
+                        : 'Forward to ${_selectedRoomIds.length}',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportMessageSheet extends StatelessWidget {
+  const _ReportMessageSheet({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('report-message-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: colors.outlineVariant,
-              borderRadius: BorderRadius.circular(KiteRadii.pill),
-            ),
-          ),
-          const SizedBox(height: KiteSpacing.md),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              message.body,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: KiteTypography.body.copyWith(
-                color: colors.onSurfaceVariant,
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.outlineVariant,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
               ),
             ),
+          ),
+          const SizedBox(height: KiteSpacing.lg),
+          Text(
+            'Report message',
+            style: KiteTypography.title.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.xs),
+          Text(
+            message.body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: KiteTypography.body.copyWith(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: KiteSpacing.sm),
-          if (!message.redacted) ...<Widget>[
+          for (var index = 0; index < _reportReasons.length; index++)
             _MessageActionButton(
-              key: const Key('message-action-reply'),
-              icon: Icons.reply_rounded,
-              label: 'Reply',
-              onTap: () => Navigator.of(context).pop(_MessageAction.reply),
+              key: Key('report-reason-$index'),
+              icon: index == _reportReasons.length - 1
+                  ? Icons.more_horiz_rounded
+                  : Icons.flag_outlined,
+              label: _reportReasons[index],
+              onTap: () => Navigator.of(context).pop(_reportReasons[index]),
             ),
-            _MessageActionButton(
-              key: const Key('message-action-copy'),
-              icon: Icons.content_copy_rounded,
-              label: 'Copy text',
-              onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickReactionRow extends StatelessWidget {
+  const _QuickReactionRow({required this.onReact});
+
+  final _ReactionAction onReact;
+
+  static const reactions = <String>['👍', '❤️', '😂', '🎉'];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: const Key('quick-reaction-row'),
+      height: 46,
+      child: Row(
+        children: <Widget>[
+          for (var index = 0; index < reactions.length; index++) ...<Widget>[
+            if (index > 0) const SizedBox(width: KiteSpacing.xs),
+            Expanded(
+              child: Semantics(
+                button: true,
+                label: 'React with ${reactions[index]}',
+                child: InkWell(
+                  key: Key('quick-reaction-$index'),
+                  onTap: () => onReact(reactions[index]),
+                  borderRadius: BorderRadius.circular(KiteRadii.pill),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(KiteRadii.pill),
+                    ),
+                    child: Center(
+                      child: Text(
+                        reactions[index],
+                        style: const TextStyle(fontSize: 21),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-            if (message.mine)
-              _MessageActionButton(
-                key: const Key('message-action-edit'),
-                icon: Icons.edit_outlined,
-                label: 'Edit message',
-                onTap: () => Navigator.of(context).pop(_MessageAction.edit),
-              ),
-            if (message.mine)
-              _MessageActionButton(
-                key: const Key('message-action-delete'),
-                icon: Icons.delete_outline_rounded,
-                label: 'Delete message',
-                destructive: true,
-                onTap: () => Navigator.of(context).pop(_MessageAction.redact),
-              ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ReactionPickerSheet extends StatelessWidget {
+  const _ReactionPickerSheet();
+
+  static const emoji = <String>[
+    '👍',
+    '❤️',
+    '😂',
+    '🎉',
+    '🔥',
+    '👏',
+    '👀',
+    '🤔',
+    '😮',
+    '😢',
+    '🙏',
+    '✅',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('reaction-picker-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          Text(
+            'Choose a reaction',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 6,
+              mainAxisSpacing: KiteSpacing.xs,
+              crossAxisSpacing: KiteSpacing.xs,
+            ),
+            itemCount: emoji.length,
+            itemBuilder: (context, index) {
+              return InkWell(
+                key: Key('reaction-picker-$index'),
+                onTap: () => Navigator.of(context).pop(emoji[index]),
+                borderRadius: BorderRadius.circular(KiteRadii.md),
+                child: Center(
+                  child: Text(
+                    emoji[index],
+                    style: const TextStyle(fontSize: 26),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageReactionSummary extends StatelessWidget {
+  const _MessageReactionSummary({required this.message});
+
+  final TimelineMessage message;
+
+  Future<void> _showDetails(
+    BuildContext context,
+    TimelineReactionSummary reaction,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        key: const Key('reaction-details'),
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.lg,
+          KiteSpacing.sm,
+          KiteSpacing.lg,
+          KiteSpacing.xl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '${reaction.emoji} ${reaction.count}',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: KiteSpacing.sm),
+            for (final reactor in reaction.reactors)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  radius: 18,
+                  child: Icon(Icons.person_rounded, size: 18),
+                ),
+                title: Text(reactor),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SignalBuilder(
+      builder: (context) {
+        final reactions = message.reactions.values.toList(growable: false);
+        if (reactions.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final primary = reactions.first;
+        final extraCount = reactions.length - 1;
+        return Padding(
+          padding: const EdgeInsets.only(left: KiteSpacing.xxs),
+          child: InkWell(
+            key: Key('message-reactions-${message.id}'),
+            onTap: () => _showDetails(context, primary),
+            borderRadius: BorderRadius.circular(KiteRadii.pill),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Text(
+                '${primary.emoji} ${primary.count}${extraCount > 0 ? ' +$extraCount' : ''}',
+                style: KiteTypography.metadata.copyWith(
+                  color: primary.reactedByMe
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

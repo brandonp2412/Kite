@@ -6,6 +6,42 @@ import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 
 void main() {
+  testWidgets('filter transition preserves header and filter-row geometry', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(roomListStore: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final profile = find.byKey(const Key('home-profile'));
+    final filterRow = find.byKey(const Key('room-filter-row'));
+    final list = find.byKey(const Key('room-list'));
+    final profileRect = tester.getRect(profile);
+    final filterRect = tester.getRect(filterRow);
+    final listRect = tester.getRect(list);
+
+    await tester.tap(find.byKey(const Key('room-filter-people')));
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pumpAndSettle();
+
+    expect(tester.getRect(profile), profileRect);
+    expect(tester.getRect(filterRow), filterRect);
+    expect(tester.getRect(list).top, listRect.top);
+    expect(store.selectedFilter.value, RoomListFilter.people);
+  });
+
   testWidgets(
     'leaf room-state update preserves list geometry and scroll anchor',
     (tester) async {
