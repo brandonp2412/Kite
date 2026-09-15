@@ -10,17 +10,24 @@ import 'package:kite/features/auth/device_verification_screen.dart';
 import 'package:kite/features/auth/session_lifecycle.dart';
 import 'package:signals/signals_flutter.dart';
 
+typedef AuthenticatedSessionBuilder = Widget Function(
+  BuildContext context,
+  AuthenticatedSession session,
+);
+
 class SessionGate extends StatefulWidget {
   const SessionGate({
     required this.lifecycleController,
     required this.authenticationGateway,
     required this.verificationController,
     required this.authenticatedBuilder,
+    this.authenticatedSessionBuilder,
     this.registrationGateway,
     this.scanLoginQrCode,
     this.scanVerificationQrCode,
     this.verificationQrBuilder,
     this.restoreOnInit = true,
+    this.requireVerification = true,
     super.key,
   });
 
@@ -28,11 +35,13 @@ class SessionGate extends StatefulWidget {
   final AuthenticationGateway authenticationGateway;
   final DeviceVerificationController verificationController;
   final WidgetBuilder authenticatedBuilder;
+  final AuthenticatedSessionBuilder? authenticatedSessionBuilder;
   final AccountRegistrationGateway? registrationGateway;
   final AuthenticationQrScanner? scanLoginQrCode;
   final VerificationQrScanner? scanVerificationQrCode;
   final VerificationQrBuilder? verificationQrBuilder;
   final bool restoreOnInit;
+  final bool requireVerification;
 
   @override
   State<SessionGate> createState() => _SessionGateState();
@@ -64,7 +73,7 @@ class _SessionGateState extends State<SessionGate> {
 
   Future<void> _restore() async {
     await widget.lifecycleController.restore();
-    if (!mounted) return;
+    if (!mounted || !widget.requireVerification) return;
     if (widget.lifecycleController.state.value is SessionAuthenticated) {
       await _refreshVerificationForAuthenticatedSession();
     }
@@ -80,7 +89,9 @@ class _SessionGateState extends State<SessionGate> {
     if (!mounted) return;
 
     if (widget.lifecycleController.state.value is SessionAuthenticated) {
-      await _refreshVerificationForAuthenticatedSession();
+      if (widget.requireVerification) {
+        await _refreshVerificationForAuthenticatedSession();
+      }
       return;
     }
 
@@ -159,24 +170,30 @@ class _SessionGateState extends State<SessionGate> {
         }
 
         if (lifecycleState is SessionAuthenticated) {
-          if (verificationBusy ||
-              (verificationTrust == CrossSigningTrustState.unknown &&
-                  verificationError == null)) {
-            return const _SessionProgress(
-              key: Key('verification-status-loading'),
-              label: 'Checking device verification…',
-            );
+          if (widget.requireVerification) {
+            if (verificationBusy ||
+                (verificationTrust == CrossSigningTrustState.unknown &&
+                    verificationError == null)) {
+              return const _SessionProgress(
+                key: Key('verification-status-loading'),
+                label: 'Checking device verification…',
+              );
+            }
+            if (widget.verificationController.requiresVerification) {
+              return DeviceVerificationScreen(
+                key: const Key('mandatory-device-verification'),
+                controller: widget.verificationController,
+                loadOnInit: false,
+                scanQrCode: widget.scanVerificationQrCode,
+                qrBuilder: widget.verificationQrBuilder,
+              );
+            }
           }
-          if (widget.verificationController.requiresVerification) {
-            return DeviceVerificationScreen(
-              key: const Key('mandatory-device-verification'),
-              controller: widget.verificationController,
-              loadOnInit: false,
-              scanQrCode: widget.scanVerificationQrCode,
-              qrBuilder: widget.verificationQrBuilder,
-            );
-          }
-          return widget.authenticatedBuilder(context);
+          return widget.authenticatedSessionBuilder?.call(
+                context,
+                lifecycleState.session,
+              ) ??
+              widget.authenticatedBuilder(context);
         }
 
         return const _SessionProgress(label: 'Preparing Kite…');
