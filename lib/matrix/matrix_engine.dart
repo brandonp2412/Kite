@@ -92,6 +92,7 @@ final class MatrixSyncCoordinator {
     final subscription = _subscription;
     if (subscription == null) {
       if (state.value.phase != MatrixSyncPhase.idle) {
+        await engine.stop();
         state.value = const MatrixSyncState.idle();
       }
       return;

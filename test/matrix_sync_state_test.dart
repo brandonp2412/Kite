@@ -135,6 +135,7 @@ void main() {
 
     await coordinator.stop();
     expect(coordinator.state.value.phase, MatrixSyncPhase.idle);
+    expect(engine.stopCalls, 1);
   });
 
   test('failed engine start is observable and retryable', () async {
@@ -166,6 +167,7 @@ final class _StateFakeMatrixEngine implements MatrixEngine {
 
   int startFailuresRemaining;
   int startCalls = 0;
+  int stopCalls = 0;
   final List<String> paginationCalls = <String>[];
 
   @override
@@ -187,7 +189,9 @@ final class _StateFakeMatrixEngine implements MatrixEngine {
   }
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    stopCalls += 1;
+  }
 
   @override
   Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
