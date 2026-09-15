@@ -111,6 +111,27 @@ void main() {
     expect(controller.requiresVerification, isFalse);
   });
 
+  test('trust refresh failure fails closed after a verified state', () async {
+    final gateway = _FakeVerificationGateway()
+      ..trust = CrossSigningTrustState.verified;
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loadTrust();
+    expect(controller.requiresVerification, isFalse);
+
+    gateway.failure = StateError('access_token=secret');
+    await controller.loadTrust();
+
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(controller.requiresVerification, isTrue);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not read device verification status.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+  });
+
   test('verification session rejects malformed transaction metadata', () {
     expect(
       () => DeviceVerificationSession(
@@ -281,6 +302,20 @@ void main() {
       expect(controller.session.value, isNull);
     },
   );
+
+  test('cancelled verification cannot later be confirmed', () async {
+    final gateway = _FakeVerificationGateway();
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.startQrVerification(), isTrue);
+    expect(await controller.cancelVerification(), isTrue);
+    expect(await controller.confirmQrVerification(), isFalse);
+
+    expect(gateway.confirmedQrTransactionId, isNull);
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(controller.session.value?.stage, DeviceVerificationStage.cancelled);
+  });
 
   test(
     'gateway failures never expose verification material or secrets',

@@ -4,19 +4,23 @@ import 'package:kite/features/auth/authentication_gateway.dart';
 
 final class _AuthenticationGateway implements AuthenticationGateway {
   AuthenticatedSession? nextSession;
+  HomeserverLoginMethods? discoveryResult;
+  Object? discoveryFailure;
   Object? failure;
   String? qrCodeData;
 
   @override
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async {
-    return HomeserverLoginMethods(
-      homeserver: homeserver,
-      methods: const <AuthenticationMethod>{
-        AuthenticationMethod.password,
-        AuthenticationMethod.oidc,
-        AuthenticationMethod.sso,
-      },
-    );
+    if (discoveryFailure case final error?) throw error;
+    return discoveryResult ??
+        HomeserverLoginMethods(
+          homeserver: homeserver,
+          methods: const <AuthenticationMethod>{
+            AuthenticationMethod.password,
+            AuthenticationMethod.oidc,
+            AuthenticationMethod.sso,
+          },
+        );
   }
 
   AuthenticatedSession _session(HomeserverAddress homeserver) {
@@ -56,6 +60,45 @@ final class _AuthenticationGateway implements AuthenticationGateway {
 }
 
 void main() {
+  test('failed rediscovery clears stale homeserver login methods', () async {
+    final gateway = _AuthenticationGateway();
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.discover('matrix.example.org');
+    expect(controller.loginMethods.value, isNotNull);
+
+    gateway.discoveryFailure = StateError('access_token=secret');
+    await controller.discover('other.example.org');
+
+    expect(controller.loginMethods.value, isNull);
+    expect(controller.session.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not connect to that homeserver.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+  });
+
+  test('discovery rejects login methods for another homeserver', () async {
+    final gateway = _AuthenticationGateway()
+      ..discoveryResult = HomeserverLoginMethods(
+        homeserver: HomeserverAddress.parse('other.example.org'),
+        methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+      );
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.discover('matrix.example.org');
+
+    expect(controller.loginMethods.value, isNull);
+    expect(controller.session.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite received invalid homeserver discovery data.',
+    );
+  });
+
   test(
     'password authentication rejects a session for another homeserver',
     () async {

@@ -106,6 +106,7 @@ final class DeviceVerificationController {
     try {
       trustState.value = await _gateway.loadCrossSigningTrust();
     } catch (_) {
+      trustState.value = CrossSigningTrustState.unknown;
       errorMessage.value = 'Kite could not read device verification status.';
     } finally {
       isBusy.value = false;
@@ -136,7 +137,9 @@ final class DeviceVerificationController {
 
   Future<bool> confirmQrVerification() {
     final current = session.value;
-    if (current == null || current.method != DeviceVerificationMethod.qr) {
+    if (current == null ||
+        current.method != DeviceVerificationMethod.qr ||
+        current.isTerminal) {
       errorMessage.value = 'Start QR verification before confirming it.';
       return Future<bool>.value(false);
     }
@@ -158,7 +161,9 @@ final class DeviceVerificationController {
 
   Future<bool> confirmSasVerification() {
     final current = session.value;
-    if (current == null || current.method != DeviceVerificationMethod.sas) {
+    if (current == null ||
+        current.method != DeviceVerificationMethod.sas ||
+        current.isTerminal) {
       errorMessage.value = 'Start emoji verification before confirming it.';
       return Future<bool>.value(false);
     }

@@ -27,9 +27,16 @@ final class AuthenticationController {
       return;
     }
 
+    loginMethods.value = null;
+    session.value = null;
     progress.value = AuthenticationProgress.discovering;
     try {
-      loginMethods.value = await _gateway.discover(homeserver);
+      final discovered = await _gateway.discover(homeserver);
+      if (discovered.homeserver.uri != homeserver.uri) {
+        errorMessage.value = 'Kite received invalid homeserver discovery data.';
+        return;
+      }
+      loginMethods.value = discovered;
     } on AuthenticationException catch (error) {
       errorMessage.value = error.publicMessage;
     } catch (_) {
