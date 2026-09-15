@@ -44,6 +44,6 @@ class OpenDmBenchmark {
     }
 
     private companion object {
-        const val TARGET_PACKAGE = "nz.presley.kite"
+        const val TARGET_PACKAGE = "nz.presley.kite.benchmark"
     }
 }
