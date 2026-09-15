@@ -61,6 +61,15 @@ final class MatrixSyncCoordinator {
           state.value = MatrixSyncState.failed(error, stackTrace);
         }
       },
+      onDone: () {
+        if (identical(_subscription, subscription)) {
+          _subscription = null;
+          state.value = MatrixSyncState.failed(
+            StateError('Matrix sync stream closed unexpectedly'),
+            StackTrace.current,
+          );
+        }
+      },
     );
     _subscription = subscription;
     try {

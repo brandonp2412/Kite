@@ -116,6 +116,24 @@ void main() {
     },
   );
 
+  test('unexpected sync stream closure clears running state', () async {
+    final engine = _StateFakeMatrixEngine();
+    final coordinator = MatrixSyncCoordinator(
+      engine: engine,
+      applyBatch: (_) {},
+    );
+
+    await coordinator.start();
+    expect(coordinator.isRunning, isTrue);
+
+    await engine.close();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(coordinator.isRunning, isFalse);
+    expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
+    expect(coordinator.state.value.error, isA<StateError>());
+  });
+
   test('failed engine start is observable and retryable', () async {
     final engine = _StateFakeMatrixEngine(startFailuresRemaining: 1);
     final coordinator = MatrixSyncCoordinator(
