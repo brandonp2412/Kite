@@ -254,7 +254,14 @@ void main() {
       binding: binding,
       action: () async {
         await tester.tap(find.byKey(const Key('message-action-reply')));
-        await tester.pumpAndSettle();
+        for (
+          var frame = 0;
+          frame < 60 &&
+              find.byKey(const Key('composer-context')).evaluate().isEmpty;
+          frame++
+        ) {
+          await tester.pump(const Duration(microseconds: 16667));
+        }
       },
       enforceTotalSpan: virtualizedBenchmark
           ? PerformanceContract.gateVirtualizedTotalSpan
