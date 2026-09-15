@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 2;
+const int kiteMatrixNativeAbiVersion = 3;
+
+const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 
 typedef _AbiVersionNative = Uint32 Function();
 typedef _AbiVersionDart = int Function();
@@ -19,16 +23,48 @@ typedef _ClientNewDart = Pointer<Void> Function(
   Pointer<Char>,
   Pointer<Char>,
 );
+typedef _ClientSyncOnceNative = Pointer<Char> Function(Pointer<Void>, Uint64);
+typedef _ClientSyncOnceDart = Pointer<Char> Function(Pointer<Void>, int);
+typedef _ClientPaginateNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+);
+typedef _ClientPaginateDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+);
+typedef _StringFreeNative = Void Function(Pointer<Char> value);
+typedef _StringFreeDart = void Function(Pointer<Char> value);
 typedef _ClientFreeNative = Void Function(Pointer<Void> client);
 typedef _ClientFreeDart = void Function(Pointer<Void> client);
 
 typedef MatrixSdkStoreSecretResolver = Future<String> Function(String keyId);
+typedef MatrixRustSyncDelay = Future<void> Function(Duration duration);
 
-final class MatrixRustNativeBridge {
+abstract interface class MatrixRustBridge {
+  Future<MatrixRustClient> openEncryptedClient({
+    required Uri homeserver,
+    required String storePath,
+    required String storePassphrase,
+  });
+}
+
+abstract interface class MatrixRustClient {
+  bool get isClosed;
+
+  Future<String> syncOnce({required Duration timeout});
+
+  Future<String> paginateBackwards({required String roomId});
+
+  Future<void> close();
+}
+
+final class MatrixRustNativeBridge implements MatrixRustBridge {
   const MatrixRustNativeBridge({required this.libraryPath});
 
   final String libraryPath;
 
+  @override
   Future<MatrixRustNativeClient> openEncryptedClient({
     required Uri homeserver,
     required String storePath,
@@ -96,41 +132,137 @@ final class MatrixRustNativeBridge {
   }
 }
 
-final class MatrixRustNativeClient {
+final class MatrixRustNativeClient implements MatrixRustClient {
   MatrixRustNativeClient._(this.libraryPath, this._address);
 
   final String libraryPath;
   int _address;
-  Future<void>? _closing;
+  Future<void> _transition = Future<void>.value();
 
+  @override
   bool get isClosed => _address == 0;
 
-  Future<void> close() {
-    final existing = _closing;
-    if (existing != null) return existing;
-    if (_address == 0) return Future<void>.value();
+  @override
+  Future<String> syncOnce({required Duration timeout}) {
+    if (timeout.isNegative) {
+      return Future<String>.error(
+        ArgumentError.value(timeout, 'timeout', 'must not be negative'),
+      );
+    }
+    return _enqueue<String>(() async {
+      final address = _requireAddress();
+      final path = libraryPath;
+      final timeoutMs = timeout.inMilliseconds;
+      return Isolate.run<String>(() {
+        final library = DynamicLibrary.open(path);
+        final syncOnce = library
+            .lookupFunction<_ClientSyncOnceNative, _ClientSyncOnceDart>(
+              'kite_matrix_client_sync_once',
+            );
+        final freeString = library
+            .lookupFunction<_StringFreeNative, _StringFreeDart>(
+              'kite_matrix_string_free',
+            );
+        final value = syncOnce(Pointer<Void>.fromAddress(address), timeoutMs);
+        if (value == nullptr) {
+          throw StateError('Matrix Rust SDK sync failed');
+        }
+        try {
+          return value.cast<Utf8>().toDartString();
+        } finally {
+          freeString(value);
+        }
+      });
+    });
+  }
 
+  @override
+  Future<String> paginateBackwards({required String roomId}) {
+    if (roomId.trim().isEmpty) {
+      return Future<String>.error(
+        ArgumentError.value(roomId, 'roomId', 'must not be empty'),
+      );
+    }
+    return _enqueue<String>(() async {
+      final address = _requireAddress();
+      final path = libraryPath;
+      return Isolate.run<String>(() {
+        final library = DynamicLibrary.open(path);
+        final paginate = library
+            .lookupFunction<_ClientPaginateNative, _ClientPaginateDart>(
+              'kite_matrix_client_paginate_backwards',
+            );
+        final freeString = library
+            .lookupFunction<_StringFreeNative, _StringFreeDart>(
+              'kite_matrix_string_free',
+            );
+        final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+        try {
+          final value = paginate(
+            Pointer<Void>.fromAddress(address),
+            roomIdUtf8.cast<Char>(),
+          );
+          if (value == nullptr) {
+            throw StateError('Matrix Rust SDK back-pagination failed');
+          }
+          try {
+            return value.cast<Utf8>().toDartString();
+          } finally {
+            freeString(value);
+          }
+        } finally {
+          calloc.free(roomIdUtf8);
+        }
+      });
+    });
+  }
+
+  @override
+  Future<void> close() {
+    return _enqueue<void>(() async {
+      if (_address == 0) return;
+      final address = _address;
+      final path = libraryPath;
+      await Isolate.run<void>(() {
+        final library = DynamicLibrary.open(path);
+        final clientFree = library
+            .lookupFunction<_ClientFreeNative, _ClientFreeDart>(
+              'kite_matrix_client_free',
+            );
+        clientFree(Pointer<Void>.fromAddress(address));
+      });
+      _address = 0;
+    });
+  }
+
+  int _requireAddress() {
     final address = _address;
-    late final Future<void> closing;
-    closing =
-        Isolate.run<void>(() {
-              final library = DynamicLibrary.open(libraryPath);
-              final clientFree = library
-                  .lookupFunction<_ClientFreeNative, _ClientFreeDart>(
-                    'kite_matrix_client_free',
-                  );
-              clientFree(Pointer<Void>.fromAddress(address));
-            })
-            .then<void>((_) {
-              _address = 0;
-            })
-            .whenComplete(() {
-              if (_address != 0 && identical(_closing, closing)) {
-                _closing = null;
-              }
-            });
-    _closing = closing;
-    return closing;
+    if (address == 0) {
+      throw StateError('Matrix Rust SDK client is closed');
+    }
+    return address;
+  }
+
+  Future<T> _enqueue<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    final next = _transition.then<void>(
+      (_) async {
+        try {
+          completer.complete(await operation());
+        } catch (error, stackTrace) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+      onError: (Object _, StackTrace _) async {
+        try {
+          completer.complete(await operation());
+        } catch (error, stackTrace) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+    );
+    _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return completer.future;
   }
 }
 
@@ -139,24 +271,35 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     required this.bridge,
     required this.homeserver,
     required this.resolveStoreSecret,
-  });
+    MatrixRustSyncCodec? codec,
+    MatrixRustSyncDelay? syncRetryDelay,
+  }) : _codec = codec ?? MatrixRustSyncCodec(),
+       _syncRetryDelay = syncRetryDelay ?? Future<void>.delayed;
 
-  final MatrixRustNativeBridge bridge;
+  final MatrixRustBridge bridge;
   final Uri homeserver;
   final MatrixSdkStoreSecretResolver resolveStoreSecret;
+  final MatrixRustSyncCodec _codec;
+  final MatrixRustSyncDelay _syncRetryDelay;
+  final StreamController<MatrixSyncBatch> _syncBatches =
+      StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
-  MatrixRustNativeClient? _client;
+  MatrixRustClient? _client;
   Future<void> _transition = Future<void>.value();
+  Future<void>? _syncLoop;
+  bool _syncRequested = false;
+  String? _syncCursor;
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
     MatrixSdkCapability.auditedEncryption,
     MatrixSdkCapability.encryptedPersistentStore,
+    MatrixSdkCapability.slidingSync,
+    MatrixSdkCapability.backPagination,
   };
 
   @override
-  Stream<MatrixSyncBatch> get syncBatches =>
-      const Stream<MatrixSyncBatch>.empty();
+  Stream<MatrixSyncBatch> get syncBatches => _syncBatches.stream;
 
   @override
   Future<void> open(MatrixSdkStoreConfiguration store) {
@@ -178,28 +321,105 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
 
   @override
   Future<void> startSync() {
-    throw UnsupportedError(
-      'Matrix Rust SDK sync is not exposed by the native boundary yet',
-    );
+    return _enqueue(() async {
+      if (_syncLoop != null) return;
+      final client = _requireClient();
+      _syncRequested = true;
+      late final Future<void> loop;
+      loop = _runSyncLoop(client).whenComplete(() {
+        if (identical(_syncLoop, loop)) {
+          _syncLoop = null;
+        }
+      });
+      _syncLoop = loop;
+      unawaited(loop);
+    });
   }
 
   @override
-  Future<void> stopSync() async {}
+  Future<void> stopSync() {
+    return _enqueue(_stopSync);
+  }
 
   @override
   Future<void> paginateBackwards(String roomId) {
-    throw UnsupportedError(
-      'Matrix Rust SDK back-pagination is not exposed by the native boundary yet',
-    );
+    return _enqueue(() async {
+      final normalizedRoomId = roomId.trim();
+      if (normalizedRoomId.isEmpty) {
+        throw ArgumentError.value(roomId, 'roomId', 'must not be empty');
+      }
+      final payload = await _requireClient().paginateBackwards(
+        roomId: normalizedRoomId,
+      );
+      final decoded = _codec.decodePagination(payload);
+      if (decoded.roomId != normalizedRoomId) {
+        throw StateError('Matrix Rust SDK pagination room mismatch');
+      }
+      final cursor = _syncCursor;
+      if (decoded.events.isNotEmpty && cursor != null) {
+        _syncBatches.add(
+          MatrixSyncBatch(
+            cursor: cursor,
+            rooms: <MatrixRoomDelta>[
+              MatrixRoomDelta(
+                roomId: normalizedRoomId,
+                timelineEvents: decoded.events,
+              ),
+            ],
+          ),
+        );
+      }
+    });
   }
 
   @override
   Future<void> close() {
     return _enqueue(() async {
+      await _stopSync();
       final client = _client;
       _client = null;
+      _syncCursor = null;
       await client?.close();
     });
+  }
+
+  Future<void> _runSyncLoop(MatrixRustClient client) async {
+    var firstRequest = true;
+    while (_syncRequested && identical(_client, client)) {
+      try {
+        final payload = await client.syncOnce(
+          timeout: firstRequest ? Duration.zero : _matrixRustSyncPollTimeout,
+        );
+        if (!_syncRequested || !identical(_client, client)) return;
+        final decoded = _codec.decodeSync(payload);
+        _syncCursor = decoded.batch.cursor;
+        _syncBatches.add(decoded.batch);
+        firstRequest = false;
+      } catch (error, stackTrace) {
+        if (!_syncRequested || !identical(_client, client)) return;
+        _syncBatches.addError(error, stackTrace);
+        await _syncRetryDelay(const Duration(seconds: 1));
+      }
+    }
+  }
+
+  Future<void> _stopSync() async {
+    _syncRequested = false;
+    final loop = _syncLoop;
+    if (loop != null) {
+      await loop;
+      if (identical(_syncLoop, loop)) {
+        _syncLoop = null;
+      }
+    }
+  }
+
+  MatrixRustClient _requireClient() {
+    final client = _client;
+    if (client == null || client.isClosed) {
+      throw StateError('Matrix Rust SDK client is not open');
+    }
+    return client;
   }
 
   Future<void> _enqueue(Future<void> Function() operation) {
