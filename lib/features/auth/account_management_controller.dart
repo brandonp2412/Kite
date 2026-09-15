@@ -155,7 +155,7 @@ final class AccountManagementController {
   }
 
   bool _beginAccountOperation(String accountId) {
-    if (isLoading.value || busyAccountIds.value.contains(accountId)) {
+    if (isLoading.value || busyAccountIds.value.isNotEmpty) {
       return false;
     }
     busyAccountIds.value = Set<String>.unmodifiable(<String>{
