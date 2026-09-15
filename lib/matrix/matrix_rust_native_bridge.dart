@@ -9,7 +9,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 4;
+const int kiteMatrixNativeAbiVersion = 5;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 
@@ -29,11 +29,13 @@ typedef _ClientSyncOnceNative = Pointer<Char> Function(
   Pointer<Void>,
   Uint64,
   Pointer<Char>,
+  Uint64,
 );
 typedef _ClientSyncOnceDart = Pointer<Char> Function(
   Pointer<Void>,
   int,
   Pointer<Char>,
+  int,
 );
 typedef _ClientPaginateNative = Pointer<Char> Function(
   Pointer<Void>,
@@ -57,12 +59,14 @@ final class _MatrixNativeSyncOperation {
     required this.address,
     required this.timeoutMs,
     required this.since,
+    required this.timelineEventLimit,
   });
 
   final String libraryPath;
   final int address;
   final int timeoutMs;
   final String? since;
+  final int timelineEventLimit;
 
   String call() {
     final library = DynamicLibrary.open(libraryPath);
@@ -82,6 +86,7 @@ final class _MatrixNativeSyncOperation {
         sinceUtf8 == null
             ? Pointer<Char>.fromAddress(0)
             : sinceUtf8.cast<Char>(),
+        timelineEventLimit,
       );
       if (value == nullptr) {
         throw StateError('Matrix Rust SDK sync failed');
@@ -138,6 +143,26 @@ final class _MatrixNativePaginateOperation {
   }
 }
 
+final class _MatrixNativeSyncDecodeOperation {
+  const _MatrixNativeSyncDecodeOperation(this.payload);
+
+  final String payload;
+
+  MatrixRustSyncDecodeResult call() {
+    return MatrixRustSyncCodec().decodeSync(payload);
+  }
+}
+
+final class _MatrixNativePaginationDecodeOperation {
+  const _MatrixNativePaginationDecodeOperation(this.payload);
+
+  final String payload;
+
+  MatrixRustPaginationDecodeResult call() {
+    return MatrixRustSyncCodec().decodePagination(payload);
+  }
+}
+
 final class _MatrixNativeFreeOperation {
   const _MatrixNativeFreeOperation({
     required this.libraryPath,
@@ -168,7 +193,11 @@ abstract interface class MatrixRustBridge {
 abstract interface class MatrixRustClient {
   bool get isClosed;
 
-  Future<String> syncOnce({required Duration timeout, String? since});
+  Future<String> syncOnce({
+    required Duration timeout,
+    required int timelineEventLimit,
+    String? since,
+  });
 
   Future<String> paginateBackwards({required String roomId});
 
@@ -259,10 +288,23 @@ final class MatrixRustNativeClient implements MatrixRustClient {
   bool get isClosed => _address == 0;
 
   @override
-  Future<String> syncOnce({required Duration timeout, String? since}) {
+  Future<String> syncOnce({
+    required Duration timeout,
+    required int timelineEventLimit,
+    String? since,
+  }) {
     if (timeout.isNegative) {
       return Future<String>.error(
         ArgumentError.value(timeout, 'timeout', 'must not be negative'),
+      );
+    }
+    if (timelineEventLimit <= 0) {
+      return Future<String>.error(
+        ArgumentError.value(
+          timelineEventLimit,
+          'timelineEventLimit',
+          'must be positive',
+        ),
       );
     }
     if (since != null && since.isEmpty) {
@@ -280,6 +322,7 @@ final class MatrixRustNativeClient implements MatrixRustClient {
           address: address,
           timeoutMs: timeoutMs,
           since: since,
+          timelineEventLimit: timelineEventLimit,
         ).call,
       );
     });
@@ -354,17 +397,14 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     required this.bridge,
     required this.homeserver,
     required this.resolveStoreSecret,
-    MatrixRustSyncCodec? codec,
     MatrixRustSyncDelay? syncRetryDelay,
     this.logger,
     this.crashReporter,
-  }) : _codec = codec ?? MatrixRustSyncCodec(),
-       _syncRetryDelay = syncRetryDelay ?? Future<void>.delayed;
+  }) : _syncRetryDelay = syncRetryDelay ?? Future<void>.delayed;
 
   final MatrixRustBridge bridge;
   final Uri homeserver;
   final MatrixSdkStoreSecretResolver resolveStoreSecret;
-  final MatrixRustSyncCodec _codec;
   final MatrixRustSyncDelay _syncRetryDelay;
   final StructuredLogger? logger;
   final CrashReporter? crashReporter;
@@ -443,7 +483,9 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         final payload = await _requireClient().paginateBackwards(
           roomId: normalizedRoomId,
         );
-        final decoded = _codec.decodePagination(payload);
+        final decoded = await Isolate.run<MatrixRustPaginationDecodeResult>(
+          _MatrixNativePaginationDecodeOperation(payload).call,
+        );
         if (decoded.roomId != normalizedRoomId) {
           throw StateError('Matrix Rust SDK pagination room mismatch');
         }
@@ -500,10 +542,13 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       try {
         final payload = await client.syncOnce(
           timeout: firstRequest ? Duration.zero : _matrixRustSyncPollTimeout,
+          timelineEventLimit: configuration.timelineEventLimit,
           since: syncToken,
         );
         if (!_syncRequested || !identical(_client, client)) return;
-        final decoded = _codec.decodeSync(payload);
+        final decoded = await Isolate.run<MatrixRustSyncDecodeResult>(
+          _MatrixNativeSyncDecodeOperation(payload).call,
+        );
         trace?.log(
           LogLevel.info,
           DiagnosticEvent.completed,

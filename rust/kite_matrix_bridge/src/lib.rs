@@ -3,11 +3,18 @@ use std::path::Path;
 use std::ptr;
 use std::time::Duration;
 
-use matrix_sdk::{Client, config::SyncSettings, ruma::RoomId};
+use matrix_sdk::{
+    Client,
+    config::SyncSettings,
+    ruma::{
+        RoomId, UInt,
+        api::client::filter::{FilterDefinition, RoomEventFilter, RoomFilter},
+    },
+};
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 4;
+const KITE_MATRIX_ABI_VERSION: u32 = 5;
 
 pub struct KiteMatrixClient {
     client: Option<Client>,
@@ -91,6 +98,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
     client: *mut KiteMatrixClient,
     timeout_ms: u64,
     since: *const c_char,
+    timeline_event_limit: u64,
 ) -> *mut c_char {
     if client.is_null() {
         return ptr::null_mut();
@@ -100,7 +108,21 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         return ptr::null_mut();
     };
 
-    let mut settings = SyncSettings::default().timeout(Duration::from_millis(timeout_ms));
+    let Some(timeline_event_limit) = UInt::new(timeline_event_limit) else {
+        return ptr::null_mut();
+    };
+    if timeline_event_limit == UInt::from(0_u8) {
+        return ptr::null_mut();
+    }
+    let mut timeline_filter = RoomEventFilter::default();
+    timeline_filter.limit = Some(timeline_event_limit);
+    let mut room_filter = RoomFilter::with_lazy_loading();
+    room_filter.timeline = timeline_filter;
+    let mut filter = FilterDefinition::default();
+    filter.room = room_filter;
+    let mut settings = SyncSettings::default()
+        .timeout(Duration::from_millis(timeout_ms))
+        .filter(filter.into());
     if !since.is_null() {
         let Some(since) = (unsafe { required_utf8(since) }) else {
             return ptr::null_mut();
@@ -232,7 +254,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 4);
+        assert_eq!(kite_matrix_abi_version(), 5);
     }
 
     #[test]
@@ -313,7 +335,7 @@ mod tests {
     #[test]
     fn sync_and_pagination_reject_missing_clients() {
         let room_id = CString::new("!room:kite.test").unwrap();
-        let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null()) };
+        let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
         assert!(sync.is_null());

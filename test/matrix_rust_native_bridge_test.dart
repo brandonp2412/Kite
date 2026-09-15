@@ -161,7 +161,10 @@ void main() {
         ),
       );
       await boundary.startSync(
-        const MatrixSdkSyncConfiguration(resumeFromCursor: 'resume-42'),
+        const MatrixSdkSyncConfiguration(
+          timelineEventLimit: 17,
+          resumeFromCursor: 'resume-42',
+        ),
       );
 
       await client.firstSyncReturned.future;
@@ -171,6 +174,7 @@ void main() {
       await boundary.stopSync();
 
       expect(client.syncTimeouts.first, Duration.zero);
+      expect(client.syncTimelineEventLimits.first, 17);
       expect(client.syncTokens.first, 'resume-42');
       expect(batches.first.cursor, 'sync-1');
       expect(batches.first.rooms.single.summary!.displayName, 'Native room');
@@ -348,7 +352,11 @@ final class _RecoveringRustClient implements MatrixRustClient {
   bool get isClosed => _closed;
 
   @override
-  Future<String> syncOnce({required Duration timeout, String? since}) async {
+  Future<String> syncOnce({
+    required Duration timeout,
+    required int timelineEventLimit,
+    String? since,
+  }) async {
     syncCalls += 1;
     if (syncCalls == 1) {
       throw StateError('transient sync failure');
@@ -372,6 +380,7 @@ final class _RecoveringRustClient implements MatrixRustClient {
 final class _FakeRustClient implements MatrixRustClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
+  final List<int> syncTimelineEventLimits = <int>[];
   final List<String?> syncTokens = <String?>[];
   final List<String> paginationCalls = <String>[];
 
@@ -382,8 +391,13 @@ final class _FakeRustClient implements MatrixRustClient {
   bool get isClosed => _closed;
 
   @override
-  Future<String> syncOnce({required Duration timeout, String? since}) async {
+  Future<String> syncOnce({
+    required Duration timeout,
+    required int timelineEventLimit,
+    String? since,
+  }) async {
     syncTimeouts.add(timeout);
+    syncTimelineEventLimits.add(timelineEventLimit);
     syncTokens.add(since);
     _syncCalls += 1;
     if (_syncCalls == 1) {
