@@ -135,6 +135,108 @@ void main() {
     },
   );
 
+  test('call dispatch hands exact notification to the call runtime', () async {
+    final repository = FakeNotificationRepository();
+    final platform = FakeNotificationDeliveryPort();
+    final handedOff = <KiteNotification>[];
+    final dispatcher = NotificationDispatchCoordinator(
+      notifications: repository,
+      delivery: NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: platform,
+      ),
+      onCallNotification: (notification) async => handedOff.add(notification),
+    );
+
+    final presentation = await dispatcher.dispatch(
+      const MatrixNotificationEvent(
+        id: 'call-handoff',
+        kind: MatrixNotificationEventKind.call,
+        accountId: 'work',
+        roomId: '!calls:example.org',
+        callId: 'rtc-42',
+        title: 'Incoming call',
+        body: 'Alice is calling',
+      ),
+    );
+
+    expect(presentation?.requestsIncomingCallSurface, isTrue);
+    expect(handedOff, hasLength(1));
+    expect(
+      handedOff.single.destination,
+      const AppDestination.call(
+        accountId: 'work',
+        roomId: '!calls:example.org',
+        callId: 'rtc-42',
+      ),
+    );
+    expect(
+      repository.notification(routingId('call-handoff')),
+      same(handedOff.single),
+    );
+  });
+
+  test(
+    'call runtime failure cannot suppress an already delivered call',
+    () async {
+      final repository = FakeNotificationRepository();
+      final platform = FakeNotificationDeliveryPort();
+      final errors = <Object>[];
+      final dispatcher = NotificationDispatchCoordinator(
+        notifications: repository,
+        delivery: NotificationDeliveryCoordinator(
+          privacy: FakeNotificationPrivacyPort(),
+          delivery: platform,
+        ),
+        onCallNotification: (_) async => throw StateError('resolver failed'),
+        onCallNotificationError: (error, _) => errors.add(error),
+      );
+
+      final presentation = await dispatcher.dispatch(
+        const MatrixNotificationEvent(
+          id: 'call-fallback',
+          kind: MatrixNotificationEventKind.call,
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          callId: 'rtc-43',
+          title: 'Incoming call',
+          body: 'Bob is calling',
+        ),
+      );
+
+      expect(presentation, isNotNull);
+      expect(platform.shown, hasLength(1));
+      expect(repository.notification(routingId('call-fallback')), isNotNull);
+      expect(errors, hasLength(1));
+    },
+  );
+
+  test('non-call dispatch never enters the call runtime handoff', () async {
+    final handedOff = <KiteNotification>[];
+    final dispatcher = NotificationDispatchCoordinator(
+      notifications: FakeNotificationRepository(),
+      delivery: NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: FakeNotificationDeliveryPort(),
+      ),
+      onCallNotification: (notification) async => handedOff.add(notification),
+    );
+
+    await dispatcher.dispatch(
+      const MatrixNotificationEvent(
+        id: 'message-only',
+        kind: MatrixNotificationEventKind.message,
+        accountId: 'work',
+        roomId: '!team:example.org',
+        eventId: r'$message',
+        title: 'Alice',
+        body: 'Hello',
+      ),
+    );
+
+    expect(handedOff, isEmpty);
+  });
+
   test(
     'dispatch policy suppresses delivery only after exact target validation',
     () async {

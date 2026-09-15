@@ -32,6 +32,15 @@ abstract interface class NotificationRegistrationPort {
   void upsertNotification(KiteNotification notification);
 }
 
+typedef CallNotificationHandler = Future<void> Function(
+  KiteNotification notification,
+);
+
+typedef CallNotificationErrorHandler = void Function(
+  Object error,
+  StackTrace stackTrace,
+);
+
 abstract interface class NotificationDispatchPolicyPort {
   bool allows({
     required MatrixNotificationEvent event,
@@ -56,17 +65,29 @@ final class NotificationDispatchCoordinator {
     required NotificationDeliveryCoordinator delivery,
     NotificationDispatchPolicyPort policy =
         const AllowAllNotificationDispatchPolicy(),
-  }) : this._(notifications, delivery, policy);
+    CallNotificationHandler? onCallNotification,
+    CallNotificationErrorHandler? onCallNotificationError,
+  }) : this._(
+         notifications,
+         delivery,
+         policy,
+         onCallNotification,
+         onCallNotificationError,
+       );
 
   const NotificationDispatchCoordinator._(
     this._notifications,
     this._delivery,
     this._policy,
+    this._onCallNotification,
+    this._onCallNotificationError,
   );
 
   final NotificationRegistrationPort _notifications;
   final NotificationDeliveryCoordinator _delivery;
   final NotificationDispatchPolicyPort _policy;
+  final CallNotificationHandler? _onCallNotification;
+  final CallNotificationErrorHandler? _onCallNotificationError;
 
   Future<KiteNotificationPresentation?> dispatch(
     MatrixNotificationEvent event,
@@ -78,7 +99,20 @@ final class NotificationDispatchCoordinator {
       content: KiteNotificationContent(title: event.title, body: event.body),
     );
     _notifications.upsertNotification(notification);
+    if (notification.kind == KiteNotificationKind.call) {
+      await _handoffCallNotification(notification);
+    }
     return presentation;
+  }
+
+  Future<void> _handoffCallNotification(KiteNotification notification) async {
+    final handler = _onCallNotification;
+    if (handler == null) return;
+    try {
+      await handler(notification);
+    } catch (error, stackTrace) {
+      _onCallNotificationError?.call(error, stackTrace);
+    }
   }
 
   KiteNotification _notificationFor(MatrixNotificationEvent event) {
