@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/session_lifecycle.dart';
@@ -6,6 +8,7 @@ final class _FakeSessionLifecycleGateway implements SessionLifecycleGateway {
   AuthenticatedSession? restored;
   Object? restoreError;
   Object? persistError;
+  Completer<void>? deferredPersist;
   Object? clearError;
   Object? logoutError;
   AuthenticatedSession? persisted;
@@ -30,6 +33,8 @@ final class _FakeSessionLifecycleGateway implements SessionLifecycleGateway {
   @override
   Future<void> persist(AuthenticatedSession session) async {
     if (persistError case final error?) throw error;
+    final deferred = deferredPersist;
+    if (deferred != null) await deferred.future;
     persisted = session;
     restored = session;
   }
@@ -148,6 +153,33 @@ void main() {
       await controller.resumeAfterSoftLogout(replacement);
       expect(controller.state.value, isA<SessionAuthenticated>());
       expect(gateway.persisted?.deviceId, 'DEVICE');
+    },
+  );
+
+  test(
+    'sign out waits for an in-flight session persist before clearing state',
+    () async {
+      final deferredPersist = Completer<void>();
+      final gateway = _FakeSessionLifecycleGateway()
+        ..deferredPersist = deferredPersist;
+      final controller = SessionLifecycleController(gateway);
+      addTearDown(controller.dispose);
+
+      final accepting = controller.acceptAuthenticatedSession(_session());
+      await Future<void>.delayed(Duration.zero);
+      final signingOut = controller.signOut();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(gateway.logoutCalls, 0);
+      expect(gateway.clearCalls, 0);
+
+      deferredPersist.complete();
+      await accepting;
+      await signingOut;
+
+      expect(gateway.logoutCalls, 1);
+      expect(gateway.clearCalls, 1);
+      expect(controller.state.value, isA<SessionSignedOut>());
     },
   );
 

@@ -126,23 +126,27 @@ void main() {
     await controller.refresh();
     await tester.pumpWidget(_app(controller));
 
-    await tester.enterText(
-      find.byKey(const Key('recovery-key-field')),
-      'TRANSIENT-RECOVERY-KEY',
-    );
-    await tester.tap(find.byKey(const Key('restore-recovery-key')));
+    final passphraseField = find.byKey(const Key('recovery-passphrase-field'));
+    await _scrollTo(tester, passphraseField);
+    await tester.enterText(passphraseField, 'unused secret');
+    final recoveryKeyField = find.byKey(const Key('recovery-key-field'));
+    await _scrollTo(tester, recoveryKeyField);
+    await tester.enterText(recoveryKeyField, 'TRANSIENT-RECOVERY-KEY');
+    final restoreRecoveryKey = find.byKey(const Key('restore-recovery-key'));
+    await _scrollTo(tester, restoreRecoveryKey);
+    await tester.tap(restoreRecoveryKey);
     await tester.pump();
 
     expect(gateway.recoveryKey, 'TRANSIENT-RECOVERY-KEY');
     expect(controller.isBusy.value, isTrue);
     expect(
-      tester
-          .widget<TextField>(find.byKey(const Key('recovery-key-field')))
-          .controller
-          ?.text,
+      tester.widget<TextField>(recoveryKeyField).controller?.text,
       isEmpty,
     );
+    await _scrollTo(tester, passphraseField);
+    expect(tester.widget<TextField>(passphraseField).controller?.text, isEmpty);
     expect(find.textContaining('TRANSIENT-RECOVERY-KEY'), findsNothing);
+    expect(find.textContaining('unused secret'), findsNothing);
 
     gateway.deferredRecoveryKey!.complete(
       const EncryptionRecoveryStatus(

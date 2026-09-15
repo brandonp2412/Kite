@@ -126,6 +126,38 @@ void main() {
     expect(find.byKey(const Key('private-content')), findsOneWidget);
   });
 
+  testWidgets('failed PIN unlock clears the entered credential', (
+    tester,
+  ) async {
+    final credentials = _GateCredentials()
+      ..stored = const AppLockSettings(
+        enabled: true,
+        biometricsEnabled: false,
+        hideNotificationContents: true,
+      );
+    final controller = AppLockController(credentials, _GateBiometrics());
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await tester.pumpWidget(
+      _app(
+        controller: controller,
+        loadOnInit: false,
+        child: const Text('private timeline', key: Key('private-content')),
+      ),
+    );
+
+    final pinFinder = find.byKey(const Key('app-unlock-pin'));
+    await tester.enterText(pinFinder, '9999');
+    await tester.tap(find.byKey(const Key('app-unlock-pin-submit')));
+    await tester.pumpAndSettle();
+
+    final pinField = tester.widget<TextField>(pinFinder);
+    expect(pinField.controller?.text, isEmpty);
+    expect(controller.isLocked.value, isTrue);
+    expect(find.text('Incorrect PIN.'), findsOneWidget);
+  });
+
   testWidgets(
     'backgrounding relocks and unlocking refreshes notification privacy',
     (tester) async {
