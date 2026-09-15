@@ -146,6 +146,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   final MatrixSdkStoreSecretResolver resolveStoreSecret;
 
   MatrixRustNativeClient? _client;
+  Future<void> _transition = Future<void>.value();
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -158,19 +159,21 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       const Stream<MatrixSyncBatch>.empty();
 
   @override
-  Future<void> open(MatrixSdkStoreConfiguration store) async {
-    if (_client != null) return;
-    final storeSecret = await resolveStoreSecret(store.encryptionKeyId);
-    if (storeSecret.isEmpty) {
-      throw StateError(
-        'Matrix SDK store secret resolver returned an empty secret',
+  Future<void> open(MatrixSdkStoreConfiguration store) {
+    return _enqueue(() async {
+      if (_client != null) return;
+      final storeSecret = await resolveStoreSecret(store.encryptionKeyId);
+      if (storeSecret.isEmpty) {
+        throw StateError(
+          'Matrix SDK store secret resolver returned an empty secret',
+        );
+      }
+      _client = await bridge.openEncryptedClient(
+        homeserver: homeserver,
+        storePath: store.storePath,
+        storePassphrase: storeSecret,
       );
-    }
-    _client = await bridge.openEncryptedClient(
-      homeserver: homeserver,
-      storePath: store.storePath,
-      storePassphrase: storeSecret,
-    );
+    });
   }
 
   @override
@@ -191,9 +194,20 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> close() async {
-    final client = _client;
-    _client = null;
-    await client?.close();
+  Future<void> close() {
+    return _enqueue(() async {
+      final client = _client;
+      _client = null;
+      await client?.close();
+    });
+  }
+
+  Future<void> _enqueue(Future<void> Function() operation) {
+    final next = _transition.then<void>(
+      (_) => operation(),
+      onError: (Object _, StackTrace _) => operation(),
+    );
+    _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return next;
   }
 }
