@@ -148,7 +148,7 @@ void main() {
     expect(controller.errorMessage.value, isNull);
   });
 
-  test('account change reset cannot race an in-flight profile load', () async {
+  test('account change reset invalidates an in-flight profile load', () async {
     final gateway = _FakeUserProfileGateway()
       ..deferredOwnProfile = Completer<MatrixUserProfile>();
     final controller = UserProfileController(gateway);
@@ -157,12 +157,14 @@ void main() {
     final loading = controller.loadOwnProfile();
     await Future<void>.delayed(Duration.zero);
 
-    expect(controller.resetForAccountChange(), isFalse);
-    expect(controller.isLoading.value, isTrue);
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.isLoading.value, isFalse);
+    expect(controller.ownProfile.value, isNull);
 
     gateway.deferredOwnProfile!.complete(gateway.ownProfile);
     await loading;
-    expect(controller.ownProfile.value?.userId, '@brandon:example.org');
+    expect(controller.ownProfile.value, isNull);
+    expect(controller.errorMessage.value, isNull);
   });
 
   test('loads another user profile and rejects malformed Matrix IDs', () async {

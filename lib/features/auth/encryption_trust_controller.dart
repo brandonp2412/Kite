@@ -77,6 +77,7 @@ final class EncryptionTrustController {
   EncryptionTrustController(this._gateway);
 
   final EncryptionTrustGateway _gateway;
+  int _accountGeneration = 0;
 
   final state = signal<RoomEncryptionTrust?>(null);
   final isBusy = signal(false);
@@ -94,6 +95,14 @@ final class EncryptionTrustController {
         'This encrypted room has unknown verification state.',
       EncryptionTrustState.verified => null,
     };
+  }
+
+  bool resetForAccountChange() {
+    _accountGeneration += 1;
+    state.value = null;
+    isBusy.value = false;
+    errorMessage.value = null;
+    return true;
   }
 
   Future<bool> load(String roomId) async {
@@ -142,10 +151,12 @@ final class EncryptionTrustController {
   }) async {
     if (isBusy.value) return false;
 
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final next = await action();
+      if (generation != _accountGeneration) return false;
       if (next.roomId != expectedRoomId ||
           (expectedHistorySharingEnabled != null &&
               next.historySharingEnabled != expectedHistorySharingEnabled) ||
@@ -157,10 +168,14 @@ final class EncryptionTrustController {
       state.value = next;
       return true;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (generation == _accountGeneration) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 

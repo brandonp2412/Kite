@@ -51,6 +51,7 @@ final class EncryptionRecoveryController {
   EncryptionRecoveryController(this._gateway);
 
   final EncryptionRecoveryGateway _gateway;
+  int _accountGeneration = 0;
 
   final status = signal<EncryptionRecoveryStatus?>(null);
   final isBusy = signal(false);
@@ -58,6 +59,14 @@ final class EncryptionRecoveryController {
 
   bool get needsRecoveryAttention =>
       status.value?.needsRecoveryAttention ?? false;
+
+  bool resetForAccountChange() {
+    _accountGeneration += 1;
+    status.value = null;
+    isBusy.value = false;
+    errorMessage.value = null;
+    return true;
+  }
 
   Future<bool> refresh() {
     return _run(
@@ -121,10 +130,12 @@ final class EncryptionRecoveryController {
   }) async {
     if (isBusy.value) return false;
 
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final next = await action();
+      if (generation != _accountGeneration) return false;
       if (validateStatus != null && !validateStatus(next)) {
         errorMessage.value = 'Kite received invalid encryption recovery state.';
         return false;
@@ -132,10 +143,14 @@ final class EncryptionRecoveryController {
       status.value = next;
       return true;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (generation == _accountGeneration) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 

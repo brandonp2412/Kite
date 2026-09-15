@@ -59,6 +59,20 @@ void main() {
     );
   });
 
+  test('account change reset clears room encryption state', () async {
+    final gateway = _FakeEncryptionTrustGateway();
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('!room:example.org'), isTrue);
+    expect(controller.state.value, isNotNull);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.state.value, isNull);
+    expect(controller.warningMessage, isNull);
+    expect(controller.errorMessage.value, isNull);
+  });
+
   test('loads SDK-owned encryption and device trust state', () async {
     final gateway = _FakeEncryptionTrustGateway();
     final controller = EncryptionTrustController(gateway);

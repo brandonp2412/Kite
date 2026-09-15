@@ -92,6 +92,20 @@ void main() {
     },
   );
 
+  test('account change reset clears recovery state', () async {
+    final gateway = _FakeEncryptionRecoveryGateway();
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.refresh(), isTrue);
+    expect(controller.status.value, isNotNull);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.status.value, isNull);
+    expect(controller.errorMessage.value, isNull);
+    expect(controller.needsRecoveryAttention, isFalse);
+  });
+
   test('backup creation is delegated to the Matrix SDK boundary', () async {
     final gateway = _FakeEncryptionRecoveryGateway();
     final controller = EncryptionRecoveryController(gateway);

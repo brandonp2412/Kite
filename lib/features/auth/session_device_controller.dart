@@ -28,6 +28,7 @@ final class SessionDeviceController {
   SessionDeviceController(this._gateway);
 
   final SessionDeviceGateway _gateway;
+  int _accountGeneration = 0;
 
   final devices = signal<List<SessionDevice>>(const <SessionDevice>[]);
   final isLoading = signal(false);
@@ -44,25 +45,33 @@ final class SessionDeviceController {
   Future<void> load() async {
     if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return;
 
+    final generation = _accountGeneration;
     isLoading.value = true;
     errorMessage.value = null;
     try {
       final loaded = await _gateway.loadDevices();
+      if (generation != _accountGeneration) return;
       if (_isValidDeviceList(loaded) == false) {
         errorMessage.value = 'Kite received an invalid device list.';
         return;
       }
       devices.value = List<SessionDevice>.unmodifiable(loaded);
     } catch (_) {
-      errorMessage.value = 'Kite could not load your signed-in devices.';
+      if (generation == _accountGeneration) {
+        errorMessage.value = 'Kite could not load your signed-in devices.';
+      }
     } finally {
-      isLoading.value = false;
+      if (generation == _accountGeneration) {
+        isLoading.value = false;
+      }
     }
   }
 
   bool resetForAccountChange() {
-    if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return false;
+    _accountGeneration += 1;
     devices.value = const <SessionDevice>[];
+    isLoading.value = false;
+    signingOutDeviceIds.value = const <String>{};
     errorMessage.value = null;
     return true;
   }
@@ -79,6 +88,7 @@ final class SessionDeviceController {
           'Sign out of this device from Kite account settings instead.';
       return false;
     }
+    final generation = _accountGeneration;
     errorMessage.value = null;
     signingOutDeviceIds.value = <String>{
       ...signingOutDeviceIds.value,
@@ -86,6 +96,7 @@ final class SessionDeviceController {
     };
     try {
       await _gateway.signOutDevice(deviceId);
+      if (generation != _accountGeneration) return false;
       devices.value = List<SessionDevice>.unmodifiable(
         devices.value.where(
           (candidate) => candidate.deviceId == deviceId ? false : true,
@@ -93,12 +104,16 @@ final class SessionDeviceController {
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not sign out that device.';
+      if (generation == _accountGeneration) {
+        errorMessage.value = 'Kite could not sign out that device.';
+      }
       return false;
     } finally {
-      final remaining = <String>{...signingOutDeviceIds.value}
-        ..remove(deviceId);
-      signingOutDeviceIds.value = remaining;
+      if (generation == _accountGeneration) {
+        final remaining = <String>{...signingOutDeviceIds.value}
+          ..remove(deviceId);
+        signingOutDeviceIds.value = remaining;
+      }
     }
   }
 

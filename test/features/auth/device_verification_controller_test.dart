@@ -95,6 +95,22 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
 }
 
 void main() {
+  test('account change reset clears verification state', () async {
+    final gateway = _FakeVerificationGateway()
+      ..trust = CrossSigningTrustState.verified;
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loadTrust();
+    expect(controller.trustState.value, CrossSigningTrustState.verified);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(controller.session.value, isNull);
+    expect(controller.errorMessage.value, isNull);
+    expect(controller.requiresVerification, isTrue);
+  });
+
   test('cross-signing trust drives mandatory verification state', () async {
     final gateway = _FakeVerificationGateway();
     final controller = DeviceVerificationController(gateway);

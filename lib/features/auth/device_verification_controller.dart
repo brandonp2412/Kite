@@ -90,6 +90,7 @@ final class DeviceVerificationController {
   DeviceVerificationController(this._gateway);
 
   final DeviceVerificationGateway _gateway;
+  int _accountGeneration = 0;
 
   final trustState = signal(CrossSigningTrustState.unknown);
   final session = signal<DeviceVerificationSession?>(null);
@@ -99,17 +100,33 @@ final class DeviceVerificationController {
   bool get requiresVerification =>
       trustState.value != CrossSigningTrustState.verified;
 
+  bool resetForAccountChange() {
+    _accountGeneration += 1;
+    trustState.value = CrossSigningTrustState.unknown;
+    session.value = null;
+    isBusy.value = false;
+    errorMessage.value = null;
+    return true;
+  }
+
   Future<void> loadTrust() async {
     if (isBusy.value) return;
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
-      trustState.value = await _gateway.loadCrossSigningTrust();
+      final trust = await _gateway.loadCrossSigningTrust();
+      if (generation != _accountGeneration) return;
+      trustState.value = trust;
     } catch (_) {
-      trustState.value = CrossSigningTrustState.unknown;
-      errorMessage.value = 'Kite could not read device verification status.';
+      if (generation == _accountGeneration) {
+        trustState.value = CrossSigningTrustState.unknown;
+        errorMessage.value = 'Kite could not read device verification status.';
+      }
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -183,10 +200,12 @@ final class DeviceVerificationController {
     final current = session.value;
     if (current == null || current.isTerminal || isBusy.value) return false;
 
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
       await _gateway.cancelVerification(current.transactionId);
+      if (generation != _accountGeneration) return false;
       session.value = DeviceVerificationSession(
         transactionId: current.transactionId,
         method: current.method,
@@ -194,10 +213,14 @@ final class DeviceVerificationController {
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not cancel device verification.';
+      if (generation == _accountGeneration) {
+        errorMessage.value = 'Kite could not cancel device verification.';
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -209,10 +232,12 @@ final class DeviceVerificationController {
   }) async {
     if (isBusy.value) return false;
 
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final next = await action();
+      if (generation != _accountGeneration) return false;
       if (next.method != expectedMethod ||
           (expectedTransactionId != null &&
               next.transactionId != expectedTransactionId)) {
@@ -221,6 +246,7 @@ final class DeviceVerificationController {
       }
       if (next.stage == DeviceVerificationStage.verified) {
         final trust = await _gateway.loadCrossSigningTrust();
+        if (generation != _accountGeneration) return false;
         trustState.value = trust;
         if (trust != CrossSigningTrustState.verified) {
           errorMessage.value =
@@ -231,10 +257,14 @@ final class DeviceVerificationController {
       session.value = next;
       return true;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (generation == _accountGeneration) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 

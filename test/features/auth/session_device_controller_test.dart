@@ -102,7 +102,7 @@ void main() {
     },
   );
 
-  test('device refresh cannot race an in-flight remote sign-out', () async {
+  test('account reset invalidates an in-flight remote sign-out', () async {
     final gateway = _FakeSessionDeviceGateway()
       ..loaded = const <SessionDevice>[_current, _remote]
       ..deferredSignOut = Completer<void>();
@@ -114,19 +114,19 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(controller.signingOutDeviceIds.value, <String>{'REMOTE'});
 
-    gateway.loaded = const <SessionDevice>[_current, _remote];
-    await controller.load();
-    expect(controller.devices.value, hasLength(2));
-    expect(controller.resetForAccountChange(), isFalse);
-    expect(controller.devices.value, hasLength(2));
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.devices.value, isEmpty);
+    expect(controller.signingOutDeviceIds.value, isEmpty);
     expect(await controller.signOutRemoteDevice('REMOTE'), isFalse);
     expect(gateway.signedOutDeviceIds, <String>['REMOTE']);
 
     gateway.deferredSignOut!.complete();
-    expect(await signOut, isTrue);
-    expect(controller.devices.value.map((device) => device.deviceId), <String>[
-      'CURRENT',
-    ]);
+    expect(await signOut, isFalse);
+    expect(controller.devices.value, isEmpty);
+    expect(
+      controller.errorMessage.value,
+      'That signed-in device is no longer available.',
+    );
   });
 
   test(
