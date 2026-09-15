@@ -46,6 +46,44 @@ void main() {
       },
     );
 
+    test('recovers the last good state after an interrupted replace', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-restoration-recovery-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final file = File('${directory.path}/restoration.json');
+      final store = FileMatrixRestorationStore(file);
+      await store.save(
+        const MatrixRestorationSnapshot(
+          accountId: '@alice:example.org',
+          navigationTarget: MatrixNavigationTarget.room('!before:example.org'),
+        ),
+      );
+
+      await file.rename('${file.path}.bak');
+      await File('${file.path}.tmp').writeAsString('{interrupted');
+
+      expect(
+        (await store.load())?.navigationTarget.roomIdOrAlias,
+        '!before:example.org',
+      );
+
+      await store.save(
+        const MatrixRestorationSnapshot(
+          accountId: '@alice:example.org',
+          navigationTarget: MatrixNavigationTarget.room('!after:example.org'),
+        ),
+      );
+      expect(
+        (await store.load())?.navigationTarget.roomIdOrAlias,
+        '!after:example.org',
+      );
+      expect(await File('${file.path}.bak').exists(), isFalse);
+      expect(await File('${file.path}.tmp').exists(), isFalse);
+    });
+
     test(
       'malformed persisted state falls back without startup failure',
       () async {

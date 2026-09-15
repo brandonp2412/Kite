@@ -56,6 +56,43 @@ void main() {
       );
     });
 
+    test(
+      'recovers the last good snapshot after an interrupted replace',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'kite-presentation-recovery-',
+        );
+        addTearDown(() async {
+          if (await directory.exists()) await directory.delete(recursive: true);
+        });
+        final store = FileMatrixPresentationStore(directory);
+        const accountId = '@alice:example.org';
+        await store.save(accountId, _snapshot(cursor: 'before-crash'));
+
+        final accountDirectory = Directory(
+          '${directory.path}/${Uri.encodeComponent(accountId)}',
+        );
+        final file = File('${accountDirectory.path}/presentation.json');
+        await file.rename('${file.path}.bak');
+        await File('${file.path}.tmp').writeAsString('{interrupted');
+
+        expect((await store.load(accountId))?.syncCursor, 'before-crash');
+
+        await store.save(accountId, _snapshot(cursor: 'after-recovery'));
+        expect((await store.load(accountId))?.syncCursor, 'after-recovery');
+        expect(await File('${file.path}.bak').exists(), isFalse);
+        expect(await File('${file.path}.tmp').exists(), isFalse);
+
+        await file.copy('${file.path}.bak');
+        await File('${file.path}.tmp').writeAsString('{stale');
+        await store.clear(accountId);
+        expect(await store.load(accountId), isNull);
+        expect(await file.exists(), isFalse);
+        expect(await File('${file.path}.bak').exists(), isFalse);
+        expect(await File('${file.path}.tmp').exists(), isFalse);
+      },
+    );
+
     test('ignores malformed persisted snapshots', () async {
       final directory = await Directory.systemTemp.createTemp(
         'kite-presentation-malformed-',

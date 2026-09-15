@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/recoverable_file.dart';
 
 abstract interface class MatrixPresentationStore {
   Future<MatrixPresentationSnapshot?> load(String accountId);
@@ -21,11 +22,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
 
   @override
   Future<MatrixPresentationSnapshot?> load(String accountId) async {
-    final file = _fileFor(accountId);
-    if (!await file.exists()) return null;
-
-    final contents = await file.readAsString();
-    if (contents.trim().isEmpty) return null;
+    final contents = await RecoverableFile(_fileFor(accountId)).readString();
+    if (contents == null || contents.trim().isEmpty) return null;
 
     return Isolate.run<MatrixPresentationSnapshot?>(() {
       try {
@@ -43,24 +41,15 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     String accountId,
     MatrixPresentationSnapshot snapshot,
   ) async {
-    final file = _fileFor(accountId);
-    await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.tmp');
     final payload = await Isolate.run<String>(
       () => jsonEncode(_encodeSnapshot(snapshot)),
     );
-
-    await temporary.writeAsString(payload, flush: true);
-    if (await file.exists()) await file.delete();
-    await temporary.rename(file.path);
+    await RecoverableFile(_fileFor(accountId)).replaceWithString(payload);
   }
 
   @override
-  Future<void> clear(String accountId) async {
-    final file = _fileFor(accountId);
-    final temporary = File('${file.path}.tmp');
-    if (await temporary.exists()) await temporary.delete();
-    if (await file.exists()) await file.delete();
+  Future<void> clear(String accountId) {
+    return RecoverableFile(_fileFor(accountId)).clear();
   }
 
   File _fileFor(String accountId) {

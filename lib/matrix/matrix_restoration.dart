@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:kite/matrix/matrix_navigation.dart';
+import 'package:kite/matrix/recoverable_file.dart';
 
 final class MatrixRestorationSnapshot {
   const MatrixRestorationSnapshot({
@@ -32,10 +33,8 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
 
   @override
   Future<MatrixRestorationSnapshot?> load() async {
-    if (!await file.exists()) return null;
-
-    final contents = await file.readAsString();
-    if (contents.trim().isEmpty) return null;
+    final contents = await RecoverableFile(file).readString();
+    if (contents == null || contents.trim().isEmpty) return null;
 
     return Isolate.run<MatrixRestorationSnapshot?>(() {
       try {
@@ -66,8 +65,6 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
 
   @override
   Future<void> save(MatrixRestorationSnapshot snapshot) async {
-    await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.tmp');
     final payload = await Isolate.run<String>(() {
       final document = <String, Object?>{
         'version': _schemaVersion,
@@ -77,17 +74,11 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
       return jsonEncode(document);
     });
 
-    await temporary.writeAsString(payload, flush: true);
-    if (await file.exists()) await file.delete();
-    await temporary.rename(file.path);
+    await RecoverableFile(file).replaceWithString(payload);
   }
 
   @override
-  Future<void> clear() async {
-    final temporary = File('${file.path}.tmp');
-    if (await temporary.exists()) await temporary.delete();
-    if (await file.exists()) await file.delete();
-  }
+  Future<void> clear() => RecoverableFile(file).clear();
 
   static Map<String, Object?> _encodeNavigationTarget(
     MatrixNavigationTarget target,
