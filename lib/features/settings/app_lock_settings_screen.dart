@@ -32,6 +32,8 @@ class _AppLockSettingsScreenState extends State<AppLockSettingsScreen> {
 
   @override
   void dispose() {
+    _pinController.clear();
+    _confirmPinController.clear();
     _pinController.dispose();
     _confirmPinController.dispose();
     super.dispose();
