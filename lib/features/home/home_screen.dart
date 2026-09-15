@@ -1128,11 +1128,32 @@ class _Timeline extends StatefulWidget {
 class _TimelineState extends State<_Timeline> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _unreadMarkerKey = GlobalKey();
+  String? _displayedRoomId;
+  List<TimelineMessage> _displayedMessages = const <TimelineMessage>[];
+  List<TimelineMessage>? _pendingTailMessages;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_flushPendingAtTail);
+  }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_flushPendingAtTail);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _flushPendingAtTail() {
+    final pending = _pendingTailMessages;
+    if (!mounted || pending == null || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels > position.minScrollExtent + 0.5) return;
+    setState(() {
+      _displayedMessages = pending;
+      _pendingTailMessages = null;
+    });
   }
 
   Future<void> _jumpToUnread(String roomId) async {
@@ -1195,7 +1216,33 @@ class _TimelineState extends State<_Timeline> {
     return SignalBuilder(
       builder: (context) {
         final roomId = selectedRoomId.value;
-        final messages = timelineController.messagesFor(roomId).value;
+        final sourceMessages = timelineController.messagesFor(roomId).value;
+        if (_displayedRoomId != roomId) {
+          _displayedRoomId = roomId;
+          _displayedMessages = sourceMessages;
+          _pendingTailMessages = null;
+        } else if (!_sameMessageIdentityList(
+          _displayedMessages,
+          sourceMessages,
+        )) {
+          final awayFromTail =
+              _scrollController.hasClients &&
+              _scrollController.position.pixels >
+                  _scrollController.position.minScrollExtent + 0.5;
+          final remoteTailAppend =
+              awayFromTail &&
+              _isStrictMessageTailAppend(_displayedMessages, sourceMessages) &&
+              sourceMessages
+                  .skip(_displayedMessages.length)
+                  .every((message) => !message.id.startsWith('kite-local-'));
+          if (remoteTailAppend) {
+            _pendingTailMessages = sourceMessages;
+          } else {
+            _displayedMessages = sourceMessages;
+            _pendingTailMessages = null;
+          }
+        }
+        final messages = _displayedMessages;
         final unreadMarkerEventId = timelineController
             .unreadMarkerFor(roomId)
             .value;
@@ -1250,6 +1297,28 @@ class _TimelineState extends State<_Timeline> {
       },
     );
   }
+}
+
+bool _sameMessageIdentityList(
+  List<TimelineMessage> left,
+  List<TimelineMessage> right,
+) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (!identical(left[index], right[index])) return false;
+  }
+  return true;
+}
+
+bool _isStrictMessageTailAppend(
+  List<TimelineMessage> previous,
+  List<TimelineMessage> next,
+) {
+  if (previous.isEmpty || next.length <= previous.length) return false;
+  for (var index = 0; index < previous.length; index++) {
+    if (!identical(previous[index], next[index])) return false;
+  }
+  return true;
 }
 
 class _UnreadJumpButton extends StatelessWidget {

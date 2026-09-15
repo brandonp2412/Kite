@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
+import 'package:kite/matrix/matrix_models.dart';
 import 'package:signals/signals.dart';
 
 enum TimelineSendState { sending, sent, failed }
@@ -507,6 +508,34 @@ class TimelineMessage {
     );
   }
 
+  static TimelineMessage? fromMatrixEvent(
+    MatrixTimelineEvent event, {
+    required String currentUserId,
+  }) {
+    if (event.type != 'm.room.message') return null;
+    final content = event.content;
+    final msgtype = content['msgtype'];
+    if (msgtype is! String) return null;
+    final rawBody = content['body'];
+    final body = rawBody is String ? rawBody.trim() : '';
+    final attachment = _matrixAttachment(event, msgtype, body);
+    final supportedText =
+        msgtype == 'm.text' || msgtype == 'm.notice' || msgtype == 'm.emote';
+    if (!supportedText && attachment == null) return null;
+
+    final localTime = event.originServerTimestamp.toLocal();
+    final mediaBody = attachment == null ? body : _matrixMediaCaption(content);
+    return TimelineMessage(
+      id: event.eventId,
+      sender: event.senderId,
+      body: mediaBody,
+      mine: event.senderId == currentUserId,
+      timeLabel:
+          '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
+      attachment: attachment,
+    );
+  }
+
   final String id;
   final String sender;
   final Signal<String> bodyText;
@@ -666,6 +695,46 @@ class TimelineController implements TimelineLocationShareDelegate {
         ]),
       );
     });
+  }
+
+  void applyMatrixEvents(
+    String roomId,
+    Iterable<MatrixTimelineEvent> events, {
+    required String currentUserId,
+  }) {
+    final target = _messages.putIfAbsent(
+      roomId,
+      () => signal<List<TimelineMessage>>(const <TimelineMessage>[]),
+    );
+    final current = target.peek();
+    final existingById = <String, TimelineMessage>{
+      for (final message in current) message.id: message,
+    };
+    final projected = <TimelineMessage>[];
+    for (final event in events) {
+      if (event.roomId != roomId) continue;
+      final mapped = TimelineMessage.fromMatrixEvent(
+        event,
+        currentUserId: currentUserId,
+      );
+      if (mapped == null) continue;
+      final existing = existingById[mapped.id];
+      projected.add(
+        existing != null && _sameMatrixProjection(existing, mapped)
+            ? existing
+            : mapped,
+      );
+    }
+    projected.addAll(
+      current.where(
+        (message) =>
+            message.id.startsWith('kite-local-') &&
+            !projected.any((candidate) => candidate.id == message.id),
+      ),
+    );
+    final next = List<TimelineMessage>.unmodifiable(projected);
+    if (_sameMessageIdentityList(current, next)) return;
+    target.value = next;
   }
 
   TimelineMessage sendText(
@@ -1100,6 +1169,124 @@ class TimelineController implements TimelineLocationShareDelegate {
       TimelineSendOutcome.failed => TimelineSendState.failed,
     };
   }
+}
+
+TimelineAttachment? _matrixAttachment(
+  MatrixTimelineEvent event,
+  String msgtype,
+  String body,
+) {
+  final info = event.content['info'];
+  final infoMap = info is Map ? info : const <Object?, Object?>{};
+  final mimetype = infoMap['mimetype'];
+  final mime = mimetype is String ? mimetype.toLowerCase() : '';
+  final kind = switch (msgtype) {
+    'm.image' => TimelineAttachmentKind.image,
+    'm.video' => TimelineAttachmentKind.video,
+    'm.audio' =>
+      _isMatrixVoiceMessage(event.content)
+          ? TimelineAttachmentKind.voice
+          : TimelineAttachmentKind.audio,
+    'm.file' when mime.startsWith('audio/') => TimelineAttachmentKind.audio,
+    'm.file' => TimelineAttachmentKind.file,
+    _ => null,
+  };
+  if (kind == null) return null;
+
+  final filename = event.content['filename'];
+  final name = filename is String && filename.trim().isNotEmpty
+      ? filename.trim()
+      : body.isNotEmpty
+      ? body
+      : _defaultAttachmentName(kind);
+  final size = infoMap['size'];
+  final sizeLabel = size is int && size >= 0
+      ? '${_formatBytes(size)} · ${_attachmentKindLabel(kind)}'
+      : _attachmentKindLabel(kind);
+  final duration = infoMap['duration'];
+  final durationLabel = duration is int && duration >= 0
+      ? _formatDuration(Duration(milliseconds: duration))
+      : null;
+  final url = event.content['url'];
+  final file = event.content['file'];
+  final encryptedUrl = file is Map ? file['url'] : null;
+  final attachmentId = switch ((url, encryptedUrl)) {
+    (final String value, _) when value.isNotEmpty => value,
+    (_, final String value) when value.isNotEmpty => value,
+    _ => event.eventId,
+  };
+  return TimelineAttachment(
+    id: attachmentId,
+    kind: kind,
+    name: name,
+    sizeLabel: sizeLabel,
+    durationLabel: durationLabel,
+  );
+}
+
+bool _isMatrixVoiceMessage(Map<String, Object?> content) {
+  return content.containsKey('org.matrix.msc3245.voice') ||
+      content.containsKey('m.voice');
+}
+
+String _matrixMediaCaption(Map<String, Object?> content) {
+  final caption = content['org.matrix.msc1767.caption'];
+  return caption is String ? caption.trim() : '';
+}
+
+String _defaultAttachmentName(TimelineAttachmentKind kind) => switch (kind) {
+  TimelineAttachmentKind.image => 'Image',
+  TimelineAttachmentKind.video => 'Video',
+  TimelineAttachmentKind.file => 'File',
+  TimelineAttachmentKind.audio => 'Audio',
+  TimelineAttachmentKind.voice => 'Voice message',
+};
+
+String _attachmentKindLabel(TimelineAttachmentKind kind) => switch (kind) {
+  TimelineAttachmentKind.image => 'Image',
+  TimelineAttachmentKind.video => 'Video',
+  TimelineAttachmentKind.file => 'File',
+  TimelineAttachmentKind.audio => 'Audio',
+  TimelineAttachmentKind.voice => 'Voice',
+};
+
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+String _formatDuration(Duration duration) {
+  final totalSeconds = duration.inSeconds;
+  final minutes = totalSeconds ~/ 60;
+  final seconds = totalSeconds % 60;
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+bool _sameMatrixProjection(TimelineMessage left, TimelineMessage right) {
+  final leftAttachment = left.attachment;
+  final rightAttachment = right.attachment;
+  return left.id == right.id &&
+      left.sender == right.sender &&
+      left.body == right.body &&
+      left.mine == right.mine &&
+      left.timeLabel == right.timeLabel &&
+      leftAttachment?.id == rightAttachment?.id &&
+      leftAttachment?.kind == rightAttachment?.kind &&
+      leftAttachment?.name == rightAttachment?.name &&
+      leftAttachment?.sizeLabel == rightAttachment?.sizeLabel &&
+      leftAttachment?.durationLabel == rightAttachment?.durationLabel;
+}
+
+bool _sameMessageIdentityList(
+  List<TimelineMessage> left,
+  List<TimelineMessage> right,
+) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (!identical(left[index], right[index])) return false;
+  }
+  return true;
 }
 
 final timelineController = TimelineController();
