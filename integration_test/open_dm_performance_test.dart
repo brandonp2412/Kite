@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/home/room_list_filter.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -13,6 +14,8 @@ void main() {
     'KITE_VIRTUALIZED_BENCHMARK',
   );
 
+  setUp(() => selectRoomListFilter(RoomListFilter.all));
+
   testWidgets('cold open Alice DM has zero late Flutter frames', (
     tester,
   ) async {
@@ -20,6 +23,10 @@ void main() {
     selectRoom('kite');
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('unread-kite')), findsOneWidget);
+    expect(find.byKey(const Key('mention-kite')), findsOneWidget);
+    expect(find.byKey(const Key('muted-activity-bob')), findsOneWidget);
 
     final result = await measureFrames(
       binding: binding,
@@ -50,6 +57,9 @@ void main() {
     selectRoom('alice');
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('unread-kite')), findsOneWidget);
+    expect(find.byKey(const Key('muted-activity-bob')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('room-bob')));
     await tester.pump();

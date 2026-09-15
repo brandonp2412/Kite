@@ -5,6 +5,8 @@ import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
+import 'package:kite/features/home/room_list_entry.dart';
+import 'package:kite/features/home/room_list_filter.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -32,6 +34,7 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             children: <Widget>[
               const _CompactHomeHeader(),
+              const _RoomFilterBar(),
               Expanded(
                 child: SizedBox.expand(
                   key: const Key('sidebar'),
@@ -60,13 +63,24 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       body: Row(
         children: <Widget>[
-          SizedBox(
-            key: const Key('sidebar'),
-            width: adaptiveSidebarWidth,
-            child: _RoomList(rooms: rooms),
+          RepaintBoundary(
+            child: SizedBox(
+              key: const Key('sidebar'),
+              width: adaptiveSidebarWidth,
+              child: ColoredBox(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                child: Column(
+                  children: <Widget>[
+                    const _CompactHomeHeader(),
+                    const _RoomFilterBar(),
+                    Expanded(child: _RoomList(rooms: rooms)),
+                  ],
+                ),
+              ),
+            ),
           ),
           const VerticalDivider(width: 1),
-          const Expanded(child: _ChatPanel()),
+          const Expanded(child: RepaintBoundary(child: _ChatPanel())),
         ],
       ),
     );
@@ -79,6 +93,7 @@ class _CompactHomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      key: const Key('home-header'),
       height: 72,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -90,6 +105,87 @@ class _CompactHomeHeader extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _RoomFilterBar extends StatelessWidget {
+  const _RoomFilterBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('room-filter-bar'),
+      height: 52,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        scrollDirection: Axis.horizontal,
+        itemCount: RoomListFilter.values.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 7),
+        itemBuilder: (context, index) =>
+            _RoomFilterPill(filter: RoomListFilter.values[index]),
+      ),
+    );
+  }
+}
+
+class _RoomFilterPill extends StatefulWidget {
+  const _RoomFilterPill({required this.filter});
+
+  final RoomListFilter filter;
+
+  @override
+  State<_RoomFilterPill> createState() => _RoomFilterPillState();
+}
+
+class _RoomFilterPillState extends State<_RoomFilterPill> {
+  late final FlutterComputed<bool> _selected = computed(
+    () => activeRoomListFilter.value == widget.filter,
+  );
+
+  @override
+  void dispose() {
+    _selected.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _selected,
+      builder: (context, selected, child) {
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        return Material(
+          color: selected
+              ? scheme.secondaryContainer
+              : scheme.surfaceContainerHighest.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            key: Key('filter-${widget.filter.name}'),
+            onTap: () => selectRoomListFilter(widget.filter),
+            borderRadius: BorderRadius.circular(18),
+            splashFactory: NoSplash.splashFactory,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 44),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Center(
+                  child: Text(
+                    widget.filter.label,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: selected
+                          ? scheme.onSecondaryContainer
+                          : scheme.onSurfaceVariant,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -119,64 +215,391 @@ class _RoomList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      key: const Key('room-list'),
-      itemCount: rooms.length,
-      itemExtent: 72,
-      itemBuilder: (context, index) {
-        final room = rooms[index];
-        return SignalBuilder(
-          builder: (context) {
-            final selected = selectedRoomId.value == room.id;
-            final unreadThreadCount = threadController
-                .unreadThreadCountForRoom(room.id)
-                .value;
-            return ListTile(
-              key: Key('room-${room.id}'),
-              selected: selected,
-              leading: CircleAvatar(child: Text(room.name.characters.first)),
-              title: Text(
-                room.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                room.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: SizedBox.square(
-                dimension: 24,
-                child: Center(
-                  child: unreadThreadCount > 0
-                      ? Semantics(
-                          label:
-                              '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
-                          child: Container(
-                            key: Key('room-thread-unread-${room.id}'),
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: context.kiteColors.unread,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-              onTap: () {
-                final handler = onRoomTap;
-                if (handler != null) {
-                  handler(room);
-                } else {
-                  selectRoom(room.id);
-                }
-              },
-            );
-          },
+    return SignalBuilder(
+      builder: (context) {
+        final filter = activeRoomListFilter.value;
+        final visibleRooms = rooms
+            .where((room) => roomMatchesFilter(room, filter))
+            .toList(growable: false);
+        return ListView.builder(
+          key: const Key('room-list'),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          itemCount: visibleRooms.length,
+          itemExtent: 76,
+          itemBuilder: (context, index) => _RoomListItem(
+            key: ValueKey<String>(visibleRooms[index].id),
+            room: visibleRooms[index],
+            onTap: onRoomTap,
+          ),
         );
       },
+    );
+  }
+}
+
+class _RoomListItem extends StatefulWidget {
+  const _RoomListItem({super.key, required this.room, this.onTap});
+
+  final BenchmarkRoom room;
+  final ValueChanged<BenchmarkRoom>? onTap;
+
+  @override
+  State<_RoomListItem> createState() => _RoomListItemState();
+}
+
+class _RoomListItemState extends State<_RoomListItem> {
+  late final FlutterComputed<bool> _selected = computed(
+    () => selectedRoomId.value == widget.room.id,
+  );
+
+  @override
+  void dispose() {
+    _selected.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _selected,
+      builder: (context, selected, child) {
+        final room = widget.room;
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        final previewStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: selected
+              ? scheme.onSecondaryContainer.withValues(alpha: .82)
+              : scheme.onSurfaceVariant,
+          height: 1.15,
+        );
+
+        return Semantics(
+          button: true,
+          selected: selected,
+          label: _semanticLabel(room),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Material(
+              color: selected
+                  ? scheme.secondaryContainer.withValues(alpha: .68)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                key: Key('room-${room.id}'),
+                onTap: () {
+                  final handler = widget.onTap;
+                  if (handler != null) {
+                    handler(room);
+                  } else {
+                    selectRoom(room.id);
+                  }
+                },
+                borderRadius: BorderRadius.circular(16),
+                splashFactory: NoSplash.splashFactory,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                  child: Row(
+                    children: <Widget>[
+                      _RoomAvatar(room: room, selected: selected),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    room.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: room.unreadCount > 0
+                                          ? FontWeight.w700
+                                          : FontWeight.w600,
+                                      letterSpacing: -0.1,
+                                    ),
+                                  ),
+                                ),
+                                if (room.isFavourite) ...<Widget>[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.star_rounded,
+                                    key: Key('favourite-${room.id}'),
+                                    size: 15,
+                                    color: scheme.primary,
+                                  ),
+                                ],
+                                if (room.hasActiveCall) ...<Widget>[
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    key: Key('active-call-${room.id}'),
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: scheme.primaryContainer,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Icon(
+                                      Icons.call_rounded,
+                                      size: 12,
+                                      color: scheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ],
+                                if (room.isMuted) ...<Widget>[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.notifications_off_outlined,
+                                    key: Key('muted-${room.id}'),
+                                    size: 15,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: <Widget>[
+                                if (room.hasMutedActivity) ...<Widget>[
+                                  Container(
+                                    key: Key('muted-activity-${room.id}'),
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: scheme.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Expanded(
+                                  child: Text.rich(
+                                    key: Key('preview-${room.id}'),
+                                    TextSpan(
+                                      style: previewStyle,
+                                      children: <InlineSpan>[
+                                        TextSpan(
+                                          text: '${room.latestSender}: ',
+                                          style: previewStyle?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: selected
+                                                ? scheme.onSecondaryContainer
+                                                : scheme.onSurface,
+                                          ),
+                                        ),
+                                        TextSpan(text: room.subtitle),
+                                      ],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 64,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: <Widget>[
+                            SizedBox(
+                              height: 16,
+                              child: Text(
+                                room.timeLabel,
+                                key: Key('time-${room.id}'),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              height: 20,
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: _RoomIndicators(room: room),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static String _semanticLabel(RoomListEntry room) {
+    final parts = <String>[
+      room.name,
+      '${room.latestSender}: ${room.subtitle}',
+      if (room.unreadCount > 0) '${room.unreadCount} unread',
+      if (room.mentionCount > 0) '${room.mentionCount} mention',
+      if (room.isFavourite) 'favourite',
+      if (room.hasActiveCall) 'active call',
+      if (room.isMuted) 'notifications muted',
+      if (room.hasMutedActivity) 'new activity',
+    ];
+    return parts.join(', ');
+  }
+}
+
+class _RoomAvatar extends StatelessWidget {
+  const _RoomAvatar({required this.room, required this.selected});
+
+  final RoomListEntry room;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: selected
+          ? scheme.primary.withValues(alpha: .16)
+          : scheme.surfaceContainerHighest,
+      foregroundColor: selected ? scheme.primary : scheme.onSurfaceVariant,
+      child: Text(
+        room.name.characters.first,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomIndicators extends StatelessWidget {
+  const _RoomIndicators({required this.room});
+
+  final RoomListEntry room;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SignalBuilder(
+      builder: (context) {
+        final unreadThreadCount = threadController
+            .unreadThreadCountForRoom(room.id)
+            .value;
+        final indicators = <Widget>[];
+
+        if (room.mentionCount > 0) {
+          indicators.add(
+            _CountBadge(
+              key: Key('mention-${room.id}'),
+              label: '@',
+              background: scheme.primary,
+              foreground: scheme.onPrimary,
+            ),
+          );
+          if (room.unreadCount > 0) {
+            indicators
+              ..add(const SizedBox(width: 4))
+              ..add(
+                _CountBadge(
+                  key: Key('unread-${room.id}'),
+                  label: '${room.unreadCount}',
+                  background: scheme.surfaceContainerHighest,
+                  foreground: scheme.onSurface,
+                ),
+              );
+          }
+        } else if (room.unreadCount > 0) {
+          indicators.add(
+            _CountBadge(
+              key: Key('unread-${room.id}'),
+              label: '${room.unreadCount}',
+              background: room.isMuted
+                  ? scheme.surfaceContainerHighest
+                  : scheme.primary,
+              foreground: room.isMuted
+                  ? scheme.onSurfaceVariant
+                  : scheme.onPrimary,
+            ),
+          );
+        }
+
+        if (unreadThreadCount > 0) {
+          if (indicators.isNotEmpty) {
+            indicators.add(const SizedBox(width: 4));
+          }
+          indicators.add(
+            Semantics(
+              label:
+                  '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
+              child: Container(
+                key: Key('room-thread-unread-${room.id}'),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: context.kiteColors.unread,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (indicators.isEmpty) {
+          return const SizedBox(height: 20);
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: indicators,
+        );
+      },
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({
+    super.key,
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/home/room_list_filter.dart';
 
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
@@ -32,6 +33,7 @@ void main() {
     addTearDown(display.resetRefreshRate);
 
     selectRoom('kite');
+    selectRoomListFilter(RoomListFilter.all);
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
 
@@ -39,11 +41,17 @@ void main() {
     final chatPanel = find.byKey(const Key('chat-panel'));
     final composer = find.byKey(const Key('composer'));
     final messageList = find.byKey(const Key('message-list'));
+    final kiteRow = find.byKey(const Key('room-kite'));
+    final aliceRow = find.byKey(const Key('room-alice'));
+    final bobRow = find.byKey(const Key('room-bob'));
 
     final initialSidebar = _rectOf(tester, sidebar);
     final initialChatPanel = _rectOf(tester, chatPanel);
     final initialComposer = _rectOf(tester, composer);
     final initialMessageList = _rectOf(tester, messageList);
+    final initialKiteRow = _rectOf(tester, kiteRow);
+    final initialAliceRow = _rectOf(tester, aliceRow);
+    final initialBobRow = _rectOf(tester, bobRow);
 
     await tester.tap(find.byKey(const Key('room-alice')));
 
@@ -61,6 +69,9 @@ void main() {
         _rectOf(tester, messageList),
         'message list',
       );
+      _expectSameRect(initialKiteRow, _rectOf(tester, kiteRow), 'Kite row');
+      _expectSameRect(initialAliceRow, _rectOf(tester, aliceRow), 'Alice row');
+      _expectSameRect(initialBobRow, _rectOf(tester, bobRow), 'Bob row');
       expect(tester.takeException(), isNull);
     }
 
