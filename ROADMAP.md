@@ -373,7 +373,7 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] Room creation/invite review.
 - [x] Room/user details review.
 - [x] Settings/security review.
-- [ ] Poll/location/media review.
+- [x] Poll/location/media review.
 - [ ] Incoming/outgoing/in-call review.
 - [ ] Empty/loading/error/offline states review.
 - [x] Light/dark/black themes review.
