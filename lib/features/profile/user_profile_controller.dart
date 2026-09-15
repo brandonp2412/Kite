@@ -90,6 +90,10 @@ final class UserProfileController {
     errorMessage.value = null;
     try {
       viewedProfile.value = await _gateway.loadProfile(userId);
+      final ignored = await _gateway.loadIgnoredUserIds();
+      final blocked = await _gateway.loadBlockedUserIds();
+      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
+      blockedUserIds.value = Set<String>.unmodifiable(blocked);
     } catch (_) {
       errorMessage.value = 'Kite could not load that profile.';
     } finally {
