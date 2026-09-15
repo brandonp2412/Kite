@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/auth/account_management_controller.dart';
+import 'package:kite/features/auth/account_security_scope_controller.dart';
 import 'package:kite/features/auth/session_device_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -10,6 +11,7 @@ class AccountSecurityScreen extends StatefulWidget {
   const AccountSecurityScreen({
     required this.accountController,
     required this.sessionDeviceController,
+    this.securityScopeController,
     this.onAddAccount,
     this.onActiveAccountChanged,
     this.onActiveAccountSignedOut,
@@ -19,6 +21,7 @@ class AccountSecurityScreen extends StatefulWidget {
 
   final AccountManagementController accountController;
   final SessionDeviceController sessionDeviceController;
+  final AccountSecurityScopeController? securityScopeController;
   final VoidCallback? onAddAccount;
   final ValueChanged<ManagedMatrixAccount>? onActiveAccountChanged;
   final VoidCallback? onActiveAccountSignedOut;
@@ -70,7 +73,10 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
     );
     if (!activated) return;
 
-    if (widget.sessionDeviceController.resetForAccountChange()) {
+    final securityScope = widget.securityScopeController;
+    if (securityScope != null) {
+      await securityScope.resetAndRefreshActiveAccount();
+    } else if (widget.sessionDeviceController.resetForAccountChange()) {
       await widget.sessionDeviceController.load();
     }
     if (!mounted) return;
@@ -92,7 +98,12 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
     if (!confirmed) return;
     final signedOut = await widget.accountController.signOut(account.accountId);
     if (signedOut && account.isActive) {
-      widget.sessionDeviceController.resetForAccountChange();
+      final securityScope = widget.securityScopeController;
+      if (securityScope != null) {
+        securityScope.resetForAccountChange();
+      } else {
+        widget.sessionDeviceController.resetForAccountChange();
+      }
       widget.onActiveAccountSignedOut?.call();
     }
   }
