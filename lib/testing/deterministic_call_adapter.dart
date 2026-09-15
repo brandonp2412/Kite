@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:kite/features/calls/call_session.dart';
+import 'package:kite/features/calls/matrix_call_deep_link.dart';
 
 enum MatrixRtcInvocationType {
   start,
@@ -43,6 +44,41 @@ final class MatrixRtcInvocation {
   final String? routeId;
   final KiteCallAppState? appState;
   final MatrixRtcLaunchConfig? launchConfig;
+}
+
+final class MatrixCallDeepLinkResolution {
+  const MatrixCallDeepLinkResolution({
+    required this.accountId,
+    required this.roomIdOrAlias,
+  });
+
+  final String accountId;
+  final String roomIdOrAlias;
+}
+
+final class DeterministicMatrixCallDeepLinkResolver
+    implements MatrixCallDeepLinkResolverPort {
+  MatrixRtcSessionDescriptor? descriptor;
+  Object? failNextWith;
+  final List<MatrixCallDeepLinkResolution> resolutions =
+      <MatrixCallDeepLinkResolution>[];
+
+  @override
+  Future<MatrixRtcSessionDescriptor?> resolveActiveCall({
+    required String accountId,
+    required String roomIdOrAlias,
+  }) async {
+    resolutions.add(
+      MatrixCallDeepLinkResolution(
+        accountId: accountId,
+        roomIdOrAlias: roomIdOrAlias,
+      ),
+    );
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
+    return descriptor;
+  }
 }
 
 final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
