@@ -91,6 +91,9 @@ final class AuthenticationRejectedException extends AuthenticationException {
 }
 
 abstract interface class AuthenticationGateway {
+  /// Resolves authentication through the Matrix SDK. The returned homeserver
+  /// may differ from [homeserver] when trusted `.well-known` discovery selects
+  /// the actual client API base URL.
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver);
 
   Future<AuthenticatedSession> loginWithPassword({
@@ -106,4 +109,8 @@ abstract interface class AuthenticationGateway {
   Future<AuthenticatedSession> loginWithSso({
     required HomeserverAddress homeserver,
   });
+
+  /// Delegates an opaque device-to-device login QR payload to the Matrix SDK.
+  /// Kite must not parse, persist, or log [qrCodeData].
+  Future<AuthenticatedSession> loginWithQrCode(String qrCodeData);
 }

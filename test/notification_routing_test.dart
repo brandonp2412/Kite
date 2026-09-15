@@ -4,6 +4,20 @@ import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
+final class _FakeBadgeRefreshPort implements NotificationBadgeRefreshPort {
+  int refreshes = 0;
+  Object? failure;
+
+  @override
+  Future<void> refreshBadgeCount() async {
+    refreshes += 1;
+    if (failure case final error?) throw error;
+  }
+}
+
+String _routingId(String accountId, String id) =>
+    KiteNotification.routingIdFor(accountId, id);
+
 void main() {
   group('notification routing', () {
     test(
@@ -30,7 +44,10 @@ void main() {
           navigation: navigation,
         );
 
-        expect(await coordinator.tap('notification-1'), isTrue);
+        expect(
+          await coordinator.tap(_routingId('work', 'notification-1')),
+          isTrue,
+        );
         expect(accounts.activeAccountId, 'work');
         expect(accounts.activations, <String>['work']);
         expect(navigation.opened, <AppDestination>[destination]);
@@ -79,11 +96,83 @@ void main() {
         navigation: navigation,
       );
 
-      expect(await coordinator.tap('room'), isTrue);
-      expect(await coordinator.tap('event'), isTrue);
-      expect(await coordinator.tap('thread'), isTrue);
+      expect(await coordinator.tap(_routingId('work', 'room')), isTrue);
+      expect(await coordinator.tap(_routingId('work', 'event')), isTrue);
+      expect(await coordinator.tap(_routingId('work', 'thread')), isTrue);
       expect(accounts.activations, isEmpty);
       expect(navigation.opened, <AppDestination>[room, event, thread]);
+    });
+
+    test(
+      'tap does not navigate when owning account activation does not stick',
+      () async {
+        const destination = AppDestination.room(
+          accountId: 'work',
+          roomId: '!team:example.org',
+        );
+        final notifications = FakeNotificationRepository(<KiteNotification>[
+          const KiteNotification(
+            id: 'notification-1',
+            kind: KiteNotificationKind.invite,
+            destination: destination,
+          ),
+        ]);
+        final accounts = FakeAccountActivationPort('personal')
+          ..activates = false;
+        final navigation = FakeAppNavigationPort();
+        final coordinator = NotificationCoordinator(
+          notifications: notifications,
+          cancellations: FakeNotificationCancellationPort(),
+          accounts: accounts,
+          navigation: navigation,
+        );
+
+        expect(
+          await coordinator.tap(_routingId('work', 'notification-1')),
+          isFalse,
+        );
+        expect(accounts.activations, <String>['work']);
+        expect(accounts.activeAccountId, 'personal');
+        expect(navigation.opened, isEmpty);
+      },
+    );
+
+    test('tap contains account and navigation adapter failures', () async {
+      const destination = AppDestination.room(
+        accountId: 'work',
+        roomId: '!team:example.org',
+      );
+      final notifications = FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'notification-1',
+          kind: KiteNotificationKind.invite,
+          destination: destination,
+        ),
+      ]);
+      final accounts = FakeAccountActivationPort('personal')
+        ..failNextWith = StateError('access_token=secret');
+      final navigation = FakeAppNavigationPort();
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
+        accounts: accounts,
+        navigation: navigation,
+      );
+
+      expect(
+        await coordinator.tap(_routingId('work', 'notification-1')),
+        isFalse,
+      );
+      expect(navigation.opened, isEmpty);
+
+      accounts.activates = true;
+      navigation.failNextWith = StateError('route failed');
+      expect(
+        await coordinator.tap(_routingId('work', 'notification-1')),
+        isFalse,
+      );
+      expect(accounts.activeAccountId, 'work');
+      expect(navigation.opened, isEmpty);
     });
 
     test('unknown notification is ignored without navigation', () async {
@@ -298,11 +387,13 @@ void main() {
           ),
         ]);
         final cancellations = FakeNotificationCancellationPort();
+        final badges = _FakeBadgeRefreshPort();
         final coordinator = NotificationCoordinator(
           notifications: notifications,
           cancellations: cancellations,
           accounts: FakeAccountActivationPort('work'),
           navigation: FakeAppNavigationPort(),
+          badgeRefresh: badges,
         );
 
         expect(
@@ -313,20 +404,161 @@ void main() {
           3,
         );
         expect(cancellations.cancelledIds, <String>[
-          'message',
-          'mention',
-          'thread',
+          _routingId('work', 'message'),
+          _routingId('work', 'mention'),
+          _routingId('work', 'thread'),
         ]);
         expect(notifications.removedIds, <String>[
-          'message',
-          'mention',
-          'thread',
+          _routingId('work', 'message'),
+          _routingId('work', 'mention'),
+          _routingId('work', 'thread'),
         ]);
-        expect(notifications.notification('invite'), isNotNull);
-        expect(notifications.notification('call'), isNotNull);
-        expect(notifications.notification('other-account'), isNotNull);
+        expect(
+          notifications.notification(_routingId('work', 'invite')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('work', 'call')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('personal', 'other-account')),
+          isNotNull,
+        );
+        expect(badges.refreshes, 1);
       },
     );
+
+    test(
+      'failed platform cancellation preserves notification and badge state',
+      () async {
+        final notifications = FakeNotificationRepository(<KiteNotification>[
+          const KiteNotification(
+            id: 'message',
+            kind: KiteNotificationKind.message,
+            destination: AppDestination.event(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$message',
+            ),
+          ),
+        ]);
+        final cancellations = FakeNotificationCancellationPort()
+          ..succeeds = false;
+        final badges = _FakeBadgeRefreshPort();
+        final coordinator = NotificationCoordinator(
+          notifications: notifications,
+          cancellations: cancellations,
+          accounts: FakeAccountActivationPort('work'),
+          navigation: FakeAppNavigationPort(),
+          badgeRefresh: badges,
+        );
+
+        expect(
+          await coordinator.markRoomRead(
+            accountId: 'work',
+            roomId: '!team:example.org',
+          ),
+          0,
+        );
+        expect(
+          notifications.notification(_routingId('work', 'message')),
+          isNotNull,
+        );
+        expect(notifications.removedIds, isEmpty);
+        expect(cancellations.cancelledIds, isEmpty);
+        expect(badges.refreshes, 0);
+      },
+    );
+
+    test(
+      'platform cancellation exceptions do not block other read cleanup',
+      () async {
+        final notifications = FakeNotificationRepository(<KiteNotification>[
+          const KiteNotification(
+            id: 'first',
+            kind: KiteNotificationKind.message,
+            destination: AppDestination.event(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$first',
+            ),
+          ),
+          const KiteNotification(
+            id: 'second',
+            kind: KiteNotificationKind.message,
+            destination: AppDestination.event(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$second',
+            ),
+          ),
+        ]);
+        final cancellations = FakeNotificationCancellationPort()
+          ..failNextWith = StateError('platform unavailable');
+        final badges = _FakeBadgeRefreshPort();
+        final coordinator = NotificationCoordinator(
+          notifications: notifications,
+          cancellations: cancellations,
+          accounts: FakeAccountActivationPort('work'),
+          navigation: FakeAppNavigationPort(),
+          badgeRefresh: badges,
+        );
+
+        expect(
+          await coordinator.markRoomRead(
+            accountId: 'work',
+            roomId: '!team:example.org',
+          ),
+          1,
+        );
+        expect(
+          notifications.notification(_routingId('work', 'first')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('work', 'second')),
+          isNull,
+        );
+        expect(cancellations.cancelledIds, <String>[
+          _routingId('work', 'second'),
+        ]);
+        expect(badges.refreshes, 1);
+      },
+    );
+
+    test('badge failure does not undo successful read cleanup', () async {
+      final notifications = FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'message',
+          kind: KiteNotificationKind.message,
+          destination: AppDestination.event(
+            accountId: 'work',
+            roomId: '!team:example.org',
+            eventId: r'$message',
+          ),
+        ),
+      ]);
+      final badges = _FakeBadgeRefreshPort()
+        ..failure = StateError('badge unavailable');
+      final coordinator = NotificationCoordinator(
+        notifications: notifications,
+        cancellations: FakeNotificationCancellationPort(),
+        accounts: FakeAccountActivationPort('work'),
+        navigation: FakeAppNavigationPort(),
+        badgeRefresh: badges,
+      );
+
+      expect(
+        await coordinator.markRoomRead(
+          accountId: 'work',
+          roomId: '!team:example.org',
+        ),
+        1,
+      );
+      expect(notifications.notification(_routingId('work', 'message')), isNull);
+      expect(badges.refreshes, 1);
+    });
 
     test(
       'remote read reconciliation removes only matching event notifications',
@@ -375,10 +607,18 @@ void main() {
           ),
           1,
         );
-        expect(cancellations.cancelledIds, <String>['read']);
-        expect(notifications.notification('read'), isNull);
-        expect(notifications.notification('unread'), isNotNull);
-        expect(notifications.notification('other-account'), isNotNull);
+        expect(cancellations.cancelledIds, <String>[
+          _routingId('work', 'read'),
+        ]);
+        expect(notifications.notification(_routingId('work', 'read')), isNull);
+        expect(
+          notifications.notification(_routingId('work', 'unread')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('personal', 'other-account')),
+          isNotNull,
+        );
       },
     );
   });

@@ -130,7 +130,12 @@ final class SupportSettingsController {
     try {
       await _gateway.clearMediaCache();
       await _gateway.clearPresentationCache();
-      storage.value = await _gateway.loadStorageUsage();
+      final nextStorage = await _gateway.loadStorageUsage();
+      if (!_isValidStorage(nextStorage)) {
+        errorMessage.value = 'Kite received invalid support settings data.';
+        return false;
+      }
+      storage.value = nextStorage;
       return true;
     } catch (_) {
       errorMessage.value = 'Kite could not clear all cached content.';
@@ -153,6 +158,10 @@ final class SupportSettingsController {
     reportSubmitted.value = false;
     try {
       final diagnostics = await _gateway.prepareSanitizedDiagnostics();
+      if (!_isValidDiagnostics(diagnostics)) {
+        errorMessage.value = 'Kite received invalid diagnostic metadata.';
+        return false;
+      }
       await _gateway.submitProblemReport(
         ProblemReportRequest(description: normalized, diagnostics: diagnostics),
       );
@@ -176,7 +185,12 @@ final class SupportSettingsController {
     errorMessage.value = null;
     try {
       await clear();
-      storage.value = await _gateway.loadStorageUsage();
+      final nextStorage = await _gateway.loadStorageUsage();
+      if (!_isValidStorage(nextStorage)) {
+        errorMessage.value = 'Kite received invalid support settings data.';
+        return false;
+      }
+      storage.value = nextStorage;
       return true;
     } catch (_) {
       errorMessage.value = failureMessage;
@@ -190,6 +204,10 @@ final class SupportSettingsController {
     return value.mediaCacheBytes >= 0 &&
         value.presentationCacheBytes >= 0 &&
         value.diagnosticLogBytes >= 0;
+  }
+
+  bool _isValidDiagnostics(SanitizedDiagnosticBundle value) {
+    return value.structuredEventCount >= 0 && value.crashReportCount >= 0;
   }
 
   bool _isValidAbout(AppAboutInfo value) {

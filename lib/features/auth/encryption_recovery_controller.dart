@@ -51,6 +51,7 @@ final class EncryptionRecoveryController {
   EncryptionRecoveryController(this._gateway);
 
   final EncryptionRecoveryGateway _gateway;
+  int _accountGeneration = 0;
 
   final status = signal<EncryptionRecoveryStatus?>(null);
   final isBusy = signal(false);
@@ -58,6 +59,14 @@ final class EncryptionRecoveryController {
 
   bool get needsRecoveryAttention =>
       status.value?.needsRecoveryAttention ?? false;
+
+  bool resetForAccountChange() {
+    _accountGeneration += 1;
+    status.value = null;
+    isBusy.value = false;
+    errorMessage.value = null;
+    return true;
+  }
 
   Future<bool> refresh() {
     return _run(
@@ -69,6 +78,7 @@ final class EncryptionRecoveryController {
   Future<bool> createEncryptedBackup() {
     return _run(
       _gateway.createEncryptedBackup,
+      validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
       failureMessage: 'Kite could not enable encrypted backup.',
     );
   }
@@ -81,6 +91,7 @@ final class EncryptionRecoveryController {
     }
     return _run(
       () => _gateway.restoreWithRecoveryKey(secret),
+      validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
       failureMessage: 'Kite could not restore encrypted backup.',
     );
   }
@@ -92,33 +103,54 @@ final class EncryptionRecoveryController {
     }
     return _run(
       () => _gateway.restoreWithPassphrase(passphrase),
+      validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
       failureMessage: 'Kite could not restore encrypted backup.',
     );
   }
 
   Future<bool> recoverHistoricalMessages() {
+    if (status.value?.historicalRecoveryState !=
+        HistoricalRecoveryState.available) {
+      errorMessage.value = 'Encrypted history recovery is not available.';
+      return Future<bool>.value(false);
+    }
     return _run(
       _gateway.recoverHistoricalMessages,
+      validateStatus: (next) =>
+          next.historicalRecoveryState == HistoricalRecoveryState.recovering ||
+          next.historicalRecoveryState == HistoricalRecoveryState.complete,
       failureMessage: 'Kite could not recover encrypted message history.',
     );
   }
 
   Future<bool> _run(
     Future<EncryptionRecoveryStatus> Function() action, {
+    bool Function(EncryptionRecoveryStatus status)? validateStatus,
     required String failureMessage,
   }) async {
     if (isBusy.value) return false;
 
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
-      status.value = await action();
+      final next = await action();
+      if (generation != _accountGeneration) return false;
+      if (validateStatus != null && !validateStatus(next)) {
+        errorMessage.value = 'Kite received invalid encryption recovery state.';
+        return false;
+      }
+      status.value = next;
       return true;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (generation == _accountGeneration) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 

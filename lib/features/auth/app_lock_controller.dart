@@ -74,6 +74,9 @@ final class AppLockController {
     errorMessage.value = null;
     try {
       final loaded = await _credentials.loadSettings();
+      if (!_isValidSettings(loaded)) {
+        throw StateError('Invalid app lock settings.');
+      }
       settings.value = loaded;
       isLocked.value = loaded.enabled;
       isReady.value = true;
@@ -92,7 +95,7 @@ final class AppLockController {
   }) async {
     if (isBusy.value) return;
     if (!_isValidPin(pin)) {
-      errorMessage.value = 'Use a PIN with at least 4 digits.';
+      errorMessage.value = 'Use a PIN with 4 to 64 digits.';
       return;
     }
 
@@ -210,11 +213,19 @@ final class AppLockController {
 
   Future<void> disable(String pin) async {
     if (isBusy.value || !settings.value.enabled) return;
-    if (!await unlockWithPin(pin)) return;
+    if (!_isValidPin(pin)) {
+      errorMessage.value = 'Enter your app lock PIN.';
+      return;
+    }
 
     isBusy.value = true;
     errorMessage.value = null;
     try {
+      final verified = await _credentials.verifyPin(pin);
+      if (!verified) {
+        errorMessage.value = 'Incorrect PIN.';
+        return;
+      }
       await _credentials.disable();
       const next = AppLockSettings.disabled();
       settings.value = next;
@@ -227,7 +238,12 @@ final class AppLockController {
     }
   }
 
-  bool _isValidPin(String pin) => RegExp(r'^\d{4,}$').hasMatch(pin);
+  bool _isValidPin(String pin) =>
+      pin.length <= 64 && RegExp(r'^\d{4,}$').hasMatch(pin);
+
+  bool _isValidSettings(AppLockSettings candidate) =>
+      candidate.enabled ||
+      (!candidate.biometricsEnabled && !candidate.hideNotificationContents);
 
   void dispose() {
     settings.dispose();

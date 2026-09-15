@@ -13,6 +13,11 @@ final class KiteNotification {
   final KiteNotificationKind kind;
   final AppDestination destination;
 
+  String get routingId => routingIdFor(destination.accountId, id);
+
+  static String routingIdFor(String accountId, String id) =>
+      '${accountId.length}:$accountId${id.length}:$id';
+
   bool get clearsWhenRead => switch (kind) {
     KiteNotificationKind.message ||
     KiteNotificationKind.mention ||
@@ -112,15 +117,24 @@ final class NotificationPresentationPolicy {
 }
 
 abstract interface class NotificationRepository {
-  KiteNotification? notification(String id);
+  KiteNotification? notification(String routingId);
 
   Iterable<KiteNotification> activeForAccount(String accountId);
 
-  void remove(String id);
+  void remove(String routingId);
+}
+
+abstract interface class MutableNotificationRepository
+    implements NotificationRepository {
+  void upsert(KiteNotification notification);
 }
 
 abstract interface class NotificationCancellationPort {
   Future<bool> cancel(String notificationId);
+}
+
+abstract interface class NotificationBadgeRefreshPort {
+  Future<void> refreshBadgeCount();
 }
 
 final class NotificationCoordinator {
@@ -129,11 +143,13 @@ final class NotificationCoordinator {
     required NotificationCancellationPort cancellations,
     required AccountActivationPort accounts,
     required AppNavigationPort navigation,
+    NotificationBadgeRefreshPort? badgeRefresh,
   }) => NotificationCoordinator._(
     notifications,
     cancellations,
     accounts,
     navigation,
+    badgeRefresh,
   );
 
   const NotificationCoordinator._(
@@ -141,23 +157,30 @@ final class NotificationCoordinator {
     this._cancellations,
     this._accounts,
     this._navigation,
+    this._badgeRefresh,
   );
 
   final NotificationRepository _notifications;
   final NotificationCancellationPort _cancellations;
   final AccountActivationPort _accounts;
   final AppNavigationPort _navigation;
+  final NotificationBadgeRefreshPort? _badgeRefresh;
 
-  Future<bool> tap(String notificationId) async {
-    final notification = _notifications.notification(notificationId);
+  Future<bool> tap(String notificationRoutingId) async {
+    final notification = _notifications.notification(notificationRoutingId);
     if (notification == null) return false;
 
     final destination = notification.destination;
-    if (_accounts.activeAccountId != destination.accountId) {
-      await _accounts.activateAccount(destination.accountId);
+    try {
+      if (_accounts.activeAccountId != destination.accountId) {
+        await _accounts.activateAccount(destination.accountId);
+        if (_accounts.activeAccountId != destination.accountId) return false;
+      }
+      await _navigation.open(destination);
+      return true;
+    } catch (_) {
+      return false;
     }
-    await _navigation.open(destination);
-    return true;
   }
 
   Future<int> markRoomRead({
@@ -171,7 +194,7 @@ final class NotificationCoordinator {
               notification.clearsWhenRead &&
               notification.destination.roomId == roomId,
         )
-        .map((notification) => notification.id)
+        .map((notification) => notification.routingId)
         .toList(growable: false);
 
     return _cancelAndRemove(idsToRemove);
@@ -192,7 +215,7 @@ final class NotificationCoordinator {
               notification.destination.eventId != null &&
               readEventIds.contains(notification.destination.eventId),
         )
-        .map((notification) => notification.id)
+        .map((notification) => notification.routingId)
         .toList(growable: false);
 
     return _cancelAndRemove(idsToRemove);
@@ -201,9 +224,20 @@ final class NotificationCoordinator {
   Future<int> _cancelAndRemove(Iterable<String> notificationIds) async {
     var removed = 0;
     for (final id in notificationIds) {
-      await _cancellations.cancel(id);
+      bool cancelled;
+      try {
+        cancelled = await _cancellations.cancel(id);
+      } catch (_) {
+        continue;
+      }
+      if (!cancelled) continue;
       _notifications.remove(id);
       removed += 1;
+    }
+    if (removed > 0) {
+      try {
+        await _badgeRefresh?.refreshBadgeCount();
+      } catch (_) {}
     }
     return removed;
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/device_verification_controller.dart';
 
@@ -7,8 +9,12 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   String? scannedQrCode;
   String? confirmedQrTransactionId;
   String? confirmedSasTransactionId;
+  String? returnedQrTransactionId;
+  String? returnedSasTransactionId;
   String? cancelledTransactionId;
   int trustReads = 0;
+  bool confirmationUpdatesTrust = true;
+  Completer<CrossSigningTrustState>? deferredTrust;
 
   @override
   Future<void> cancelVerification(String transactionId) async {
@@ -22,11 +28,14 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   ) async {
     if (failure case final error?) throw error;
     confirmedQrTransactionId = transactionId;
-    trust = CrossSigningTrustState.verified;
+    if (confirmationUpdatesTrust) {
+      trust = CrossSigningTrustState.verified;
+    }
     return DeviceVerificationSession(
-      transactionId: transactionId,
+      transactionId: returnedQrTransactionId ?? transactionId,
       method: DeviceVerificationMethod.qr,
       stage: DeviceVerificationStage.verified,
+      qrCodeData: 'POST-CONFIRM-QR-SECRET',
     );
   }
 
@@ -36,11 +45,14 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   ) async {
     if (failure case final error?) throw error;
     confirmedSasTransactionId = transactionId;
-    trust = CrossSigningTrustState.verified;
+    if (confirmationUpdatesTrust) {
+      trust = CrossSigningTrustState.verified;
+    }
     return DeviceVerificationSession(
-      transactionId: transactionId,
+      transactionId: returnedSasTransactionId ?? transactionId,
       method: DeviceVerificationMethod.sas,
       stage: DeviceVerificationStage.verified,
+      sasEmoji: const <String>['🐶', '🌳', '🚲'],
     );
   }
 
@@ -48,6 +60,8 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   Future<CrossSigningTrustState> loadCrossSigningTrust() async {
     if (failure case final error?) throw error;
     trustReads += 1;
+    final deferred = deferredTrust;
+    if (deferred != null) return deferred.future;
     return trust;
   }
 
@@ -88,6 +102,41 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
 }
 
 void main() {
+  test('account change reset clears verification state', () async {
+    final gateway = _FakeVerificationGateway()
+      ..trust = CrossSigningTrustState.verified;
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loadTrust();
+    expect(controller.trustState.value, CrossSigningTrustState.verified);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(controller.session.value, isNull);
+    expect(controller.errorMessage.value, isNull);
+    expect(controller.requiresVerification, isTrue);
+  });
+
+  test('account reset invalidates an in-flight trust refresh', () async {
+    final deferred = Completer<CrossSigningTrustState>();
+    final gateway = _FakeVerificationGateway()..deferredTrust = deferred;
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    final loading = controller.loadTrust();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isBusy.value, isTrue);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.isBusy.value, isFalse);
+    deferred.complete(CrossSigningTrustState.verified);
+    await loading;
+
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(controller.requiresVerification, isTrue);
+  });
+
   test('cross-signing trust drives mandatory verification state', () async {
     final gateway = _FakeVerificationGateway();
     final controller = DeviceVerificationController(gateway);
@@ -102,6 +151,66 @@ void main() {
     gateway.trust = CrossSigningTrustState.verified;
     await controller.loadTrust();
     expect(controller.requiresVerification, isFalse);
+  });
+
+  test('trust refresh failure fails closed after a verified state', () async {
+    final gateway = _FakeVerificationGateway()
+      ..trust = CrossSigningTrustState.verified;
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loadTrust();
+    expect(controller.requiresVerification, isFalse);
+
+    gateway.failure = StateError('access_token=secret');
+    await controller.loadTrust();
+
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(controller.requiresVerification, isTrue);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not read device verification status.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+  });
+
+  test('verification session rejects malformed transaction metadata', () {
+    expect(
+      () => DeviceVerificationSession(
+        transactionId: ' bad transaction ',
+        method: DeviceVerificationMethod.qr,
+        stage: DeviceVerificationStage.ready,
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => DeviceVerificationSession(
+        transactionId: 'qr-transaction',
+        method: DeviceVerificationMethod.qr,
+        stage: DeviceVerificationStage.ready,
+        qrCodeData: '   ',
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => DeviceVerificationSession(
+        transactionId: 'sas-transaction',
+        method: DeviceVerificationMethod.sas,
+        stage: DeviceVerificationStage.ready,
+        sasEmoji: const <String>['🐶', ''],
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('scanned QR verification rejects whitespace-only payloads', () async {
+    final gateway = _FakeVerificationGateway();
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.submitScannedQrCode('   '), isFalse);
+    expect(gateway.scannedQrCode, isNull);
+    expect(controller.errorMessage.value, 'Scan a valid verification QR code.');
   });
 
   test(
@@ -131,6 +240,8 @@ void main() {
       expect(await controller.confirmQrVerification(), isTrue);
       expect(gateway.confirmedQrTransactionId, 'scanned-transaction');
       expect(controller.session.value?.stage, DeviceVerificationStage.verified);
+      expect(controller.session.value?.qrCodeData, isNull);
+      expect(controller.session.value?.sasEmoji, isEmpty);
       expect(controller.trustState.value, CrossSigningTrustState.verified);
       expect(controller.requiresVerification, isFalse);
       expect(gateway.trustReads, 1);
@@ -154,10 +265,53 @@ void main() {
 
       expect(await controller.confirmSasVerification(), isTrue);
       expect(gateway.confirmedSasTransactionId, 'sas-transaction');
+      expect(controller.session.value?.qrCodeData, isNull);
+      expect(controller.session.value?.sasEmoji, isEmpty);
       expect(controller.trustState.value, CrossSigningTrustState.verified);
     },
   );
 
+  test('confirmation cannot switch verification transactions', () async {
+    final gateway = _FakeVerificationGateway()
+      ..returnedQrTransactionId = 'different-transaction';
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.startQrVerification(), isTrue);
+    final original = controller.session.value;
+    expect(await controller.confirmQrVerification(), isFalse);
+
+    expect(gateway.confirmedQrTransactionId, 'qr-transaction');
+    expect(controller.session.value, same(original));
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(gateway.trustReads, 0);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid verification state.',
+    );
+  });
+
+  test(
+    'verified transaction does not bypass unverified cross-signing trust',
+    () async {
+      final gateway = _FakeVerificationGateway()
+        ..confirmationUpdatesTrust = false;
+      final controller = DeviceVerificationController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(await controller.startQrVerification(), isTrue);
+      final original = controller.session.value;
+      expect(await controller.confirmQrVerification(), isFalse);
+
+      expect(controller.session.value, same(original));
+      expect(controller.trustState.value, CrossSigningTrustState.unverified);
+      expect(controller.requiresVerification, isTrue);
+      expect(
+        controller.errorMessage.value,
+        'Kite could not confirm cross-signing trust for this device.',
+      );
+    },
+  );
   test(
     'method mismatch is rejected before the wrong SDK confirmation',
     () async {
@@ -194,6 +348,20 @@ void main() {
       expect(controller.session.value, isNull);
     },
   );
+
+  test('cancelled verification cannot later be confirmed', () async {
+    final gateway = _FakeVerificationGateway();
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.startQrVerification(), isTrue);
+    expect(await controller.cancelVerification(), isTrue);
+    expect(await controller.confirmQrVerification(), isFalse);
+
+    expect(gateway.confirmedQrTransactionId, isNull);
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(controller.session.value?.stage, DeviceVerificationStage.cancelled);
+  });
 
   test(
     'gateway failures never expose verification material or secrets',

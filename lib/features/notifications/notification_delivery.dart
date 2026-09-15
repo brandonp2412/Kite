@@ -50,37 +50,60 @@ final class NotificationDeliveryCoordinator
       content: content,
     );
     final presentation = _presentationFor(next);
-    final previous = _active[notification.id];
+    final routingId = notification.routingId;
+    final previous = _active[routingId];
 
     await _delivery.show(presentation);
-    _active[notification.id] = next;
+    _active[routingId] = next;
 
-    if (previous != null &&
-        previous.notification.groupKey != notification.groupKey) {
-      await _refreshSummary(previous.notification.groupKey);
+    try {
+      if (previous != null &&
+          previous.notification.groupKey != notification.groupKey) {
+        await _refreshSummary(previous.notification.groupKey);
+      }
+      await _refreshSummary(notification.groupKey);
+    } catch (_) {
+      await _rollbackUpsert(
+        routingId: routingId,
+        previous: previous,
+        failed: next,
+      );
+      rethrow;
     }
-    await _refreshSummary(notification.groupKey);
     return presentation;
   }
 
   @override
-  Future<bool> cancel(String notificationId) async {
-    final current = _active[notificationId];
+  Future<bool> cancel(String notificationRoutingId) async {
+    final current = _active[notificationRoutingId];
     if (current == null) return false;
 
-    await _delivery.cancel(notificationId);
-    _active.remove(notificationId);
+    await _delivery.cancel(notificationRoutingId);
+    _active.remove(notificationRoutingId);
     await _refreshSummary(current.notification.groupKey);
     return true;
   }
 
   Future<void> refreshPrivacy() async {
-    for (final active in _active.values) {
-      await _delivery.show(_presentationFor(active));
+    Object? firstFailure;
+    final activeEntries = List<_ActiveNotification>.of(_active.values);
+    for (final active in activeEntries) {
+      try {
+        await _delivery.show(_presentationFor(active));
+      } catch (error) {
+        firstFailure ??= error;
+        if (_privacy.hideNotificationContents) {
+          try {
+            await _delivery.cancel(active.notification.routingId);
+            _active.remove(active.notification.routingId);
+          } catch (_) {}
+        }
+      }
     }
     for (final groupKey in _groupKeys()) {
       await _refreshSummary(groupKey);
     }
+    if (firstFailure != null) throw firstFailure;
   }
 
   KiteNotificationPresentation _presentationFor(_ActiveNotification active) {
@@ -103,8 +126,9 @@ final class NotificationDeliveryCoordinator
     ];
 
     if (group.length < 2) {
-      if (_activeSummaryGroups.remove(groupKey)) {
+      if (_activeSummaryGroups.contains(groupKey)) {
         await _delivery.cancelSummary(groupKey);
+        _activeSummaryGroups.remove(groupKey);
       }
       return;
     }
@@ -112,6 +136,34 @@ final class NotificationDeliveryCoordinator
     final summary = _policy.summaries(group).single;
     await _delivery.showSummary(summary);
     _activeSummaryGroups.add(groupKey);
+  }
+
+  Future<void> _rollbackUpsert({
+    required String routingId,
+    required _ActiveNotification? previous,
+    required _ActiveNotification failed,
+  }) async {
+    if (previous == null) {
+      _active.remove(routingId);
+      try {
+        await _delivery.cancel(routingId);
+      } catch (_) {}
+    } else {
+      _active[routingId] = previous;
+      try {
+        await _delivery.show(_presentationFor(previous));
+      } catch (_) {}
+    }
+
+    final affectedGroups = <String>{
+      failed.notification.groupKey,
+      if (previous != null) previous.notification.groupKey,
+    };
+    for (final groupKey in affectedGroups) {
+      try {
+        await _refreshSummary(groupKey);
+      } catch (_) {}
+    }
   }
 }
 

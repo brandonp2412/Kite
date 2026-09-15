@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/account_management_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
@@ -7,6 +9,8 @@ final class _FakeAccountManagementGateway implements AccountManagementGateway {
   Object? loadError;
   Object? activateError;
   Object? signOutError;
+  Completer<void>? activateCompleter;
+  int loadCalls = 0;
   final activatedAccountIds = <String>[];
   final signedOutAccountIds = <String>[];
 
@@ -14,10 +18,13 @@ final class _FakeAccountManagementGateway implements AccountManagementGateway {
   Future<void> activateAccount(String accountId) async {
     activatedAccountIds.add(accountId);
     if (activateError case final error?) throw error;
+    final completer = activateCompleter;
+    if (completer != null) await completer.future;
   }
 
   @override
   Future<List<ManagedMatrixAccount>> loadAccounts() async {
+    loadCalls += 1;
     if (loadError case final error?) throw error;
     return loaded;
   }
@@ -47,6 +54,7 @@ ManagedMatrixAccount _account({
   required String deviceId,
   required String homeserver,
   bool isActive = false,
+  Uri? avatarUri,
 }) {
   return ManagedMatrixAccount(
     accountId: accountId,
@@ -56,6 +64,7 @@ ManagedMatrixAccount _account({
       homeserver: homeserver,
     ),
     isActive: isActive,
+    avatarUri: avatarUri,
   );
 }
 
@@ -123,6 +132,88 @@ void main() {
       expect(controller.errorMessage.value, isNot(contains('secret')));
     },
   );
+
+  test('serializes account mutations across isolated stores', () async {
+    final activation = Completer<void>();
+    final gateway = _FakeAccountManagementGateway()
+      ..loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'work',
+          userId: '@alice:work.example.org',
+          deviceId: 'WORK_DEVICE',
+          homeserver: 'work.example.org',
+          isActive: true,
+        ),
+        _account(
+          accountId: 'personal',
+          userId: '@alice:example.org',
+          deviceId: 'PERSONAL_DEVICE',
+          homeserver: 'example.org',
+        ),
+      ]
+      ..activateCompleter = activation;
+    final controller = AccountManagementController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    final switching = controller.activate('personal');
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.busyAccountIds.value, <String>{'personal'});
+
+    expect(await controller.signOut('work'), isFalse);
+    expect(gateway.signedOutAccountIds, isEmpty);
+    expect(controller.activeAccount?.accountId, 'work');
+
+    activation.complete();
+    expect(await switching, isTrue);
+    expect(controller.activeAccount?.accountId, 'personal');
+  });
+
+  test('account refresh cannot race an in-flight account switch', () async {
+    final activation = Completer<void>();
+    final gateway = _FakeAccountManagementGateway()
+      ..loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'work',
+          userId: '@alice:work.example.org',
+          deviceId: 'WORK_DEVICE',
+          homeserver: 'work.example.org',
+          isActive: true,
+        ),
+        _account(
+          accountId: 'personal',
+          userId: '@alice:example.org',
+          deviceId: 'PERSONAL_DEVICE',
+          homeserver: 'example.org',
+        ),
+      ]
+      ..activateCompleter = activation;
+    final controller = AccountManagementController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+    expect(gateway.loadCalls, 1);
+
+    final switching = controller.activate('personal');
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.busyAccountIds.value, <String>{'personal'});
+
+    gateway.loaded = <ManagedMatrixAccount>[
+      _account(
+        accountId: 'work',
+        userId: '@alice:work.example.org',
+        deviceId: 'WORK_DEVICE',
+        homeserver: 'work.example.org',
+        isActive: true,
+      ),
+    ];
+    expect(await controller.load(), isFalse);
+    expect(gateway.loadCalls, 1);
+    expect(controller.accounts.value, hasLength(2));
+
+    activation.complete();
+    expect(await switching, isTrue);
+    expect(controller.activeAccount?.accountId, 'personal');
+  });
 
   test(
     'sign out removes only the selected account after gateway success',
@@ -295,6 +386,40 @@ void main() {
           deviceId: 'ONE',
           homeserver: 'example.org',
           isActive: true,
+        ),
+      ];
+      expect(await controller.load(), isFalse);
+
+      gateway.loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'bad-device',
+          userId: '@alice:example.org',
+          deviceId: ' DEVICE ',
+          homeserver: 'example.org',
+          isActive: true,
+        ),
+      ];
+      expect(await controller.load(), isFalse);
+
+      gateway.loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'bad account',
+          userId: '@alice:example.org',
+          deviceId: 'DEVICE',
+          homeserver: 'example.org',
+          isActive: true,
+        ),
+      ];
+      expect(await controller.load(), isFalse);
+
+      gateway.loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'bad-avatar',
+          userId: '@alice:example.org',
+          deviceId: 'DEVICE',
+          homeserver: 'example.org',
+          isActive: true,
+          avatarUri: Uri.parse('https://example.org/avatar.png'),
         ),
       ];
       expect(await controller.load(), isFalse);

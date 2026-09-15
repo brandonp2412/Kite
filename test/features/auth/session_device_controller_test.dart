@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/session_device_controller.dart';
 
@@ -6,6 +8,7 @@ final class _FakeSessionDeviceGateway implements SessionDeviceGateway {
   Object? loadError;
   Object? signOutError;
   final signedOutDeviceIds = <String>[];
+  Completer<void>? deferredSignOut;
 
   @override
   Future<List<SessionDevice>> loadDevices() async {
@@ -17,6 +20,7 @@ final class _FakeSessionDeviceGateway implements SessionDeviceGateway {
   Future<void> signOutDevice(String deviceId) async {
     signedOutDeviceIds.add(deviceId);
     if (signOutError case final error?) throw error;
+    await deferredSignOut?.future;
   }
 }
 
@@ -55,6 +59,29 @@ void main() {
     },
   );
 
+  test('account change reset removes previous account device state', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.devices.value, isEmpty);
+    expect(controller.currentDevice, isNull);
+
+    gateway.loaded = const <SessionDevice>[
+      SessionDevice(
+        deviceId: 'PERSONAL',
+        isCurrent: true,
+        verification: SessionDeviceVerification.verified,
+      ),
+    ];
+    await controller.load();
+
+    expect(controller.currentDevice?.deviceId, 'PERSONAL');
+  });
+
   test(
     'remote sign-out removes only the device after gateway success',
     () async {
@@ -74,6 +101,33 @@ void main() {
       expect(controller.currentDevice?.deviceId, 'CURRENT');
     },
   );
+
+  test('account reset invalidates an in-flight remote sign-out', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote]
+      ..deferredSignOut = Completer<void>();
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    final signOut = controller.signOutRemoteDevice('REMOTE');
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.signingOutDeviceIds.value, <String>{'REMOTE'});
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.devices.value, isEmpty);
+    expect(controller.signingOutDeviceIds.value, isEmpty);
+    expect(await controller.signOutRemoteDevice('REMOTE'), isFalse);
+    expect(gateway.signedOutDeviceIds, <String>['REMOTE']);
+
+    gateway.deferredSignOut!.complete();
+    expect(await signOut, isFalse);
+    expect(controller.devices.value, isEmpty);
+    expect(
+      controller.errorMessage.value,
+      'That signed-in device is no longer available.',
+    );
+  });
 
   test(
     'current device cannot be remotely signed out through the device list',
@@ -110,6 +164,116 @@ void main() {
       'Kite could not sign out that device.',
     );
     expect(controller.errorMessage.value, isNot(contains('remote-secret')));
+  });
+
+  test(
+    'rejects device lists that cannot identify the current device',
+    () async {
+      final gateway = _FakeSessionDeviceGateway()
+        ..loaded = const <SessionDevice>[
+          SessionDevice(
+            deviceId: 'REMOTE',
+            isCurrent: false,
+            verification: SessionDeviceVerification.verified,
+          ),
+        ];
+      final controller = SessionDeviceController(gateway);
+      addTearDown(controller.dispose);
+
+      await controller.load();
+
+      expect(controller.devices.value, isEmpty);
+      expect(
+        controller.errorMessage.value,
+        'Kite received an invalid device list.',
+      );
+    },
+  );
+
+  test(
+    'confirms the SDK current device matches the authenticated session',
+    () async {
+      final gateway = _FakeSessionDeviceGateway()
+        ..loaded = const <SessionDevice>[_current, _remote];
+      final controller = SessionDeviceController(gateway);
+      addTearDown(controller.dispose);
+
+      await controller.load(expectedCurrentDeviceId: 'OTHER_DEVICE');
+
+      expect(controller.devices.value, isEmpty);
+      expect(
+        controller.errorMessage.value,
+        'Kite could not confirm the current Matrix device.',
+      );
+
+      await controller.load(expectedCurrentDeviceId: 'CURRENT');
+      expect(controller.currentDevice?.deviceId, 'CURRENT');
+      expect(controller.errorMessage.value, isNull);
+    },
+  );
+
+  test('invalid refresh preserves the last trusted device snapshot', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load(expectedCurrentDeviceId: 'CURRENT');
+
+    gateway.loaded = const <SessionDevice>[
+      SessionDevice(
+        deviceId: 'REMOTE',
+        isCurrent: false,
+        verification: SessionDeviceVerification.verified,
+      ),
+    ];
+    await controller.load(expectedCurrentDeviceId: 'CURRENT');
+
+    expect(controller.devices.value.map((device) => device.deviceId), <String>[
+      'CURRENT',
+      'REMOTE',
+    ]);
+    expect(controller.currentDevice?.deviceId, 'CURRENT');
+    expect(
+      controller.errorMessage.value,
+      'Kite could not confirm the current Matrix device.',
+    );
+  });
+
+  test('invalid expected identity does not blank known device state', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load(expectedCurrentDeviceId: 'CURRENT');
+
+    await controller.load(expectedCurrentDeviceId: ' CURRENT ');
+
+    expect(controller.devices.value, const <SessionDevice>[_current, _remote]);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid current device identity.',
+    );
+  });
+
+  test('rejects whitespace-bearing device identifiers', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[
+        SessionDevice(
+          deviceId: ' CURRENT ',
+          isCurrent: true,
+          verification: SessionDeviceVerification.verified,
+        ),
+      ];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.load();
+
+    expect(controller.devices.value, isEmpty);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid device list.',
+    );
   });
 
   test('rejects duplicate or ambiguous current-device data', () async {

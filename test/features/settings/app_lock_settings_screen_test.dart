@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
@@ -7,10 +9,13 @@ final class _FakeAppLockCredentials implements AppLockCredentialGateway {
   AppLockSettings stored = const AppLockSettings.disabled();
   String? pin;
   int disableCalls = 0;
+  Completer<void>? enableCompleter;
+  Completer<void>? disableCompleter;
 
   @override
   Future<void> disable() async {
     disableCalls += 1;
+    await disableCompleter?.future;
     pin = null;
     stored = const AppLockSettings.disabled();
   }
@@ -20,6 +25,7 @@ final class _FakeAppLockCredentials implements AppLockCredentialGateway {
     required String pin,
     required AppLockSettings settings,
   }) async {
+    await enableCompleter?.future;
     this.pin = pin;
     stored = settings;
   }
@@ -85,6 +91,43 @@ void main() {
     expect(find.byKey(const Key('app-lock-biometrics')), findsOneWidget);
   });
 
+  testWidgets('clears PIN fields before enrollment completes', (tester) async {
+    final credentials = _FakeAppLockCredentials()
+      ..enableCompleter = Completer<void>();
+    final controller = AppLockController(credentials, _FakeBiometrics());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_app(controller));
+    await tester.enterText(find.byKey(const Key('app-lock-pin')), '1234');
+    await tester.enterText(
+      find.byKey(const Key('app-lock-pin-confirm')),
+      '1234',
+    );
+    await tester.tap(find.byKey(const Key('enable-app-lock')));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('app-lock-pin')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('app-lock-pin-confirm')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(controller.isBusy.value, isTrue);
+
+    credentials.enableCompleter!.complete();
+    await tester.pumpAndSettle();
+    expect(credentials.pin, '1234');
+    expect(controller.settings.value.enabled, isTrue);
+  });
+
   testWidgets('updates biometric and notification privacy preferences', (
     tester,
   ) async {
@@ -108,6 +151,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.settings.value.hideNotificationContents, isFalse);
     expect(credentials.stored.hideNotificationContents, isFalse);
+  });
+
+  testWidgets('clears the current PIN before disable completes', (
+    tester,
+  ) async {
+    final credentials = _FakeAppLockCredentials()
+      ..stored = const AppLockSettings(
+        enabled: true,
+        biometricsEnabled: false,
+        hideNotificationContents: true,
+      )
+      ..pin = '1234'
+      ..disableCompleter = Completer<void>();
+    final controller = AppLockController(credentials, _FakeBiometrics());
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await tester.pumpWidget(_app(controller));
+    await tester.enterText(
+      find.byKey(const Key('disable-app-lock-pin')),
+      '1234',
+    );
+    await tester.tap(find.byKey(const Key('disable-app-lock')));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('disable-app-lock-pin')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(controller.isBusy.value, isTrue);
+
+    credentials.disableCompleter!.complete();
+    await tester.pumpAndSettle();
+    expect(controller.settings.value.enabled, isFalse);
   });
 
   testWidgets('requires the current PIN before disabling app lock', (

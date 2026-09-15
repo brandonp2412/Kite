@@ -5,11 +5,13 @@ final class _FakeAppLockCredentials implements AppLockCredentialGateway {
   AppLockSettings stored = const AppLockSettings.disabled();
   String? enrolledPin;
   Object? loadError;
+  Object? disableError;
   int disableCalls = 0;
 
   @override
   Future<void> disable() async {
     disableCalls += 1;
+    if (disableError case final error?) throw error;
     enrolledPin = null;
     stored = const AppLockSettings.disabled();
   }
@@ -83,6 +85,42 @@ void main() {
     },
   );
 
+  test('invalid persisted app lock combinations fail closed', () async {
+    final credentials = _FakeAppLockCredentials()
+      ..stored = const AppLockSettings(
+        enabled: false,
+        biometricsEnabled: true,
+        hideNotificationContents: false,
+      );
+    final controller = AppLockController(credentials, _FakeBiometrics());
+    addTearDown(controller.dispose);
+
+    await controller.load();
+
+    expect(controller.isReady.value, isFalse);
+    expect(controller.isLocked.value, isTrue);
+    expect(controller.shouldHideNotificationContents, isTrue);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not load app lock settings.',
+    );
+  });
+
+  test('PIN enrollment rejects unbounded credential input', () async {
+    final credentials = _FakeAppLockCredentials();
+    final controller = AppLockController(credentials, _FakeBiometrics());
+    addTearDown(controller.dispose);
+
+    await controller.enableWithPin(
+      pin: '1' * 65,
+      hideNotificationContents: true,
+    );
+
+    expect(credentials.enrolledPin, isNull);
+    expect(controller.settings.value.enabled, isFalse);
+    expect(controller.errorMessage.value, 'Use a PIN with 4 to 64 digits.');
+  });
+
   test(
     'PIN app lock validates input and redacts notifications only while locked',
     () async {
@@ -95,10 +133,7 @@ void main() {
         hideNotificationContents: true,
       );
       expect(credentials.enrolledPin, isNull);
-      expect(
-        controller.errorMessage.value,
-        'Use a PIN with at least 4 digits.',
-      );
+      expect(controller.errorMessage.value, 'Use a PIN with 4 to 64 digits.');
 
       await controller.enableWithPin(
         pin: '1234',
@@ -168,6 +203,7 @@ void main() {
       );
       await controller.disable('9999');
       expect(controller.settings.value.enabled, isTrue);
+      expect(controller.isLocked.value, isTrue);
       expect(credentials.disableCalls, 0);
 
       await controller.disable('1234');
@@ -176,4 +212,24 @@ void main() {
       expect(credentials.disableCalls, 1);
     },
   );
+
+  test('failed app lock disable never unlocks protected content', () async {
+    final credentials = _FakeAppLockCredentials();
+    final controller = AppLockController(credentials, _FakeBiometrics());
+    addTearDown(controller.dispose);
+
+    await controller.enableWithPin(pin: '1234', hideNotificationContents: true);
+    credentials.disableError = StateError('credential delete failed');
+
+    await controller.disable('1234');
+
+    expect(controller.settings.value.enabled, isTrue);
+    expect(controller.isLocked.value, isTrue);
+    expect(controller.shouldHideNotificationContents, isTrue);
+    expect(credentials.disableCalls, 1);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not disable app lock securely.',
+    );
+  });
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/settings/notification_settings_screen.dart';
@@ -5,6 +7,7 @@ import 'package:kite/features/settings/settings_controller.dart';
 
 final class _FakeSettingsGateway implements SettingsGateway {
   KiteSettings loaded = const KiteSettings.defaults();
+  Completer<KiteSettings>? deferredLoad;
   bool? savedMaster;
   final categoryUpdates = <(NotificationCategory, bool)>[];
   final roomUpdates = <(String, RoomNotificationMode)>[];
@@ -12,7 +15,11 @@ final class _FakeSettingsGateway implements SettingsGateway {
   final callRingtones = <String?>[];
 
   @override
-  Future<KiteSettings> load() async => loaded;
+  Future<KiteSettings> load() async {
+    final deferred = deferredLoad;
+    if (deferred != null) return deferred.future;
+    return loaded;
+  }
 
   @override
   Future<void> saveAppearance(KiteAppearanceMode appearanceMode) async {}
@@ -70,6 +77,59 @@ Widget _app(SettingsController controller) {
 }
 
 void main() {
+  testWidgets('async load updates room and sound dropdown selections', (
+    tester,
+  ) async {
+    final deferred = Completer<KiteSettings>();
+    final gateway = _FakeSettingsGateway()..deferredLoad = deferred;
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSettingsScreen(
+          controller: controller,
+          roomId: '!kite:example.org',
+          roomName: 'Kite room',
+          messageSounds: const <NotificationSoundOption>[
+            NotificationSoundOption(id: 'soft', label: 'Soft'),
+          ],
+          callRingtones: const <NotificationSoundOption>[
+            NotificationSoundOption(id: 'bright', label: 'Bright'),
+          ],
+        ),
+      ),
+    );
+    expect(find.text('Use account default'), findsOneWidget);
+    expect(find.text('Default'), findsNWidgets(2));
+
+    deferred.complete(
+      const KiteSettings(
+        appearanceMode: KiteAppearanceMode.system,
+        languageTag: null,
+        notifications: NotificationPreferences(
+          masterEnabled: true,
+          enabledCategories: <NotificationCategory>{
+            NotificationCategory.messages,
+            NotificationCategory.mentions,
+            NotificationCategory.calls,
+          },
+          roomModes: <String, RoomNotificationMode>{
+            '!kite:example.org': RoomNotificationMode.mentionsOnly,
+          },
+          messageSoundId: 'soft',
+          callRingtoneId: 'bright',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mentions only'), findsOneWidget);
+    expect(find.text('Soft'), findsOneWidget);
+    expect(find.text('Bright'), findsOneWidget);
+    expect(find.text('Use account default'), findsNothing);
+  });
+
   testWidgets('wires master, categories and per-room notification controls', (
     tester,
   ) async {

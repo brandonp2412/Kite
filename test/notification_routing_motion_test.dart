@@ -119,7 +119,8 @@ void main() {
         KiteNotificationKind.mention,
       );
 
-      expect(await coordinator.tap('event'), isTrue);
+      final routingId = KiteNotification.routingIdFor('work', 'event');
+      expect(await coordinator.tap(routingId), isTrue);
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
         expect(_rectOf(tester, header), headerRect);
@@ -144,8 +145,8 @@ void main() {
         expect(tester.takeException(), isNull);
       }
 
-      expect(notifications.notification('event'), isNull);
-      expect(platform.cancelledIds, <String>['event']);
+      expect(notifications.notification(routingId), isNull);
+      expect(platform.cancelledIds, <String>[routingId]);
     },
   );
 }

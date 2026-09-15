@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/auth/account_registration_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/authentication_screen.dart';
 
@@ -13,6 +14,7 @@ final class _FakeAuthenticationGateway implements AuthenticationGateway {
   HomeserverAddress? passwordHomeserver;
   String? username;
   String? password;
+  String? qrCodeData;
   int oidcCalls = 0;
   int ssoCalls = 0;
 
@@ -64,6 +66,44 @@ final class _FakeAuthenticationGateway implements AuthenticationGateway {
     ssoCalls += 1;
     if (ssoError case final error?) throw error;
     return _session(homeserver);
+  }
+
+  @override
+  Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) async {
+    this.qrCodeData = qrCodeData;
+    return _session(HomeserverAddress.parse('matrix.example.org'));
+  }
+}
+
+final class _FakeRegistrationGateway implements AccountRegistrationGateway {
+  int beginCalls = 0;
+
+  @override
+  Future<AccountRegistrationStep> begin(HomeserverAddress homeserver) async {
+    beginCalls += 1;
+    return RegistrationCompleteStep(
+      AuthenticatedSession(
+        userId: '@new:${homeserver.uri.host}',
+        deviceId: 'NEW_DEVICE',
+        homeserver: homeserver,
+      ),
+    );
+  }
+
+  @override
+  Future<AccountRegistrationStep> continueInteractiveAuthentication({
+    required HomeserverAddress homeserver,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<AccountRegistrationStep> submitCredentials({
+    required HomeserverAddress homeserver,
+    required String username,
+    required String password,
+  }) {
+    throw UnimplementedError();
   }
 }
 
@@ -137,6 +177,131 @@ void main() {
     expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
   });
 
+  testWidgets('rejected password login clears the credential field', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway()
+      ..passwordError = const AuthenticationRejectedException(
+        'Incorrect username or password.',
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(home: AuthenticationScreen(gateway: gateway)),
+    );
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'credential-that-must-not-linger',
+    );
+
+    await tester.tap(find.byKey(const Key('password-login')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.password, 'credential-that-must-not-linger');
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.controller?.text, isEmpty);
+    expect(find.text('credential-that-must-not-linger'), findsNothing);
+    expect(find.text('Incorrect username or password.'), findsOneWidget);
+  });
+
+  testWidgets('changing homeserver clears entered account credentials', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway();
+    await tester.pumpWidget(
+      MaterialApp(home: AuthenticationScreen(gateway: gateway)),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'must-not-cross-homeservers',
+    );
+
+    await tester.tap(find.byKey(const Key('change-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'other.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('username-field')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('password-field')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(find.textContaining('must-not-cross-homeservers'), findsNothing);
+  });
+
+  testWidgets(
+    'soft-logout context rediscovers and locks the expected account',
+    (tester) async {
+      final gateway = _FakeAuthenticationGateway();
+      final homeserver = HomeserverAddress.parse('matrix.example.org');
+      gateway.discoveryResult = HomeserverLoginMethods(
+        homeserver: homeserver,
+        methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+        registrationAvailable: true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(
+            gateway: gateway,
+            initialHomeserver: homeserver,
+            expectedUserId: '@alice:matrix.example.org',
+            lockHomeserver: true,
+            registrationGateway: _FakeRegistrationGateway(),
+            scanQrCode: () async => 'OTHER-DEVICE-LOGIN',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(gateway.discoveredHomeserver?.uri, homeserver.uri);
+      expect(find.byKey(const Key('homeserver-field')), findsNothing);
+      expect(find.byKey(const Key('change-homeserver')), findsNothing);
+      expect(
+        find.text(
+          'Sign back in as @alice:matrix.example.org on matrix.example.org.',
+        ),
+        findsOneWidget,
+      );
+      final username = tester.widget<TextField>(
+        find.byKey(const Key('username-field')),
+      );
+      expect(username.controller?.text, '@alice:matrix.example.org');
+      expect(username.enabled, isFalse);
+      expect(find.byKey(const Key('qr-device-login')), findsNothing);
+      expect(find.byKey(const Key('registration-available')), findsNothing);
+    },
+  );
+
   testWidgets('only renders authentication methods advertised by discovery', (
     tester,
   ) async {
@@ -168,6 +333,153 @@ void main() {
     await tester.pumpAndSettle();
     expect(gateway.oidcCalls, 1);
   });
+
+  testWidgets('browser authentication clears an entered password first', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway()
+      ..oidcError = const AuthenticationRejectedException(
+        'Browser sign in was cancelled.',
+      );
+    final homeserver = HomeserverAddress.parse('matrix.example.org');
+    gateway.discoveryResult = HomeserverLoginMethods(
+      homeserver: homeserver,
+      methods: const <AuthenticationMethod>{
+        AuthenticationMethod.password,
+        AuthenticationMethod.oidc,
+        AuthenticationMethod.sso,
+      },
+    );
+
+    await tester.pumpWidget(_app(gateway));
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'must-not-survive-browser-handoff',
+    );
+
+    await tester.tap(find.byKey(const Key('oidc-login')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.oidcCalls, 1);
+    expect(find.text('Browser sign in was cancelled.'), findsOneWidget);
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.controller?.text, isEmpty);
+    expect(
+      find.textContaining('must-not-survive-browser-handoff'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('registration handoff uses the discovered homeserver', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway();
+    final homeserver = HomeserverAddress.parse('matrix.example.org');
+    gateway.discoveryResult = HomeserverLoginMethods(
+      homeserver: homeserver,
+      methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+      registrationAvailable: true,
+    );
+    HomeserverAddress? requestedHomeserver;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AuthenticationScreen(
+          gateway: gateway,
+          onRegistrationRequested: (value) => requestedHomeserver = value,
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'must-not-survive-registration-handoff',
+    );
+    expect(find.text('Create an account'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('registration-available')));
+    expect(requestedHomeserver?.uri, homeserver.uri);
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.controller?.text, isEmpty);
+  });
+
+  testWidgets(
+    'built-in registration returns the authenticated Matrix session',
+    (tester) async {
+      final gateway = _FakeAuthenticationGateway();
+      final registrationGateway = _FakeRegistrationGateway();
+      final homeserver = HomeserverAddress.parse('matrix.example.org');
+      gateway.discoveryResult = HomeserverLoginMethods(
+        homeserver: homeserver,
+        methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+        registrationAvailable: true,
+      );
+      AuthenticatedSession? authenticated;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(
+            gateway: gateway,
+            registrationGateway: registrationGateway,
+            onAuthenticated: (session) => authenticated = session,
+          ),
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const Key('homeserver-field')),
+        'matrix.example.org',
+      );
+      await tester.tap(find.byKey(const Key('discover-homeserver')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('registration-available')));
+      await tester.pumpAndSettle();
+
+      expect(registrationGateway.beginCalls, 1);
+      expect(authenticated?.userId, '@new:matrix.example.org');
+      expect(find.byType(AuthenticationScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'device QR login passes opaque data to the gateway and clears it from UI',
+    (tester) async {
+      final gateway = _FakeAuthenticationGateway();
+      AuthenticatedSession? authenticated;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(
+            gateway: gateway,
+            scanQrCode: () async => 'OPAQUE-DEVICE-LOGIN-PAYLOAD',
+            onAuthenticated: (session) => authenticated = session,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('qr-device-login')));
+      await tester.pumpAndSettle();
+
+      expect(gateway.qrCodeData, 'OPAQUE-DEVICE-LOGIN-PAYLOAD');
+      expect(authenticated?.userId, '@alice:matrix.example.org');
+      expect(find.textContaining('OPAQUE-DEVICE-LOGIN-PAYLOAD'), findsNothing);
+    },
+  );
 
   testWidgets('unexpected errors never expose gateway exception details', (
     tester,

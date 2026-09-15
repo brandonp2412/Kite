@@ -28,6 +28,7 @@ final class SessionDeviceController {
   SessionDeviceController(this._gateway);
 
   final SessionDeviceGateway _gateway;
+  int _accountGeneration = 0;
 
   final devices = signal<List<SessionDevice>>(const <SessionDevice>[]);
   final isLoading = signal(false);
@@ -41,26 +42,55 @@ final class SessionDeviceController {
     return null;
   }
 
-  Future<void> load() async {
-    if (isLoading.value) return;
+  Future<void> load({String? expectedCurrentDeviceId}) async {
+    if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return;
+    final expectedDeviceId = expectedCurrentDeviceId?.trim();
+    if (expectedCurrentDeviceId != null &&
+        (expectedDeviceId!.isEmpty ||
+            expectedDeviceId != expectedCurrentDeviceId)) {
+      errorMessage.value = 'Kite received an invalid current device identity.';
+      return;
+    }
 
+    final generation = _accountGeneration;
     isLoading.value = true;
     errorMessage.value = null;
     try {
       final loaded = await _gateway.loadDevices();
-      if (_isValidDeviceList(loaded) == false) {
-        errorMessage.value = 'Kite received an invalid device list.';
+      if (generation != _accountGeneration) return;
+      if (_isValidDeviceList(
+            loaded,
+            expectedCurrentDeviceId: expectedDeviceId,
+          ) ==
+          false) {
+        errorMessage.value = expectedDeviceId == null
+            ? 'Kite received an invalid device list.'
+            : 'Kite could not confirm the current Matrix device.';
         return;
       }
       devices.value = List<SessionDevice>.unmodifiable(loaded);
     } catch (_) {
-      errorMessage.value = 'Kite could not load your signed-in devices.';
+      if (generation == _accountGeneration) {
+        errorMessage.value = 'Kite could not load your signed-in devices.';
+      }
     } finally {
-      isLoading.value = false;
+      if (generation == _accountGeneration) {
+        isLoading.value = false;
+      }
     }
   }
 
+  bool resetForAccountChange() {
+    _accountGeneration += 1;
+    devices.value = const <SessionDevice>[];
+    isLoading.value = false;
+    signingOutDeviceIds.value = const <String>{};
+    errorMessage.value = null;
+    return true;
+  }
+
   Future<bool> signOutRemoteDevice(String deviceId) async {
+    if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return false;
     final device = _findDevice(deviceId);
     if (device == null) {
       errorMessage.value = 'That signed-in device is no longer available.';
@@ -71,8 +101,7 @@ final class SessionDeviceController {
           'Sign out of this device from Kite account settings instead.';
       return false;
     }
-    if (signingOutDeviceIds.value.contains(deviceId)) return false;
-
+    final generation = _accountGeneration;
     errorMessage.value = null;
     signingOutDeviceIds.value = <String>{
       ...signingOutDeviceIds.value,
@@ -80,6 +109,7 @@ final class SessionDeviceController {
     };
     try {
       await _gateway.signOutDevice(deviceId);
+      if (generation != _accountGeneration) return false;
       devices.value = List<SessionDevice>.unmodifiable(
         devices.value.where(
           (candidate) => candidate.deviceId == deviceId ? false : true,
@@ -87,12 +117,16 @@ final class SessionDeviceController {
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not sign out that device.';
+      if (generation == _accountGeneration) {
+        errorMessage.value = 'Kite could not sign out that device.';
+      }
       return false;
     } finally {
-      final remaining = <String>{...signingOutDeviceIds.value}
-        ..remove(deviceId);
-      signingOutDeviceIds.value = remaining;
+      if (generation == _accountGeneration) {
+        final remaining = <String>{...signingOutDeviceIds.value}
+          ..remove(deviceId);
+        signingOutDeviceIds.value = remaining;
+      }
     }
   }
 
@@ -103,16 +137,25 @@ final class SessionDeviceController {
     return null;
   }
 
-  bool _isValidDeviceList(List<SessionDevice> loaded) {
+  bool _isValidDeviceList(
+    List<SessionDevice> loaded, {
+    String? expectedCurrentDeviceId,
+  }) {
     final ids = <String>{};
-    var currentCount = 0;
+    SessionDevice? currentDevice;
     for (final device in loaded) {
-      if (device.deviceId.trim().isEmpty) return false;
+      final deviceId = device.deviceId.trim();
+      if (deviceId.isEmpty || deviceId != device.deviceId) return false;
       if (ids.add(device.deviceId) == false) return false;
-      if (device.isCurrent) currentCount += 1;
-      if (currentCount > 1) return false;
+      if (device.isCurrent) {
+        if (currentDevice != null) return false;
+        currentDevice = device;
+      }
     }
-    return true;
+    if (loaded.isEmpty) return expectedCurrentDeviceId == null;
+    if (currentDevice == null) return false;
+    return expectedCurrentDeviceId == null ||
+        currentDevice.deviceId == expectedCurrentDeviceId;
   }
 
   void dispose() {

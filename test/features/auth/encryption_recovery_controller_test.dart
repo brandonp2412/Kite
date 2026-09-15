@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
 
@@ -9,10 +11,12 @@ final class _FakeEncryptionRecoveryGateway
     hasUnverifiedSessions: true,
   );
   Object? failure;
+  EncryptionRecoveryStatus? overrideResult;
   String? recoveryKey;
   String? passphrase;
   int createCalls = 0;
   int historicalRecoveryCalls = 0;
+  Completer<EncryptionRecoveryStatus>? deferredStatus;
 
   @override
   Future<EncryptionRecoveryStatus> createEncryptedBackup() async {
@@ -23,13 +27,15 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
     );
-    return current;
+    return overrideResult ?? current;
   }
 
   @override
   Future<EncryptionRecoveryStatus> loadRecoveryStatus() async {
     if (failure case final error?) throw error;
-    return current;
+    final deferred = deferredStatus;
+    if (deferred != null) return deferred.future;
+    return overrideResult ?? current;
   }
 
   @override
@@ -41,7 +47,7 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.complete,
       hasUnverifiedSessions: current.hasUnverifiedSessions,
     );
-    return current;
+    return overrideResult ?? current;
   }
 
   @override
@@ -55,7 +61,7 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
     );
-    return current;
+    return overrideResult ?? current;
   }
 
   @override
@@ -69,7 +75,7 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
     );
-    return current;
+    return overrideResult ?? current;
   }
 }
 
@@ -90,6 +96,39 @@ void main() {
       expect(controller.status.value.toString(), isNot(contains('secret')));
     },
   );
+
+  test('account change reset clears recovery state', () async {
+    final gateway = _FakeEncryptionRecoveryGateway();
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.refresh(), isTrue);
+    expect(controller.status.value, isNotNull);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.status.value, isNull);
+    expect(controller.errorMessage.value, isNull);
+    expect(controller.needsRecoveryAttention, isFalse);
+  });
+
+  test('account reset invalidates an in-flight recovery refresh', () async {
+    final deferred = Completer<EncryptionRecoveryStatus>();
+    final gateway = _FakeEncryptionRecoveryGateway()..deferredStatus = deferred;
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+
+    final refresh = controller.refresh();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isBusy.value, isTrue);
+
+    expect(controller.resetForAccountChange(), isTrue);
+    expect(controller.isBusy.value, isFalse);
+    deferred.complete(gateway.current);
+    expect(await refresh, isFalse);
+
+    expect(controller.status.value, isNull);
+    expect(controller.errorMessage.value, isNull);
+  });
 
   test('backup creation is delegated to the Matrix SDK boundary', () async {
     final gateway = _FakeEncryptionRecoveryGateway();
@@ -143,6 +182,7 @@ void main() {
     final gateway = _FakeEncryptionRecoveryGateway();
     final controller = EncryptionRecoveryController(gateway);
     addTearDown(controller.dispose);
+    expect(await controller.refresh(), isTrue);
 
     expect(await controller.recoverHistoricalMessages(), isTrue);
     expect(gateway.historicalRecoveryCalls, 1);
@@ -151,6 +191,56 @@ void main() {
       HistoricalRecoveryState.complete,
     );
   });
+
+  test('historical recovery requires SDK-advertised availability', () async {
+    final gateway = _FakeEncryptionRecoveryGateway()
+      ..current = const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.ready,
+        historicalRecoveryState: HistoricalRecoveryState.idle,
+        hasUnverifiedSessions: false,
+      );
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+    expect(await controller.refresh(), isTrue);
+
+    expect(await controller.recoverHistoricalMessages(), isFalse);
+    expect(gateway.historicalRecoveryCalls, 0);
+    expect(
+      controller.errorMessage.value,
+      'Encrypted history recovery is not available.',
+    );
+  });
+
+  test(
+    'successful operations reject contradictory SDK recovery state',
+    () async {
+      final gateway = _FakeEncryptionRecoveryGateway();
+      final controller = EncryptionRecoveryController(gateway);
+      addTearDown(controller.dispose);
+      expect(await controller.refresh(), isTrue);
+      final previous = controller.status.value;
+
+      gateway.overrideResult = const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.needsRecovery,
+        historicalRecoveryState: HistoricalRecoveryState.available,
+        hasUnverifiedSessions: false,
+      );
+      expect(await controller.createEncryptedBackup(), isFalse);
+      expect(controller.status.value, same(previous));
+      expect(
+        controller.errorMessage.value,
+        'Kite received invalid encryption recovery state.',
+      );
+
+      gateway.overrideResult = const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.ready,
+        historicalRecoveryState: HistoricalRecoveryState.available,
+        hasUnverifiedSessions: false,
+      );
+      expect(await controller.recoverHistoricalMessages(), isFalse);
+      expect(controller.status.value, same(previous));
+    },
+  );
 
   test('gateway failures expose only fixed public errors', () async {
     final gateway = _FakeEncryptionRecoveryGateway()

@@ -24,10 +24,21 @@ class AppLockGate extends StatefulWidget {
 }
 
 class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
+  late final void Function() _disposePrivacyEffect;
+  bool? _lastNotificationPrivacy;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _disposePrivacyEffect = effect(() {
+      final hidden = widget.controller.shouldHideNotificationContents;
+      final previous = _lastNotificationPrivacy;
+      _lastNotificationPrivacy = hidden;
+      if (previous != null && previous != hidden) {
+        _refreshNotificationPrivacy();
+      }
+    });
     if (widget.loadOnInit) {
       unawaited(widget.controller.load());
     }
@@ -35,6 +46,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _disposePrivacyEffect();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -48,11 +60,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
       return;
     }
 
-    final wasPrivate = widget.controller.shouldHideNotificationContents;
     widget.controller.lock();
-    if (widget.controller.shouldHideNotificationContents != wasPrivate) {
-      _refreshNotificationPrivacy();
-    }
   }
 
   @override
@@ -73,19 +81,12 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
         }
 
         if (locked) {
-          return AppUnlockScreen(
-            controller: widget.controller,
-            onUnlocked: _handleUnlocked,
-          );
+          return AppUnlockScreen(controller: widget.controller);
         }
 
         return widget.child;
       },
     );
-  }
-
-  void _handleUnlocked() {
-    _refreshNotificationPrivacy();
   }
 
   void _refreshNotificationPrivacy() {

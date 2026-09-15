@@ -14,16 +14,25 @@ final class DeviceVerificationSession {
     this.qrCodeData,
     List<String> sasEmoji = const <String>[],
   }) : sasEmoji = List<String>.unmodifiable(sasEmoji) {
-    if (transactionId.trim().isEmpty) {
-      throw ArgumentError.value(transactionId, 'transactionId');
+    final normalizedTransactionId = transactionId.trim();
+    if (normalizedTransactionId.isEmpty ||
+        normalizedTransactionId != transactionId ||
+        transactionId.contains(RegExp(r'\s'))) {
+      throw ArgumentError('Verification transaction ID is invalid.');
     }
     if (qrCodeData != null && method != DeviceVerificationMethod.qr) {
       throw ArgumentError('QR data can only be attached to QR verification.');
+    }
+    if (qrCodeData != null && qrCodeData!.trim().isEmpty) {
+      throw ArgumentError('Verification QR data cannot be empty.');
     }
     if (sasEmoji.isNotEmpty && method != DeviceVerificationMethod.sas) {
       throw ArgumentError(
         'SAS emoji can only be attached to SAS verification.',
       );
+    }
+    if (sasEmoji.any((emoji) => emoji.trim().isEmpty)) {
+      throw ArgumentError('Verification emoji cannot be empty.');
     }
   }
 
@@ -81,6 +90,7 @@ final class DeviceVerificationController {
   DeviceVerificationController(this._gateway);
 
   final DeviceVerificationGateway _gateway;
+  int _accountGeneration = 0;
 
   final trustState = signal(CrossSigningTrustState.unknown);
   final session = signal<DeviceVerificationSession?>(null);
@@ -90,16 +100,33 @@ final class DeviceVerificationController {
   bool get requiresVerification =>
       trustState.value != CrossSigningTrustState.verified;
 
+  bool resetForAccountChange() {
+    _accountGeneration += 1;
+    trustState.value = CrossSigningTrustState.unknown;
+    session.value = null;
+    isBusy.value = false;
+    errorMessage.value = null;
+    return true;
+  }
+
   Future<void> loadTrust() async {
     if (isBusy.value) return;
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
-      trustState.value = await _gateway.loadCrossSigningTrust();
+      final trust = await _gateway.loadCrossSigningTrust();
+      if (generation != _accountGeneration) return;
+      trustState.value = trust;
     } catch (_) {
-      errorMessage.value = 'Kite could not read device verification status.';
+      if (generation == _accountGeneration) {
+        trustState.value = CrossSigningTrustState.unknown;
+        errorMessage.value = 'Kite could not read device verification status.';
+      }
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -113,7 +140,7 @@ final class DeviceVerificationController {
 
   Future<bool> submitScannedQrCode(String qrCodeData) async {
     if (isBusy.value) return false;
-    if (qrCodeData.isEmpty) {
+    if (qrCodeData.trim().isEmpty) {
       errorMessage.value = 'Scan a valid verification QR code.';
       return false;
     }
@@ -127,13 +154,16 @@ final class DeviceVerificationController {
 
   Future<bool> confirmQrVerification() {
     final current = session.value;
-    if (current == null || current.method != DeviceVerificationMethod.qr) {
+    if (current == null ||
+        current.method != DeviceVerificationMethod.qr ||
+        current.isTerminal) {
       errorMessage.value = 'Start QR verification before confirming it.';
       return Future<bool>.value(false);
     }
     return _runSessionAction(
       () => _gateway.confirmQrVerification(current.transactionId),
       expectedMethod: DeviceVerificationMethod.qr,
+      expectedTransactionId: current.transactionId,
       failureMessage: 'Kite could not confirm QR verification.',
     );
   }
@@ -148,7 +178,9 @@ final class DeviceVerificationController {
 
   Future<bool> confirmSasVerification() {
     final current = session.value;
-    if (current == null || current.method != DeviceVerificationMethod.sas) {
+    if (current == null ||
+        current.method != DeviceVerificationMethod.sas ||
+        current.isTerminal) {
       errorMessage.value = 'Start emoji verification before confirming it.';
       return Future<bool>.value(false);
     }
@@ -159,6 +191,7 @@ final class DeviceVerificationController {
     return _runSessionAction(
       () => _gateway.confirmSasVerification(current.transactionId),
       expectedMethod: DeviceVerificationMethod.sas,
+      expectedTransactionId: current.transactionId,
       failureMessage: 'Kite could not confirm emoji verification.',
     );
   }
@@ -167,10 +200,12 @@ final class DeviceVerificationController {
     final current = session.value;
     if (current == null || current.isTerminal || isBusy.value) return false;
 
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
       await _gateway.cancelVerification(current.transactionId);
+      if (generation != _accountGeneration) return false;
       session.value = DeviceVerificationSession(
         transactionId: current.transactionId,
         method: current.method,
@@ -178,38 +213,64 @@ final class DeviceVerificationController {
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not cancel device verification.';
+      if (generation == _accountGeneration) {
+        errorMessage.value = 'Kite could not cancel device verification.';
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 
   Future<bool> _runSessionAction(
     Future<DeviceVerificationSession> Function() action, {
     required DeviceVerificationMethod expectedMethod,
+    String? expectedTransactionId,
     required String failureMessage,
   }) async {
     if (isBusy.value) return false;
 
+    final generation = _accountGeneration;
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final next = await action();
-      if (next.method != expectedMethod) {
+      if (generation != _accountGeneration) return false;
+      if (next.method != expectedMethod ||
+          (expectedTransactionId != null &&
+              next.transactionId != expectedTransactionId)) {
         errorMessage.value = 'Kite received an invalid verification state.';
         return false;
       }
-      session.value = next;
       if (next.stage == DeviceVerificationStage.verified) {
-        trustState.value = await _gateway.loadCrossSigningTrust();
+        final trust = await _gateway.loadCrossSigningTrust();
+        if (generation != _accountGeneration) return false;
+        trustState.value = trust;
+        if (trust != CrossSigningTrustState.verified) {
+          errorMessage.value =
+              'Kite could not confirm cross-signing trust for this device.';
+          return false;
+        }
       }
+      session.value = next.isTerminal
+          ? DeviceVerificationSession(
+              transactionId: next.transactionId,
+              method: next.method,
+              stage: next.stage,
+            )
+          : next;
       return true;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (generation == _accountGeneration) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
     }
   }
 

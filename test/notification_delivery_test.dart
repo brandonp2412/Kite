@@ -82,6 +82,31 @@ void main() {
     },
   );
 
+  test('same source id stays isolated across accounts', () async {
+    final delivery = FakeNotificationDeliveryPort();
+    final coordinator = NotificationDeliveryCoordinator(
+      privacy: FakeNotificationPrivacyPort(),
+      delivery: delivery,
+    );
+    final work = notification(id: 'same', accountId: 'work');
+    final personal = notification(id: 'same', accountId: 'personal');
+
+    await coordinator.upsert(notification: work, content: content('work'));
+    await coordinator.upsert(
+      notification: personal,
+      content: content('personal'),
+    );
+
+    expect(work.routingId, isNot(personal.routingId));
+    expect(coordinator.activePresentations, hasLength(2));
+    expect(await coordinator.cancel(work.routingId), isTrue);
+    expect(
+      coordinator.activePresentations.single.notification.destination.accountId,
+      'personal',
+    );
+    expect(delivery.cancelledIds, <String>[work.routingId]);
+  });
+
   test(
     'privacy refresh reissues active notifications without leaking content',
     () async {
@@ -118,6 +143,101 @@ void main() {
   );
 
   test(
+    'failed private refresh cancels stale sensitive platform content',
+    () async {
+      final privacy = FakeNotificationPrivacyPort();
+      final delivery = FakeNotificationDeliveryPort();
+      final coordinator = NotificationDeliveryCoordinator(
+        privacy: privacy,
+        delivery: delivery,
+      );
+      await coordinator.upsert(
+        notification: notification(id: 'private'),
+        content: const KiteNotificationContent(
+          title: 'Alice',
+          body: 'Sensitive launch details',
+        ),
+      );
+      privacy.hideNotificationContents = true;
+      delivery.failNextWith = StateError('replacement failed');
+
+      await expectLater(coordinator.refreshPrivacy(), throwsStateError);
+
+      expect(delivery.cancelledIds, <String>[
+        notification(id: 'private').routingId,
+      ]);
+      expect(coordinator.activePresentations, isEmpty);
+      expect(delivery.shown.last.body, 'Sensitive launch details');
+    },
+  );
+
+  test(
+    'summary creation failure rolls back the new active notification',
+    () async {
+      final delivery = FakeNotificationDeliveryPort();
+      final coordinator = NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: delivery,
+      );
+
+      await coordinator.upsert(
+        notification: notification(id: 'one'),
+        content: content('one'),
+      );
+      delivery.failNextSummaryWith = StateError('summary unavailable');
+
+      await expectLater(
+        coordinator.upsert(
+          notification: notification(id: 'two'),
+          content: content('two'),
+        ),
+        throwsStateError,
+      );
+
+      expect(
+        coordinator.activePresentations.map((entry) => entry.notification.id),
+        <String>['one'],
+      );
+      expect(delivery.cancelledIds, <String>[
+        notification(id: 'two').routingId,
+      ]);
+    },
+  );
+
+  test(
+    'failed summary cancellation remains tracked for a later repair',
+    () async {
+      final delivery = FakeNotificationDeliveryPort();
+      final coordinator = NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: delivery,
+      );
+
+      await coordinator.upsert(
+        notification: notification(id: 'one'),
+        content: content('one'),
+      );
+      await coordinator.upsert(
+        notification: notification(id: 'two'),
+        content: content('two'),
+      );
+      final groupKey = notification(id: 'one').groupKey;
+      delivery.failNextCancelSummaryWith = StateError('summary cancel failed');
+
+      await expectLater(
+        coordinator.cancel(notification(id: 'one').routingId),
+        throwsStateError,
+      );
+      expect(coordinator.activePresentations, hasLength(1));
+      expect(delivery.cancelledSummaryGroupKeys, isEmpty);
+
+      await coordinator.refreshPrivacy();
+
+      expect(delivery.cancelledSummaryGroupKeys, <String>[groupKey]);
+    },
+  );
+
+  test(
     'cancel collapses summaries and failed delivery does not become active',
     () async {
       final delivery = FakeNotificationDeliveryPort();
@@ -136,8 +256,13 @@ void main() {
       );
       final groupKey = notification(id: 'one').groupKey;
 
-      expect(await coordinator.cancel('one'), isTrue);
-      expect(delivery.cancelledIds, <String>['one']);
+      expect(
+        await coordinator.cancel(notification(id: 'one').routingId),
+        isTrue,
+      );
+      expect(delivery.cancelledIds, <String>[
+        notification(id: 'one').routingId,
+      ]);
       expect(delivery.cancelledSummaryGroupKeys, <String>[groupKey]);
       expect(coordinator.activePresentations, hasLength(1));
 
@@ -153,7 +278,12 @@ void main() {
         coordinator.activePresentations.map((entry) => entry.notification.id),
         <String>['two'],
       );
-      expect(await coordinator.cancel('missing'), isFalse);
+      expect(
+        await coordinator.cancel(
+          KiteNotification.routingIdFor('work', 'missing'),
+        ),
+        isFalse,
+      );
     },
   );
 }

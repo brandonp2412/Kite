@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -17,6 +18,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
 
   @override
   void dispose() {
+    _pinController.clear();
     _pinController.dispose();
     super.dispose();
   }
@@ -60,6 +62,10 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                         autocorrect: false,
                         keyboardType: TextInputType.number,
                         textInputAction: TextInputAction.done,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(64),
+                        ],
                         autofillHints: const <String>[],
                         onSubmitted: busy ? null : (_) => _unlockWithPin(),
                         decoration: const InputDecoration(labelText: 'PIN'),
@@ -109,11 +115,9 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
   }
 
   Future<void> _unlockWithPin() async {
-    if (!await widget.controller.unlockWithPin(_pinController.text) ||
-        !mounted) {
-      return;
-    }
+    final pin = _pinController.text;
     _pinController.clear();
+    if (!await widget.controller.unlockWithPin(pin) || !mounted) return;
     widget.onUnlocked?.call();
   }
 

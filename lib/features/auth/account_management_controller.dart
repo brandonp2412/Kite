@@ -71,7 +71,7 @@ final class AccountManagementController {
       accounts.value.isNotEmpty && activeAccount == null;
 
   Future<bool> load() async {
-    if (isLoading.value) return false;
+    if (isLoading.value || busyAccountIds.value.isNotEmpty) return false;
 
     isLoading.value = true;
     errorMessage.value = null;
@@ -155,7 +155,7 @@ final class AccountManagementController {
   }
 
   bool _beginAccountOperation(String accountId) {
-    if (isLoading.value || busyAccountIds.value.contains(accountId)) {
+    if (isLoading.value || busyAccountIds.value.isNotEmpty) {
       return false;
     }
     busyAccountIds.value = Set<String>.unmodifiable(<String>{
@@ -176,9 +176,12 @@ final class AccountManagementController {
     for (final account in loaded) {
       if (account.accountId.trim().isEmpty ||
           account.accountId != account.accountId.trim() ||
+          account.accountId.contains(RegExp(r'\s')) ||
           !accountIds.add(account.accountId) ||
           !_isValidUserId(account.session.userId) ||
-          account.session.deviceId.trim().isEmpty) {
+          account.session.deviceId.trim().isEmpty ||
+          account.session.deviceId != account.session.deviceId.trim() ||
+          !_isValidAvatarUri(account.avatarUri)) {
         return false;
       }
       if (account.isActive) activeCount += 1;
@@ -187,11 +190,24 @@ final class AccountManagementController {
     return true;
   }
 
+  bool _isValidAvatarUri(Uri? avatarUri) {
+    if (avatarUri == null) return true;
+    return avatarUri.scheme == 'mxc' &&
+        avatarUri.host.isNotEmpty &&
+        avatarUri.userInfo.isEmpty &&
+        !avatarUri.hasQuery &&
+        !avatarUri.hasFragment &&
+        avatarUri.pathSegments.length == 1 &&
+        avatarUri.pathSegments.single.isNotEmpty;
+  }
+
   bool _isValidUserId(String userId) {
     final trimmed = userId.trim();
+    final separator = trimmed.indexOf(':');
     return trimmed == userId &&
         trimmed.startsWith('@') &&
-        trimmed.contains(':') &&
+        separator > 1 &&
+        separator < trimmed.length - 1 &&
         !trimmed.contains(RegExp(r'\s'));
   }
 

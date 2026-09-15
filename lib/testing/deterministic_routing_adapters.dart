@@ -4,10 +4,11 @@ import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 
 final class FakeNotificationRepository
-    implements NotificationRepository, NotificationRegistrationPort {
+    implements MutableNotificationRepository, NotificationRegistrationPort {
   FakeNotificationRepository([Iterable<KiteNotification> initial = const []])
     : _notifications = <String, KiteNotification>{
-        for (final notification in initial) notification.id: notification,
+        for (final notification in initial)
+          notification.routingId: notification,
       };
 
   final Map<String, KiteNotification> _notifications;
@@ -19,7 +20,12 @@ final class FakeNotificationRepository
 
   @override
   void upsertNotification(KiteNotification notification) {
-    _notifications[notification.id] = notification;
+    upsert(notification);
+  }
+
+  @override
+  void upsert(KiteNotification notification) {
+    _notifications[notification.routingId] = notification;
   }
 
   @override
@@ -30,12 +36,12 @@ final class FakeNotificationRepository
   }
 
   @override
-  KiteNotification? notification(String id) => _notifications[id];
+  KiteNotification? notification(String routingId) => _notifications[routingId];
 
   @override
-  void remove(String id) {
-    if (_notifications.remove(id) != null) {
-      removedIds.add(id);
+  void remove(String routingId) {
+    if (_notifications.remove(routingId) != null) {
+      removedIds.add(routingId);
     }
   }
 }
@@ -44,12 +50,14 @@ final class FakeNotificationCancellationPort
     implements NotificationCancellationPort {
   final List<String> cancelledIds = <String>[];
   Object? failNextWith;
+  bool succeeds = true;
 
   @override
   Future<bool> cancel(String notificationId) async {
     final failure = failNextWith;
     failNextWith = null;
     if (failure != null) throw failure;
+    if (!succeeds) return false;
     cancelledIds.add(notificationId);
     return true;
   }
@@ -69,6 +77,8 @@ final class FakeNotificationDeliveryPort implements NotificationDeliveryPort {
   final List<String> cancelledIds = <String>[];
   final List<String> cancelledSummaryGroupKeys = <String>[];
   Object? failNextWith;
+  Object? failNextSummaryWith;
+  Object? failNextCancelSummaryWith;
 
   @override
   Future<void> show(KiteNotificationPresentation presentation) async {
@@ -84,12 +94,18 @@ final class FakeNotificationDeliveryPort implements NotificationDeliveryPort {
 
   @override
   Future<void> showSummary(KiteNotificationSummary summary) async {
+    final summaryFailure = failNextSummaryWith;
+    failNextSummaryWith = null;
+    if (summaryFailure != null) throw summaryFailure;
     _throwIfNeeded();
     summaries.add(summary);
   }
 
   @override
   Future<void> cancelSummary(String groupKey) async {
+    final summaryFailure = failNextCancelSummaryWith;
+    failNextCancelSummaryWith = null;
+    if (summaryFailure != null) throw summaryFailure;
     _throwIfNeeded();
     cancelledSummaryGroupKeys.add(groupKey);
   }
@@ -106,22 +122,31 @@ final class FakeAccountActivationPort implements AccountActivationPort {
 
   String? _activeAccountId;
   final List<String> activations = <String>[];
+  bool activates = true;
+  Object? failNextWith;
 
   @override
   String? get activeAccountId => _activeAccountId;
 
   @override
   Future<void> activateAccount(String accountId) async {
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
     activations.add(accountId);
-    _activeAccountId = accountId;
+    if (activates) _activeAccountId = accountId;
   }
 }
 
 final class FakeAppNavigationPort implements AppNavigationPort {
   final List<AppDestination> opened = <AppDestination>[];
+  Object? failNextWith;
 
   @override
   Future<void> open(AppDestination destination) async {
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
     opened.add(destination);
   }
 }

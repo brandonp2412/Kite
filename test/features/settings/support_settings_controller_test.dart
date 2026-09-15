@@ -12,6 +12,11 @@ final class _FakeSupportSettingsGateway implements SupportSettingsGateway {
     buildNumber: '45',
     licenseCount: 12,
   );
+  SanitizedDiagnosticBundle diagnostics = SanitizedDiagnosticBundle(
+    generatedAt: DateTime.utc(2026, 9, 15, 2),
+    structuredEventCount: 9,
+    crashReportCount: 2,
+  );
   Object? failure;
   int mediaClearCalls = 0;
   int presentationClearCalls = 0;
@@ -56,11 +61,7 @@ final class _FakeSupportSettingsGateway implements SupportSettingsGateway {
   Future<SanitizedDiagnosticBundle> prepareSanitizedDiagnostics() async {
     if (failure case final error?) throw error;
     diagnosticPrepareCalls += 1;
-    return SanitizedDiagnosticBundle(
-      generatedAt: DateTime.utc(2026, 9, 15, 2),
-      structuredEventCount: 9,
-      crashReportCount: 2,
-    );
+    return diagnostics;
   }
 
   @override
@@ -126,6 +127,45 @@ void main() {
     expect(gateway.submittedReport?.diagnostics.structuredEventCount, 9);
     expect(gateway.submittedReport?.diagnostics.crashReportCount, 2);
     expect(controller.reportSubmitted.value, isTrue);
+  });
+
+  test('invalid refreshed storage never replaces the known snapshot', () async {
+    final gateway = _FakeSupportSettingsGateway();
+    final controller = SupportSettingsController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+    final knownStorage = controller.storage.value;
+
+    gateway.storage = const StorageUsageSnapshot(
+      mediaCacheBytes: -1,
+      presentationCacheBytes: 0,
+      diagnosticLogBytes: 100,
+    );
+    expect(await controller.clearPresentationCache(), isFalse);
+
+    expect(controller.storage.value, same(knownStorage));
+    expect(
+      controller.errorMessage.value,
+      'Kite received invalid support settings data.',
+    );
+  });
+
+  test('invalid diagnostic metadata is rejected before submission', () async {
+    final gateway = _FakeSupportSettingsGateway()
+      ..diagnostics = SanitizedDiagnosticBundle(
+        generatedAt: DateTime.utc(2026, 9, 15, 2),
+        structuredEventCount: -1,
+        crashReportCount: 2,
+      );
+    final controller = SupportSettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.submitProblemReport('Timeline froze'), isFalse);
+    expect(gateway.submittedReport, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite received invalid diagnostic metadata.',
+    );
   });
 
   test('blank reports are rejected before diagnostics are prepared', () async {

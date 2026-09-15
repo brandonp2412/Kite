@@ -1,0 +1,353 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/auth/device_verification_controller.dart';
+import 'package:kite/features/auth/encryption_recovery_controller.dart';
+import 'package:kite/features/auth/session_device_controller.dart';
+import 'package:signals/signals_flutter.dart';
+
+class PrivacySecuritySettingsScreen extends StatefulWidget {
+  const PrivacySecuritySettingsScreen({
+    required this.verificationController,
+    required this.recoveryController,
+    required this.sessionDeviceController,
+    required this.onOpenVerification,
+    required this.onOpenRecovery,
+    required this.onOpenSessions,
+    this.onOpenUserControls,
+    this.onOpenAppLock,
+    this.appLockEnabled,
+    this.loadOnInit = true,
+    super.key,
+  });
+
+  final DeviceVerificationController verificationController;
+  final EncryptionRecoveryController recoveryController;
+  final SessionDeviceController sessionDeviceController;
+  final VoidCallback onOpenVerification;
+  final VoidCallback onOpenRecovery;
+  final VoidCallback onOpenSessions;
+  final VoidCallback? onOpenUserControls;
+  final VoidCallback? onOpenAppLock;
+  final bool? appLockEnabled;
+  final bool loadOnInit;
+
+  @override
+  State<PrivacySecuritySettingsScreen> createState() =>
+      _PrivacySecuritySettingsScreenState();
+}
+
+class _PrivacySecuritySettingsScreenState
+    extends State<PrivacySecuritySettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loadOnInit) {
+      unawaited(widget.verificationController.loadTrust());
+      unawaited(widget.recoveryController.refresh());
+      unawaited(widget.sessionDeviceController.load());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Privacy & security')),
+      body: SafeArea(
+        top: false,
+        child: SignalBuilder(
+          builder: (context) {
+            final trust = widget.verificationController.trustState.value;
+            final recovery = widget.recoveryController.status.value;
+            final devices = widget.sessionDeviceController.devices.value;
+            final loading =
+                widget.verificationController.isBusy.value ||
+                widget.recoveryController.isBusy.value ||
+                widget.sessionDeviceController.isLoading.value;
+            final unverifiedDevices = devices
+                .where(
+                  (device) =>
+                      device.verification ==
+                      SessionDeviceVerification.unverified,
+                )
+                .length;
+            final unknownDevices = devices
+                .where(
+                  (device) =>
+                      device.verification == SessionDeviceVerification.unknown,
+                )
+                .length;
+            final error =
+                widget.verificationController.errorMessage.value ??
+                widget.recoveryController.errorMessage.value ??
+                widget.sessionDeviceController.errorMessage.value;
+
+            return ListView(
+              key: const Key('privacy-security-list'),
+              padding: const EdgeInsets.only(bottom: KiteSpacing.xl),
+              children: <Widget>[
+                SizedBox(
+                  key: const Key('privacy-security-loading-slot'),
+                  height: 4,
+                  child: loading ? const LinearProgressIndicator() : null,
+                ),
+                _SecurityStatusCard(
+                  loading: loading,
+                  statusUnavailable:
+                      error != null ||
+                      trust == CrossSigningTrustState.unknown ||
+                      recovery == null ||
+                      unknownDevices > 0,
+                  verificationNeedsAttention:
+                      trust == CrossSigningTrustState.unverified ||
+                      unverifiedDevices > 0,
+                  recoveryNeedsAttention:
+                      recovery?.needsRecoveryAttention ?? false,
+                  onOpenVerification: widget.onOpenVerification,
+                  onOpenRecovery: widget.onOpenRecovery,
+                ),
+                const _SectionTitle(label: 'Encryption'),
+                ListTile(
+                  key: const Key('privacy-security-verification'),
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: const Text('Device verification'),
+                  subtitle: Text(_verificationSubtitle(trust)),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: widget.onOpenVerification,
+                ),
+                ListTile(
+                  key: const Key('privacy-security-recovery'),
+                  leading: const Icon(Icons.key_outlined),
+                  title: const Text('Encryption recovery'),
+                  subtitle: Text(_recoverySubtitle(recovery)),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: widget.onOpenRecovery,
+                ),
+                const Divider(height: 1),
+                const _SectionTitle(label: 'Sessions'),
+                ListTile(
+                  key: const Key('privacy-security-sessions'),
+                  leading: const Icon(Icons.devices_other_outlined),
+                  title: const Text('Signed-in devices'),
+                  subtitle: Text(
+                    devices.isEmpty
+                        ? 'No device information loaded'
+                        : unverifiedDevices > 0
+                        ? '${devices.length} devices · $unverifiedDevices unverified'
+                        : unknownDevices > 0
+                        ? '${devices.length} devices · $unknownDevices status unknown'
+                        : '${devices.length} devices · all verified',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: widget.onOpenSessions,
+                ),
+                if (widget.onOpenUserControls != null)
+                  ListTile(
+                    key: const Key('privacy-security-user-controls'),
+                    leading: const Icon(Icons.person_off_outlined),
+                    title: const Text('Ignored & blocked users'),
+                    subtitle: const Text(
+                      'Review users you have hidden or blocked.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: widget.onOpenUserControls,
+                  ),
+                if (widget.onOpenAppLock != null) ...<Widget>[
+                  const Divider(height: 1),
+                  const _SectionTitle(label: 'App protection'),
+                  ListTile(
+                    key: const Key('privacy-security-app-lock'),
+                    leading: const Icon(Icons.lock_outline_rounded),
+                    title: const Text('App lock'),
+                    subtitle: Text(
+                      widget.appLockEnabled == null
+                          ? 'PIN and biometric protection'
+                          : widget.appLockEnabled!
+                          ? 'Enabled'
+                          : 'Off',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: widget.onOpenAppLock,
+                  ),
+                ],
+                SizedBox(
+                  key: const Key('privacy-security-status-slot'),
+                  height: 64,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          error ?? '',
+                          style: KiteTypography.metadata.copyWith(
+                            color: error == null
+                                ? null
+                                : Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SecurityStatusCard extends StatelessWidget {
+  const _SecurityStatusCard({
+    required this.loading,
+    required this.statusUnavailable,
+    required this.verificationNeedsAttention,
+    required this.recoveryNeedsAttention,
+    required this.onOpenVerification,
+    required this.onOpenRecovery,
+  });
+
+  final bool loading;
+  final bool statusUnavailable;
+  final bool verificationNeedsAttention;
+  final bool recoveryNeedsAttention;
+  final VoidCallback onOpenVerification;
+  final VoidCallback onOpenRecovery;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final needsAttention = verificationNeedsAttention || recoveryNeedsAttention;
+    final title = loading
+        ? 'Checking account security…'
+        : statusUnavailable
+        ? 'Security status incomplete'
+        : needsAttention
+        ? 'Security action recommended'
+        : 'Security looks good';
+    final detail = loading
+        ? 'Verifying cross-signing, recovery, and signed-in devices.'
+        : statusUnavailable
+        ? 'Some verification, recovery, or session status is unavailable.'
+        : _detail();
+
+    return SizedBox(
+      key: const Key('privacy-security-alert-slot'),
+      height: 132,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.md,
+          KiteSpacing.md,
+          KiteSpacing.md,
+          0,
+        ),
+        child: Material(
+          color: needsAttention || statusUnavailable
+              ? colors.tertiaryContainer
+              : colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(KiteRadii.md),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              KiteSpacing.md,
+              KiteSpacing.sm,
+              KiteSpacing.sm,
+              KiteSpacing.xs,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, style: KiteTypography.title),
+                const SizedBox(height: KiteSpacing.xs),
+                Expanded(
+                  child: Text(
+                    detail,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: KiteTypography.metadata.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                if (!loading && needsAttention)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      if (verificationNeedsAttention)
+                        TextButton(
+                          key: const Key('security-review-verification'),
+                          onPressed: onOpenVerification,
+                          child: const Text('Verify devices'),
+                        ),
+                      if (recoveryNeedsAttention)
+                        TextButton(
+                          key: const Key('security-review-recovery'),
+                          onPressed: onOpenRecovery,
+                          child: const Text('Review recovery'),
+                        ),
+                    ],
+                  )
+                else
+                  const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _detail() {
+    if (verificationNeedsAttention && recoveryNeedsAttention) {
+      return 'Verify untrusted sessions and review encrypted-backup recovery.';
+    }
+    if (verificationNeedsAttention) {
+      return 'One or more sessions still need Matrix cross-signing verification.';
+    }
+    if (recoveryNeedsAttention) {
+      return 'Encrypted-backup recovery needs attention before history is fully recoverable.';
+    }
+    return 'No verification or encrypted-backup recovery action is currently required.';
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.md,
+        KiteSpacing.lg,
+        KiteSpacing.md,
+        KiteSpacing.sm,
+      ),
+      child: Text(label, style: KiteTypography.title),
+    );
+  }
+}
+
+String _verificationSubtitle(CrossSigningTrustState trust) => switch (trust) {
+  CrossSigningTrustState.verified => 'Verified with cross-signing',
+  CrossSigningTrustState.unverified => 'Verification required',
+  CrossSigningTrustState.unknown => 'Verification status unknown',
+};
+
+String _recoverySubtitle(EncryptionRecoveryStatus? status) {
+  if (status == null) return 'Recovery status unknown';
+  if (status.needsRecoveryAttention) return 'Recovery needs attention';
+  return switch (status.backupState) {
+    EncryptedBackupState.ready => 'Encrypted backup ready',
+    EncryptedBackupState.unavailable => 'Encrypted backup unavailable',
+    EncryptedBackupState.needsRecovery => 'Recovery required',
+    EncryptedBackupState.unknown => 'Recovery status unknown',
+  };
+}

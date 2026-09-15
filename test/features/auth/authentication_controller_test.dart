@@ -1,0 +1,208 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/auth/authentication_controller.dart';
+import 'package:kite/features/auth/authentication_gateway.dart';
+
+final class _AuthenticationGateway implements AuthenticationGateway {
+  AuthenticatedSession? nextSession;
+  HomeserverLoginMethods? discoveryResult;
+  Object? discoveryFailure;
+  Object? failure;
+  String? qrCodeData;
+
+  @override
+  Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async {
+    if (discoveryFailure case final error?) throw error;
+    return discoveryResult ??
+        HomeserverLoginMethods(
+          homeserver: homeserver,
+          methods: const <AuthenticationMethod>{
+            AuthenticationMethod.password,
+            AuthenticationMethod.oidc,
+            AuthenticationMethod.sso,
+          },
+        );
+  }
+
+  AuthenticatedSession _session(HomeserverAddress homeserver) {
+    return nextSession ??
+        AuthenticatedSession(
+          userId: '@alice:${homeserver.uri.host}',
+          deviceId: 'DEVICE',
+          homeserver: homeserver,
+        );
+  }
+
+  @override
+  Future<AuthenticatedSession> loginWithOidc({
+    required HomeserverAddress homeserver,
+  }) async => _session(homeserver);
+
+  @override
+  Future<AuthenticatedSession> loginWithPassword({
+    required HomeserverAddress homeserver,
+    required String username,
+    required String password,
+  }) async {
+    if (failure case final error?) throw error;
+    return _session(homeserver);
+  }
+
+  @override
+  Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) async {
+    this.qrCodeData = qrCodeData;
+    return _session(HomeserverAddress.parse('matrix.example.org'));
+  }
+
+  @override
+  Future<AuthenticatedSession> loginWithSso({
+    required HomeserverAddress homeserver,
+  }) async => _session(homeserver);
+}
+
+void main() {
+  test('failed rediscovery clears stale homeserver login methods', () async {
+    final gateway = _AuthenticationGateway();
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.discover('matrix.example.org');
+    expect(controller.loginMethods.value, isNotNull);
+
+    gateway.discoveryFailure = StateError('access_token=secret');
+    await controller.discover('other.example.org');
+
+    expect(controller.loginMethods.value, isNull);
+    expect(controller.session.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not connect to that homeserver.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+  });
+
+  test('discovery accepts the SDK-resolved well-known homeserver', () async {
+    final resolvedHomeserver = HomeserverAddress.parse(
+      'matrix-client.example.org',
+    );
+    final gateway = _AuthenticationGateway()
+      ..discoveryResult = HomeserverLoginMethods(
+        homeserver: resolvedHomeserver,
+        methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+      );
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.discover('example.org');
+
+    expect(
+      controller.loginMethods.value?.homeserver.uri,
+      resolvedHomeserver.uri,
+    );
+    expect(controller.errorMessage.value, isNull);
+
+    await controller.loginWithPassword(username: 'alice', password: 'secret');
+    expect(controller.session.value?.homeserver.uri, resolvedHomeserver.uri);
+  });
+
+  test(
+    'password authentication rejects a session for another homeserver',
+    () async {
+      final gateway = _AuthenticationGateway();
+      final controller = AuthenticationController(gateway);
+      addTearDown(controller.dispose);
+      await controller.discover('matrix.example.org');
+      gateway.nextSession = AuthenticatedSession(
+        userId: '@alice:other.example.org',
+        deviceId: 'DEVICE',
+        homeserver: HomeserverAddress.parse('other.example.org'),
+      );
+
+      await controller.loginWithPassword(username: 'alice', password: 'secret');
+
+      expect(controller.session.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Kite received an invalid authentication session.',
+      );
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+    },
+  );
+
+  test(
+    'failed reauthentication cannot reuse a previously successful session',
+    () async {
+      final gateway = _AuthenticationGateway();
+      final controller = AuthenticationController(gateway);
+      addTearDown(controller.dispose);
+      await controller.discover('matrix.example.org');
+
+      await controller.loginWithPassword(username: 'alice', password: 'first');
+      expect(controller.session.value, isNotNull);
+
+      gateway.failure = StateError('access_token=secret');
+      await controller.loginWithPassword(username: 'alice', password: 'second');
+
+      expect(controller.session.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Sign in failed. Check your details and try again.',
+      );
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+    },
+  );
+
+  test('authentication rejects malformed Matrix identity metadata', () async {
+    final gateway = _AuthenticationGateway()
+      ..nextSession = AuthenticatedSession(
+        userId: '@:',
+        deviceId: 'DEVICE',
+        homeserver: HomeserverAddress.parse('matrix.example.org'),
+      );
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loginWithQrCode('OPAQUE-QR-PAYLOAD');
+
+    expect(controller.session.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid authentication session.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('OPAQUE-QR-PAYLOAD')));
+  });
+
+  test('device QR login rejects empty or whitespace-only payloads', () async {
+    final gateway = _AuthenticationGateway();
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loginWithQrCode('   ');
+
+    expect(gateway.qrCodeData, isNull);
+    expect(controller.session.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Scan a valid Matrix sign-in QR code.',
+    );
+  });
+
+  test(
+    'device QR login may securely hand off to a different homeserver',
+    () async {
+      final gateway = _AuthenticationGateway()
+        ..nextSession = AuthenticatedSession(
+          userId: '@alice:remote.example.org',
+          deviceId: 'REMOTE_DEVICE',
+          homeserver: HomeserverAddress.parse('remote.example.org'),
+        );
+      final controller = AuthenticationController(gateway);
+      addTearDown(controller.dispose);
+
+      await controller.loginWithQrCode('OPAQUE-QR-PAYLOAD');
+
+      expect(controller.errorMessage.value, isNull);
+      expect(controller.session.value?.userId, '@alice:remote.example.org');
+      expect(controller.session.value?.deviceId, 'REMOTE_DEVICE');
+    },
+  );
+}
