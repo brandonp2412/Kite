@@ -75,12 +75,25 @@ final class NotificationDeliveryCoordinator
   }
 
   Future<void> refreshPrivacy() async {
-    for (final active in _active.values) {
-      await _delivery.show(_presentationFor(active));
+    Object? firstFailure;
+    final activeEntries = List<_ActiveNotification>.of(_active.values);
+    for (final active in activeEntries) {
+      try {
+        await _delivery.show(_presentationFor(active));
+      } catch (error) {
+        firstFailure ??= error;
+        if (_privacy.hideNotificationContents) {
+          try {
+            await _delivery.cancel(active.notification.id);
+            _active.remove(active.notification.id);
+          } catch (_) {}
+        }
+      }
     }
     for (final groupKey in _groupKeys()) {
       await _refreshSummary(groupKey);
     }
+    if (firstFailure != null) throw firstFailure;
   }
 
   KiteNotificationPresentation _presentationFor(_ActiveNotification active) {

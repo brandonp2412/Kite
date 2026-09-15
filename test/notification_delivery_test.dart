@@ -118,6 +118,33 @@ void main() {
   );
 
   test(
+    'failed private refresh cancels stale sensitive platform content',
+    () async {
+      final privacy = FakeNotificationPrivacyPort();
+      final delivery = FakeNotificationDeliveryPort();
+      final coordinator = NotificationDeliveryCoordinator(
+        privacy: privacy,
+        delivery: delivery,
+      );
+      await coordinator.upsert(
+        notification: notification(id: 'private'),
+        content: const KiteNotificationContent(
+          title: 'Alice',
+          body: 'Sensitive launch details',
+        ),
+      );
+      privacy.hideNotificationContents = true;
+      delivery.failNextWith = StateError('replacement failed');
+
+      await expectLater(coordinator.refreshPrivacy(), throwsStateError);
+
+      expect(delivery.cancelledIds, <String>['private']);
+      expect(coordinator.activePresentations, isEmpty);
+      expect(delivery.shown.last.body, 'Sensitive launch details');
+    },
+  );
+
+  test(
     'cancel collapses summaries and failed delivery does not become active',
     () async {
       final delivery = FakeNotificationDeliveryPort();
