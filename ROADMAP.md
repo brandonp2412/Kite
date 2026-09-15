@@ -126,10 +126,10 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Element X-quality home header/profile treatment.
 - [ ] Fast room list with stable scroll position during sync.
 - [ ] Correct latest-event previews and sender attribution.
-- [x] Unread counts.
-- [x] Mention indicators.
-- [x] Activity indicators for muted-notification rooms.
-- [x] Active-call decoration.
+- [ ] Unread counts.
+- [ ] Mention indicators.
+- [ ] Activity indicators for muted-notification rooms.
+- [ ] Active-call decoration.
 - [ ] Muted-room decoration.
 - [ ] Favourite state.
 - [ ] Room-list filters equivalent to current Element X: All, Unreads, People/DMs, Rooms, Favourites, plus current upstream additions.
