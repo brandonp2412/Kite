@@ -200,6 +200,30 @@ void main() {
     },
   );
 
+  test('runtime stop retries transient engine cleanup failure', () async {
+    final engine = _StateFakeMatrixEngine(stopFailuresRemaining: 1);
+    final runtime = MatrixRuntimeCoordinator(
+      engine: engine,
+      applyBatch: (_) {},
+      applyPagination: (_) {},
+      initialActivity: MatrixAppActivity.foreground,
+      initialNetworkState: MatrixNetworkState.online,
+    );
+
+    await runtime.start();
+    await expectLater(runtime.stop(), throwsStateError);
+
+    expect(runtime.isSyncing, isFalse);
+    expect(runtime.syncState.value.phase, MatrixSyncPhase.failed);
+    expect(engine.stopCalls, 1);
+
+    await runtime.stop();
+
+    expect(engine.stopCalls, 2);
+    expect(runtime.syncState.value.phase, MatrixSyncPhase.idle);
+    await engine.close();
+  });
+
   test(
     'going offline invalidates in-flight pagination before it can apply',
     () async {
@@ -409,7 +433,7 @@ void main() {
     await engine.close();
   });
 
-  test('failed engine start is observable and retryable', () async {
+  test('failed engine start is reset before retry', () async {
     final engine = _StateFakeMatrixEngine(startFailuresRemaining: 1);
     final coordinator = MatrixSyncCoordinator(
       engine: engine,
@@ -420,14 +444,54 @@ void main() {
     expect(coordinator.isRunning, isFalse);
     expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
     expect(coordinator.state.value.error, isA<StateError>());
+    expect(engine.startCalls, 1);
+    expect(engine.stopCalls, 1);
 
     await coordinator.start();
+    expect(engine.startCalls, 2);
+    expect(engine.stopCalls, 1);
     expect(coordinator.isRunning, isTrue);
     expect(coordinator.state.value.phase, MatrixSyncPhase.running);
 
     await coordinator.stop();
     await engine.close();
   });
+
+  test(
+    'failed start cleanup preserves the start error and retries reset first',
+    () async {
+      final engine = _StateFakeMatrixEngine(
+        startFailuresRemaining: 1,
+        stopFailuresRemaining: 1,
+      );
+      final coordinator = MatrixSyncCoordinator(
+        engine: engine,
+        applyBatch: (_) {},
+      );
+
+      Object? failure;
+      try {
+        await coordinator.start();
+      } catch (error) {
+        failure = error;
+      }
+
+      expect(failure, isA<StateError>());
+      expect(failure.toString(), contains('start failure'));
+      expect(engine.startCalls, 1);
+      expect(engine.stopCalls, 1);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
+
+      await coordinator.start();
+      expect(engine.stopCalls, 2);
+      expect(engine.startCalls, 2);
+      expect(coordinator.isRunning, isTrue);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+
+      await coordinator.stop();
+      await engine.close();
+    },
+  );
 }
 
 final class _DelayedPaginationMatrixEngine implements MatrixEngine {

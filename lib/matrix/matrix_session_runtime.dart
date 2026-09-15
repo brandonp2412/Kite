@@ -59,16 +59,21 @@ final class MatrixSessionRuntime
     return accounts.updateNetworkState(state);
   }
 
-  ReadonlySignal<MatrixPaginationState>? paginationState(String roomId) {
-    return accounts.activePaginationState(roomId);
+  ReadonlySignal<MatrixPaginationState>? paginationState({
+    required String accountId,
+    required String roomId,
+  }) {
+    return accounts.activePaginationState(accountId: accountId, roomId: roomId);
   }
 
   Future<void> onTimelineViewportChanged({
+    required String accountId,
     required String roomId,
     required int oldestVisibleIndex,
     required bool hasMoreHistory,
   }) {
     return accounts.onTimelineViewportChanged(
+      accountId: accountId,
       roomId: roomId,
       oldestVisibleIndex: oldestVisibleIndex,
       hasMoreHistory: hasMoreHistory,
@@ -79,13 +84,22 @@ final class MatrixSessionRuntime
     String accountId, {
     MatrixNavigationTarget target = const MatrixNavigationTarget.home(),
   }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
     return _enqueue<MatrixPresentationCache>(() async {
+      if (!await isAccountAvailable(normalizedAccountId)) {
+        throw StateError('Matrix account is not available');
+      }
+
       final previousAccountId = accounts.activeAccountId.value;
       final previousTarget = navigationTarget.value;
       try {
         return await accounts.activate(
-          accountId,
-          onActivated: () => _recordNavigation(target),
+          normalizedAccountId,
+          onActivated: () =>
+              _recordNavigation(target, rollbackVisibleOnFailure: false),
+          onActivationRolledBack: () {
+            navigationTarget.value = previousTarget;
+          },
         );
       } catch (error, stackTrace) {
         navigationTarget.value = previousTarget;
@@ -145,19 +159,43 @@ final class MatrixSessionRuntime
     });
   }
 
-  Future<void> _recordNavigation(MatrixNavigationTarget target) async {
+  Future<void> _recordNavigation(
+    MatrixNavigationTarget target, {
+    bool rollbackVisibleOnFailure = true,
+  }) async {
     final accountId = accounts.activeAccountId.value;
     if (accountId == null) {
       throw StateError('Cannot persist navigation without an active account');
+    }
+    if (!target.isSafe) {
+      throw ArgumentError.value(
+        target,
+        'target',
+        'must contain only non-empty Matrix identifiers without NUL bytes',
+      );
     }
     final previousTarget = navigationTarget.value;
     navigationTarget.value = target;
     try {
       await restoration.record(accountId: accountId, navigationTarget: target);
     } catch (error, stackTrace) {
-      navigationTarget.value = previousTarget;
+      if (rollbackVisibleOnFailure) {
+        navigationTarget.value = previousTarget;
+      }
       Error.throwWithStackTrace(error, stackTrace);
     }
+  }
+
+  static String _normalizeAccountId(String accountId) {
+    final normalizedAccountId = accountId.trim();
+    if (normalizedAccountId.isEmpty || normalizedAccountId.contains('\u0000')) {
+      throw ArgumentError.value(
+        accountId,
+        'accountId',
+        'must contain a non-empty account id without NUL bytes',
+      );
+    }
+    return normalizedAccountId;
   }
 
   Future<T> _enqueue<T>(Future<T> Function() action) {

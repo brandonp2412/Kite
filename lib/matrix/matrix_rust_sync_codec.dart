@@ -31,7 +31,7 @@ final class MatrixRustSyncCodec {
 
     for (final rawRoom in _asList(root['rooms'], 'rooms')) {
       final room = _asMap(rawRoom, 'room');
-      final roomId = _requiredString(room, 'roomId');
+      final roomId = _requiredIdentifier(room, 'roomId');
       final events = _decodeEvents(roomId, room['events']);
       final lastEvent = events.isEmpty ? null : events.last;
       final latestEventTimestamp =
@@ -50,7 +50,8 @@ final class MatrixRustSyncCodec {
             ),
             streamPosition: latestEventTimestamp,
             lastEventId:
-                _optionalString(room['latestEventId']) ?? lastEvent?.eventId,
+                _optionalIdentifier(room['latestEventId'], 'latestEventId') ??
+                lastEvent?.eventId,
             unreadCount: _optionalNonNegativeInt(room['unreadCount']) ?? 0,
           ),
           timelineEvents: events,
@@ -82,7 +83,7 @@ final class MatrixRustSyncCodec {
 
   MatrixRustPaginationDecodeResult decodePagination(String payload) {
     final root = _asMap(jsonDecode(payload), 'pagination payload');
-    final roomId = _requiredString(root, 'roomId');
+    final roomId = _requiredIdentifier(root, 'roomId');
     return MatrixRustPaginationDecodeResult(
       roomId: roomId,
       events: _decodeBackPaginationEvents(roomId, root['events']),
@@ -115,10 +116,10 @@ final class MatrixRustSyncCodec {
     final event = _asMap(rawEvent, 'timeline event');
     final timestamp = _requiredNonNegativeInt(event, 'origin_server_ts');
     return MatrixTimelineEvent(
-      eventId: _requiredString(event, 'event_id'),
+      eventId: _requiredIdentifier(event, 'event_id'),
       roomId: roomId,
-      senderId: _requiredString(event, 'sender'),
-      type: _requiredString(event, 'type'),
+      senderId: _requiredIdentifier(event, 'sender'),
+      type: _requiredIdentifier(event, 'type'),
       originServerTimestamp: _dateTimeFromMilliseconds(
         timestamp,
         'origin_server_ts',
@@ -157,6 +158,25 @@ final class MatrixRustSyncCodec {
 
   static String? _optionalString(Object? value) {
     return value is String ? value : null;
+  }
+
+  static String _requiredIdentifier(Map<String, Object?> map, String key) {
+    final value = _requiredString(map, key);
+    if (value.contains('\u0000')) {
+      throw FormatException('$key must not contain NUL bytes');
+    }
+    return value;
+  }
+
+  static String? _optionalIdentifier(Object? value, String key) {
+    final identifier = _optionalString(value);
+    if (identifier == null) return null;
+    if (identifier.isEmpty || identifier.contains('\u0000')) {
+      throw FormatException(
+        '$key must be a non-empty string without NUL bytes',
+      );
+    }
+    return identifier;
   }
 
   static bool _requiredBool(Map<String, Object?> map, String key) {

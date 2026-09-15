@@ -66,6 +66,176 @@ void main() {
   );
 
   test(
+    'invalid account stores fail before allocating an SDK boundary',
+    () async {
+      var boundaryFactoryCalls = 0;
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: MatrixAccountStoreRegistry(
+          rootPath: '/data/kite/matrix',
+          encryptionKeyIdForAccount: (_) => 'bad-key\u0000suffix',
+        ),
+        boundaryFactory: (accountId) {
+          boundaryFactoryCalls += 1;
+          return _FakeAccountBoundary(accountId: accountId);
+        },
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@alice:example.org'),
+        throwsStateError,
+      );
+      expect(boundaryFactoryCalls, 0);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(registry.activeAccountId.value, isNull);
+
+      expect(
+        () => registry.activate('@alice:example.org\u0000other'),
+        throwsArgumentError,
+      );
+      expect(boundaryFactoryCalls, 0);
+    },
+  );
+
+  test('failed boundary creation does not reserve an account store', () async {
+    final stores = MatrixAccountStoreRegistry(
+      rootPath: '/data/kite/matrix',
+      encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+    );
+    final registry = MatrixAccountRuntimeRegistry(
+      storeRegistry: stores,
+      boundaryFactory: (_) => throw StateError('boundary unavailable'),
+      initialActivity: MatrixAppActivity.foreground,
+      initialNetworkState: MatrixNetworkState.online,
+    );
+    addTearDown(registry.dispose);
+
+    await expectLater(
+      registry.activate('@alice:example.org'),
+      throwsStateError,
+    );
+
+    expect(stores.stores, isEmpty);
+    expect(registry.loadedAccountIds, isEmpty);
+    expect(registry.activeAccountId.value, isNull);
+  });
+
+  test(
+    'failed boundary creation releases a never-opened encryption key alias',
+    () async {
+      final stores = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'shared-platform-key',
+      );
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: stores,
+        boundaryFactory: (accountId) {
+          if (accountId == '@broken:example.org') {
+            throw StateError('boundary unavailable');
+          }
+          return boundaries.putIfAbsent(
+            accountId,
+            () => _FakeAccountBoundary(accountId: accountId),
+          );
+        },
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@broken:example.org'),
+        throwsStateError,
+      );
+      expect(stores.stores, isEmpty);
+
+      await registry.activate('@bob:example.org');
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(
+        boundaries['@bob:example.org']!.openedStore?.encryptionKeyId,
+        'shared-platform-key',
+      );
+    },
+  );
+
+  test(
+    'failed boundary creation preserves a pre-registered account store',
+    () async {
+      final stores = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+      );
+      final existing = stores.forAccount('@alice:example.org');
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: stores,
+        boundaryFactory: (_) => throw StateError('boundary unavailable'),
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@alice:example.org'),
+        throwsStateError,
+      );
+
+      expect(stores.stores, <MatrixSdkStoreConfiguration>[existing]);
+      expect(registry.loadedAccountIds, isEmpty);
+    },
+  );
+
+  test(
+    'invalid SDK capability rollback leaves other accounts isolated',
+    () async {
+      final stores = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'shared-platform-key',
+      );
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: stores,
+        boundaryFactory: (accountId) {
+          return boundaries.putIfAbsent(
+            accountId,
+            () => _FakeAccountBoundary(
+              accountId: accountId,
+              capabilitiesOverride: accountId == '@broken:example.org'
+                  ? const <MatrixSdkCapability>{
+                      MatrixSdkCapability.auditedEncryption,
+                      MatrixSdkCapability.incrementalSync,
+                    }
+                  : null,
+            ),
+          );
+        },
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@broken:example.org'),
+        throwsA(isA<MatrixSdkContractException>()),
+      );
+      expect(stores.stores, isEmpty);
+      expect(registry.loadedAccountIds, isEmpty);
+
+      final aliceCache = await registry.activate('@alice:example.org');
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(stores.stores.single.accountId, '@alice:example.org');
+      expect(stores.stores.single.encryptionKeyId, 'shared-platform-key');
+      expect(
+        aliceCache.roomSummarySignal('!alice:example.org').value?.displayName,
+        'Alice room',
+      );
+    },
+  );
+
+  test(
     'cached account and navigation restoration publish atomically',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -185,6 +355,84 @@ void main() {
     },
   );
 
+  test('presentation cache load failure falls through to SDK sync', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final presentationStore = _MemoryPresentationStore(
+      <String, MatrixPresentationSnapshot>{},
+    )..failLoadCallsRemaining = 1;
+    final registry = _registry(
+      boundaries,
+      presentationStore: presentationStore,
+    );
+    addTearDown(registry.dispose);
+
+    final cache = await registry.activate('@alice:example.org');
+
+    expect(presentationStore.loadCalls, 1);
+    expect(registry.activeAccountId.value, '@alice:example.org');
+    expect(boundaries['@alice:example.org']?.startCalls, 1);
+    expect(
+      cache.roomSummarySignal('!alice:example.org').value?.displayName,
+      'Alice room',
+    );
+
+    await registry.deactivate();
+    await registry.activate('@alice:example.org');
+    expect(presentationStore.loadCalls, 1);
+  });
+
+  test('malformed cached presentation falls through to SDK sync', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final presentationStore = _MemoryPresentationStore(
+      <String, MatrixPresentationSnapshot>{
+        '@alice:example.org': MatrixPresentationSnapshot(
+          syncCursor: 'rejected-cache-cursor',
+          rooms: <MatrixRoomSummary>[
+            MatrixRoomSummary(
+              roomId: '!alice:example.org',
+              displayName: 'Malformed cached room',
+              lastActivity: DateTime.utc(2026, 9, 15, 2),
+              streamPosition: 2,
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!alice:example.org': <MatrixTimelineEvent>[
+              MatrixTimelineEvent(
+                eventId: r'$wrong-room:example.org',
+                roomId: '!other:example.org',
+                senderId: '@alice:example.org',
+                type: 'm.room.message',
+                originServerTimestamp: DateTime.utc(2026, 9, 15, 2),
+                streamPosition: 2,
+              ),
+            ],
+          },
+        ),
+      },
+    );
+    final registry = _registry(
+      boundaries,
+      presentationStore: presentationStore,
+    );
+    addTearDown(registry.dispose);
+
+    final cache = await registry.activate('@alice:example.org');
+
+    expect(presentationStore.loadCalls, 1);
+    expect(registry.activeAccountId.value, '@alice:example.org');
+    expect(boundaries['@alice:example.org']?.startCalls, 1);
+    expect(cache.lastSyncCursor, 'alice-start-1');
+    expect(
+      cache.roomSummarySignal('!alice:example.org').value?.displayName,
+      'Alice room',
+    );
+    expect(cache.timelineSignal('!other:example.org').value, isEmpty);
+
+    await registry.deactivate();
+    await registry.activate('@alice:example.org');
+    expect(presentationStore.loadCalls, 1);
+  });
+
   test(
     'cached timeline paginates while initial sync is still starting',
     () async {
@@ -233,8 +481,12 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      final state = registry.activePaginationState('!alice:example.org')!;
+      final state = registry.activePaginationState(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+      )!;
       await registry.onTimelineViewportChanged(
+        accountId: '@alice:example.org',
         roomId: '!alice:example.org',
         oldestVisibleIndex: 0,
         hasMoreHistory: true,
@@ -305,6 +557,49 @@ void main() {
       'Alice room',
     );
   });
+
+  test(
+    'stale account viewport updates cannot paginate the newly active account',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.activate('@bob:example.org');
+      final bobBoundary = boundaries['@bob:example.org']!;
+
+      expect(
+        registry.activePaginationState(
+          accountId: '@alice:example.org',
+          roomId: '!shared:example.org',
+        ),
+        isNull,
+      );
+      final bobState = registry.activePaginationState(
+        accountId: '@bob:example.org',
+        roomId: '!shared:example.org',
+      );
+      expect(bobState, isNotNull);
+
+      await registry.onTimelineViewportChanged(
+        accountId: '@alice:example.org',
+        roomId: '!shared:example.org',
+        oldestVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(bobBoundary.paginationCalls, isEmpty);
+
+      await registry.onTimelineViewportChanged(
+        accountId: '@bob:example.org',
+        roomId: '!shared:example.org',
+        oldestVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(bobBoundary.paginationCalls, <String>['!shared:example.org']);
+      expect(bobState!.value.reachedStart, isTrue);
+    },
+  );
 
   test(
     'partial initial room chunks persist presentation without advancing cursor',
@@ -561,6 +856,53 @@ void main() {
       expect(boundaries['@alice:example.org']!.stopCalls, 1);
       expect(boundaries['@alice:example.org']!.startCalls, 2);
       expect(boundaries['@bob:example.org']!.startCalls, 0);
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+    },
+  );
+
+  test(
+    'failed first activation keeps the persisted presentation snapshot intact',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final cachedSnapshot = MatrixPresentationSnapshot(
+        syncCursor: 'persisted-bob-cursor',
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!bob:example.org',
+            displayName: 'Cached Bob room',
+            lastActivity: DateTime.utc(2026, 9, 15, 2),
+            streamPosition: 4,
+          ),
+        ],
+      );
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{
+          '@bob:example.org': cachedSnapshot,
+        },
+      );
+      final registry = _registry(
+        boundaries,
+        failStartFor: '@bob:example.org',
+        presentationStore: presentationStore,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@bob:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(registry.storeRegistry.stores, isEmpty);
+      expect(
+        presentationStore.snapshots['@bob:example.org'],
+        same(cachedSnapshot),
+      );
     },
   );
 
@@ -587,6 +929,85 @@ void main() {
       expect(aliceBoundary.stopCalls, 1);
       expect(aliceBoundary.startCalls, 2);
       expect(boundaries['@broken:example.org']!.startCalls, 1);
+      expect(boundaries['@broken:example.org']!.closeCalls, 1);
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+    },
+  );
+
+  test(
+    'failed sync start retains opened-store encryption key ownership',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(
+        boundaries,
+        failStartFor: '@broken:example.org',
+        encryptionKeyIdForAccount: (accountId) =>
+            accountId == '@alice:example.org' ? 'alice-key' : 'opened-key',
+      );
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await expectLater(
+        registry.activate('@broken:example.org'),
+        throwsStateError,
+      );
+
+      expect(boundaries['@broken:example.org']!.openedStore, isNotNull);
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+
+      await expectLater(
+        registry.activate('@carol:example.org'),
+        throwsStateError,
+      );
+      expect(boundaries.containsKey('@carol:example.org'), isFalse);
+      expect(registry.activeAccountId.value, '@alice:example.org');
+    },
+  );
+
+  test(
+    'failed previous-account stop discards the unopened next-account runtime',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(
+        boundaries,
+        encryptionKeyIdForAccount: (accountId) =>
+            accountId == '@alice:example.org' ? 'alice-key' : 'transient-key',
+      );
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      boundaries['@alice:example.org']!.stopFailuresRemaining = 1;
+
+      await expectLater(
+        registry.activate('@bob:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(boundaries['@alice:example.org']!.startCalls, 2);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.running);
+      expect(boundaries['@bob:example.org']!.startCalls, 0);
+      expect(boundaries['@bob:example.org']!.closeCalls, 0);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+
+      await registry.activate('@carol:example.org');
+      expect(registry.activeAccountId.value, '@carol:example.org');
+      expect(
+        boundaries['@carol:example.org']!.openedStore?.encryptionKeyId,
+        'transient-key',
+      );
     },
   );
 
@@ -643,6 +1064,56 @@ void main() {
       expect(alice.syncConfigurations, hasLength(2));
       expect(alice.syncConfigurations.first.resumeFromCursor, isNull);
       expect(alice.syncConfigurations.last.resumeFromCursor, 'alice-start-1');
+    },
+  );
+
+  test(
+    'switching to an inactive account inherits current background activity',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.activate('@bob:example.org');
+      await registry.activate('@alice:example.org');
+      final bob = boundaries['@bob:example.org']!;
+      expect(bob.startCalls, 1);
+
+      await registry.updateActivity(MatrixAppActivity.background);
+      await registry.activate('@bob:example.org');
+
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(bob.startCalls, 1);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.idle);
+
+      await registry.updateActivity(MatrixAppActivity.foreground);
+      expect(bob.startCalls, 2);
+    },
+  );
+
+  test(
+    'switching to an inactive account inherits current offline network state',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.activate('@bob:example.org');
+      await registry.activate('@alice:example.org');
+      final bob = boundaries['@bob:example.org']!;
+      expect(bob.startCalls, 1);
+
+      await registry.updateNetworkState(MatrixNetworkState.offline);
+      await registry.activate('@bob:example.org');
+
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(bob.startCalls, 1);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.idle);
+
+      await registry.updateNetworkState(MatrixNetworkState.online);
+      expect(bob.startCalls, 2);
     },
   );
 
@@ -706,6 +1177,72 @@ void main() {
   );
 
   test(
+    'active account removal stop failure restores sync and remains retryable',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      final cache = await registry.activate('@alice:example.org');
+      final boundary = boundaries['@alice:example.org']!;
+      boundary.stopFailuresRemaining = 1;
+
+      await expectLater(
+        registry.removeAccount('@alice:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.activeCache, same(cache));
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.running);
+      expect(boundary.startCalls, 2);
+      expect(boundary.stopCalls, 2);
+      expect(boundary.closeCalls, 0);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+
+      expect(await registry.removeAccount('@alice:example.org'), isTrue);
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(boundary.closeCalls, 1);
+    },
+  );
+
+  test(
+    'active account removal close failure restores sync and remains retryable',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      final cache = await registry.activate('@alice:example.org');
+      final boundary = boundaries['@alice:example.org']!;
+      boundary.closeFailuresRemaining = 1;
+
+      await expectLater(
+        registry.removeAccount('@alice:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.activeCache, same(cache));
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.running);
+      expect(boundary.startCalls, 2);
+      expect(boundary.stopCalls, 1);
+      expect(boundary.closeCalls, 1);
+
+      expect(await registry.removeAccount('@alice:example.org'), isTrue);
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(boundary.closeCalls, 2);
+    },
+  );
+
+  test(
     'account removal clears abandoned presentation dirty state before re-add',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -742,6 +1279,99 @@ void main() {
     },
   );
 
+  test(
+    'dispose retains dirty presentation state until persistence recovers',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+        presentationRetryDelay: (_) async {},
+      );
+
+      await registry.activate('@alice:example.org');
+      await registry.flushPresentationWrites();
+      final baselineCursor =
+          presentationStore.snapshots['@alice:example.org']?.syncCursor;
+      presentationStore.failSaveCallsRemaining = 100;
+      boundaries['@alice:example.org']!.emit(
+        const MatrixSyncBatch(
+          cursor: 'persist-before-dispose',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+
+      await expectLater(registry.dispose(), throwsStateError);
+
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(boundaries['@alice:example.org']!.closeCalls, 1);
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        baselineCursor,
+      );
+
+      presentationStore.failSaveCallsRemaining = 0;
+      await registry.dispose();
+
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(boundaries['@alice:example.org']!.closeCalls, 1);
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'persist-before-dispose',
+      );
+    },
+  );
+
+  test('dispose isolates a transient active sync stop failure', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final registry = _registry(boundaries);
+
+    await registry.activate('@alice:example.org');
+    await registry.activate('@bob:example.org');
+    await registry.activate('@alice:example.org');
+    boundaries['@alice:example.org']!.stopFailuresRemaining = 1;
+
+    await expectLater(registry.dispose(), throwsStateError);
+
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+    expect(boundaries['@alice:example.org']!.closeCalls, 0);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
+
+    await registry.dispose();
+
+    expect(registry.loadedAccountIds, isEmpty);
+    expect(boundaries['@alice:example.org']!.closeCalls, 1);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
+  });
+
+  test('dispose retries cleanup after a transient SDK close failure', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final registry = _registry(boundaries);
+
+    await registry.activate('@alice:example.org');
+    await registry.activate('@bob:example.org');
+    boundaries['@alice:example.org']!.closeFailuresRemaining = 1;
+
+    await expectLater(registry.dispose(), throwsStateError);
+    expect(registry.activeAccountId.value, isNull);
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+    expect(boundaries['@alice:example.org']!.closeCalls, 1);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
+    expect(
+      () => registry.activate('@later:example.org'),
+      throwsA(isA<StateError>()),
+    );
+
+    await registry.dispose();
+
+    expect(boundaries['@alice:example.org']!.closeCalls, 2);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
+    expect(registry.loadedAccountIds, isEmpty);
+  });
+
   test('dispose closes every loaded SDK boundary exactly once', () async {
     final boundaries = <String, _FakeAccountBoundary>{};
     final registry = _registry(boundaries);
@@ -770,11 +1400,13 @@ MatrixAccountRuntimeRegistry _registry(
   Completer<void>? startGate,
   MatrixPresentationRetryDelay? presentationRetryDelay,
   Map<String, Set<int>> failStartCallsByAccount = const <String, Set<int>>{},
+  String Function(String accountId)? encryptionKeyIdForAccount,
 }) {
   return MatrixAccountRuntimeRegistry(
     storeRegistry: MatrixAccountStoreRegistry(
       rootPath: '/data/kite/matrix',
-      encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+      encryptionKeyIdForAccount:
+          encryptionKeyIdForAccount ?? (accountId) => 'matrix-key:$accountId',
     ),
     boundaryFactory: (accountId) {
       return boundaries.putIfAbsent(
@@ -800,20 +1432,24 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
     this.failStart = false,
     this.failStartCalls = const <int>{},
     this.startGate,
+    this.capabilitiesOverride,
   });
 
   final String accountId;
   final bool failStart;
   final Set<int> failStartCalls;
   final Completer<void>? startGate;
+  final Set<MatrixSdkCapability>? capabilitiesOverride;
 
   @override
-  Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
-    MatrixSdkCapability.auditedEncryption,
-    MatrixSdkCapability.encryptedPersistentStore,
-    MatrixSdkCapability.incrementalSync,
-    MatrixSdkCapability.backPagination,
-  };
+  Set<MatrixSdkCapability> get capabilities =>
+      capabilitiesOverride ??
+      const <MatrixSdkCapability>{
+        MatrixSdkCapability.auditedEncryption,
+        MatrixSdkCapability.encryptedPersistentStore,
+        MatrixSdkCapability.incrementalSync,
+        MatrixSdkCapability.backPagination,
+      };
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
@@ -825,7 +1461,9 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
       syncConfigurations.isEmpty ? null : syncConfigurations.last;
   int startCalls = 0;
   int stopCalls = 0;
+  int stopFailuresRemaining = 0;
   int closeCalls = 0;
+  int closeFailuresRemaining = 0;
   bool closeHadSyncListener = false;
   final List<String> paginationCalls = <String>[];
 
@@ -868,6 +1506,10 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   @override
   Future<void> stopSync() async {
     stopCalls += 1;
+    if (stopFailuresRemaining > 0) {
+      stopFailuresRemaining -= 1;
+      throw StateError('deterministic stop failure for $accountId');
+    }
   }
 
   @override
@@ -892,8 +1534,14 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   @override
   Future<void> close() async {
     closeCalls += 1;
+    if (closeFailuresRemaining > 0) {
+      closeFailuresRemaining -= 1;
+      throw StateError('deterministic close failure for $accountId');
+    }
     closeHadSyncListener = _sync.hasListener;
-    await _sync.close();
+    if (!_sync.isClosed) {
+      await _sync.close();
+    }
   }
 
   void emit(MatrixSyncBatch batch) => _sync.add(batch);
@@ -904,7 +1552,9 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
     : snapshots = Map<String, MatrixPresentationSnapshot>.of(initial);
 
   final Map<String, MatrixPresentationSnapshot> snapshots;
+  int loadCalls = 0;
   int saveCalls = 0;
+  int failLoadCallsRemaining = 0;
   int failSaveCallsRemaining = 0;
   Completer<void>? blockNextSave;
 
@@ -915,6 +1565,11 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
 
   @override
   Future<MatrixPresentationSnapshot?> load(String accountId) async {
+    loadCalls += 1;
+    if (failLoadCallsRemaining > 0) {
+      failLoadCallsRemaining -= 1;
+      throw StateError('deterministic presentation load failure');
+    }
     return snapshots[accountId];
   }
 

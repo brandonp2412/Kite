@@ -309,4 +309,56 @@ void main() {
       );
     },
   );
+
+  test('rejects NUL-bearing Matrix identifiers from native payloads', () {
+    final codec = MatrixRustSyncCodec();
+
+    expect(
+      () => codec.decodeSync(r'''
+        {
+          "cursor": "s1",
+          "rooms": [
+            {
+              "roomId": "!room\u0000other:kite.test",
+              "events": []
+            }
+          ]
+        }
+      '''),
+      throwsFormatException,
+    );
+    expect(
+      () => codec.decodeSync(r'''
+        {
+          "cursor": "s1",
+          "rooms": [
+            {
+              "roomId": "!room:kite.test",
+              "latestEventId": "$event\u0000other",
+              "events": []
+            }
+          ]
+        }
+      '''),
+      throwsFormatException,
+    );
+    expect(
+      () => codec.decodePagination(r'''
+        {
+          "roomId": "!room:kite.test",
+          "reachedStart": false,
+          "events": [
+            {
+              "event_id": "$event",
+              "sender": "@alice\u0000other:kite.test",
+              "type": "m.room.message",
+              "origin_server_ts": 1000,
+              "content": {}
+            }
+          ]
+        }
+      '''),
+      throwsFormatException,
+    );
+  });
 }

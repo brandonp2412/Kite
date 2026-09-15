@@ -222,6 +222,68 @@ void main() {
       );
     });
 
+    test(
+      'rejects unsafe account ids before touching presentation files',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'kite-presentation-account-id-',
+        );
+        addTearDown(() async {
+          if (await directory.exists()) await directory.delete(recursive: true);
+        });
+        final store = FileMatrixPresentationStore(directory);
+
+        await expectLater(
+          store.load('@alice:example.org\u0000other'),
+          throwsArgumentError,
+        );
+        await expectLater(
+          store.save('@alice:example.org\u0000other', _snapshot()),
+          throwsArgumentError,
+        );
+        expect(await directory.exists(), isTrue);
+        expect(await directory.list().isEmpty, isTrue);
+      },
+    );
+
+    test(
+      'rejects persisted snapshots containing NUL Matrix identifiers',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'kite-presentation-nul-id-',
+        );
+        addTearDown(() async {
+          if (await directory.exists()) await directory.delete(recursive: true);
+        });
+        const accountId = '@alice:example.org';
+        final accountDirectory = Directory(
+          '${directory.path}/${Uri.encodeComponent(accountId)}',
+        );
+        await accountDirectory.create(recursive: true);
+        await File('${accountDirectory.path}/presentation.json').writeAsString(
+          jsonEncode(<String, Object?>{
+            'version': 1,
+            'syncCursor': 'safe-cursor',
+            'rooms': <Object?>[
+              <String, Object?>{
+                'roomId': '!room:example.org\u0000other',
+                'displayName': 'Unsafe room',
+                'lastActivityMs': 1,
+                'streamPosition': 1,
+                'unreadCount': 0,
+              },
+            ],
+            'timelines': <String, Object?>{},
+          }),
+        );
+
+        expect(
+          await FileMatrixPresentationStore(directory).load(accountId),
+          isNull,
+        );
+      },
+    );
+
     test('ignores malformed persisted snapshots', () async {
       final directory = await Directory.systemTemp.createTemp(
         'kite-presentation-malformed-',

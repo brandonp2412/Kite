@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_ingress.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
 import 'package:kite/matrix/matrix_account_store_registry.dart';
@@ -17,6 +18,7 @@ import 'package:kite/matrix/matrix_session_routing_adapter.dart';
 import 'package:kite/matrix/matrix_session_runtime.dart';
 import 'package:kite/matrix/presentation_store.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
+import 'package:signals/signals.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -251,12 +253,113 @@ void main() {
       );
 
       expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
       expect(session.navigationTarget.value, aliceTarget);
       final restored = await restorationStore.load();
       expect(restored?.accountId, '@alice:example.org');
       expect(restored?.navigationTarget, aliceTarget);
     },
   );
+
+  test('failed account switch rolls account and navigation back atomically', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-switch-atomic-rollback-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final boundaries = <String, _FakeBoundary>{};
+    final registry = _registry(
+      boundaries,
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+      failStartFor: <String>{'@broken:example.org'},
+    );
+    addTearDown(registry.dispose);
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(
+        FileMatrixRestorationStore(File('${directory.path}/restoration.json')),
+      ),
+      isAccountAvailable: (_) => true,
+    );
+    const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+    const brokenTarget = MatrixNavigationTarget.room('!broken:example.org');
+
+    await session.activateAccount('@alice:example.org', target: aliceTarget);
+    final observedPairs = <String>[];
+    final disposeEffect = effect(() {
+      observedPairs.add(
+        '${registry.activeAccountId.value}|${session.navigationTarget.value.roomIdOrAlias}',
+      );
+    });
+    addTearDown(disposeEffect);
+
+    await expectLater(
+      session.activateAccount('@broken:example.org', target: brokenTarget),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(observedPairs, contains('@broken:example.org|!broken:example.org'));
+    expect(
+      observedPairs,
+      isNot(contains('@alice:example.org|!broken:example.org')),
+    );
+    expect(
+      observedPairs,
+      isNot(contains('@broken:example.org|!alice:example.org')),
+    );
+    expect(observedPairs.last, '@alice:example.org|!alice:example.org');
+  });
+
+  test('failed account persistence rolls account and navigation back atomically', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-switch-persistence-rollback-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final registry = _registry(
+      <String, _FakeBoundary>{},
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+    );
+    addTearDown(registry.dispose);
+    final restorationStore = _ControllableRestorationStore();
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(restorationStore),
+      isAccountAvailable: (_) => true,
+    );
+    const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+    const bobTarget = MatrixNavigationTarget.room('!bob:example.org');
+
+    await session.activateAccount('@alice:example.org', target: aliceTarget);
+    final observedPairs = <String>[];
+    final disposeEffect = effect(() {
+      observedPairs.add(
+        '${registry.activeAccountId.value}|${session.navigationTarget.value.roomIdOrAlias}',
+      );
+    });
+    addTearDown(disposeEffect);
+    restorationStore.failNextSave = true;
+
+    await expectLater(
+      session.activateAccount('@bob:example.org', target: bobTarget),
+      throwsStateError,
+    );
+
+    expect(
+      observedPairs,
+      isNot(contains('@alice:example.org|!bob:example.org')),
+    );
+    expect(
+      observedPairs,
+      isNot(contains('@bob:example.org|!alice:example.org')),
+    );
+    expect(observedPairs.last, '@alice:example.org|!alice:example.org');
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+    expect(restorationStore.snapshot?.accountId, '@alice:example.org');
+    expect(restorationStore.snapshot?.navigationTarget, aliceTarget);
+  });
 
   test(
     'queued account switch failure rolls navigation back to preceding switch',
@@ -308,6 +411,146 @@ void main() {
       expect(restored?.navigationTarget, bobTarget);
     },
   );
+
+  test('unavailable account activation cannot allocate a runtime or replace active state', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-unavailable-account-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final restorationStore = FileMatrixRestorationStore(
+      File('${directory.path}/restoration.json'),
+    );
+    final boundaries = <String, _FakeBoundary>{};
+    final registry = _registry(
+      boundaries,
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+    );
+    addTearDown(registry.dispose);
+    final availableAccounts = <String>{'@alice:example.org'};
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(restorationStore),
+      isAccountAvailable: availableAccounts.contains,
+    );
+    const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+
+    await session.activateAccount('@alice:example.org', target: aliceTarget);
+    await expectLater(
+      session.activateAccount(
+        '@removed:example.org',
+        target: const MatrixNavigationTarget.room('!removed:example.org'),
+      ),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(boundaries.keys, <String>{'@alice:example.org'});
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+    expect(registry.activeAccountId.value, '@alice:example.org');
+    expect(session.navigationTarget.value, aliceTarget);
+    final restored = await restorationStore.load();
+    expect(restored?.accountId, '@alice:example.org');
+    expect(restored?.navigationTarget, aliceTarget);
+  });
+
+  test('notification account checks do not allocate inactive runtimes and stale taps stay isolated', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-notification-account-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final boundaries = <String, _FakeBoundary>{};
+    final registry = _registry(
+      boundaries,
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+    );
+    addTearDown(registry.dispose);
+    final availableAccounts = <String>{
+      '@alice:example.org',
+      '@bob:example.org',
+    };
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(
+        FileMatrixRestorationStore(File('${directory.path}/restoration.json')),
+      ),
+      isAccountAvailable: availableAccounts.contains,
+    );
+    await session.activateAccount('@alice:example.org');
+    final routing = MatrixSessionRoutingAdapter(session);
+
+    expect(await routing.containsAccount('@bob:example.org'), isTrue);
+    expect(await routing.containsAccount(' @bob:example.org '), isFalse);
+    expect(boundaries.containsKey('@bob:example.org'), isFalse);
+
+    final acceptedIngress = <NotificationIngressResult>[];
+    final ingress = NotificationIngressCoordinator(
+      accounts: routing,
+      onAccepted: (result) async => acceptedIngress.add(result),
+    );
+    final knownAccountIngress = await ingress.receive(
+      transport: NotificationIngressTransport.fcm,
+      data: <String, String?>{
+        'notification_id': 'bob-message',
+        'kind': 'message',
+        'account_id': '@bob:example.org',
+        'room_id': '!bob:example.org',
+        'event_id': r'$bob-message',
+      },
+    );
+    expect(knownAccountIngress.accepted, isTrue);
+    expect(acceptedIngress, hasLength(1));
+    expect(boundaries.containsKey('@bob:example.org'), isFalse);
+
+    availableAccounts.remove('@bob:example.org');
+    final removedAccountIngress = await ingress.receive(
+      transport: NotificationIngressTransport.backgroundSync,
+      data: <String, String?>{
+        'notification_id': 'stale-bob-ingress',
+        'kind': 'message',
+        'account_id': '@bob:example.org',
+        'room_id': '!bob:example.org',
+        'event_id': r'$stale-bob-ingress',
+      },
+    );
+    expect(removedAccountIngress.accepted, isFalse);
+    expect(
+      removedAccountIngress.failure,
+      NotificationIngressFailure.unknownAccount,
+    );
+    expect(acceptedIngress, hasLength(1));
+
+    final coordinator = NotificationCoordinator(
+      notifications: FakeNotificationRepository(<KiteNotification>[
+        const KiteNotification(
+          id: 'stale-bob',
+          kind: KiteNotificationKind.message,
+          destination: AppDestination.room(
+            accountId: '@bob:example.org',
+            roomId: '!bob:example.org',
+          ),
+        ),
+      ]),
+      cancellations: FakeNotificationCancellationPort(),
+      accounts: routing,
+      navigation: routing,
+    );
+
+    expect(
+      await coordinator.tap(
+        KiteNotification.routingIdFor(
+          accountId: '@bob:example.org',
+          notificationId: 'stale-bob',
+        ),
+      ),
+      isFalse,
+    );
+    expect(registry.activeAccountId.value, '@alice:example.org');
+    expect(boundaries.containsKey('@bob:example.org'), isFalse);
+    expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+  });
 
   test(
     'removing the active account clears navigation and process restoration',
@@ -396,6 +639,48 @@ void main() {
       final restored = await restorationStore.load();
       expect(restored?.accountId, '@alice:example.org');
       expect(restored?.navigationTarget, aliceTarget);
+    },
+  );
+
+  test(
+    'rejects unsafe navigation before visible or persisted state changes',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-navigation-validation-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final registry = _registry(
+        <String, _FakeBoundary>{},
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const initialTarget = MatrixNavigationTarget.room('!initial:example.org');
+
+      await session.activateAccount(
+        '@alice:example.org',
+        target: initialTarget,
+      );
+      await expectLater(
+        session.navigate(
+          const MatrixNavigationTarget.event('!room:example.org', ''),
+        ),
+        throwsArgumentError,
+      );
+
+      expect(session.navigationTarget.value, initialTarget);
+      expect((await restorationStore.load())?.navigationTarget, initialTarget);
     },
   );
 

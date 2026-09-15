@@ -43,6 +43,120 @@ void main() {
       expect(boundary.openCalls, 0);
     });
 
+    test('rejects malformed encrypted store metadata before SDK open', () {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+      );
+
+      for (final store in <MatrixSdkStoreConfiguration>[
+        const MatrixSdkStoreConfiguration(
+          accountId: '',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: 'alice-key',
+        ),
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:kite.test',
+          storePath: '',
+          encryptionKeyId: 'alice-key',
+        ),
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:kite.test',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: '',
+        ),
+      ]) {
+        expect(
+          () => MatrixBoundaryEngine(boundary: boundary, store: store),
+          throwsArgumentError,
+        );
+      }
+      expect(boundary.openCalls, 0);
+    });
+
+    test(
+      'rejects unsafe resume cursors before opening the SDK store',
+      () async {
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.incrementalSync,
+          },
+        );
+        final cursors = <String>['', 'resume\u0000truncated'];
+
+        for (final cursor in cursors) {
+          final engine = MatrixBoundaryEngine(
+            boundary: boundary,
+            store: _store,
+            syncConfigurationProvider: () =>
+                MatrixSdkSyncConfiguration(resumeFromCursor: cursor),
+          );
+          await expectLater(engine.start(), throwsArgumentError);
+        }
+
+        expect(boundary.openCalls, 0);
+        expect(boundary.startCalls, 0);
+      },
+    );
+
+    test('failed SDK sync start is stopped before retry', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+        startFailuresRemaining: 1,
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+      final coordinator = MatrixSyncCoordinator(
+        engine: engine,
+        applyBatch: (_) {},
+      );
+
+      await expectLater(coordinator.start(), throwsStateError);
+      expect(boundary.openCalls, 1);
+      expect(boundary.startCalls, 1);
+      expect(boundary.stopCalls, 1);
+
+      await coordinator.start();
+      expect(boundary.openCalls, 1);
+      expect(boundary.startCalls, 2);
+      expect(boundary.stopCalls, 1);
+
+      await coordinator.stop();
+      expect(boundary.stopCalls, 2);
+      await engine.close();
+      expect(boundary.closeCalls, 1);
+    });
+
+    test(
+      'back-pagination rejects blank ids and normalizes surrounding space',
+      () async {
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.incrementalSync,
+            MatrixSdkCapability.backPagination,
+          },
+        );
+        final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+
+        await expectLater(engine.paginateBackwards('   '), throwsArgumentError);
+        expect(boundary.openCalls, 0);
+
+        await engine.paginateBackwards('  !alpha:kite.test  ');
+        expect(boundary.paginatedRooms, <String>['!alpha:kite.test']);
+        await engine.close();
+      },
+    );
+
     test('back-pagination requires explicit SDK capability', () async {
       final boundary = _FakeSdkBoundary(
         capabilities: const <MatrixSdkCapability>{
@@ -581,12 +695,14 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
     required this.capabilities,
     this.startBatch,
     this.paginationPages = const <String, MatrixPaginationPage>{},
+    this.startFailuresRemaining = 0,
   });
 
   @override
   final Set<MatrixSdkCapability> capabilities;
   final MatrixSyncBatch? startBatch;
   final Map<String, MatrixPaginationPage> paginationPages;
+  int startFailuresRemaining;
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
@@ -611,6 +727,10 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   Future<void> startSync(MatrixSdkSyncConfiguration configuration) async {
     startCalls += 1;
     lastSyncConfiguration = configuration;
+    if (startFailuresRemaining > 0) {
+      startFailuresRemaining -= 1;
+      throw StateError('deterministic SDK sync start failure');
+    }
     final batch = startBatch;
     if (batch != null) _sync.add(batch);
   }

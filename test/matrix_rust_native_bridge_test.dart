@@ -160,36 +160,99 @@ void main() {
   );
 
   test(
-    'SDK boundary rejects C-incompatible resume cursors before sync starts',
+    'SDK boundary rejects NUL store secrets before opening a client',
     () async {
       final client = _FakeRustClient();
+      final bridge = _RecordingRustBridge(client);
       final boundary = MatrixRustSdkBoundary(
-        bridge: _FakeRustBridge(client),
+        bridge: bridge,
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'secret\u0000truncated',
+        codecExecutor: _RecordingCodecExecutor(),
+      );
+      addTearDown(boundary.close);
+
+      await expectLater(
+        boundary.open(
+          const MatrixSdkStoreConfiguration(
+            accountId: '@alice:example.org',
+            storePath: '/tmp/kite/alice',
+            encryptionKeyId: 'alice-key',
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(bridge.openCalls, 0);
+    },
+  );
+
+  test(
+    'SDK boundary refuses cross-account store replacement while open',
+    () async {
+      final client = _FakeRustClient();
+      final bridge = _RecordingRustBridge(client);
+      final boundary = MatrixRustSdkBoundary(
+        bridge: bridge,
         homeserver: Uri.parse('https://matrix.example.org'),
         resolveStoreSecret: (_) async => 'deterministic-secret',
         codecExecutor: _RecordingCodecExecutor(),
       );
       addTearDown(boundary.close);
 
-      await boundary.open(
-        const MatrixSdkStoreConfiguration(
-          accountId: '@alice:example.org',
-          storePath: '/tmp/kite/alice',
-          encryptionKeyId: 'alice-key',
-        ),
+      const aliceStore = MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      );
+      const bobStore = MatrixSdkStoreConfiguration(
+        accountId: '@bob:example.org',
+        storePath: '/tmp/kite/bob',
+        encryptionKeyId: 'bob-key',
       );
 
-      for (final cursor in <String>['', 'resume\u0000truncated']) {
-        await expectLater(
-          boundary.startSync(
-            MatrixSdkSyncConfiguration(resumeFromCursor: cursor),
-          ),
-          throwsArgumentError,
-        );
-      }
-      expect(client.syncTokens, isEmpty);
+      await boundary.open(aliceStore);
+      await boundary.open(aliceStore);
+      expect(bridge.openCalls, 1);
+
+      await expectLater(boundary.open(bobStore), throwsStateError);
+      expect(bridge.openCalls, 1);
+      expect(client.isClosed, isFalse);
     },
   );
+
+  test('SDK boundary rejects C-incompatible sync and pagination ids', () async {
+    final client = _FakeRustClient();
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+      codecExecutor: _RecordingCodecExecutor(),
+    );
+    addTearDown(boundary.close);
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      ),
+    );
+
+    for (final cursor in <String>['', 'resume\u0000truncated']) {
+      await expectLater(
+        boundary.startSync(
+          MatrixSdkSyncConfiguration(resumeFromCursor: cursor),
+        ),
+        throwsArgumentError,
+      );
+    }
+    await expectLater(
+      boundary.paginateBackwards('!room:kite.test\u0000truncated'),
+      throwsArgumentError,
+    );
+    expect(client.syncTokens, isEmpty);
+    expect(client.paginationCalls, isEmpty);
+  });
 
   test(
     'cold initial room population yields bounded chunks before cursor commit',
@@ -548,6 +611,31 @@ void main() {
     blockedDelay.complete();
   });
 
+  test('failed SDK client close remains retryable', () async {
+    final client = _FailingCloseRustClient();
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+    );
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      ),
+    );
+
+    await expectLater(boundary.close(), throwsStateError);
+    expect(client.closeCalls, 1);
+    expect(client.isClosed, isFalse);
+
+    await boundary.close();
+    expect(client.closeCalls, 2);
+    expect(client.isClosed, isTrue);
+  });
+
   test(
     'Dart opens and closes a passphrase-encrypted Matrix Rust SDK store off-isolate',
     () async {
@@ -627,6 +715,23 @@ final class _DeferredCrashReporter implements CrashReporter {
   }
 }
 
+final class _RecordingRustBridge implements MatrixRustBridge {
+  _RecordingRustBridge(this.client);
+
+  final MatrixRustClient client;
+  int openCalls = 0;
+
+  @override
+  Future<MatrixRustClient> openEncryptedClient({
+    required Uri homeserver,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    openCalls += 1;
+    return client;
+  }
+}
+
 final class _FakeRustBridge implements MatrixRustBridge {
   const _FakeRustBridge(this.client);
 
@@ -639,6 +744,37 @@ final class _FakeRustBridge implements MatrixRustBridge {
     required String storePassphrase,
   }) async {
     return client;
+  }
+}
+
+final class _FailingCloseRustClient implements MatrixRustClient {
+  int closeCalls = 0;
+  bool _closed = false;
+
+  @override
+  bool get isClosed => _closed;
+
+  @override
+  Future<String> syncOnce({
+    required Duration timeout,
+    required int timelineEventLimit,
+    String? since,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> paginateBackwards({required String roomId}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> close() async {
+    closeCalls += 1;
+    if (closeCalls == 1) {
+      throw StateError('deterministic close failure');
+    }
+    _closed = true;
   }
 }
 

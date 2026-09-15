@@ -540,6 +540,19 @@ void main() {
         expect(parser.parse(Uri.parse('https://matrix.to/#/%E0%A4%A')), isNull);
       },
     );
+
+    test('rejects deep links containing unsafe Matrix identifiers', () {
+      expect(
+        parser.parse(
+          Uri.parse('https://matrix.to/#/!room%00other:example.org'),
+        ),
+        isNull,
+      );
+      expect(
+        parser.parse(Uri.parse('matrix:u/alice%00other:example.org')),
+        isNull,
+      );
+    });
   });
 
   test(

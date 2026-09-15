@@ -46,7 +46,10 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
 
           final accountId = decoded['accountId'];
           final target = decoded['navigationTarget'];
-          if (accountId is! String || accountId.isEmpty || target is! Map) {
+          if (accountId is! String ||
+              !_isSafeIdentifier(accountId) ||
+              accountId.trim() != accountId ||
+              target is! Map) {
             continue;
           }
 
@@ -150,7 +153,11 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
     return null;
   }
 
-  static bool _isNonEmpty(Object? value) => value is String && value.isNotEmpty;
+  static bool _isNonEmpty(Object? value) =>
+      value is String && _isSafeIdentifier(value);
+
+  static bool _isSafeIdentifier(String value) =>
+      value.isNotEmpty && !value.contains('\u0000');
 }
 
 final class MatrixRestorationCoordinator {
@@ -169,8 +176,19 @@ final class MatrixRestorationCoordinator {
     required MatrixNavigationTarget navigationTarget,
   }) {
     final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty) {
-      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    if (normalizedAccountId.isEmpty || normalizedAccountId.contains('\u0000')) {
+      throw ArgumentError.value(
+        accountId,
+        'accountId',
+        'must contain a non-empty account id without NUL bytes',
+      );
+    }
+    if (!navigationTarget.isSafe) {
+      throw ArgumentError.value(
+        navigationTarget,
+        'navigationTarget',
+        'must contain only non-empty Matrix identifiers without NUL bytes',
+      );
     }
     return _enqueue(() {
       return _store.save(

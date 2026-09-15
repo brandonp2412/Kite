@@ -152,6 +152,46 @@ void main() {
 
       expect(await FileMatrixRestorationStore(file).load(), isNull);
     });
+
+    test('rejects persisted state with unsafe Matrix identifiers', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-restoration-unsafe-id-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final file = File('${directory.path}/restoration.json');
+      final store = FileMatrixRestorationStore(file);
+
+      for (final document in <Map<String, Object?>>[
+        <String, Object?>{
+          'version': 1,
+          'accountId': '@alice:example.org\u0000other',
+          'navigationTarget': <String, Object?>{
+            'kind': MatrixNavigationKind.home.name,
+          },
+        },
+        <String, Object?>{
+          'version': 1,
+          'accountId': ' @alice:example.org ',
+          'navigationTarget': <String, Object?>{
+            'kind': MatrixNavigationKind.home.name,
+          },
+        },
+        <String, Object?>{
+          'version': 1,
+          'accountId': '@alice:example.org',
+          'navigationTarget': <String, Object?>{
+            'kind': MatrixNavigationKind.event.name,
+            'roomIdOrAlias': '!room:example.org\u0000other',
+            'eventId': r'$event:example.org',
+          },
+        },
+      ]) {
+        await file.writeAsString(jsonEncode(document));
+        expect(await store.load(), isNull);
+      }
+    });
   });
 
   group('MatrixRestorationCoordinator', () {
@@ -165,6 +205,37 @@ void main() {
       );
 
       expect(store.snapshot?.accountId, '@alice:example.org');
+    });
+
+    test('rejects NUL-bearing account ids before persistence', () {
+      final store = _MemoryRestorationStore(null);
+      final coordinator = MatrixRestorationCoordinator(store);
+
+      expect(
+        () => coordinator.record(
+          accountId: '@alice:example.org\u0000other',
+          navigationTarget: const MatrixNavigationTarget.home(),
+        ),
+        throwsArgumentError,
+      );
+      expect(store.snapshot, isNull);
+    });
+
+    test('rejects unsafe navigation targets before persistence', () {
+      final store = _MemoryRestorationStore(null);
+      final coordinator = MatrixRestorationCoordinator(store);
+
+      expect(
+        () => coordinator.record(
+          accountId: '@alice:example.org',
+          navigationTarget: const MatrixNavigationTarget.event(
+            '!room:example.org',
+            'event\u0000other',
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(store.snapshot, isNull);
     });
   });
 
@@ -240,6 +311,37 @@ void main() {
       },
     );
 
+    test('rejects malformed encrypted-store identifiers before use', () {
+      expect(
+        () => MatrixAccountStoreRegistry(
+          rootPath: '/data/kite/matrix\u0000ignored',
+          encryptionKeyIdForAccount: (_) => 'unused',
+        ),
+        throwsArgumentError,
+      );
+
+      final invalidAccountRegistry = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'unused',
+      );
+      expect(
+        () =>
+            invalidAccountRegistry.forAccount('@alice:example.org\u0000other'),
+        throwsArgumentError,
+      );
+      expect(invalidAccountRegistry.stores, isEmpty);
+
+      final invalidKeyRegistry = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'key\u0000other',
+      );
+      expect(
+        () => invalidKeyRegistry.forAccount('@alice:example.org'),
+        throwsStateError,
+      );
+      expect(invalidKeyRegistry.stores, isEmpty);
+    });
+
     test('rejects encryption-key reuse between different accounts', () {
       final registry = MatrixAccountStoreRegistry(
         rootPath: '/data/kite/matrix',
@@ -267,6 +369,46 @@ void main() {
         'shared-key',
       );
     });
+
+    test('re-added accounts cannot silently change persistent-store keys', () {
+      var encryptionKeyId = 'alice-key-v1';
+      final registry = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => encryptionKeyId,
+      );
+
+      registry.forAccount('@alice:example.org');
+      expect(registry.removeAccount('@alice:example.org'), isTrue);
+      encryptionKeyId = 'alice-key-v2';
+
+      expect(() => registry.forAccount('@alice:example.org'), throwsStateError);
+      expect(registry.stores, isEmpty);
+
+      encryptionKeyId = 'alice-key-v1';
+      expect(
+        registry.forAccount('@alice:example.org').encryptionKeyId,
+        'alice-key-v1',
+      );
+    });
+
+    test(
+      'discarding an unopened account releases encryption-key ownership',
+      () {
+        final registry = MatrixAccountStoreRegistry(
+          rootPath: '/data/kite/matrix',
+          encryptionKeyIdForAccount: (_) => 'shared-key',
+        );
+
+        registry.forAccount('@broken:example.org');
+        expect(registry.discardUnopenedAccount('@broken:example.org'), isTrue);
+        expect(registry.stores, isEmpty);
+
+        expect(
+          registry.forAccount('@bob:example.org').encryptionKeyId,
+          'shared-key',
+        );
+      },
+    );
   });
 }
 

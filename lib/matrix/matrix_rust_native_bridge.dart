@@ -386,7 +386,8 @@ final class MatrixRustNativeClient implements MatrixRustClient {
 
   @override
   Future<String> paginateBackwards({required String roomId}) {
-    if (roomId.trim().isEmpty || roomId.contains('\u0000')) {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
       return Future<String>.error(
         ArgumentError.value(
           roomId,
@@ -402,7 +403,7 @@ final class MatrixRustNativeClient implements MatrixRustClient {
         _MatrixNativePaginateOperation(
           libraryPath: path,
           address: address,
-          roomId: roomId,
+          roomId: normalizedRoomId,
         ).call,
       );
     });
@@ -475,6 +476,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
   MatrixRustClient? _client;
+  MatrixSdkStoreConfiguration? _openedStore;
   Future<void> _transition = Future<void>.value();
   Future<void>? _syncLoop;
   Completer<void>? _retryWakeup;
@@ -494,11 +496,27 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   @override
   Future<void> open(MatrixSdkStoreConfiguration store) {
     return _enqueue(() async {
-      if (_client != null) return;
+      final client = _client;
+      if (client != null) {
+        final openedStore = _openedStore;
+        if (openedStore == null || !_sameStore(openedStore, store)) {
+          throw StateError(
+            'Matrix Rust SDK boundary is already open for another store',
+          );
+        }
+        return;
+      }
       final storeSecret = await resolveStoreSecret(store.encryptionKeyId);
       if (storeSecret.isEmpty) {
         throw StateError(
           'Matrix SDK store secret resolver returned an empty secret',
+        );
+      }
+      if (storeSecret.contains('\u0000')) {
+        throw ArgumentError.value(
+          '<redacted>',
+          'storeSecret',
+          'must not contain NUL bytes',
         );
       }
       _client = await bridge.openEncryptedClient(
@@ -506,6 +524,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         storePath: store.storePath,
         storePassphrase: storeSecret,
       );
+      _openedStore = store;
     });
   }
 
@@ -554,8 +573,12 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       trace?.log(LogLevel.info, DiagnosticEvent.started);
       try {
         final normalizedRoomId = roomId.trim();
-        if (normalizedRoomId.isEmpty) {
-          throw ArgumentError.value(roomId, 'roomId', 'must not be empty');
+        if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+          throw ArgumentError.value(
+            roomId,
+            'roomId',
+            'must not be empty or contain NUL bytes',
+          );
         }
         final payload = await _requireClient().paginateBackwards(
           roomId: normalizedRoomId,
@@ -596,8 +619,12 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     return _enqueue(() async {
       await _stopSync();
       final client = _client;
-      _client = null;
-      await client?.close();
+      if (client == null) return;
+      await client.close();
+      if (identical(_client, client)) {
+        _client = null;
+        _openedStore = null;
+      }
     });
   }
 
@@ -768,6 +795,15 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         _syncLoop = null;
       }
     }
+  }
+
+  static bool _sameStore(
+    MatrixSdkStoreConfiguration left,
+    MatrixSdkStoreConfiguration right,
+  ) {
+    return left.accountId == right.accountId &&
+        left.storePath == right.storePath &&
+        left.encryptionKeyId == right.encryptionKeyId;
   }
 
   MatrixRustClient _requireClient() {
