@@ -66,6 +66,8 @@ final class FakeNotificationCancellationPort
 final class FakeNotificationEventResolver
     implements NotificationEventResolverPort {
   MatrixNotificationEvent? event;
+  final Map<String, MatrixNotificationEvent> eventsByRoutingId =
+      <String, MatrixNotificationEvent>{};
   Object? failNextWith;
   final List<KiteNotification> resolutions = <KiteNotification>[];
 
@@ -77,7 +79,7 @@ final class FakeNotificationEventResolver
     final failure = failNextWith;
     failNextWith = null;
     if (failure != null) throw failure;
-    return event;
+    return eventsByRoutingId[notification.routingId] ?? event;
   }
 }
 

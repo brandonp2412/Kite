@@ -7,6 +7,7 @@ import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_ingress.dart';
+import 'package:kite/features/notifications/notification_resolution.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/features/notifications/notification_transport.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
@@ -69,19 +70,36 @@ void main() {
         'work',
         'personal',
       ]);
+      final resolver = FakeNotificationEventResolver();
+      final resolution = NotificationResolutionCoordinator(
+        resolver: resolver,
+        dispatch: dispatcher,
+      );
+      resolver.eventsByRoutingId[_routingId(
+        'ingress-call',
+      )] = const MatrixNotificationEvent(
+        id: 'ingress-call',
+        kind: MatrixNotificationEventKind.call,
+        accountId: 'work',
+        roomId: '!calls:example.org',
+        callId: 'rtc-42',
+        title: 'Incoming call',
+        body: 'Resolved MatrixRTC call notification',
+      );
+      resolver.eventsByRoutingId[_routingId(
+        'ingress-invite',
+        accountId: 'personal',
+      )] = const MatrixNotificationEvent(
+        id: 'ingress-invite',
+        kind: MatrixNotificationEventKind.invite,
+        accountId: 'personal',
+        roomId: '!invite:example.org',
+        title: 'Invite',
+        body: 'Resolved Matrix room invite',
+      );
       final ingress = NotificationIngressCoordinator(
         accounts: ingressAccounts,
-        onAccepted: (result) async {
-          final notification = result.notification!;
-          notifications.upsertNotification(notification);
-          await deliveryCoordinator.upsert(
-            notification: notification,
-            content: KiteNotificationContent(
-              title: 'Ingress ${result.transport.name}',
-              body: 'Resolved by the deterministic Matrix notification adapter',
-            ),
-          );
-        },
+        onAccepted: resolution.handleAccepted,
       );
       final fcm = FakeNotificationPayloadSource();
       final backgroundSync = FakeNotificationPayloadSource();
@@ -272,12 +290,17 @@ void main() {
         ),
       );
       expect(ingressAccounts.queries, <String>['work', 'personal']);
+      expect(resolver.resolutions.map((entry) => entry.routingId), <String>[
+        _routingId('ingress-call'),
+        _routingId('ingress-invite', accountId: 'personal'),
+      ]);
 
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['notification_routing_reconciliation'] =
           <String, dynamic>{
             'journey': 'notification_tap_and_read_reconciliation',
-            'fixture': 'deterministic_notification_routing_v2',
+            'fixture':
+                'deterministic_notification_routing_v3_secure_resolution',
             ...result,
             'result': 'PASS',
           };
