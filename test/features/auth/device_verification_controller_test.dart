@@ -35,6 +35,7 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
       transactionId: returnedQrTransactionId ?? transactionId,
       method: DeviceVerificationMethod.qr,
       stage: DeviceVerificationStage.verified,
+      qrCodeData: 'POST-CONFIRM-QR-SECRET',
     );
   }
 
@@ -51,6 +52,7 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
       transactionId: returnedSasTransactionId ?? transactionId,
       method: DeviceVerificationMethod.sas,
       stage: DeviceVerificationStage.verified,
+      sasEmoji: const <String>['🐶', '🌳', '🚲'],
     );
   }
 
@@ -238,6 +240,8 @@ void main() {
       expect(await controller.confirmQrVerification(), isTrue);
       expect(gateway.confirmedQrTransactionId, 'scanned-transaction');
       expect(controller.session.value?.stage, DeviceVerificationStage.verified);
+      expect(controller.session.value?.qrCodeData, isNull);
+      expect(controller.session.value?.sasEmoji, isEmpty);
       expect(controller.trustState.value, CrossSigningTrustState.verified);
       expect(controller.requiresVerification, isFalse);
       expect(gateway.trustReads, 1);
@@ -261,6 +265,8 @@ void main() {
 
       expect(await controller.confirmSasVerification(), isTrue);
       expect(gateway.confirmedSasTransactionId, 'sas-transaction');
+      expect(controller.session.value?.qrCodeData, isNull);
+      expect(controller.session.value?.sasEmoji, isEmpty);
       expect(controller.trustState.value, CrossSigningTrustState.verified);
     },
   );

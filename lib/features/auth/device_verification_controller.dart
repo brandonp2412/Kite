@@ -254,7 +254,13 @@ final class DeviceVerificationController {
           return false;
         }
       }
-      session.value = next;
+      session.value = next.isTerminal
+          ? DeviceVerificationSession(
+              transactionId: next.transactionId,
+              method: next.method,
+              stage: next.stage,
+            )
+          : next;
       return true;
     } catch (_) {
       if (generation == _accountGeneration) {
