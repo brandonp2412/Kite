@@ -102,6 +102,7 @@ void main() {
     var failNextDelivery = true;
     final binding = NotificationTransportBinding(
       ingress: NotificationIngressCoordinator(
+        accounts: FakeNotificationIngressAccountPort(<String>['work']),
         onAccepted: (result) async {
           if (failNextDelivery) {
             failNextDelivery = false;
@@ -139,6 +140,7 @@ void main() {
       addTearDown(fcm.close);
       final binding = NotificationTransportBinding(
         ingress: NotificationIngressCoordinator(
+          accounts: FakeNotificationIngressAccountPort(<String>['work']),
           onAccepted: (result) async => accepted.add(result.notification!.id),
         ),
         fcm: fcm,

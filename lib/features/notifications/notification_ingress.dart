@@ -236,12 +236,12 @@ typedef NotificationIngressHandler = Future<void> Function(
 final class NotificationIngressCoordinator {
   const NotificationIngressCoordinator({
     required this.onAccepted,
-    this.accounts,
+    required this.accounts,
     this.parser = const NotificationIngressParser(),
   });
 
   final NotificationIngressHandler onAccepted;
-  final NotificationIngressAccountPort? accounts;
+  final NotificationIngressAccountPort accounts;
   final NotificationIngressParser parser;
 
   Future<NotificationIngressResult> receive({
@@ -252,8 +252,7 @@ final class NotificationIngressCoordinator {
     if (!result.accepted) return result;
 
     final account = result.notification!.destination.accountId;
-    final accountPort = accounts;
-    if (accountPort != null && !await accountPort.containsAccount(account)) {
+    if (!await accounts.containsAccount(account)) {
       return NotificationIngressResult.rejected(
         transport: transport,
         failure: NotificationIngressFailure.unknownAccount,
