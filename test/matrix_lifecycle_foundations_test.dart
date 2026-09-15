@@ -225,6 +225,31 @@ void main() {
         throwsA(isA<MatrixHomeserverDiscoveryException>()),
       );
     });
+
+    test(
+      'rejects unsafe components in discovered homeserver base URLs',
+      () async {
+        for (final baseUrl in <String>[
+          'https://user:secret@matrix.example.org',
+          'https://matrix.example.org?token=secret',
+          'https://matrix.example.org/#fragment',
+        ]) {
+          final discovery = MatrixHomeserverDiscovery(
+            _FakeWellKnownClient(
+              document: <String, Object?>{
+                'm.homeserver': <String, Object?>{'base_url': baseUrl},
+              },
+            ),
+          );
+
+          await expectLater(
+            discovery.discover('example.org'),
+            throwsA(isA<MatrixHomeserverDiscoveryException>()),
+            reason: baseUrl,
+          );
+        }
+      },
+    );
   });
 
   group('MatrixDeepLinkParser', () {
