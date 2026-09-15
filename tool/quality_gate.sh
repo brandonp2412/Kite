@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+printf '%s\n' 'Kite quality gate: Waydroid lock self-test'
+"$(dirname "$0")/verify_waydroid_lock.sh"
+
 printf '%s\n' 'Kite quality gate: analyze'
 flutter analyze
 

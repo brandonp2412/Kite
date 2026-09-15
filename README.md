@@ -83,6 +83,16 @@ tool/verify_jitter_harness.sh
 tool/quality_gate.sh
 ```
 
+Any other Waydroid-targeted performance run must share the same per-device lock:
+
+```sh
+device="$(adb devices -l | awk '/model:WayDroid/{print $1; exit}')"
+tool/with_waydroid_lock.sh --device "$device" -- flutter drive --profile --no-dds \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/release_journey_performance_test.dart \
+  -d "$device"
+```
+
 ## Current status
 
 Foundation work is active. Milestone 0 establishes reproducible quality gates before Matrix feature work begins. The detailed checkbox state lives in [ROADMAP.md](ROADMAP.md).
