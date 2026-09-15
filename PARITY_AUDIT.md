@@ -89,7 +89,7 @@ This completes the current-upstream room-list action inventory; it intentionally
 | Reply | Implemented in composer context and TalkBack actions. | Present — M4 |
 | Reply in thread | The message action sheet and accessibility actions open a dedicated thread from any non-redacted event; the first runtime reply promotes a previously unthreaded event into timeline/thread-list thread state. | Present foundation — M6 |
 | Edit message | Implemented for own text messages. | Present — M4 |
-| Edit poll / End poll | No production poll composer/action flow. | Gap — M4/M5 |
+| Edit poll / End poll | Own active polls expose an explicit End poll action with fixed-geometry ending/final state. Poll editing is not implemented because the current deterministic boundary does not yet model an upstream-compatible edit transport. | Partial — M4/M5 |
 | Edit / add / remove caption | No production media-caption mutation flow. | Gap — M5 |
 | View source | No current message action. | Gap — M4/M10 |
 | Report content | No current message action. | Gap — M4/M10 |
@@ -104,7 +104,7 @@ This completes the current-upstream message-action inventory while retaining eve
 
 ## Timeline event-type audit
 
-The sealed `TimelineItemEventContent` family, its concrete model files, the virtual timeline models, and grouped-event wrapper were enumerated at the reference SHA. Kite's production `TimelineMessage` currently models text, replies, edit/redaction state, local send state, and static/live location payloads; the mixed-event benchmark surface is deliberately synthetic and is not counted as production support beyond those concrete event models.
+The sealed `TimelineItemEventContent` family, its concrete model files, the virtual timeline models, and grouped-event wrapper were enumerated at the reference SHA. Kite's production `TimelineMessage` currently models text, replies, edit/redaction state, local send state, static/live location payloads, and poll question/choice/result state; the mixed-event benchmark surface is deliberately synthetic and is not counted as production support beyond those concrete event models.
 
 | Element X timeline type | Current Kite capability | Status / owner |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ The sealed `TimelineItemEventContent` family, its concrete model files, the virt
 | Image / video / audio / voice / file | Media viewer and media workflow foundations exist, but the production Home timeline model does not render these event types. | Gap — M5/M7 |
 | Gallery / multi-attachment | No production timeline event model. | Gap — M5/M7 |
 | Sticker | No production timeline event model. | Gap — M5 |
-| Poll | Benchmark fixtures model a synthetic poll shape only; no production poll timeline UI. | Gap — M4/M5 |
+| Poll | Production timeline messages now carry an SDK-ready poll payload and render fixed-height choice/result rows with explicit selected, ending and ended states. The composer creates 2–6 choice polls, vote changes mutate only the poll leaf signal, and own active polls can be ended. Deterministic light/dark goldens and 120 Hz geometry tests pass; real Matrix poll event mapping/interoperability and locked profile evidence remain unfinished. | Present foundation — M4/M5 |
 | Static / live location | Production timeline messages carry an SDK-ready location payload and render a fixed-geometry map/location card with explicit static/live/ending/ended state. The composer has deterministic fixed/live location preparation, permission-denied/permanently-denied recovery, send, and stop workflows; live state changes mutate only the message location signal. Real platform geolocation/permission adapters and Matrix SDK event mapping/interoperability remain unfinished. | Present foundation — M4/M5 |
 | Encrypted / undecryptable event | Encryption foundations exist, but there is no dedicated production timeline event state. | Gap — M2/M4 |
 | Redacted event | Implemented for current text messages. | Present — M4 |

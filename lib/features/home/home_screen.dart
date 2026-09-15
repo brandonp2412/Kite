@@ -26,6 +26,8 @@ import 'package:kite/features/timeline/timeline_location_card.dart';
 import 'package:kite/features/timeline/timeline_location_share_sheet.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
+import 'package:kite/features/timeline/timeline_poll_card.dart';
+import 'package:kite/features/timeline/timeline_poll_sheet.dart';
 import 'package:kite/l10n/kite_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -877,6 +879,7 @@ enum _MessageAction {
   forward,
   report,
   redact,
+  endPoll,
   reactionPicker,
 }
 
@@ -1489,6 +1492,8 @@ class _MessageRow extends StatelessWidget {
               duration: Duration(seconds: 2),
             ),
           );
+      case _MessageAction.endPoll:
+        await timelineController.endPoll(roomId, message);
       case _MessageAction.reactionPicker:
         final emoji = await showModalBottomSheet<String>(
           context: context,
@@ -1550,6 +1555,8 @@ class _MessageRow extends StatelessWidget {
               duration: const Duration(seconds: 2),
             ),
           );
+      case _MessageAction.endPoll:
+        await timelineController.endPoll(roomId, message);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -1610,17 +1617,29 @@ class _MessageRow extends StatelessWidget {
                           _MessageAction.replyInThread,
                         ),
                       ),
-                  CustomSemanticsAction(
-                    label: localizations.copyTextAction,
-                  ): () => unawaited(
-                    _performAccessibleAction(context, _MessageAction.copy),
-                  ),
-                  if (message.mine)
+                  if (message.body.isNotEmpty)
+                    CustomSemanticsAction(
+                      label: localizations.copyTextAction,
+                    ): () => unawaited(
+                      _performAccessibleAction(context, _MessageAction.copy),
+                    ),
+                  if (message.mine && message.poll == null)
                     CustomSemanticsAction(
                       label: localizations.editMessageAction,
                     ): () => unawaited(
                       _performAccessibleAction(context, _MessageAction.edit),
                     ),
+                  if (message.mine &&
+                      message.poll != null &&
+                      !message.poll!.isEnded &&
+                      !message.poll!.isEnding)
+                    const CustomSemanticsAction(label: 'End poll'): () =>
+                        unawaited(
+                          _performAccessibleAction(
+                            context,
+                            _MessageAction.endPoll,
+                          ),
+                        ),
                   if (message.mine)
                     CustomSemanticsAction(
                       label: localizations.deleteMessageAction,
@@ -1674,6 +1693,7 @@ class _MessageRow extends StatelessWidget {
                       }
                       final attachment = message.attachment;
                       final location = message.location;
+                      final poll = message.poll;
                       final linkPreview = timelineLinkPreviewForText(
                         message.body,
                       );
@@ -1696,7 +1716,9 @@ class _MessageRow extends StatelessWidget {
                                   : () => _openMedia(context),
                             ),
                           if (attachment != null &&
-                              (location != null || message.body.isNotEmpty))
+                              (location != null ||
+                                  poll != null ||
+                                  message.body.isNotEmpty))
                             const SizedBox(height: KiteSpacing.xs),
                           if (location != null)
                             TimelineLocationCard(
@@ -1715,7 +1737,22 @@ class _MessageRow extends StatelessWidget {
                                     )
                                   : null,
                             ),
-                          if (location != null && message.body.isNotEmpty)
+                          if (location != null &&
+                              (poll != null || message.body.isNotEmpty))
+                            const SizedBox(height: KiteSpacing.xs),
+                          if (poll != null)
+                            TimelinePollCard(
+                              messageId: message.id,
+                              poll: poll,
+                              onVote: (optionId) => unawaited(
+                                timelineController.votePoll(
+                                  roomId,
+                                  message,
+                                  optionId,
+                                ),
+                              ),
+                            ),
+                          if (poll != null && message.body.isNotEmpty)
                             const SizedBox(height: KiteSpacing.xs),
                           if (message.body.isNotEmpty)
                             TimelineMessageBody(
@@ -2141,7 +2178,7 @@ class _MessageActionSheet extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  message.body,
+                  message.poll?.question ?? message.body,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: KiteTypography.body.copyWith(
@@ -2182,19 +2219,22 @@ class _MessageActionSheet extends StatelessWidget {
                         : 'Copy caption',
                     onTap: () => Navigator.of(context).pop(_MessageAction.copy),
                   ),
-                _MessageActionButton(
-                  key: const Key('message-action-share'),
-                  icon: Icons.share_outlined,
-                  label: 'Share',
-                  onTap: () => Navigator.of(context).pop(_MessageAction.share),
-                ),
-                _MessageActionButton(
-                  key: const Key('message-action-forward'),
-                  icon: Icons.forward_to_inbox_rounded,
-                  label: 'Forward',
-                  onTap: () =>
-                      Navigator.of(context).pop(_MessageAction.forward),
-                ),
+                if (message.poll == null)
+                  _MessageActionButton(
+                    key: const Key('message-action-share'),
+                    icon: Icons.share_outlined,
+                    label: 'Share',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.share),
+                  ),
+                if (message.poll == null)
+                  _MessageActionButton(
+                    key: const Key('message-action-forward'),
+                    icon: Icons.forward_to_inbox_rounded,
+                    label: 'Forward',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.forward),
+                  ),
                 if (!message.mine)
                   _MessageActionButton(
                     key: const Key('message-action-report'),
@@ -2203,12 +2243,23 @@ class _MessageActionSheet extends StatelessWidget {
                     onTap: () =>
                         Navigator.of(context).pop(_MessageAction.report),
                   ),
-                if (message.mine)
+                if (message.mine && message.poll == null)
                   _MessageActionButton(
                     key: const Key('message-action-edit'),
                     icon: Icons.edit_outlined,
                     label: AppLocalizations.of(context).editMessageAction,
                     onTap: () => Navigator.of(context).pop(_MessageAction.edit),
+                  ),
+                if (message.mine &&
+                    message.poll != null &&
+                    !message.poll!.isEnded &&
+                    !message.poll!.isEnding)
+                  _MessageActionButton(
+                    key: const Key('message-action-end-poll'),
+                    icon: Icons.stop_circle_outlined,
+                    label: 'End poll',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.endPoll),
                   ),
                 if (message.mine)
                   _MessageActionButton(
@@ -3177,6 +3228,19 @@ class _ComposerState extends State<_Composer> {
               context,
               roomId: roomId,
               kind: kind,
+              controller: timelineController,
+            ),
+          );
+        });
+      },
+      onPollSelected: () {
+        if (!mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(
+            showComposerPollSheet(
+              context,
+              roomId: roomId,
               controller: timelineController,
             ),
           );

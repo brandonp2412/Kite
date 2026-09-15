@@ -33,22 +33,31 @@ const deterministicComposerAttachments = <TimelineAttachment>[
 Future<TimelineAttachment?> showComposerAttachmentPicker(
   BuildContext context, {
   ValueChanged<TimelineLocationKind>? onLocationSelected,
+  VoidCallback? onPollSelected,
 }) {
   return showModalBottomSheet<TimelineAttachment>(
     context: context,
     useSafeArea: true,
+    isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: context.kiteColors.canvas,
     constraints: const BoxConstraints(maxWidth: 440),
-    builder: (_) =>
-        ComposerAttachmentPickerSheet(onLocationSelected: onLocationSelected),
+    builder: (_) => ComposerAttachmentPickerSheet(
+      onLocationSelected: onLocationSelected,
+      onPollSelected: onPollSelected,
+    ),
   );
 }
 
 class ComposerAttachmentPickerSheet extends StatelessWidget {
-  const ComposerAttachmentPickerSheet({super.key, this.onLocationSelected});
+  const ComposerAttachmentPickerSheet({
+    super.key,
+    this.onLocationSelected,
+    this.onPollSelected,
+  });
 
   final ValueChanged<TimelineLocationKind>? onLocationSelected;
+  final VoidCallback? onPollSelected;
 
   static const _labels = <String>['Photos', 'Videos', 'Camera', 'Files'];
 
@@ -95,6 +104,16 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
           onTap: () {
             Navigator.of(context).pop();
             onLocationSelected!(TimelineLocationKind.liveLocation);
+          },
+        ),
+      if (onPollSelected != null)
+        _ComposerAttachmentActionTile(
+          key: const Key('attachment-option-poll'),
+          icon: Icons.poll_outlined,
+          label: 'Poll',
+          onTap: () {
+            Navigator.of(context).pop();
+            onPollSelected!();
           },
         ),
     ];
