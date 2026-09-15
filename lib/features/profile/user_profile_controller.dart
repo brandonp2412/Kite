@@ -67,9 +67,17 @@ final class UserProfileController {
     isLoading.value = true;
     errorMessage.value = null;
     try {
-      ownProfile.value = await _gateway.loadOwnProfile();
+      final profile = await _gateway.loadOwnProfile();
       final ignored = await _gateway.loadIgnoredUserIds();
       final blocked = await _gateway.loadBlockedUserIds();
+      if (!_isValidUserId(profile.userId) ||
+          profile.userId != profile.userId.trim() ||
+          !_areValidUserIds(ignored) ||
+          !_areValidUserIds(blocked)) {
+        errorMessage.value = 'Kite received invalid profile data.';
+        return;
+      }
+      ownProfile.value = profile;
       ignoredUserIds.value = Set<String>.unmodifiable(ignored);
       blockedUserIds.value = Set<String>.unmodifiable(blocked);
     } catch (_) {
@@ -110,9 +118,17 @@ final class UserProfileController {
     isLoading.value = true;
     errorMessage.value = null;
     try {
-      viewedProfile.value = await _gateway.loadProfile(userId);
+      final profile = await _gateway.loadProfile(userId);
       final ignored = await _gateway.loadIgnoredUserIds();
       final blocked = await _gateway.loadBlockedUserIds();
+      if (profile.userId != userId ||
+          !_isValidUserId(profile.userId) ||
+          !_areValidUserIds(ignored) ||
+          !_areValidUserIds(blocked)) {
+        errorMessage.value = 'Kite received invalid profile data.';
+        return;
+      }
+      viewedProfile.value = profile;
       ignoredUserIds.value = Set<String>.unmodifiable(ignored);
       blockedUserIds.value = Set<String>.unmodifiable(blocked);
     } catch (_) {
@@ -178,7 +194,12 @@ final class UserProfileController {
     isSaving.value = true;
     errorMessage.value = null;
     try {
-      return await _gateway.openDirectMessage(userId);
+      final roomId = await _gateway.openDirectMessage(userId);
+      if (!_isValidRoomId(roomId)) {
+        errorMessage.value = 'Kite received an invalid direct-message room.';
+        return null;
+      }
+      return roomId;
     } catch (_) {
       errorMessage.value = 'Kite could not open a direct message.';
       return null;
@@ -247,6 +268,14 @@ final class UserProfileController {
     }
   }
 
+  bool _isValidRoomId(String roomId) {
+    final trimmed = roomId.trim();
+    return trimmed == roomId &&
+        trimmed.startsWith('!') &&
+        trimmed.contains(':') &&
+        !trimmed.contains(RegExp(r'\s'));
+  }
+
   bool _areValidUserIds(Iterable<String> userIds) {
     for (final userId in userIds) {
       if (!_isValidUserId(userId) || userId != userId.trim()) return false;
@@ -256,7 +285,8 @@ final class UserProfileController {
 
   bool _isValidUserId(String userId) {
     final trimmed = userId.trim();
-    return trimmed.startsWith('@') &&
+    return trimmed == userId &&
+        trimmed.startsWith('@') &&
         trimmed.contains(':') &&
         !trimmed.contains(RegExp(r'\s'));
   }
