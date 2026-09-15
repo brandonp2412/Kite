@@ -69,6 +69,12 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
       account.accountId,
     );
     if (!activated) return;
+
+    if (widget.sessionDeviceController.resetForAccountChange()) {
+      await widget.sessionDeviceController.load();
+    }
+    if (!mounted) return;
+
     final active = widget.accountController.activeAccount;
     if (active != null) {
       widget.onActiveAccountChanged?.call(active);
@@ -118,6 +124,10 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                 widget.sessionDeviceController.isLoading.value;
             final signingOutDevices =
                 widget.sessionDeviceController.signingOutDeviceIds.value;
+            final deviceOperationActive =
+                deviceLoading || signingOutDevices.isNotEmpty;
+            final securityOperationActive =
+                accountOperationActive || deviceOperationActive;
             final deviceError =
                 widget.sessionDeviceController.errorMessage.value;
 
@@ -131,7 +141,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                       ? null
                       : TextButton.icon(
                           key: const Key('add-account'),
-                          onPressed: accountOperationActive
+                          onPressed: securityOperationActive
                               ? null
                               : widget.onAddAccount,
                           icon: const Icon(Icons.add_rounded),
@@ -155,7 +165,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                   for (final account in accounts)
                     _AccountTile(
                       account: account,
-                      busy: accountOperationActive,
+                      busy: securityOperationActive,
                       onActivate: account.isActive
                           ? null
                           : () => _activateAccount(account),
@@ -178,7 +188,9 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                   for (final device in devices)
                     _DeviceTile(
                       device: device,
-                      busy: signingOutDevices.contains(device.deviceId),
+                      busy:
+                          accountOperationActive ||
+                          signingOutDevices.contains(device.deviceId),
                       onSignOut: device.isCurrent
                           ? null
                           : () => _signOutDevice(device),
