@@ -398,6 +398,8 @@ class ThreadController {
       } else {
         failed.value = true;
       }
+    } catch (_) {
+      failed.value = true;
     } finally {
       updating.value = false;
     }
@@ -608,17 +610,21 @@ class ThreadController {
   }) async {
     final attachment = reply.attachment;
     if (attachment == null) return;
-    final outcome = await _attachmentSendPort.sendAttachment(
-      roomId: roomId,
-      parentEventId: parent.id,
-      transactionId: reply.id,
-      attachment: attachment,
-      caption: reply.body,
-    );
-    reply.sendState.value = switch (outcome) {
-      TimelineSendOutcome.sent => TimelineSendState.sent,
-      TimelineSendOutcome.failed => TimelineSendState.failed,
-    };
+    try {
+      final outcome = await _attachmentSendPort.sendAttachment(
+        roomId: roomId,
+        parentEventId: parent.id,
+        transactionId: reply.id,
+        attachment: attachment,
+        caption: reply.body,
+      );
+      reply.sendState.value = switch (outcome) {
+        TimelineSendOutcome.sent => TimelineSendState.sent,
+        TimelineSendOutcome.failed => TimelineSendState.failed,
+      };
+    } catch (_) {
+      reply.sendState.value = TimelineSendState.failed;
+    }
   }
 
   Future<void> _settle({
@@ -626,16 +632,20 @@ class ThreadController {
     required TimelineMessage parent,
     required ThreadReply reply,
   }) async {
-    final outcome = await _sendPort.sendReply(
-      roomId: roomId,
-      parentEventId: parent.id,
-      transactionId: reply.id,
-      body: reply.body,
-    );
-    reply.sendState.value = switch (outcome) {
-      TimelineSendOutcome.sent => TimelineSendState.sent,
-      TimelineSendOutcome.failed => TimelineSendState.failed,
-    };
+    try {
+      final outcome = await _sendPort.sendReply(
+        roomId: roomId,
+        parentEventId: parent.id,
+        transactionId: reply.id,
+        body: reply.body,
+      );
+      reply.sendState.value = switch (outcome) {
+        TimelineSendOutcome.sent => TimelineSendState.sent,
+        TimelineSendOutcome.failed => TimelineSendState.failed,
+      };
+    } catch (_) {
+      reply.sendState.value = TimelineSendState.failed;
+    }
   }
 
   String _key(String roomId, String parentEventId) => '$roomId::$parentEventId';

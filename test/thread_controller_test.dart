@@ -88,6 +88,42 @@ class _ControlledThreadPort implements ThreadSendPort {
   }
 }
 
+class _ThrowingThreadPort implements ThreadSendPort {
+  @override
+  Future<TimelineSendOutcome> sendReply({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required String body,
+  }) async {
+    throw StateError('thread send failed');
+  }
+}
+
+class _ThrowingThreadAttachmentPort implements ThreadAttachmentSendPort {
+  @override
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+  }) async {
+    throw StateError('thread attachment send failed');
+  }
+}
+
+class _ThrowingSubscriptionPort implements ThreadSubscriptionPort {
+  @override
+  Future<ThreadSubscriptionOutcome> setFollowing({
+    required String roomId,
+    required String parentEventId,
+    required bool following,
+  }) async {
+    throw StateError('thread subscription failed');
+  }
+}
+
 void main() {
   test('deterministic thread summary seeds only supported parent events', () {
     final controller = ThreadController();
@@ -501,6 +537,45 @@ void main() {
       expect(reply.sendState.value, TimelineSendState.sent);
     },
   );
+  test(
+    'thrown send failures settle text and media replies as retryable',
+    () async {
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+      final controller = ThreadController(
+        sendPort: _ThrowingThreadPort(),
+        attachmentSendPort: _ThrowingThreadAttachmentPort(),
+      );
+
+      final textReply = controller.sendReply(
+        roomId: 'alice',
+        parent: parent,
+        rawBody: 'Retryable text',
+      );
+      final mediaReply = controller.sendAttachment(
+        roomId: 'alice',
+        parent: parent,
+        attachment: const TimelineAttachment(
+          id: 'thread-photo',
+          kind: TimelineAttachmentKind.image,
+          name: 'thread-photo.jpg',
+          sizeLabel: '2.4 MB · Photo',
+        ),
+        caption: 'Retryable media',
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(textReply.sendState.value, TimelineSendState.failed);
+      expect(mediaReply.sendState.value, TimelineSendState.failed);
+    },
+  );
+
   test('thread notification subscription is scoped and failure-safe', () async {
     final port = _ControlledSubscriptionPort();
     final controller = ThreadController(subscriptionPort: port);
@@ -570,6 +645,36 @@ void main() {
     expect(
       controller.subscriptionFailedFor(roomId: 'alice', parent: parent).value,
       isTrue,
+    );
+  });
+
+  test('thrown subscription failures expose the retry state', () async {
+    final controller = ThreadController(
+      subscriptionPort: _ThrowingSubscriptionPort(),
+    );
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+
+    await controller.toggleFollowing(roomId: 'alice', parent: parent);
+
+    expect(
+      controller.subscriptionFailedFor(roomId: 'alice', parent: parent).value,
+      isTrue,
+    );
+    expect(
+      controller
+          .isUpdatingSubscriptionFor(roomId: 'alice', parent: parent)
+          .value,
+      isFalse,
+    );
+    expect(
+      controller.isFollowingFor(roomId: 'alice', parent: parent).value,
+      isFalse,
     );
   });
 
