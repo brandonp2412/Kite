@@ -83,11 +83,11 @@ This completes the current-upstream room-list action inventory; it intentionally
 | View in timeline | Deep-link/focus foundations exist; no message action is exposed. | Gap — M4/M11 |
 | Forward | No current message action. | Gap — M4 |
 | Copy text | Implemented in action sheet and TalkBack actions. | Present — M4/M12 |
-| Copy caption | No production caption action. | Gap — M5 |
+| Copy caption | Media-caption messages expose a dedicated Copy caption action backed by the existing exact-text clipboard path. | Present — M5 |
 | Copy link | No current message action. | Gap — M4 |
 | Remove/redact | Implemented for own messages with confirmation. | Present — M4 |
 | Reply | Implemented in composer context and TalkBack actions. | Present — M4 |
-| Reply in thread | Thread entry/reply exists through thread summaries, but not as an action-list item. | Partial — M6 |
+| Reply in thread | The message action sheet and accessibility actions open a dedicated thread from any non-redacted event; the first runtime reply promotes a previously unthreaded event into timeline/thread-list thread state. | Present foundation — M6 |
 | Edit message | Implemented for own text messages. | Present — M4 |
 | Edit poll / End poll | No production poll composer/action flow. | Gap — M4/M5 |
 | Edit / add / remove caption | No production media-caption mutation flow. | Gap — M5 |

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -273,6 +274,54 @@ void main() {
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['reply_composer'] = <String, dynamic>{
       'journey': 'open_reply_composer',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('reply in thread action has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('message-action-reply-thread')),
+      findsOneWidget,
+    );
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('message-action-reply-thread')));
+        for (
+          var frame = 0;
+          frame < 60 &&
+              find.byKey(const Key('thread-panel')).evaluate().isEmpty;
+          frame++
+        ) {
+          await tester.pump(const Duration(microseconds: 16667));
+        }
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('thread-panel')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['reply_in_thread_action'] = <String, dynamic>{
+      'journey': 'open_thread_from_message_action',
       'fixture': 'deterministic_v1',
       'iterations': 1,
       ...result,

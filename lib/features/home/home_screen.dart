@@ -868,6 +868,7 @@ typedef _ReactionAction = void Function(String emoji);
 
 enum _MessageAction {
   reply,
+  replyInThread,
   edit,
   copy,
   share,
@@ -1397,6 +1398,14 @@ class _MessageRow extends StatelessWidget {
     switch (action) {
       case _MessageAction.reply:
         onReply(roomId, message);
+      case _MessageAction.replyInThread:
+        await Navigator.of(context).push(
+          ThreadRoute(
+            roomId: roomId,
+            parent: message,
+            reduceMotion: KiteMotion.prefersReducedMotion(context),
+          ),
+        );
       case _MessageAction.edit:
         onEdit(roomId, message);
       case _MessageAction.copy:
@@ -1517,6 +1526,14 @@ class _MessageRow extends StatelessWidget {
     switch (action) {
       case _MessageAction.reply:
         onReply(roomId, message);
+      case _MessageAction.replyInThread:
+        await Navigator.of(context).push(
+          ThreadRoute(
+            roomId: roomId,
+            parent: message,
+            reduceMotion: KiteMotion.prefersReducedMotion(context),
+          ),
+        );
       case _MessageAction.edit:
         onEdit(roomId, message);
       case _MessageAction.copy:
@@ -1583,6 +1600,13 @@ class _MessageRow extends StatelessWidget {
                   CustomSemanticsAction(label: localizations.replyAction): () =>
                       unawaited(
                         _performAccessibleAction(context, _MessageAction.reply),
+                      ),
+                  const CustomSemanticsAction(label: 'Reply in thread'): () =>
+                      unawaited(
+                        _performAccessibleAction(
+                          context,
+                          _MessageAction.replyInThread,
+                        ),
                       ),
                   CustomSemanticsAction(
                     label: localizations.copyTextAction,
@@ -1747,10 +1771,7 @@ class _MessageRow extends StatelessWidget {
           : CrossAxisAlignment.start,
       children: <Widget>[
         bubble,
-        if (threadController.hasThread(message.id)) ...<Widget>[
-          const SizedBox(height: KiteSpacing.xs),
-          _ThreadSummaryButton(roomId: roomId, parent: message),
-        ],
+        _ThreadSummaryButton(roomId: roomId, parent: message),
       ],
     );
 
@@ -1909,97 +1930,100 @@ class _ThreadSummaryButton extends StatelessWidget {
             .unreadCountFor(roomId: roomId, parent: parent)
             .value;
         final latest = replies.last;
-        return Semantics(
-          button: true,
-          label:
-              'Open thread with $count replies${unread > 0 ? ', $unread unread' : ''}',
-          child: InkWell(
-            key: Key('thread-summary-${parent.id}'),
-            onTap: () => _open(context),
-            borderRadius: BorderRadius.circular(KiteRadii.md),
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 168, maxWidth: 360),
-              padding: const EdgeInsets.symmetric(
-                horizontal: KiteSpacing.sm,
-                vertical: KiteSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest.withValues(alpha: 0.58),
-                borderRadius: BorderRadius.circular(KiteRadii.md),
-                border: Border.all(
-                  color: colors.outlineVariant.withValues(alpha: 0.7),
-                  width: KiteStroke.hairline,
+        return Padding(
+          padding: const EdgeInsets.only(top: KiteSpacing.xs),
+          child: Semantics(
+            button: true,
+            label:
+                'Open thread with $count replies${unread > 0 ? ', $unread unread' : ''}',
+            child: InkWell(
+              key: Key('thread-summary-${parent.id}'),
+              onTap: () => _open(context),
+              borderRadius: BorderRadius.circular(KiteRadii.md),
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 168, maxWidth: 360),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: KiteSpacing.sm,
+                  vertical: KiteSpacing.xs,
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  SizedBox.square(
-                    dimension: 20,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: <Widget>[
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Icon(
-                            Icons.forum_outlined,
-                            size: 17,
-                            color: colors.primary,
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest.withValues(alpha: 0.58),
+                  borderRadius: BorderRadius.circular(KiteRadii.md),
+                  border: Border.all(
+                    color: colors.outlineVariant.withValues(alpha: 0.7),
+                    width: KiteStroke.hairline,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    SizedBox.square(
+                      dimension: 20,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: <Widget>[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Icon(
+                              Icons.forum_outlined,
+                              size: 17,
+                              color: colors.primary,
+                            ),
                           ),
-                        ),
-                        if (unread > 0)
-                          Positioned(
-                            key: Key('thread-unread-${parent.id}'),
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: colors.primary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: colors.surfaceContainerHighest,
-                                  width: 1,
+                          if (unread > 0)
+                            Positioned(
+                              key: Key('thread-unread-${parent.id}'),
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: colors.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: colors.surfaceContainerHighest,
+                                    width: 1,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: KiteSpacing.xs),
-                  Flexible(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          '$count ${count == 1 ? 'reply' : 'replies'}',
-                          style: KiteTypography.metadata.copyWith(
-                            color: colors.primary,
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(width: KiteSpacing.xs),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '$count ${count == 1 ? 'reply' : 'replies'}',
+                            style: KiteTypography.metadata.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${latest.sender}: ${latest.body}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: KiteTypography.metadata.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontSize: 11,
+                          Text(
+                            '${latest.sender}: ${latest.body}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: KiteTypography.metadata.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: KiteSpacing.xs),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 19,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ],
+                    const SizedBox(width: KiteSpacing.xs),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 19,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2120,11 +2144,21 @@ class _MessageActionSheet extends StatelessWidget {
                   onTap: () => Navigator.of(context).pop(_MessageAction.reply),
                 ),
                 _MessageActionButton(
-                  key: const Key('message-action-copy'),
-                  icon: Icons.content_copy_rounded,
-                  label: AppLocalizations.of(context).copyTextAction,
-                  onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+                  key: const Key('message-action-reply-thread'),
+                  icon: Icons.forum_outlined,
+                  label: 'Reply in thread',
+                  onTap: () =>
+                      Navigator.of(context).pop(_MessageAction.replyInThread),
                 ),
+                if (message.body.isNotEmpty)
+                  _MessageActionButton(
+                    key: const Key('message-action-copy'),
+                    icon: Icons.content_copy_rounded,
+                    label: message.attachment == null
+                        ? AppLocalizations.of(context).copyTextAction
+                        : 'Copy caption',
+                    onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+                  ),
                 _MessageActionButton(
                   key: const Key('message-action-share'),
                   icon: Icons.share_outlined,

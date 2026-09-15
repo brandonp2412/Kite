@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 class _RecordingModerationPort implements TimelineModerationPort {
@@ -59,6 +60,7 @@ void _expectSameRect(Rect expected, Rect actual, String label) {
 void main() {
   tearDown(() {
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    threadController.reset(sendPort: const DeterministicThreadSendPort());
     selectRoom('kite');
   });
 
@@ -248,6 +250,73 @@ void main() {
         'collapsed composer',
       );
       expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
+    },
+  );
+
+  testWidgets(
+    'reply in thread action preserves route motion and main scroll anchor at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+      );
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final target = find.byKey(const Key('message-bubble-alice-99'));
+      expect(find.byKey(const Key('thread-summary-alice-99')), findsNothing);
+      final scrollable = find.descendant(
+        of: find.byKey(const Key('message-list')),
+        matching: find.byType(Scrollable),
+      );
+      final scrollState = tester.state<ScrollableState>(scrollable.first);
+      final initialOffset = scrollState.position.pixels;
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('message-action-reply-thread')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('message-action-reply-thread')));
+      final panel = find.byKey(const Key('thread-panel'));
+      for (var frame = 0; frame < 12 && panel.evaluate().isEmpty; frame++) {
+        await tester.pump(PerformanceContract.motionFrame);
+      }
+
+      expect(panel, findsOneWidget);
+      final panelSize = _rectOf(tester, panel).size;
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, panel).size, panelSize);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('thread-composer-field')),
+        'First threaded reply',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('thread-composer-send')));
+      await tester.pumpAndSettle();
+      expect(find.text('First threaded reply'), findsOneWidget);
+      expect(threadController.hasThread('alice-99'), isTrue);
+
+      await tester.tap(find.byKey(const Key('thread-back')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('thread-summary-alice-99')), findsOneWidget);
+      expect(scrollState.position.pixels, initialOffset);
     },
   );
 

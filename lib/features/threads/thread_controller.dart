@@ -203,9 +203,12 @@ class ThreadController {
       <String, Signal<bool>>{};
   final Map<String, Signal<bool>> _subscriptionFailed =
       <String, Signal<bool>>{};
+  final Set<String> _runtimeThreadParentIds = <String>{};
   int _transactionCounter = 0;
 
   bool hasThread(String parentEventId) {
+    if (_runtimeThreadParentIds.contains(parentEventId)) return true;
+
     final separator = parentEventId.lastIndexOf('-');
     if (separator == -1) return false;
     final index = int.tryParse(parentEventId.substring(separator + 1));
@@ -276,6 +279,11 @@ class ThreadController {
         unreadCount;
     _latestReadReplyId.putIfAbsent(key, () => signal(latestReadReplyId)).value =
         latestReadReplyId;
+    if (snapshot.isEmpty) {
+      _runtimeThreadParentIds.remove(parent.id);
+    } else {
+      _runtimeThreadParentIds.add(parent.id);
+    }
   }
 
   Signal<bool> hasMoreFor({
@@ -550,6 +558,7 @@ class ThreadController {
       ...replies.value,
       reply,
     ]);
+    _runtimeThreadParentIds.add(parent.id);
     unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
     return reply;
   }
@@ -575,6 +584,7 @@ class ThreadController {
       ...replies.value,
       reply,
     ]);
+    _runtimeThreadParentIds.add(parent.id);
     unawaited(_settleAttachment(roomId: roomId, parent: parent, reply: reply));
     return reply;
   }
@@ -617,6 +627,7 @@ class ThreadController {
     _isFollowing.clear();
     _isUpdatingSubscription.clear();
     _subscriptionFailed.clear();
+    _runtimeThreadParentIds.clear();
   }
 
   Future<void> _settleAttachment({

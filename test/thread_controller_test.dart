@@ -180,6 +180,45 @@ void main() {
     );
   });
 
+  test(
+    'first runtime reply promotes an unthreaded event into a thread',
+    () async {
+      final controller = ThreadController(
+        sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+      );
+      final parent = TimelineMessage(
+        id: 'alice-99',
+        sender: 'Alice',
+        body: 'Start a thread here',
+        mine: false,
+        timeLabel: '10:01',
+      );
+
+      expect(controller.hasThread(parent.id), isFalse);
+      expect(
+        controller.repliesFor(roomId: 'alice', parent: parent).value,
+        isEmpty,
+      );
+
+      controller.sendReply(
+        roomId: 'alice',
+        parent: parent,
+        rawBody: 'First threaded reply',
+      );
+
+      expect(controller.hasThread(parent.id), isTrue);
+      expect(
+        controller
+            .repliesFor(roomId: 'alice', parent: parent)
+            .value
+            .single
+            .body,
+        'First threaded reply',
+      );
+      await Future<void>.delayed(Duration.zero);
+    },
+  );
+
   test('thread unread state advances to the latest reply when marked read', () {
     final controller = ThreadController();
     final parent = TimelineMessage(

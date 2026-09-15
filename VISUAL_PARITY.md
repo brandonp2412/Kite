@@ -94,8 +94,8 @@ The current Element X `HomeTopBar`, `RoomSummaryRow`, and direct-room timeline d
 
 The current Element X action-list variants and reaction-summary snapshot were loaded from the audited `develop` SHA and compared with Kite's `timeline_actions_light.png` and `timeline_actions_dark.png` renders.
 
-- Action-sheet structure: Kite now has a deliberate modal scrim, rounded sheet, drag handle, icon-led Reply/Edit/Copy actions, and a visually distinct destructive Remove action in both themes. The captured geometry is stable and no longer reads as an unstyled Material menu.
-- Element X breadth: the current action-list variants add a message preview, quick-reaction row, Forward, Copy link, View source, Report content, content-specific copy actions, and poll actions where applicable. Kite does not yet expose that complete action set.
+- Action-sheet structure: Kite now has a deliberate modal scrim, rounded sheet, drag handle, icon-led Reply/Reply in thread/Edit/Copy actions, and a visually distinct destructive Remove action in both themes. The refreshed light/dark captures keep the full action stack inside the bounded sheet without clipping or geometry drift.
+- Element X breadth: the current action-list variants add a message preview, quick-reaction row, Forward, Copy link, View source, Report content, content-specific copy actions, and poll actions where applicable. Kite now distinguishes Copy caption for captioned media and exposes Reply in thread, but the remaining link/source/poll breadth still prevents complete action-list parity.
 - Reactions: Element X's reaction summary combines selected reaction chips/counts with reactor identity and timestamp detail. Kite's current top-level timeline has no equivalent reaction summary/picker, so reaction parity remains an implementation gap even though the visual review itself is complete.
 
 ### Rendered Threads comparison, 2026-09-15
