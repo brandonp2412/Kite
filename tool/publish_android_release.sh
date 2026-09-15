@@ -50,7 +50,13 @@ fi
 
 export TERM=dumb NO_COLOR=1 GH_PAGER=cat GH_PROMPT_DISABLED=1
 
-apksigner="$(find /opt/android-sdk/build-tools "${ANDROID_HOME:-/nonexistent}/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+apksigner="${KITE_APKSIGNER:-$(command -v apksigner || true)}"
+if [[ -z "$apksigner" && -d /opt/android-sdk/build-tools ]]; then
+  apksigner="$(find /opt/android-sdk/build-tools -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+fi
+if [[ -z "$apksigner" && -n "${ANDROID_HOME:-}" && -d "$ANDROID_HOME/build-tools" ]]; then
+  apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+fi
 if [[ -z "$apksigner" ]]; then
   printf 'apksigner was not found.\n' >&2
   exit 1
