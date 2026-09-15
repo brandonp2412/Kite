@@ -72,6 +72,12 @@ class _PrivacySecuritySettingsScreenState
                       SessionDeviceVerification.unverified,
                 )
                 .length;
+            final unknownDevices = devices
+                .where(
+                  (device) =>
+                      device.verification == SessionDeviceVerification.unknown,
+                )
+                .length;
             final error =
                 widget.verificationController.errorMessage.value ??
                 widget.recoveryController.errorMessage.value ??
@@ -91,7 +97,8 @@ class _PrivacySecuritySettingsScreenState
                   statusUnavailable:
                       error != null ||
                       trust == CrossSigningTrustState.unknown ||
-                      recovery == null,
+                      recovery == null ||
+                      unknownDevices > 0,
                   verificationNeedsAttention:
                       trust == CrossSigningTrustState.unverified ||
                       unverifiedDevices > 0,
@@ -126,9 +133,11 @@ class _PrivacySecuritySettingsScreenState
                   subtitle: Text(
                     devices.isEmpty
                         ? 'No device information loaded'
-                        : unverifiedDevices == 0
-                        ? '${devices.length} devices · all verified or unknown'
-                        : '${devices.length} devices · $unverifiedDevices unverified',
+                        : unverifiedDevices > 0
+                        ? '${devices.length} devices · $unverifiedDevices unverified'
+                        : unknownDevices > 0
+                        ? '${devices.length} devices · $unknownDevices status unknown'
+                        : '${devices.length} devices · all verified',
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: widget.onOpenSessions,

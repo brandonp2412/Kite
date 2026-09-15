@@ -118,6 +118,54 @@ void main() {
     expect(find.text('Security looks good'), findsNothing);
   });
 
+  testWidgets(
+    'unknown device verification never presents security as healthy',
+    (tester) async {
+      final verification = DeviceVerificationController(_VerificationGateway());
+      final recovery = EncryptionRecoveryController(_RecoveryGateway());
+      final sessions = SessionDeviceController(_SessionGateway());
+      addTearDown(verification.dispose);
+      addTearDown(recovery.dispose);
+      addTearDown(sessions.dispose);
+      verification.trustState.value = CrossSigningTrustState.verified;
+      recovery.status.value = const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.ready,
+        historicalRecoveryState: HistoricalRecoveryState.complete,
+        hasUnverifiedSessions: false,
+      );
+      sessions.devices.value = const <SessionDevice>[
+        SessionDevice(
+          deviceId: 'CURRENT',
+          isCurrent: true,
+          verification: SessionDeviceVerification.verified,
+        ),
+        SessionDevice(
+          deviceId: 'REMOTE',
+          isCurrent: false,
+          verification: SessionDeviceVerification.unknown,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PrivacySecuritySettingsScreen(
+            verificationController: verification,
+            recoveryController: recovery,
+            sessionDeviceController: sessions,
+            loadOnInit: false,
+            onOpenVerification: () {},
+            onOpenRecovery: () {},
+            onOpenSessions: () {},
+          ),
+        ),
+      );
+
+      expect(find.text('Security status incomplete'), findsOneWidget);
+      expect(find.text('2 devices · 1 status unknown'), findsOneWidget);
+      expect(find.text('Security looks good'), findsNothing);
+    },
+  );
+
   testWidgets('summarizes verification, recovery, sessions and app lock', (
     tester,
   ) async {
