@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/settings/settings_controller.dart';
 
@@ -5,6 +7,9 @@ final class _FakeSettingsGateway implements SettingsGateway {
   KiteSettings loaded = const KiteSettings.defaults();
   Object? loadError;
   Object? saveError;
+  Completer<KiteSettings>? deferredLoad;
+  Completer<void>? deferredAppearanceSave;
+  int loadCalls = 0;
   KiteAppearanceMode? savedAppearance;
   String? savedLanguage;
   bool savedSystemLanguage = false;
@@ -16,13 +21,18 @@ final class _FakeSettingsGateway implements SettingsGateway {
 
   @override
   Future<KiteSettings> load() async {
+    loadCalls += 1;
     if (loadError case final error?) throw error;
+    final deferred = deferredLoad;
+    if (deferred != null) return deferred.future;
     return loaded;
   }
 
   @override
   Future<void> saveAppearance(KiteAppearanceMode appearanceMode) async {
     if (saveError case final error?) throw error;
+    final deferred = deferredAppearanceSave;
+    if (deferred != null) await deferred.future;
     savedAppearance = appearanceMode;
   }
 
@@ -71,6 +81,42 @@ final class _FakeSettingsGateway implements SettingsGateway {
 }
 
 void main() {
+  test('save is rejected while a settings load is in flight', () async {
+    final deferred = Completer<KiteSettings>();
+    final gateway = _FakeSettingsGateway()..deferredLoad = deferred;
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    final loading = controller.load();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isLoading.value, isTrue);
+
+    expect(await controller.setAppearance(KiteAppearanceMode.dark), isFalse);
+    expect(gateway.savedAppearance, isNull);
+
+    deferred.complete(const KiteSettings.defaults());
+    await loading;
+    expect(controller.settings.value.appearanceMode, KiteAppearanceMode.system);
+  });
+
+  test('load is rejected while a settings save is in flight', () async {
+    final deferred = Completer<void>();
+    final gateway = _FakeSettingsGateway()..deferredAppearanceSave = deferred;
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    final saving = controller.setAppearance(KiteAppearanceMode.dark);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isSaving.value, isTrue);
+
+    await controller.load();
+    expect(gateway.loadCalls, 0);
+
+    deferred.complete();
+    expect(await saving, isTrue);
+    expect(controller.settings.value.appearanceMode, KiteAppearanceMode.dark);
+  });
+
   test(
     'loads general settings while preserving known state on failure',
     () async {

@@ -131,7 +131,7 @@ final class SettingsController {
   final errorMessage = signal<String?>(null);
 
   Future<void> load() async {
-    if (isLoading.value) return;
+    if (isLoading.value || isSaving.value) return;
 
     isLoading.value = true;
     errorMessage.value = null;
@@ -152,7 +152,7 @@ final class SettingsController {
   }
 
   Future<bool> setAppearance(KiteAppearanceMode appearanceMode) async {
-    if (isSaving.value) return false;
+    if (isLoading.value || isSaving.value) return false;
     final previous = settings.value;
 
     isSaving.value = true;
@@ -170,7 +170,7 @@ final class SettingsController {
   }
 
   Future<bool> setLanguage(String? languageTag) async {
-    if (isSaving.value) return false;
+    if (isLoading.value || isSaving.value) return false;
     final normalized = _normalizeLanguageTag(languageTag);
     if (languageTag != null && normalized == null) {
       errorMessage.value = 'Choose a valid language.';
@@ -196,7 +196,7 @@ final class SettingsController {
   }
 
   Future<bool> setNotificationMaster(bool enabled) async {
-    if (isSaving.value) return false;
+    if (isLoading.value || isSaving.value) return false;
     final previous = settings.value;
 
     isSaving.value = true;
@@ -219,7 +219,7 @@ final class SettingsController {
     NotificationCategory category,
     bool enabled,
   ) async {
-    if (isSaving.value) return false;
+    if (isLoading.value || isSaving.value) return false;
     final previous = settings.value;
     final categories = <NotificationCategory>{
       ...previous.notifications.enabledCategories,
@@ -255,7 +255,7 @@ final class SettingsController {
     String roomId,
     RoomNotificationMode mode,
   ) async {
-    if (isSaving.value) return false;
+    if (isLoading.value || isSaving.value) return false;
     final normalizedRoomId = roomId.trim();
     if (!_isValidRoomId(normalizedRoomId)) {
       errorMessage.value = 'Choose a valid Matrix room.';
@@ -325,7 +325,7 @@ final class SettingsController {
     success,
     required String failureMessage,
   }) async {
-    if (isSaving.value) return false;
+    if (isLoading.value || isSaving.value) return false;
     final normalizedSoundId = _normalizeSoundId(soundId);
     final previous = settings.value;
 
