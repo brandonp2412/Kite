@@ -127,6 +127,56 @@ void main() {
     },
   );
 
+  test(
+    'dispatch policy suppresses delivery only after exact target validation',
+    () async {
+      final repository = FakeNotificationRepository();
+      final platform = FakeNotificationDeliveryPort();
+      final policy = FakeNotificationDispatchPolicy()..allow = false;
+      final dispatcher = NotificationDispatchCoordinator(
+        notifications: repository,
+        delivery: NotificationDeliveryCoordinator(
+          privacy: FakeNotificationPrivacyPort(),
+          delivery: platform,
+        ),
+        policy: policy,
+      );
+
+      final result = await dispatcher.dispatch(
+        const MatrixNotificationEvent(
+          id: 'muted-message',
+          kind: MatrixNotificationEventKind.message,
+          accountId: 'work',
+          roomId: '!team:example.org',
+          eventId: r'$muted',
+          title: 'Alice',
+          body: 'Muted body',
+        ),
+      );
+
+      expect(result, isNull);
+      expect(policy.evaluatedIds, <String>['muted-message']);
+      expect(repository.notification('muted-message'), isNull);
+      expect(platform.shown, isEmpty);
+
+      await expectLater(
+        dispatcher.dispatch(
+          const MatrixNotificationEvent(
+            id: 'invalid-before-policy',
+            kind: MatrixNotificationEventKind.message,
+            accountId: 'work',
+            roomId: '!team:example.org',
+            eventId: 'invalid',
+            title: 'Alice',
+            body: 'Malformed',
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(policy.evaluatedIds, <String>['muted-message']);
+    },
+  );
+
   test('invalid event identity and failed platform delivery never register routing', () async {
     final repository = FakeNotificationRepository();
     final platform = FakeNotificationDeliveryPort();
