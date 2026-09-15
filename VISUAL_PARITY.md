@@ -26,12 +26,22 @@ Kite comparison renders are produced by `test/golden_gallery_test.dart` in:
 - `test/goldens/gallery/home_tablet_{light,dark}.png`
 - `test/goldens/gallery/home_desktop_{light,dark}.png`
 
-Relevant current Element X message references used for the DM/composer review are:
+Relevant current Element X message references used for the DM/composer and message-action reviews are:
 
 - `features.messages.impl.timeline.components_TimelineItemEventRowForDirectRoom_Day_0_en.png`
 - `features.messages.impl.timeline.components_TimelineItemEventRowForDirectRoom_Night_0_en.png`
 - `features.messages.impl.messagecomposer_MessageComposerView_Day_0_en.png`
 - `features.messages.impl.messagecomposer_MessageComposerView_Night_0_en.png`
+- `features.messages.impl.actionlist_ActionListViewContent_Day_{0..12}_en.png`
+- `features.messages.impl.actionlist_ActionListViewContent_Night_0_en.png`
+- `features.messages.impl.timeline.components.reactionsummary_ReactionSummaryViewContent_Day_0_en.png`
+
+Relevant current Element X settings references used for the settings/security review are:
+
+- `features.preferences.impl.root_PreferencesRootViewLight_0_en.png`
+- `features.preferences.impl.root_PreferencesRootViewDark_0_en.png`
+- `features.preferences.impl.notifications_NotificationSettingsView_Day_0_en.png`
+- `features.preferences.impl.notifications_NotificationSettingsView_Night_0_en.png`
 
 Flutter widget-test goldens use the deterministic test font, so they are authoritative for geometry, colour, clipping and layout stability but not final typography appearance. Typography review must also use an app render on a real Flutter target before a visual-parity checkbox can close.
 
@@ -71,6 +81,31 @@ The current Element X `HomeTopBar`, `RoomSummaryRow`, and direct-room timeline d
 - Avatar/image treatment: Kite's deterministic room list currently renders circular initial placeholders at stable resolution. Element X demonstrates contextual avatar colour and production image treatment; Kite does not yet exercise high-resolution photo avatars in this gallery, so the visual-quality avatar/bloom and no-upscale implementation contracts remain open.
 - Typography: not closed by this review. Flutter goldens use the deterministic test font, so final hierarchy still requires a real-target render with production typography.
 
+### Rendered message-action and reaction comparison, 2026-09-15
+
+The current Element X action-list variants and reaction-summary snapshot were loaded from the audited `develop` SHA and compared with Kite's `timeline_actions_light.png` and `timeline_actions_dark.png` renders.
+
+- Action-sheet structure: Kite now has a deliberate modal scrim, rounded sheet, drag handle, icon-led Reply/Edit/Copy actions, and a visually distinct destructive Remove action in both themes. The captured geometry is stable and no longer reads as an unstyled Material menu.
+- Element X breadth: the current action-list variants add a message preview, quick-reaction row, Forward, Copy link, View source, Report content, content-specific copy actions, and poll actions where applicable. Kite does not yet expose that complete action set.
+- Reactions: Element X's reaction summary combines selected reaction chips/counts with reactor identity and timestamp detail. Kite's current top-level timeline has no equivalent reaction summary/picker, so reaction parity remains an implementation gap even though the visual review itself is complete.
+
+### Rendered room/member and user-profile comparison, 2026-09-15
+
+Kite's `room_members_light.png` and `room_members_dark.png` renders were compared with current Element X `RoomMemberListView_Day_0_en.png`, `RoomMemberListView_Night_0_en.png`, and `UserProfileView_Day_0_en.png` references from the audited SHA.
+
+- Member list: both products provide an obvious people context and search field. Kite's deterministic loaded state adds stable avatar/name/user-ID rows and trailing role labels, while Element X's captured loading state reserves the list region below its search field with a progress affordance.
+- Density and width: Kite's 1200 px baseline leaves member rows spread across a very wide canvas. Element X keeps search and member content within phone-scale readable measures. Kite should constrain the desktop member content width rather than simply using available space.
+- User profile gap: Element X gives the profile a strong avatar/name/user-ID hierarchy plus Message/Share actions and security controls such as Verify/Block. Kite has member-profile/moderation foundations but no equivalent full user-profile render in this gallery, so user-profile visual parity remains open.
+
+### Rendered settings/security comparison, 2026-09-15
+
+Kite's `GeneralSettingsScreen`, `NotificationSettingsScreen`, and `SupportSettingsScreen` now have deterministic light/dark golden baselines in `test/goldens/settings_*`. Those actual renders were compared with current Element X settings-root and notification day/night snapshots from the audited SHA.
+
+- Implemented Kite surfaces: appearance/language selection, notification master/categories/per-room mode/sounds, storage/cache controls, sanitised problem reporting, version/build information, and open-source licenses have stable light/dark layouts.
+- Hierarchy gap: Element X composes profile/account switching, status, devices, blocked users, notifications, lock screen, encryption, advanced settings, Labs, About, reporting, and analytics into one compact icon-led settings hierarchy. Kite still lacks that unified settings root and several corresponding capability surfaces.
+- Responsive gap: the current Kite settings goldens deliberately expose the 1200 px desktop layout; controls remain readable and unclipped, but the single-column content stretches too broadly and leaves excessive unused width compared with Element X's restrained phone composition. A constrained desktop settings pane remains visual-polish work.
+- Security gap: app-lock, verification/recovery, device/account-management, and privacy controllers exist elsewhere in Kite, but the rendered settings surfaces do not yet expose the complete Element X security navigation. Capability parity therefore remains open as recorded in `PARITY_AUDIT.md`.
+
 ### True-black rendered comparison, 2026-09-15
 
 The current Element X `HomeTopBar_Night_0_en.png`, `RoomListContentView_Night_0_en.png`, direct-room timeline Night snapshot, and composer Night snapshot were fetched again from the audited `develop` SHA and compared with Kite's generated `home_phone_portrait_black.png` and `home_desktop_black.png`.
@@ -108,13 +143,13 @@ For each major screen, compare matching light/dark states at representative phon
 | DM timeline | Element X uses production message grouping, event states, receipts, reactions and stable jump/focus behaviour. | Kite now renders distinct incoming/own rows with sender/avatar context, timestamps and status affordances, but rows remain broader and reaction/receipt/media treatment is incomplete. | `home_tablet_*`, `home_desktop_*`; compare with `TimelineItemEventRowForDirectRoom_*`. | Reviewed; gaps remain |
 | Group-room timeline | Element X adds group-specific sender/state-event hierarchy on top of the timeline system. | Kite has no group-room-specific rendered treatment yet. | None yet. | Not audited |
 | Composer / rich text | Element X uses a compact production composer with formatting, reply/edit/media and expansion states. | Kite has a deterministic rounded composer with attachment/input/send regions, but voice, rich-text formatting, expansion and several production states remain incomplete. | `home_tablet_*`, `home_desktop_*`; compare with `MessageComposerView_*`. | Reviewed; gaps remain |
-| Message actions / reactions | Element X uses contextual actions, reaction summaries/pickers and destructive confirmations. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
+| Message actions / reactions | Element X uses a message preview, quick reactions, contextual actions, reaction summaries/pickers and destructive confirmations. | Kite has a themed action sheet with Reply/Edit/Copy/Remove and destructive confirmation, but quick reactions, Forward, Copy link, View source, reporting and reaction summary/picker UI remain incomplete. | `timeline_actions_{light,dark}.png`; compare with `ActionListViewContent_*` and `ReactionSummaryViewContent_*`. | Reviewed; gaps remain |
 | Threads | Current `develop` retains thread feature flags/Labs direction and dedicated thread timeline concepts. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Spaces | Element X ships dedicated Space discovery/navigation flows and hierarchy. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Room creation / invites | Element X has dedicated creation, invitation, join/knock and invite-preview states. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
-| Room details / moderation | Element X has dedicated room details, membership and moderation flows. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
-| User profile | Element X has dedicated own/other-user profile and DM-entry states. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
-| Settings / security | Element X has appearance, notifications, privacy, sessions, verification, backup and app-lock settings. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
+| Room details / moderation | Element X has dedicated room details, membership and moderation flows with compact search/member hierarchy. | Kite has a deterministic room-member list/search and member-profile/moderation flows, but broader room-details editing/report/leave surfaces are incomplete and the desktop list is over-wide. | `room_members_{light,dark}.png`; compare with `RoomMemberListView_*`. | Reviewed; gaps remain |
+| User profile | Element X uses a prominent avatar/name/user-ID hierarchy with Message/Share and security actions. | Kite has member-profile foundations but no equivalent full user-profile gallery render or complete own/other-user profile flow. | Room-member gallery plus `UserProfileView_Day_0_en.png` reference. | Reviewed; gaps remain |
+| Settings / security | Element X has a compact settings root spanning profile/accounts, notifications, privacy, sessions, verification/backup, app lock, advanced settings and support. | Kite renders appearance/language, notification and support/storage/reporting surfaces, but has no unified root and does not yet expose several account/security controller capabilities. | `settings_{general,notifications,support}_{light,dark}.png`; compare with `PreferencesRootView*` and `NotificationSettingsView_*`; capability inventory in `PARITY_AUDIT.md`. | Reviewed; gaps remain |
 | Poll / location / media | Element X renders dedicated event, picker/viewer and permission/error states for these content types. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Calls | Element X has incoming, outgoing and in-call states integrated with MatrixRTC/Element Call. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Empty / loading / error / offline | Element X reserves geometry with explicit empty/loading/error/offline states. | Current benchmark home state does not yet expose representative variants. | Home reference comparison only. | Gap |
