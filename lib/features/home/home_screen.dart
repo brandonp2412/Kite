@@ -828,6 +828,33 @@ const _reportReasons = <String>[
   'Other',
 ];
 
+const _composerEmoji = <String>[
+  '😀',
+  '😂',
+  '🥰',
+  '😍',
+  '😎',
+  '🤔',
+  '😮',
+  '😢',
+  '😭',
+  '😡',
+  '👍',
+  '👎',
+  '👏',
+  '🙏',
+  '💪',
+  '👀',
+  '❤️',
+  '💯',
+  '🔥',
+  '🎉',
+  '✅',
+  '🚀',
+  '✨',
+  '💡',
+];
+
 enum _ComposerMode { reply, edit }
 
 enum _ComposerFormatAction {
@@ -2949,6 +2976,9 @@ class _ComposerState extends State<_Composer> {
   TimelineAttachment? _pendingAttachment;
   String? _pendingAttachmentRoomId;
   bool _formattingVisible = false;
+  final OverlayPortalController _emojiOverlayController =
+      OverlayPortalController();
+  final LayerLink _emojiLayerLink = LayerLink();
 
   static const _autocompleteCandidates =
       <({String token, String label, IconData icon})>[
@@ -3030,7 +3060,41 @@ class _ComposerState extends State<_Composer> {
   }
 
   void _toggleFormatting() {
+    if (_emojiOverlayController.isShowing) {
+      _emojiOverlayController.hide();
+    }
     setState(() => _formattingVisible = !_formattingVisible);
+    _focusNode.requestFocus();
+  }
+
+  void _toggleEmojiPicker() {
+    if (_emojiOverlayController.isShowing) {
+      _emojiOverlayController.hide();
+      _focusNode.requestFocus();
+      return;
+    }
+    if (_formattingVisible) setState(() => _formattingVisible = false);
+    _emojiOverlayController.show();
+  }
+
+  void _insertEmoji(String emoji) {
+    final value = _controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    final start = selection.start < selection.end
+        ? selection.start
+        : selection.end;
+    final end = selection.start < selection.end
+        ? selection.end
+        : selection.start;
+    _controller.value = value
+        .replaced(TextRange(start: start, end: end), emoji)
+        .copyWith(
+          selection: TextSelection.collapsed(offset: start + emoji.length),
+          composing: TextRange.empty,
+        );
+    _emojiOverlayController.hide();
     _focusNode.requestFocus();
   }
 
@@ -3272,123 +3336,161 @@ class _ComposerState extends State<_Composer> {
                       ? _ComposerFormattingToolbar(onFormat: _applyFormat)
                       : const SizedBox.shrink(),
                 ),
-                SizedBox(
-                  height: 76,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      KiteSpacing.sm,
-                      KiteSpacing.xs,
-                      KiteSpacing.md,
-                      KiteSpacing.xs,
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        IconButton(
-                          key: const Key('composer-attach'),
-                          tooltip: AppLocalizations.of(context)
-                              .addAttachmentTooltip,
-                          onPressed: activeMode == _ComposerMode.edit
-                              ? null
-                              : () => _pickAttachment(roomId),
-                          icon: const Icon(Icons.add_circle_outline_rounded),
+                CompositedTransformTarget(
+                  link: _emojiLayerLink,
+                  child: OverlayPortal(
+                    controller: _emojiOverlayController,
+                    overlayChildBuilder: (overlayContext) {
+                      final width =
+                          (MediaQuery.sizeOf(overlayContext).width - 24).clamp(
+                            240.0,
+                            440.0,
+                          );
+                      return CompositedTransformFollower(
+                        link: _emojiLayerLink,
+                        showWhenUnlinked: false,
+                        targetAnchor: Alignment.topCenter,
+                        followerAnchor: Alignment.bottomCenter,
+                        offset: const Offset(0, -KiteSpacing.xs),
+                        child: SizedBox(
+                          width: width,
+                          child: _ComposerEmojiPicker(onSelected: _insertEmoji),
                         ),
-                        IconButton(
-                          key: const Key('composer-format-toggle'),
-                          tooltip: _formattingVisible
-                              ? 'Hide formatting'
-                              : 'Show formatting',
-                          onPressed: _toggleFormatting,
-                          icon: Icon(
-                            _formattingVisible
-                                ? Icons.text_format_rounded
-                                : Icons.text_format_outlined,
-                          ),
+                      );
+                    },
+                    child: SizedBox(
+                      height: 76,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          KiteSpacing.sm,
+                          KiteSpacing.xs,
+                          KiteSpacing.md,
+                          KiteSpacing.xs,
                         ),
-                        const SizedBox(width: KiteSpacing.xxs),
-                        Expanded(
-                          child: TextField(
-                            key: const Key('composer-field'),
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            minLines: 1,
-                            maxLines: 2,
-                            textInputAction: TextInputAction.newline,
-                            style: KiteTypography.body,
-                            decoration: InputDecoration(
-                              hintText: activeMode == _ComposerMode.edit
-                                  ? AppLocalizations.of(context).editMessageHint
-                                  : activeAttachment != null
-                                  ? 'Add a caption…'
-                                  : AppLocalizations.of(context).messageHint,
-                              isDense: true,
-                              filled: true,
-                              fillColor: context.kiteColors.field,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: KiteSpacing.md,
-                                vertical: KiteSpacing.sm,
+                        child: Row(
+                          children: <Widget>[
+                            IconButton(
+                              key: const Key('composer-attach'),
+                              tooltip: AppLocalizations.of(context)
+                                  .addAttachmentTooltip,
+                              onPressed: activeMode == _ComposerMode.edit
+                                  ? null
+                                  : () => _pickAttachment(roomId),
+                              icon: const Icon(
+                                Icons.add_circle_outline_rounded,
                               ),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide.none,
-                                borderRadius: BorderRadius.circular(
-                                  KiteRadii.lg,
-                                ),
+                            ),
+                            IconButton(
+                              key: const Key('composer-format-toggle'),
+                              tooltip: _formattingVisible
+                                  ? 'Hide formatting'
+                                  : 'Show formatting',
+                              onPressed: _toggleFormatting,
+                              icon: Icon(
+                                _formattingVisible
+                                    ? Icons.text_format_rounded
+                                    : Icons.text_format_outlined,
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide.none,
-                                borderRadius: BorderRadius.circular(
-                                  KiteRadii.lg,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: colors.primary.withValues(alpha: 0.42),
-                                  width: KiteStroke.emphasis,
-                                ),
-                                borderRadius: BorderRadius.circular(
-                                  KiteRadii.lg,
+                            ),
+                            IconButton(
+                              key: const Key('composer-emoji'),
+                              tooltip: 'Emoji',
+                              onPressed: _toggleEmojiPicker,
+                              icon: const Icon(Icons.emoji_emotions_outlined),
+                            ),
+                            const SizedBox(width: KiteSpacing.xxs),
+                            Expanded(
+                              child: TextField(
+                                key: const Key('composer-field'),
+                                controller: _controller,
+                                focusNode: _focusNode,
+                                minLines: 1,
+                                maxLines: 2,
+                                textInputAction: TextInputAction.newline,
+                                style: KiteTypography.body,
+                                decoration: InputDecoration(
+                                  hintText: activeMode == _ComposerMode.edit
+                                      ? AppLocalizations.of(context)
+                                            .editMessageHint
+                                      : activeAttachment != null
+                                      ? 'Add a caption…'
+                                      : AppLocalizations.of(context)
+                                            .messageHint,
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: context.kiteColors.field,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: KiteSpacing.md,
+                                    vertical: KiteSpacing.sm,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(
+                                      KiteRadii.lg,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(
+                                      KiteRadii.lg,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: colors.primary.withValues(
+                                        alpha: 0.42,
+                                      ),
+                                      width: KiteStroke.emphasis,
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      KiteRadii.lg,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                            const SizedBox(width: KiteSpacing.xs),
+                            ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: _controller,
+                              builder: (context, value, child) {
+                                final editing =
+                                    activeMode == _ComposerMode.edit;
+                                final enabled = editing
+                                    ? value.text.trim().isNotEmpty
+                                    : value.text.trim().isNotEmpty ||
+                                          activeAttachment != null;
+                                return IconButton.filled(
+                                  key: const Key('composer-send'),
+                                  tooltip: editing
+                                      ? AppLocalizations.of(context)
+                                            .saveEditTooltip
+                                      : AppLocalizations.of(context)
+                                            .sendMessageTooltip,
+                                  onPressed: enabled ? _send : null,
+                                  style: IconButton.styleFrom(
+                                    minimumSize: const Size.square(44),
+                                    backgroundColor: enabled
+                                        ? colors.primary
+                                        : colors.surfaceContainerHighest,
+                                    foregroundColor: enabled
+                                        ? colors.onPrimary
+                                        : colors.onSurfaceVariant,
+                                    disabledBackgroundColor:
+                                        colors.surfaceContainerHighest,
+                                    disabledForegroundColor:
+                                        colors.onSurfaceVariant,
+                                  ),
+                                  icon: Icon(
+                                    editing
+                                        ? Icons.check_rounded
+                                        : Icons.arrow_upward_rounded,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: KiteSpacing.xs),
-                        ValueListenableBuilder<TextEditingValue>(
-                          valueListenable: _controller,
-                          builder: (context, value, child) {
-                            final editing = activeMode == _ComposerMode.edit;
-                            final enabled = editing
-                                ? value.text.trim().isNotEmpty
-                                : value.text.trim().isNotEmpty ||
-                                      activeAttachment != null;
-                            return IconButton.filled(
-                              key: const Key('composer-send'),
-                              tooltip: editing
-                                  ? AppLocalizations.of(context).saveEditTooltip
-                                  : AppLocalizations.of(context)
-                                        .sendMessageTooltip,
-                              onPressed: enabled ? _send : null,
-                              style: IconButton.styleFrom(
-                                minimumSize: const Size.square(44),
-                                backgroundColor: enabled
-                                    ? colors.primary
-                                    : colors.surfaceContainerHighest,
-                                foregroundColor: enabled
-                                    ? colors.onPrimary
-                                    : colors.onSurfaceVariant,
-                                disabledBackgroundColor:
-                                    colors.surfaceContainerHighest,
-                                disabledForegroundColor:
-                                    colors.onSurfaceVariant,
-                              ),
-                              icon: Icon(
-                                editing
-                                    ? Icons.check_rounded
-                                    : Icons.arrow_upward_rounded,
-                              ),
-                            );
-                          },
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -3430,6 +3532,60 @@ class _ComposerAutocompleteBar extends StatelessWidget {
             onPressed: () => onSelected(option),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ComposerEmojiPicker extends StatelessWidget {
+  const _ComposerEmojiPicker({required this.onSelected});
+
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return RepaintBoundary(
+      child: Material(
+        key: const Key('composer-emoji-sheet'),
+        elevation: KiteElevation.floating,
+        color: context.kiteColors.canvas,
+        borderRadius: BorderRadius.circular(KiteRadii.lg),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: 64,
+          child: ListView.separated(
+            key: const Key('composer-emoji-list'),
+            padding: const EdgeInsets.symmetric(
+              horizontal: KiteSpacing.xs,
+              vertical: KiteSpacing.xs,
+            ),
+            scrollDirection: Axis.horizontal,
+            itemCount: _composerEmoji.length,
+            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xxs),
+            itemBuilder: (context, index) {
+              final emoji = _composerEmoji[index];
+              return Semantics(
+                button: true,
+                label: 'Insert $emoji',
+                child: InkWell(
+                  key: Key('composer-emoji-$index'),
+                  onTap: () => onSelected(emoji),
+                  borderRadius: BorderRadius.circular(KiteRadii.md),
+                  child: SizedBox.square(
+                    dimension: 48,
+                    child: Center(
+                      child: Text(
+                        emoji,
+                        style: TextStyle(fontSize: 26, color: colors.onSurface),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

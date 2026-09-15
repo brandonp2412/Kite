@@ -167,6 +167,78 @@ void main() {
     expect(_rectOf(tester, composer).height, 128);
   });
 
+  testWidgets('emoji picker replaces selection and restores composer focus', (
+    tester,
+  ) async {
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final field = find.byKey(const Key('composer-field'));
+    await tester.enterText(field, 'Hello world');
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: field, matching: find.byType(EditableText)),
+    );
+    editable.controller.selection = const TextSelection(
+      baseOffset: 6,
+      extentOffset: 11,
+    );
+
+    await tester.tap(find.byKey(const Key('composer-emoji')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('composer-emoji-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('composer-emoji-list')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('composer-emoji-0')));
+    await tester.pumpAndSettle();
+
+    expect(editable.controller.text, 'Hello 😀');
+    expect(editable.controller.selection.isCollapsed, isTrue);
+    expect(editable.controller.selection.extentOffset, 'Hello 😀'.length);
+    expect(editable.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets(
+    'emoji picker motion overlays without composer reflow at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+      final composer = find.byKey(const Key('composer'));
+      final panel = find.byKey(const Key('chat-panel'));
+      final composerRect = _rectOf(tester, composer);
+      final panelRect = _rectOf(tester, panel);
+
+      await tester.tap(find.byKey(const Key('composer-emoji')));
+      var previousTop = double.infinity;
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        _expectClose(_rectOf(tester, composer).left, composerRect.left);
+        _expectClose(_rectOf(tester, composer).top, composerRect.top);
+        _expectClose(_rectOf(tester, composer).width, composerRect.width);
+        _expectClose(_rectOf(tester, composer).height, composerRect.height);
+        _expectClose(_rectOf(tester, panel).width, panelRect.width);
+        _expectClose(_rectOf(tester, panel).height, panelRect.height);
+        final sheet = find.byKey(const Key('composer-emoji-sheet'));
+        if (sheet.evaluate().isNotEmpty) {
+          final top = _rectOf(tester, sheet).top;
+          expect(top, lessThanOrEqualTo(previousTop + 0.01));
+          previousTop = top;
+        }
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer-emoji-sheet')), findsOneWidget);
+    },
+  );
+
   testWidgets(
     'formatting toolbar expansion is monotonic and anchored at 120 Hz',
     (tester) async {
