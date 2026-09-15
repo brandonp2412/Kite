@@ -651,6 +651,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     final wakeup = Completer<void>();
     _retryWakeup = wakeup;
     try {
+      if (!_syncRequested) return;
       await Future.any<void>(<Future<void>>[
         _syncRetryDelay(duration),
         wakeup.future,
