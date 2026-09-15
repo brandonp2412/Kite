@@ -92,7 +92,7 @@ final class AuthenticationController {
 
   Future<void> loginWithQrCode(String qrCodeData) async {
     if (isBusy) return;
-    if (qrCodeData.isEmpty) {
+    if (qrCodeData.trim().isEmpty) {
       errorMessage.value = 'Scan a valid Matrix sign-in QR code.';
       return;
     }

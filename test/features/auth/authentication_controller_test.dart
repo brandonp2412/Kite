@@ -5,6 +5,7 @@ import 'package:kite/features/auth/authentication_gateway.dart';
 final class _AuthenticationGateway implements AuthenticationGateway {
   AuthenticatedSession? nextSession;
   Object? failure;
+  String? qrCodeData;
 
   @override
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async {
@@ -44,6 +45,7 @@ final class _AuthenticationGateway implements AuthenticationGateway {
 
   @override
   Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) async {
+    this.qrCodeData = qrCodeData;
     return _session(HomeserverAddress.parse('matrix.example.org'));
   }
 
@@ -119,6 +121,21 @@ void main() {
       'Kite received an invalid authentication session.',
     );
     expect(controller.errorMessage.value, isNot(contains('OPAQUE-QR-PAYLOAD')));
+  });
+
+  test('device QR login rejects empty or whitespace-only payloads', () async {
+    final gateway = _AuthenticationGateway();
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loginWithQrCode('   ');
+
+    expect(gateway.qrCodeData, isNull);
+    expect(controller.session.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Scan a valid Matrix sign-in QR code.',
+    );
   });
 
   test(
