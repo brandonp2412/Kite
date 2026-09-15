@@ -54,7 +54,7 @@ final class PushRegistrationController {
     required String deviceToken,
   }) async {
     final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty || deviceToken.isEmpty) {
+    if (normalizedAccountId.isEmpty || deviceToken.trim().isEmpty) {
       errorMessage.value = 'Kite could not register notifications.';
       return false;
     }
@@ -106,7 +106,7 @@ final class PushRegistrationController {
     required String encryptedPayload,
   }) async {
     final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty || encryptedPayload.isEmpty) {
+    if (normalizedAccountId.isEmpty || encryptedPayload.trim().isEmpty) {
       errorMessage.value = 'Kite received an invalid notification.';
       return null;
     }

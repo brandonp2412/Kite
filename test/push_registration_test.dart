@@ -176,9 +176,28 @@ void main() {
       expect(gateway.registeredAccountId, isNull);
 
       expect(
+        await controller.register(
+          accountId: 'work',
+          provider: PushProvider.fcm,
+          deviceToken: '   ',
+        ),
+        isFalse,
+      );
+      expect(gateway.registeredAccountId, isNull);
+
+      expect(
         await controller.processEncryptedPayload(
           accountId: 'work',
           encryptedPayload: '',
+        ),
+        isNull,
+      );
+      expect(gateway.encryptedPayload, isNull);
+
+      expect(
+        await controller.processEncryptedPayload(
+          accountId: 'work',
+          encryptedPayload: '   ',
         ),
         isNull,
       );
