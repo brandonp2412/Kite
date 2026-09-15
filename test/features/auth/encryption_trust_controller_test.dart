@@ -143,6 +143,10 @@ void main() {
     expect(await controller.load('room-without-sigil'), isFalse);
     expect(gateway.loadedRoomId, isNull);
     expect(controller.errorMessage.value, 'Choose a valid Matrix room.');
+
+    expect(await controller.load('!:'), isFalse);
+    expect(gateway.loadedRoomId, isNull);
+    expect(controller.errorMessage.value, 'Choose a valid Matrix room.');
   });
 
   test('mismatched SDK state is rejected', () async {
