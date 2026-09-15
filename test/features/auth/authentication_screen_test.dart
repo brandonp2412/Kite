@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/auth/account_registration_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/authentication_screen.dart';
 
@@ -71,6 +72,38 @@ final class _FakeAuthenticationGateway implements AuthenticationGateway {
   Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) async {
     this.qrCodeData = qrCodeData;
     return _session(HomeserverAddress.parse('matrix.example.org'));
+  }
+}
+
+final class _FakeRegistrationGateway implements AccountRegistrationGateway {
+  int beginCalls = 0;
+
+  @override
+  Future<AccountRegistrationStep> begin(HomeserverAddress homeserver) async {
+    beginCalls += 1;
+    return RegistrationCompleteStep(
+      AuthenticatedSession(
+        userId: '@new:${homeserver.uri.host}',
+        deviceId: 'NEW_DEVICE',
+        homeserver: homeserver,
+      ),
+    );
+  }
+
+  @override
+  Future<AccountRegistrationStep> continueInteractiveAuthentication({
+    required HomeserverAddress homeserver,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<AccountRegistrationStep> submitCredentials({
+    required HomeserverAddress homeserver,
+    required String username,
+    required String password,
+  }) {
+    throw UnimplementedError();
   }
 }
 
@@ -207,6 +240,44 @@ void main() {
     await tester.tap(find.byKey(const Key('registration-available')));
     expect(requestedHomeserver?.uri, homeserver.uri);
   });
+
+  testWidgets(
+    'built-in registration returns the authenticated Matrix session',
+    (tester) async {
+      final gateway = _FakeAuthenticationGateway();
+      final registrationGateway = _FakeRegistrationGateway();
+      final homeserver = HomeserverAddress.parse('matrix.example.org');
+      gateway.discoveryResult = HomeserverLoginMethods(
+        homeserver: homeserver,
+        methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+        registrationAvailable: true,
+      );
+      AuthenticatedSession? authenticated;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(
+            gateway: gateway,
+            registrationGateway: registrationGateway,
+            onAuthenticated: (session) => authenticated = session,
+          ),
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const Key('homeserver-field')),
+        'matrix.example.org',
+      );
+      await tester.tap(find.byKey(const Key('discover-homeserver')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('registration-available')));
+      await tester.pumpAndSettle();
+
+      expect(registrationGateway.beginCalls, 1);
+      expect(authenticated?.userId, '@new:matrix.example.org');
+      expect(find.byType(AuthenticationScreen), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'device QR login passes opaque data to the gateway and clears it from UI',
