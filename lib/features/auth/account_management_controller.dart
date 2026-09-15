@@ -176,16 +176,29 @@ final class AccountManagementController {
     for (final account in loaded) {
       if (account.accountId.trim().isEmpty ||
           account.accountId != account.accountId.trim() ||
+          account.accountId.contains(RegExp(r'\s')) ||
           !accountIds.add(account.accountId) ||
           !_isValidUserId(account.session.userId) ||
           account.session.deviceId.trim().isEmpty ||
-          account.session.deviceId != account.session.deviceId.trim()) {
+          account.session.deviceId != account.session.deviceId.trim() ||
+          !_isValidAvatarUri(account.avatarUri)) {
         return false;
       }
       if (account.isActive) activeCount += 1;
       if (activeCount > 1) return false;
     }
     return true;
+  }
+
+  bool _isValidAvatarUri(Uri? avatarUri) {
+    if (avatarUri == null) return true;
+    return avatarUri.scheme == 'mxc' &&
+        avatarUri.host.isNotEmpty &&
+        avatarUri.userInfo.isEmpty &&
+        !avatarUri.hasQuery &&
+        !avatarUri.hasFragment &&
+        avatarUri.pathSegments.length == 1 &&
+        avatarUri.pathSegments.single.isNotEmpty;
   }
 
   bool _isValidUserId(String userId) {

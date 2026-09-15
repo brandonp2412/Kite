@@ -54,6 +54,7 @@ ManagedMatrixAccount _account({
   required String deviceId,
   required String homeserver,
   bool isActive = false,
+  Uri? avatarUri,
 }) {
   return ManagedMatrixAccount(
     accountId: accountId,
@@ -63,6 +64,7 @@ ManagedMatrixAccount _account({
       homeserver: homeserver,
     ),
     isActive: isActive,
+    avatarUri: avatarUri,
   );
 }
 
@@ -395,6 +397,29 @@ void main() {
           deviceId: ' DEVICE ',
           homeserver: 'example.org',
           isActive: true,
+        ),
+      ];
+      expect(await controller.load(), isFalse);
+
+      gateway.loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'bad account',
+          userId: '@alice:example.org',
+          deviceId: 'DEVICE',
+          homeserver: 'example.org',
+          isActive: true,
+        ),
+      ];
+      expect(await controller.load(), isFalse);
+
+      gateway.loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'bad-avatar',
+          userId: '@alice:example.org',
+          deviceId: 'DEVICE',
+          homeserver: 'example.org',
+          isActive: true,
+          avatarUri: Uri.parse('https://example.org/avatar.png'),
         ),
       ];
       expect(await controller.load(), isFalse);
