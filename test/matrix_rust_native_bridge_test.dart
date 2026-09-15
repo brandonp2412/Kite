@@ -577,6 +577,31 @@ void main() {
     blockedDelay.complete();
   });
 
+  test('failed SDK client close remains retryable', () async {
+    final client = _FailingCloseRustClient();
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+    );
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      ),
+    );
+
+    await expectLater(boundary.close(), throwsStateError);
+    expect(client.closeCalls, 1);
+    expect(client.isClosed, isFalse);
+
+    await boundary.close();
+    expect(client.closeCalls, 2);
+    expect(client.isClosed, isTrue);
+  });
+
   test(
     'Dart opens and closes a passphrase-encrypted Matrix Rust SDK store off-isolate',
     () async {
@@ -685,6 +710,37 @@ final class _FakeRustBridge implements MatrixRustBridge {
     required String storePassphrase,
   }) async {
     return client;
+  }
+}
+
+final class _FailingCloseRustClient implements MatrixRustClient {
+  int closeCalls = 0;
+  bool _closed = false;
+
+  @override
+  bool get isClosed => _closed;
+
+  @override
+  Future<String> syncOnce({
+    required Duration timeout,
+    required int timelineEventLimit,
+    String? since,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> paginateBackwards({required String roomId}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> close() async {
+    closeCalls += 1;
+    if (closeCalls == 1) {
+      throw StateError('deterministic close failure');
+    }
+    _closed = true;
   }
 }
 

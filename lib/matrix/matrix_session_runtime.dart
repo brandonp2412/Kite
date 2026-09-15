@@ -84,12 +84,17 @@ final class MatrixSessionRuntime
     String accountId, {
     MatrixNavigationTarget target = const MatrixNavigationTarget.home(),
   }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
     return _enqueue<MatrixPresentationCache>(() async {
+      if (!await isAccountAvailable(normalizedAccountId)) {
+        throw StateError('Matrix account is not available');
+      }
+
       final previousAccountId = accounts.activeAccountId.value;
       final previousTarget = navigationTarget.value;
       try {
         return await accounts.activate(
-          accountId,
+          normalizedAccountId,
           onActivated: () => _recordNavigation(target),
         );
       } catch (error, stackTrace) {
@@ -163,6 +168,18 @@ final class MatrixSessionRuntime
       navigationTarget.value = previousTarget;
       Error.throwWithStackTrace(error, stackTrace);
     }
+  }
+
+  static String _normalizeAccountId(String accountId) {
+    final normalizedAccountId = accountId.trim();
+    if (normalizedAccountId.isEmpty || normalizedAccountId.contains('\u0000')) {
+      throw ArgumentError.value(
+        accountId,
+        'accountId',
+        'must contain a non-empty account id without NUL bytes',
+      );
+    }
+    return normalizedAccountId;
   }
 
   Future<T> _enqueue<T>(Future<T> Function() action) {

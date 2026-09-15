@@ -608,8 +608,11 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     return _enqueue(() async {
       await _stopSync();
       final client = _client;
-      _client = null;
-      await client?.close();
+      if (client == null) return;
+      await client.close();
+      if (identical(_client, client)) {
+        _client = null;
+      }
     });
   }
 
