@@ -40,16 +40,19 @@ final class _BadgeRefresh implements NotificationBadgeRefreshPort {
 DecryptedPushNotification _decoded({
   String id = 'push-1',
   String accountId = 'work',
+  String roomId = '!room:example.org',
+  String eventId = r'$event',
+  KiteNotificationKind kind = KiteNotificationKind.message,
   String body = 'Sensitive message',
 }) {
   return DecryptedPushNotification(
     notification: KiteNotification(
       id: id,
-      kind: KiteNotificationKind.message,
+      kind: kind,
       destination: AppDestination.event(
         accountId: accountId,
-        roomId: '!room:example.org',
-        eventId: r'$event',
+        roomId: roomId,
+        eventId: eventId,
       ),
     ),
     content: KiteNotificationContent(title: 'Alice', body: body),
@@ -124,6 +127,56 @@ void main() {
     expect(deliveryPort.shown, isEmpty);
     expect(badges.refreshes, 0);
     expect(push.errorMessage.value, 'Kite received an invalid notification.');
+  });
+
+  test('malformed decoded Matrix destinations never reach delivery', () async {
+    final pushGateway = _PushGateway()
+      ..decoded = _decoded(roomId: 'room-without-sigil');
+    final push = PushRegistrationController(pushGateway);
+    addTearDown(push.dispose);
+    final repository = FakeNotificationRepository();
+    final deliveryPort = FakeNotificationDeliveryPort();
+    final badges = _BadgeRefresh();
+    final coordinator = SecurePushNotificationCoordinator(
+      pushRegistration: push,
+      notifications: repository,
+      delivery: NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: deliveryPort,
+      ),
+      badgeRefresh: badges,
+    );
+
+    expect(
+      await coordinator.handleEncryptedPayload(
+        accountId: 'work',
+        encryptedPayload: 'OPAQUE-ENCRYPTED-PAYLOAD',
+      ),
+      isFalse,
+    );
+    expect(repository.activeForAccount('work'), isEmpty);
+    expect(deliveryPort.shown, isEmpty);
+    expect(badges.refreshes, 0);
+
+    pushGateway.decoded = _decoded(eventId: 'event-without-sigil');
+    expect(
+      await coordinator.handleEncryptedPayload(
+        accountId: 'work',
+        encryptedPayload: 'OPAQUE-ENCRYPTED-PAYLOAD',
+      ),
+      isFalse,
+    );
+    expect(deliveryPort.shown, isEmpty);
+
+    pushGateway.decoded = _decoded(kind: KiteNotificationKind.call);
+    expect(
+      await coordinator.handleEncryptedPayload(
+        accountId: 'work',
+        encryptedPayload: 'OPAQUE-ENCRYPTED-PAYLOAD',
+      ),
+      isFalse,
+    );
+    expect(deliveryPort.shown, isEmpty);
   });
 
   test('delivery failure restores previous routing metadata', () async {
