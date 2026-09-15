@@ -94,6 +94,10 @@ final class AppLockController {
     required bool hideNotificationContents,
   }) async {
     if (isBusy.value) return;
+    if (settings.value.enabled) {
+      errorMessage.value = 'App lock is already enabled.';
+      return;
+    }
     if (!_isValidPin(pin)) {
       errorMessage.value = 'Use a PIN with 4 to 64 digits.';
       return;

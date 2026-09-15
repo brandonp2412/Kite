@@ -21,7 +21,7 @@ class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen.user({
     required this.controller,
     required String this.userId,
-    this.onOpenRoom,
+    required this.onOpenRoom,
     this.avatarImageProvider,
     this.loadOnInit = true,
     super.key,
@@ -70,6 +70,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final textController = TextEditingController(
       text: profile.displayName ?? '',
     );
+    final focusNode = FocusNode();
     final route = DialogRoute<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -77,7 +78,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         content: TextField(
           key: const Key('profile-display-name-field'),
           controller: textController,
-          autofocus: true,
+          focusNode: focusNode,
           textInputAction: TextInputAction.done,
           decoration: const InputDecoration(labelText: 'Display name'),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
@@ -96,12 +97,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ],
       ),
     );
-    final next = await Navigator.of(context, rootNavigator: true).push(route);
-    await route.completed;
-    textController.dispose();
+    final routeFuture = Navigator.of(context, rootNavigator: true).push(route);
+    await Future<void>.delayed(route.transitionDuration);
+    if (mounted && route.isActive) {
+      focusNode.requestFocus();
+    }
+    final next = await routeFuture;
     if (next != null && mounted) {
       await widget.controller.updateDisplayName(next);
     }
+    await route.completed;
+    focusNode.dispose();
+    textController.dispose();
   }
 
   Future<void> _changeAvatar() async {
@@ -115,7 +122,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _openDirectMessage(MatrixUserProfile profile) async {
     final roomId = await widget.controller.openDirectMessage(profile.userId);
     if (roomId != null && mounted) {
-      widget.onOpenRoom?.call(roomId);
+      widget.onOpenRoom!(roomId);
     }
   }
 
@@ -133,9 +140,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ? widget.controller.ownProfile.value
                 : widget.controller.viewedProfile.value;
             final loading = widget.controller.isLoading.value;
+            final privacyLoading = widget.controller.isPrivacyLoading.value;
+            final hasPrivacyState = widget.controller.hasPrivacyState.value;
             final saving = widget.controller.isSaving.value;
             final error = widget.controller.errorMessage.value;
             final busy = loading || saving;
+            final privacyBusy = privacyLoading || saving || !hasPrivacyState;
 
             return ListView(
               key: const Key('user-profile-list'),
@@ -144,50 +154,39 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 SizedBox(
                   key: const Key('profile-loading-slot'),
                   height: 4,
-                  child: loading ? const LinearProgressIndicator() : null,
+                  child: loading || privacyLoading
+                      ? const LinearProgressIndicator()
+                      : null,
                 ),
                 if (profile == null)
-                  SizedBox(
-                    key: const Key('profile-empty-state'),
-                    height: 260,
-                    child: Center(
-                      child: Text(
-                        loading ? 'Loading profile…' : 'Profile unavailable',
-                        style: KiteTypography.body,
-                      ),
-                    ),
+                  _ProfilePlaceholder(
+                    isOwnProfile: widget.isOwnProfile,
+                    canChangeAvatar: widget.pickAvatar != null,
+                    loading: loading,
                   )
-                else ...<Widget>[
-                  _ProfileHeader(
+                else
+                  _ProfileContent(
                     profile: profile,
+                    isOwnProfile: widget.isOwnProfile,
+                    busy: busy,
+                    privacyBusy: privacyBusy,
+                    canChangeAvatar: widget.pickAvatar != null,
                     imageProvider: widget.avatarImageProvider?.call(
                       profile.avatarUri,
                     ),
+                    ignored: widget.controller.isIgnored(profile.userId),
+                    blocked: widget.controller.isBlocked(profile.userId),
+                    onEditDisplayName: () => _editDisplayName(profile),
+                    onChangeAvatar: _changeAvatar,
+                    onRemoveAvatar: profile.avatarUri == null
+                        ? null
+                        : () => widget.controller.updateAvatar(null),
+                    onMessage: () => _openDirectMessage(profile),
+                    onIgnoredChanged: (value) =>
+                        widget.controller.setIgnored(profile.userId, value),
+                    onBlockedChanged: (value) =>
+                        widget.controller.setBlocked(profile.userId, value),
                   ),
-                  if (widget.isOwnProfile)
-                    _OwnProfileActions(
-                      profile: profile,
-                      busy: busy,
-                      canChangeAvatar: widget.pickAvatar != null,
-                      onEditDisplayName: () => _editDisplayName(profile),
-                      onChangeAvatar: _changeAvatar,
-                      onRemoveAvatar: profile.avatarUri == null
-                          ? null
-                          : () => widget.controller.updateAvatar(null),
-                    )
-                  else
-                    _OtherProfileActions(
-                      profile: profile,
-                      busy: busy,
-                      ignored: widget.controller.isIgnored(profile.userId),
-                      blocked: widget.controller.isBlocked(profile.userId),
-                      onMessage: () => _openDirectMessage(profile),
-                      onIgnoredChanged: (value) =>
-                          widget.controller.setIgnored(profile.userId, value),
-                      onBlockedChanged: (value) =>
-                          widget.controller.setBlocked(profile.userId, value),
-                    ),
-                ],
                 SizedBox(
                   key: const Key('profile-status-slot'),
                   height: 64,
@@ -217,6 +216,133 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _ProfilePlaceholder extends StatelessWidget {
+  const _ProfilePlaceholder({
+    required this.isOwnProfile,
+    required this.canChangeAvatar,
+    required this.loading,
+  });
+
+  final bool isOwnProfile;
+  final bool canChangeAvatar;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    const placeholderProfile = MatrixUserProfile(
+      userId: '@loading:example.org',
+      displayName: 'Loading profile',
+      avatarUri: null,
+    );
+    return Stack(
+      key: const Key('profile-content-slot'),
+      children: <Widget>[
+        Visibility(
+          visible: false,
+          maintainAnimation: true,
+          maintainSize: true,
+          maintainState: true,
+          child: _ProfileContent(
+            profile: placeholderProfile,
+            isOwnProfile: isOwnProfile,
+            busy: true,
+            privacyBusy: true,
+            canChangeAvatar: canChangeAvatar,
+            imageProvider: null,
+            ignored: false,
+            blocked: false,
+            onEditDisplayName: _noop,
+            onChangeAvatar: _noop,
+            onRemoveAvatar: null,
+            onMessage: _noop,
+            onIgnoredChanged: _noopBool,
+            onBlockedChanged: _noopBool,
+            keyed: false,
+          ),
+        ),
+        Positioned.fill(
+          child: Center(
+            child: Text(
+              loading ? 'Loading profile…' : 'Profile unavailable',
+              key: const Key('profile-empty-state'),
+              style: KiteTypography.body,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static void _noop() {}
+  static void _noopBool(bool _) {}
+}
+
+class _ProfileContent extends StatelessWidget {
+  const _ProfileContent({
+    required this.profile,
+    required this.isOwnProfile,
+    required this.busy,
+    required this.privacyBusy,
+    required this.canChangeAvatar,
+    required this.imageProvider,
+    required this.ignored,
+    required this.blocked,
+    required this.onEditDisplayName,
+    required this.onChangeAvatar,
+    required this.onRemoveAvatar,
+    required this.onMessage,
+    required this.onIgnoredChanged,
+    required this.onBlockedChanged,
+    this.keyed = true,
+  });
+
+  final MatrixUserProfile profile;
+  final bool isOwnProfile;
+  final bool busy;
+  final bool privacyBusy;
+  final bool canChangeAvatar;
+  final ImageProvider<Object>? imageProvider;
+  final bool ignored;
+  final bool blocked;
+  final VoidCallback onEditDisplayName;
+  final VoidCallback onChangeAvatar;
+  final VoidCallback? onRemoveAvatar;
+  final VoidCallback onMessage;
+  final ValueChanged<bool> onIgnoredChanged;
+  final ValueChanged<bool> onBlockedChanged;
+  final bool keyed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: keyed ? const Key('profile-content-slot') : null,
+      children: <Widget>[
+        _ProfileHeader(profile: profile, imageProvider: imageProvider),
+        if (isOwnProfile)
+          _OwnProfileActions(
+            profile: profile,
+            busy: busy,
+            canChangeAvatar: canChangeAvatar,
+            onEditDisplayName: onEditDisplayName,
+            onChangeAvatar: onChangeAvatar,
+            onRemoveAvatar: onRemoveAvatar,
+          )
+        else
+          _OtherProfileActions(
+            profile: profile,
+            busy: busy,
+            privacyBusy: privacyBusy,
+            ignored: ignored,
+            blocked: blocked,
+            onMessage: onMessage,
+            onIgnoredChanged: onIgnoredChanged,
+            onBlockedChanged: onBlockedChanged,
+          ),
+      ],
     );
   }
 }
@@ -316,8 +442,12 @@ class _OwnProfileActions extends StatelessWidget {
             enabled: !busy,
             onTap: busy ? null : onChangeAvatar,
           ),
-        if (profile.avatarUri != null)
-          ListTile(
+        Visibility(
+          visible: profile.avatarUri != null,
+          maintainAnimation: true,
+          maintainSize: true,
+          maintainState: true,
+          child: ListTile(
             key: const Key('remove-profile-avatar'),
             leading: Icon(
               Icons.delete_outline_rounded,
@@ -327,9 +457,10 @@ class _OwnProfileActions extends StatelessWidget {
               'Remove avatar',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-            enabled: !busy,
-            onTap: busy ? null : onRemoveAvatar,
+            enabled: !busy && profile.avatarUri != null,
+            onTap: busy || profile.avatarUri == null ? null : onRemoveAvatar,
           ),
+        ),
       ],
     );
   }
@@ -339,6 +470,7 @@ class _OtherProfileActions extends StatelessWidget {
   const _OtherProfileActions({
     required this.profile,
     required this.busy,
+    required this.privacyBusy,
     required this.ignored,
     required this.blocked,
     required this.onMessage,
@@ -348,6 +480,7 @@ class _OtherProfileActions extends StatelessWidget {
 
   final MatrixUserProfile profile;
   final bool busy;
+  final bool privacyBusy;
   final bool ignored;
   final bool blocked;
   final VoidCallback onMessage;
@@ -379,7 +512,7 @@ class _OtherProfileActions extends StatelessWidget {
         SwitchListTile(
           key: const Key('profile-ignore'),
           value: ignored,
-          onChanged: busy ? null : onIgnoredChanged,
+          onChanged: busy || privacyBusy ? null : onIgnoredChanged,
           secondary: const Icon(Icons.volume_off_outlined),
           title: const Text('Ignore user'),
           subtitle: const Text('Hide messages and activity from this user.'),
@@ -387,7 +520,7 @@ class _OtherProfileActions extends StatelessWidget {
         SwitchListTile(
           key: const Key('profile-block'),
           value: blocked,
-          onChanged: busy ? null : onBlockedChanged,
+          onChanged: busy || privacyBusy ? null : onBlockedChanged,
           secondary: const Icon(Icons.block_outlined),
           title: const Text('Block user'),
           subtitle: const Text('Apply the homeserver-supported block state.'),

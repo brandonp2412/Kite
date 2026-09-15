@@ -40,20 +40,33 @@ class SessionGate extends StatefulWidget {
 
 class _SessionGateState extends State<SessionGate> {
   var _authenticationGeneration = 0;
+  late final void Function() _disposeLifecycleEffect;
 
   @override
   void initState() {
     super.initState();
+    _disposeLifecycleEffect = effect(() {
+      final lifecycleState = widget.lifecycleController.state.value;
+      if (lifecycleState is! SessionAuthenticated) {
+        widget.verificationController.resetForAccountChange();
+      }
+    });
     if (widget.restoreOnInit) {
       unawaited(_restore());
     }
+  }
+
+  @override
+  void dispose() {
+    _disposeLifecycleEffect();
+    super.dispose();
   }
 
   Future<void> _restore() async {
     await widget.lifecycleController.restore();
     if (!mounted) return;
     if (widget.lifecycleController.state.value is SessionAuthenticated) {
-      await widget.verificationController.loadTrust();
+      await _refreshVerificationForAuthenticatedSession();
     }
   }
 
@@ -67,11 +80,16 @@ class _SessionGateState extends State<SessionGate> {
     if (!mounted) return;
 
     if (widget.lifecycleController.state.value is SessionAuthenticated) {
-      await widget.verificationController.loadTrust();
+      await _refreshVerificationForAuthenticatedSession();
       return;
     }
 
     setState(() => _authenticationGeneration += 1);
+  }
+
+  Future<void> _refreshVerificationForAuthenticatedSession() async {
+    widget.verificationController.resetForAccountChange();
+    await widget.verificationController.loadTrust();
   }
 
   @override

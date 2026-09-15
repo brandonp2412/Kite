@@ -56,6 +56,8 @@ final class UserProfileController {
   final ignoredUserIds = signal<Set<String>>(const <String>{});
   final blockedUserIds = signal<Set<String>>(const <String>{});
   final isLoading = signal(false);
+  final isPrivacyLoading = signal(false);
+  final hasPrivacyState = signal(false);
   final isSaving = signal(false);
   final errorMessage = signal<String?>(null);
 
@@ -68,26 +70,17 @@ final class UserProfileController {
 
     final generation = _accountGeneration;
     final requestGeneration = ++_profileRequestGeneration;
+    isPrivacyLoading.value = false;
     isLoading.value = true;
     errorMessage.value = null;
     try {
       final profile = await _gateway.loadOwnProfile();
       if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final ignored = await _gateway.loadIgnoredUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final blocked = await _gateway.loadBlockedUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      if (!_isValidUserId(profile.userId) ||
-          profile.userId != profile.userId.trim() ||
-          !_isValidAvatarUri(profile.avatarUri) ||
-          !_areValidUserIds(ignored) ||
-          !_areValidUserIds(blocked)) {
+      if (!_isValidProfile(profile)) {
         errorMessage.value = 'Kite received invalid profile data.';
         return;
       }
       ownProfile.value = profile;
-      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
-      blockedUserIds.value = Set<String>.unmodifiable(blocked);
     } catch (_) {
       if (_isCurrentRequest(generation, requestGeneration)) {
         errorMessage.value = 'Kite could not load your profile.';
@@ -100,32 +93,15 @@ final class UserProfileController {
   }
 
   Future<void> refreshPrivacyControls() async {
-    if (isLoading.value || isSaving.value) return;
+    if (isLoading.value || isPrivacyLoading.value || isSaving.value) return;
 
     final generation = _accountGeneration;
     final requestGeneration = ++_profileRequestGeneration;
-    isLoading.value = true;
     errorMessage.value = null;
-    try {
-      final ignored = await _gateway.loadIgnoredUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final blocked = await _gateway.loadBlockedUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      if (!_areValidUserIds(ignored) || !_areValidUserIds(blocked)) {
-        errorMessage.value = 'Kite received invalid privacy settings.';
-        return;
-      }
-      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
-      blockedUserIds.value = Set<String>.unmodifiable(blocked);
-    } catch (_) {
-      if (_isCurrentRequest(generation, requestGeneration)) {
-        errorMessage.value = 'Kite could not load your privacy settings.';
-      }
-    } finally {
-      if (_isCurrentRequest(generation, requestGeneration)) {
-        isLoading.value = false;
-      }
-    }
+    await _loadPrivacyControlsWithProgress(
+      generation: generation,
+      requestGeneration: requestGeneration,
+    );
   }
 
   bool resetForAccountChange() {
@@ -136,6 +112,8 @@ final class UserProfileController {
     ignoredUserIds.value = const <String>{};
     blockedUserIds.value = const <String>{};
     isLoading.value = false;
+    isPrivacyLoading.value = false;
+    hasPrivacyState.value = false;
     isSaving.value = false;
     errorMessage.value = null;
     return true;
@@ -145,6 +123,7 @@ final class UserProfileController {
     if (isSaving.value) return;
     final generation = _accountGeneration;
     final requestGeneration = ++_profileRequestGeneration;
+    isPrivacyLoading.value = false;
     if (!_isValidUserId(userId)) {
       viewedProfile.value = null;
       isLoading.value = false;
@@ -160,21 +139,16 @@ final class UserProfileController {
     try {
       final profile = await _gateway.loadProfile(userId);
       if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final ignored = await _gateway.loadIgnoredUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final blocked = await _gateway.loadBlockedUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      if (profile.userId != userId ||
-          !_isValidUserId(profile.userId) ||
-          !_isValidAvatarUri(profile.avatarUri) ||
-          !_areValidUserIds(ignored) ||
-          !_areValidUserIds(blocked)) {
+      if (profile.userId != userId || !_isValidProfile(profile)) {
         errorMessage.value = 'Kite received invalid profile data.';
         return;
       }
       viewedProfile.value = profile;
-      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
-      blockedUserIds.value = Set<String>.unmodifiable(blocked);
+      isLoading.value = false;
+      await _loadPrivacyControlsWithProgress(
+        generation: generation,
+        requestGeneration: requestGeneration,
+      );
     } catch (_) {
       if (_isCurrentRequest(generation, requestGeneration)) {
         errorMessage.value = 'Kite could not load that profile.';
@@ -191,11 +165,6 @@ final class UserProfileController {
     if (current == null || isSaving.value || isLoading.value) return false;
 
     final normalized = displayName.trim();
-    if (normalized.isEmpty) {
-      errorMessage.value = 'Display name cannot be empty.';
-      return false;
-    }
-
     final generation = _accountGeneration;
     isSaving.value = true;
     errorMessage.value = null;
@@ -279,7 +248,11 @@ final class UserProfileController {
   }
 
   Future<bool> setIgnored(String userId, bool ignored) async {
-    if (!_isValidUserId(userId) || isSaving.value || isLoading.value) {
+    if (!_isValidUserId(userId) ||
+        isSaving.value ||
+        isLoading.value ||
+        isPrivacyLoading.value ||
+        !hasPrivacyState.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -315,7 +288,11 @@ final class UserProfileController {
   }
 
   Future<bool> setBlocked(String userId, bool blocked) async {
-    if (!_isValidUserId(userId) || isSaving.value || isLoading.value) {
+    if (!_isValidUserId(userId) ||
+        isSaving.value ||
+        isLoading.value ||
+        isPrivacyLoading.value ||
+        !hasPrivacyState.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -350,9 +327,60 @@ final class UserProfileController {
     }
   }
 
+  Future<void> _loadPrivacyControlsWithProgress({
+    required int generation,
+    required int requestGeneration,
+  }) async {
+    if (!_isCurrentRequest(generation, requestGeneration)) return;
+    hasPrivacyState.value = false;
+    isPrivacyLoading.value = true;
+    try {
+      await _loadPrivacyControls(
+        generation: generation,
+        requestGeneration: requestGeneration,
+      );
+    } finally {
+      if (_isCurrentRequest(generation, requestGeneration)) {
+        isPrivacyLoading.value = false;
+      }
+    }
+  }
+
+  Future<void> _loadPrivacyControls({
+    required int generation,
+    required int requestGeneration,
+  }) async {
+    try {
+      final privacy = await Future.wait<Set<String>>(<Future<Set<String>>>[
+        _gateway.loadIgnoredUserIds(),
+        _gateway.loadBlockedUserIds(),
+      ]);
+      if (!_isCurrentRequest(generation, requestGeneration)) return;
+      final ignored = privacy[0];
+      final blocked = privacy[1];
+      if (!_areValidUserIds(ignored) || !_areValidUserIds(blocked)) {
+        errorMessage.value = 'Kite received invalid privacy settings.';
+        return;
+      }
+      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
+      blockedUserIds.value = Set<String>.unmodifiable(blocked);
+      hasPrivacyState.value = true;
+    } catch (_) {
+      if (_isCurrentRequest(generation, requestGeneration)) {
+        errorMessage.value = 'Kite could not load your privacy settings.';
+      }
+    }
+  }
+
   bool _isCurrentRequest(int accountGeneration, int requestGeneration) {
     return accountGeneration == _accountGeneration &&
         requestGeneration == _profileRequestGeneration;
+  }
+
+  bool _isValidProfile(MatrixUserProfile profile) {
+    return _isValidUserId(profile.userId) &&
+        profile.userId == profile.userId.trim() &&
+        _isValidAvatarUri(profile.avatarUri);
   }
 
   bool _isValidAvatarUri(Uri? avatarUri) {
@@ -399,6 +427,8 @@ final class UserProfileController {
     ignoredUserIds.dispose();
     blockedUserIds.dispose();
     isLoading.dispose();
+    isPrivacyLoading.dispose();
+    hasPrivacyState.dispose();
     isSaving.dispose();
     errorMessage.dispose();
   }

@@ -28,9 +28,13 @@ final class _SessionGateway implements SessionLifecycleGateway {
 }
 
 final class _AuthenticationGateway implements AuthenticationGateway {
-  _AuthenticationGateway({this.registrationAvailable = false});
+  _AuthenticationGateway({
+    this.registrationAvailable = false,
+    this.returnedUserId,
+  });
 
   final bool registrationAvailable;
+  final String? returnedUserId;
 
   @override
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async =>
@@ -42,7 +46,7 @@ final class _AuthenticationGateway implements AuthenticationGateway {
 
   AuthenticatedSession _session(HomeserverAddress homeserver) =>
       AuthenticatedSession(
-        userId: '@alice:${homeserver.uri.host}',
+        userId: returnedUserId ?? '@alice:${homeserver.uri.host}',
         deviceId: 'DEVICE',
         homeserver: homeserver,
       );
@@ -98,6 +102,7 @@ final class _VerificationGateway implements DeviceVerificationGateway {
 
   CrossSigningTrustState trust;
   Object? trustFailure;
+  int trustReads = 0;
 
   @override
   Future<void> cancelVerification(String transactionId) async {}
@@ -114,13 +119,19 @@ final class _VerificationGateway implements DeviceVerificationGateway {
 
   @override
   Future<CrossSigningTrustState> loadCrossSigningTrust() async {
+    trustReads += 1;
     if (trustFailure case final error?) throw error;
     return trust;
   }
 
   @override
   Future<DeviceVerificationSession> startQrVerification() async =>
-      throw UnimplementedError();
+      DeviceVerificationSession(
+        transactionId: 'stale-qr-transaction',
+        method: DeviceVerificationMethod.qr,
+        stage: DeviceVerificationStage.ready,
+        qrCodeData: 'SDK-OWNED-QR-PAYLOAD',
+      );
 
   @override
   Future<DeviceVerificationSession> startSasVerification() async =>
@@ -139,6 +150,39 @@ AuthenticatedSession _session() => AuthenticatedSession(
 );
 
 void main() {
+  testWidgets('restored session discards stale verification transaction', (
+    tester,
+  ) async {
+    final lifecycle = SessionLifecycleController(_SessionGateway(_session()));
+    final verificationGateway = _VerificationGateway(
+      CrossSigningTrustState.verified,
+    );
+    final verification = DeviceVerificationController(verificationGateway);
+    addTearDown(lifecycle.dispose);
+    addTearDown(verification.dispose);
+
+    expect(await verification.startQrVerification(), isTrue);
+    expect(verification.session.value, isNotNull);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SessionGate(
+          lifecycleController: lifecycle,
+          authenticationGateway: _AuthenticationGateway(),
+          verificationController: verification,
+          authenticatedBuilder: (context) =>
+              const Scaffold(body: Text('Authenticated content')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(verification.session.value, isNull);
+    expect(verification.trustState.value, CrossSigningTrustState.verified);
+    expect(verificationGateway.trustReads, 1);
+    expect(find.text('Authenticated content'), findsOneWidget);
+  });
+
   testWidgets('restored verified session reaches authenticated content', (
     tester,
   ) async {
@@ -295,6 +339,98 @@ void main() {
     expect(sessionGateway.persisted?.deviceId, 'REGISTERED_DEVICE');
     expect(verification.trustState.value, CrossSigningTrustState.verified);
   });
+
+  testWidgets('soft logout never resumes into a different Matrix account', (
+    tester,
+  ) async {
+    final sessionGateway = _SessionGateway(_session());
+    final lifecycle = SessionLifecycleController(sessionGateway);
+    final verification = DeviceVerificationController(
+      _VerificationGateway(CrossSigningTrustState.verified),
+    );
+    addTearDown(lifecycle.dispose);
+    addTearDown(verification.dispose);
+    await lifecycle.restore();
+    lifecycle.markSoftLoggedOut();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SessionGate(
+          lifecycleController: lifecycle,
+          authenticationGateway: _AuthenticationGateway(
+            returnedUserId: '@mallory:matrix.example.org',
+          ),
+          verificationController: verification,
+          restoreOnInit: false,
+          authenticatedBuilder: (context) =>
+              const Scaffold(body: Text('Authenticated content')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'correct-password-for-wrong-account',
+    );
+    await tester.tap(find.byKey(const Key('password-login')));
+    await tester.pumpAndSettle();
+
+    expect(lifecycle.state.value, isA<SessionSoftLoggedOut>());
+    expect(sessionGateway.persisted, isNull);
+    expect(find.text('Authenticated content'), findsNothing);
+    expect(
+      find.text('Sign in as @alice:matrix.example.org to continue.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'soft-logout reauthentication discards the previous verification transaction',
+    (tester) async {
+      final lifecycle = SessionLifecycleController(_SessionGateway(_session()));
+      final verificationGateway = _VerificationGateway(
+        CrossSigningTrustState.unverified,
+      );
+      final verification = DeviceVerificationController(verificationGateway);
+      addTearDown(lifecycle.dispose);
+      addTearDown(verification.dispose);
+      await lifecycle.restore();
+      await verification.loadTrust();
+      expect(await verification.startQrVerification(), isTrue);
+      expect(verification.session.value, isNotNull);
+      lifecycle.markSoftLoggedOut();
+      verificationGateway.trust = CrossSigningTrustState.verified;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SessionGate(
+            lifecycleController: lifecycle,
+            authenticationGateway: _AuthenticationGateway(),
+            verificationController: verification,
+            restoreOnInit: false,
+            authenticatedBuilder: (context) =>
+                const Scaffold(body: Text('Authenticated content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(verification.session.value, isNull);
+      expect(verification.trustState.value, CrossSigningTrustState.unknown);
+
+      await tester.enterText(
+        find.byKey(const Key('password-field')),
+        'correct-password',
+      );
+      await tester.tap(find.byKey(const Key('password-login')));
+      await tester.pumpAndSettle();
+
+      expect(verification.session.value, isNull);
+      expect(verification.trustState.value, CrossSigningTrustState.verified);
+      expect(verificationGateway.trustReads, 2);
+      expect(find.text('Authenticated content'), findsOneWidget);
+    },
+  );
 
   testWidgets('soft logout returns to authentication with explicit notice', (
     tester,

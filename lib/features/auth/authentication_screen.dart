@@ -80,19 +80,20 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     await _controller.loginWithPassword(
       username: _usernameController.text,
       password: password,
+      expectedUserId: widget.expectedUserId,
     );
     _completeAuthenticationIfNeeded();
   }
 
   Future<void> _oidcLogin() async {
     _passwordController.clear();
-    await _controller.loginWithOidc();
+    await _controller.loginWithOidc(expectedUserId: widget.expectedUserId);
     _completeAuthenticationIfNeeded();
   }
 
   Future<void> _ssoLogin() async {
     _passwordController.clear();
-    await _controller.loginWithSso();
+    await _controller.loginWithSso(expectedUserId: widget.expectedUserId);
     _completeAuthenticationIfNeeded();
   }
 

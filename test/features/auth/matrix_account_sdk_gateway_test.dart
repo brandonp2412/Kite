@@ -20,6 +20,15 @@ final class _FakeAccountBoundary implements MatrixAccountSdkBoundary {
   String? receivedDeviceToken;
   String? receivedEncryptedPayload;
   MatrixSdkPushProvider? receivedPushProvider;
+  String? receivedProfileUserId;
+  String? receivedDisplayName;
+  Uri? receivedAvatarUri;
+  int updateAvatarCalls = 0;
+  String? receivedDirectMessageUserId;
+  String? receivedIgnoredUserId;
+  bool? receivedIgnored;
+  String? receivedBlockedUserId;
+  bool? receivedBlocked;
   MatrixAccountSdkException? passwordError;
 
   final session = MatrixSdkSessionDescriptor(
@@ -84,6 +93,70 @@ final class _FakeAccountBoundary implements MatrixAccountSdkBoundary {
       historicalRecoveryState: MatrixSdkHistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
     );
+  }
+
+  @override
+  Future<MatrixSdkUserProfile> loadOwnProfile() async {
+    return const MatrixSdkUserProfile(
+      userId: '@kite:example.org',
+      displayName: 'Kite User',
+      avatarUri: null,
+    );
+  }
+
+  @override
+  Future<MatrixSdkUserProfile> loadProfile(String userId) async {
+    receivedProfileUserId = userId;
+    return MatrixSdkUserProfile(
+      userId: userId,
+      displayName: 'Alice',
+      avatarUri: Uri.parse('mxc://example.org/alice'),
+    );
+  }
+
+  @override
+  Future<void> updateDisplayName(String displayName) async {
+    receivedDisplayName = displayName;
+  }
+
+  @override
+  Future<void> updateAvatar(Uri? avatarUri) async {
+    updateAvatarCalls += 1;
+    receivedAvatarUri = avatarUri;
+  }
+
+  @override
+  Future<String> openDirectMessage(String userId) async {
+    receivedDirectMessageUserId = userId;
+    return '!dm:example.org';
+  }
+
+  @override
+  Future<Set<String>> loadIgnoredUserIds() async => <String>{
+    '@ignored:example.org',
+  };
+
+  @override
+  Future<Set<String>> loadBlockedUserIds() async => <String>{
+    '@blocked:example.org',
+  };
+
+  @override
+  Future<void> setUserIgnored({
+    required String userId,
+    required bool ignored,
+  }) async {
+    receivedIgnoredUserId = userId;
+    receivedIgnored = ignored;
+  }
+
+  @override
+  Future<void> setUserBlocked({
+    required String userId,
+    required bool blocked,
+  }) async {
+    receivedBlockedUserId = userId;
+    receivedBlocked = blocked;
   }
 
   @override
@@ -237,6 +310,62 @@ void main() {
       isNot(contains('opaque-verification-secret')),
     );
     expect(recovery.backupState.name, 'ready');
+  });
+
+  test(
+    'profile and privacy actions stay behind SDK capability gates',
+    () async {
+      final boundary = _FakeAccountBoundary(<MatrixAccountSdkCapability>{
+        MatrixAccountSdkCapability.profileManagement,
+        MatrixAccountSdkCapability.privacyControls,
+      });
+      final gateway = MatrixAccountSdkGateway(boundary);
+      final avatar = Uri.parse('mxc://example.org/new-avatar');
+
+      final own = await gateway.loadOwnProfile();
+      final other = await gateway.loadProfile('@alice:example.org');
+      await gateway.updateDisplayName('Updated Name');
+      await gateway.updateAvatar(avatar);
+      final roomId = await gateway.openDirectMessage('@alice:example.org');
+      final ignored = await gateway.loadIgnoredUserIds();
+      final blocked = await gateway.loadBlockedUserIds();
+      await gateway.setUserIgnored(userId: '@alice:example.org', ignored: true);
+      await gateway.setUserBlocked(userId: '@alice:example.org', blocked: true);
+
+      expect(own.userId, '@kite:example.org');
+      expect(own.displayName, 'Kite User');
+      expect(other.userId, '@alice:example.org');
+      expect(other.avatarUri, Uri.parse('mxc://example.org/alice'));
+      expect(boundary.receivedProfileUserId, '@alice:example.org');
+      expect(boundary.receivedDisplayName, 'Updated Name');
+      expect(boundary.updateAvatarCalls, 1);
+      expect(boundary.receivedAvatarUri, avatar);
+      expect(boundary.receivedDirectMessageUserId, '@alice:example.org');
+      expect(roomId, '!dm:example.org');
+      expect(ignored, <String>{'@ignored:example.org'});
+      expect(blocked, <String>{'@blocked:example.org'});
+      expect(boundary.receivedIgnoredUserId, '@alice:example.org');
+      expect(boundary.receivedIgnored, isTrue);
+      expect(boundary.receivedBlockedUserId, '@alice:example.org');
+      expect(boundary.receivedBlocked, isTrue);
+    },
+  );
+
+  test('profile calls fail closed when SDK capability is missing', () async {
+    final boundary = _FakeAccountBoundary(<MatrixAccountSdkCapability>{});
+    final gateway = MatrixAccountSdkGateway(boundary);
+
+    await expectLater(
+      gateway.loadProfile('@alice:example.org'),
+      throwsA(isA<MatrixSdkContractException>()),
+    );
+    await expectLater(
+      gateway.setUserIgnored(userId: '@alice:example.org', ignored: true),
+      throwsA(isA<MatrixSdkContractException>()),
+    );
+
+    expect(boundary.receivedProfileUserId, isNull);
+    expect(boundary.receivedIgnoredUserId, isNull);
   });
 
   test(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/account_management_controller.dart';
@@ -7,6 +9,7 @@ import 'package:kite/features/auth/session_device_controller.dart';
 
 final class _FakeAccountGateway implements AccountManagementGateway {
   List<ManagedMatrixAccount> loaded = const <ManagedMatrixAccount>[];
+  Completer<List<ManagedMatrixAccount>>? deferredLoad;
   final activated = <String>[];
   final signedOut = <String>[];
 
@@ -16,7 +19,11 @@ final class _FakeAccountGateway implements AccountManagementGateway {
   }
 
   @override
-  Future<List<ManagedMatrixAccount>> loadAccounts() async => loaded;
+  Future<List<ManagedMatrixAccount>> loadAccounts() async {
+    final deferred = deferredLoad;
+    if (deferred != null) return deferred.future;
+    return loaded;
+  }
 
   @override
   Future<void> signOutAccount(String accountId) async {
@@ -26,12 +33,15 @@ final class _FakeAccountGateway implements AccountManagementGateway {
 
 final class _FakeSessionGateway implements SessionDeviceGateway {
   List<SessionDevice> loaded = const <SessionDevice>[];
+  Completer<List<SessionDevice>>? deferredLoad;
   final signedOut = <String>[];
   int loadCalls = 0;
 
   @override
   Future<List<SessionDevice>> loadDevices() async {
     loadCalls += 1;
+    final deferred = deferredLoad;
+    if (deferred != null) return deferred.future;
     return loaded;
   }
 
@@ -229,6 +239,79 @@ void main() {
     expect(accountGateway.signedOut, <String>['work']);
     expect(activeSignOutCalls, 1);
     expect(devices.devices.value, isEmpty);
+  });
+
+  testWidgets('refresh disables stale account and device mutations', (
+    tester,
+  ) async {
+    final accountGateway = _FakeAccountGateway()
+      ..loaded = <ManagedMatrixAccount>[
+        _account(id: 'work', userId: '@brandon:work.example.org', active: true),
+        _account(id: 'personal', userId: '@brandon:example.org', active: false),
+      ];
+    final sessionGateway = _FakeSessionGateway()
+      ..loaded = const <SessionDevice>[_currentDevice, _remoteDevice];
+    final accounts = AccountManagementController(accountGateway);
+    final devices = SessionDeviceController(sessionGateway);
+    addTearDown(accounts.dispose);
+    addTearDown(devices.dispose);
+    await accounts.load();
+    await devices.load();
+
+    accountGateway.deferredLoad = Completer<List<ManagedMatrixAccount>>();
+    sessionGateway.deferredLoad = Completer<List<SessionDevice>>();
+    final accountRefresh = accounts.load();
+    final deviceRefresh = devices.load();
+    await tester.pumpWidget(
+      _app(accounts: accounts, devices: devices, onAddAccount: () {}),
+    );
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const Key('activate-account-personal')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('sign-out-account-work')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('sign-out-device-PHONE')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester.widget<TextButton>(find.byKey(const Key('add-account'))).onPressed,
+      isNull,
+    );
+
+    accountGateway.deferredLoad!.complete(accountGateway.loaded);
+    sessionGateway.deferredLoad!.complete(sessionGateway.loaded);
+    await accountRefresh;
+    await deviceRefresh;
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const Key('activate-account-personal')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('sign-out-device-PHONE')))
+          .onPressed,
+      isNotNull,
+    );
   });
 
   testWidgets('confirms remote session and account sign-out before mutation', (

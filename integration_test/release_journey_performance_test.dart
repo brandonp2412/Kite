@@ -64,8 +64,14 @@ final class _BenchmarkAuthenticationGateway implements AuthenticationGateway {
 }
 
 final class _BenchmarkAccountGateway implements AccountManagementGateway {
+  _BenchmarkAccountGateway(this._sessionDevices);
+
+  final _BenchmarkSessionDeviceGateway _sessionDevices;
+
   @override
-  Future<void> activateAccount(String accountId) async {}
+  Future<void> activateAccount(String accountId) async {
+    _sessionDevices.activateAccount(accountId);
+  }
 
   @override
   Future<List<ManagedMatrixAccount>> loadAccounts() async {
@@ -98,16 +104,24 @@ final class _BenchmarkAccountGateway implements AccountManagementGateway {
 }
 
 final class _BenchmarkSessionDeviceGateway implements SessionDeviceGateway {
+  String _currentDeviceId = 'WORK_DEVICE';
+
+  void activateAccount(String accountId) {
+    _currentDeviceId = accountId == 'personal'
+        ? 'PERSONAL_DEVICE'
+        : 'WORK_DEVICE';
+  }
+
   @override
   Future<List<SessionDevice>> loadDevices() async {
-    return const <SessionDevice>[
+    return <SessionDevice>[
       SessionDevice(
-        deviceId: 'CURRENT',
+        deviceId: _currentDeviceId,
         displayName: 'Benchmark device',
         isCurrent: true,
         verification: SessionDeviceVerification.verified,
       ),
-      SessionDevice(
+      const SessionDevice(
         deviceId: 'REMOTE',
         displayName: 'Remote device',
         isCurrent: false,
@@ -671,8 +685,11 @@ void main() {
   testWidgets('account and session management have zero late Flutter frames', (
     tester,
   ) async {
-    final accounts = AccountManagementController(_BenchmarkAccountGateway());
-    final devices = SessionDeviceController(_BenchmarkSessionDeviceGateway());
+    final sessionDeviceGateway = _BenchmarkSessionDeviceGateway();
+    final accounts = AccountManagementController(
+      _BenchmarkAccountGateway(sessionDeviceGateway),
+    );
+    final devices = SessionDeviceController(sessionDeviceGateway);
     addTearDown(accounts.dispose);
     addTearDown(devices.dispose);
     await accounts.load();

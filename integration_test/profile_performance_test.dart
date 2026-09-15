@@ -18,6 +18,7 @@ final class _BenchmarkProfileGateway implements UserProfileGateway {
   );
   final ignored = <String>{};
   final blocked = <String>{};
+  int displayNameUpdateCalls = 0;
 
   @override
   Future<Set<String>> loadBlockedUserIds() async => <String>{...blocked};
@@ -66,6 +67,7 @@ final class _BenchmarkProfileGateway implements UserProfileGateway {
 
   @override
   Future<void> updateDisplayName(String displayName) async {
+    displayNameUpdateCalls += 1;
     own = own.copyWith(displayName: displayName);
   }
 }
@@ -112,15 +114,22 @@ void main() {
       action: () async {
         await tester.tap(find.byKey(const Key('edit-display-name')));
         await tester.pumpAndSettle();
-        await tester.enterText(
+        final displayNameField = tester.widget<TextField>(
           find.byKey(const Key('profile-display-name-field')),
-          'Benchmark Updated',
         );
+        displayNameField.controller!.value = const TextEditingValue(
+          text: 'Benchmark Updated',
+          selection: TextSelection.collapsed(offset: 17),
+        );
+        await tester.pump();
         await tester.tap(find.byKey(const Key('profile-save-display-name')));
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
+    expect(find.byKey(const Key('profile-display-name-field')), findsNothing);
+    expect(gateway.displayNameUpdateCalls, 1);
+    expect(gateway.own.displayName, 'Benchmark Updated');
     expect(controller.ownProfile.value?.displayName, 'Benchmark Updated');
 
     final avatarResult = await measureFrames(

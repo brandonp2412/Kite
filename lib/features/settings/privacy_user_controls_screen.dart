@@ -43,8 +43,10 @@ class _PrivacyUserControlsScreenState extends State<PrivacyUserControlsScreen> {
               ..sort();
             final blocked = widget.controller.blockedUserIds.value.toList()
               ..sort();
-            final loading = widget.controller.isLoading.value;
+            final loading = widget.controller.isPrivacyLoading.value;
             final saving = widget.controller.isSaving.value;
+            final hasPrivacyState = widget.controller.hasPrivacyState.value;
+            final busy = loading || saving || !hasPrivacyState;
             final error = widget.controller.errorMessage.value;
 
             return ListView(
@@ -76,7 +78,7 @@ class _PrivacyUserControlsScreenState extends State<PrivacyUserControlsScreen> {
                               userId: userId,
                               actionKey: Key('unignore-user-$userId'),
                               actionLabel: 'Unignore',
-                              busy: saving,
+                              busy: busy,
                               onOpenUser: widget.onOpenUser,
                               onAction: () =>
                                   widget.controller.setIgnored(userId, false),
@@ -105,7 +107,7 @@ class _PrivacyUserControlsScreenState extends State<PrivacyUserControlsScreen> {
                               userId: userId,
                               actionKey: Key('unblock-user-$userId'),
                               actionLabel: 'Unblock',
-                              busy: saving,
+                              busy: busy,
                               onOpenUser: widget.onOpenUser,
                               onAction: () =>
                                   widget.controller.setBlocked(userId, false),

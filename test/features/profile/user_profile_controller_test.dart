@@ -22,6 +22,8 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   Object? dmError;
   Object? ignoreError;
   Object? blockError;
+  Object? loadIgnoredError;
+  Object? loadBlockedError;
   String dmRoomId = '!dm:example.org';
   String? updatedDisplayName;
   Uri? updatedAvatar;
@@ -29,12 +31,24 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   String? openedDmUserId;
   Completer<MatrixUserProfile>? deferredOwnProfile;
   Completer<MatrixUserProfile>? deferredViewedProfile;
+  Completer<Set<String>>? deferredIgnored;
+  Completer<Set<String>>? deferredBlocked;
 
   @override
-  Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignored};
+  Future<Set<String>> loadIgnoredUserIds() async {
+    if (loadIgnoredError case final error?) throw error;
+    final deferred = deferredIgnored;
+    if (deferred != null) return deferred.future;
+    return <String>{...ignored};
+  }
 
   @override
-  Future<Set<String>> loadBlockedUserIds() async => <String>{...blocked};
+  Future<Set<String>> loadBlockedUserIds() async {
+    if (loadBlockedError case final error?) throw error;
+    final deferred = deferredBlocked;
+    if (deferred != null) return deferred.future;
+    return <String>{...blocked};
+  }
 
   @override
   Future<MatrixUserProfile> loadOwnProfile() async {
@@ -101,17 +115,21 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
 
 void main() {
   test(
-    'loads own profile and ignored users without clearing known state',
+    'loads own profile without waiting on unrelated privacy state',
     () async {
       final gateway = _FakeUserProfileGateway()
-        ..ignored = {'@spam:example.org'};
+        ..ignored = {'@spam:example.org'}
+        ..loadIgnoredError = StateError('access_token=secret')
+        ..loadBlockedError = StateError('recovery_key=secret');
       final controller = UserProfileController(gateway);
       addTearDown(controller.dispose);
 
       await controller.loadOwnProfile();
 
       expect(controller.ownProfile.value?.displayName, 'Brandon');
-      expect(controller.isIgnored('@spam:example.org'), isTrue);
+      expect(controller.hasPrivacyState.value, isFalse);
+      expect(controller.isIgnored('@spam:example.org'), isFalse);
+      expect(controller.errorMessage.value, isNull);
 
       gateway.loadOwnError = StateError('access_token=secret');
       await controller.loadOwnProfile();
@@ -179,6 +197,40 @@ void main() {
     expect(controller.viewedProfile.value, isNull);
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
   });
+
+  test(
+    'publishes viewed profile before privacy controls finish loading',
+    () async {
+      final ignored = Completer<Set<String>>();
+      final blocked = Completer<Set<String>>();
+      final gateway = _FakeUserProfileGateway()
+        ..deferredIgnored = ignored
+        ..deferredBlocked = blocked;
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+
+      final loading = controller.loadUserProfile('@alice:example.org');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.viewedProfile.value?.displayName, 'Alice');
+      expect(controller.isLoading.value, isFalse);
+      expect(controller.isPrivacyLoading.value, isTrue);
+      expect(
+        await controller.openDirectMessage('@alice:example.org'),
+        '!dm:example.org',
+      );
+      expect(await controller.setIgnored('@alice:example.org', true), isFalse);
+      expect(controller.isIgnored('@alice:example.org'), isFalse);
+
+      ignored.complete(<String>{'@alice:example.org'});
+      blocked.complete(<String>{});
+      await loading;
+
+      expect(controller.isPrivacyLoading.value, isFalse);
+      expect(controller.hasPrivacyState.value, isTrue);
+      expect(controller.isIgnored('@alice:example.org'), isTrue);
+    },
+  );
 
   test('same-user refresh preserves the last known profile offline', () async {
     final gateway = _FakeUserProfileGateway();
@@ -307,18 +359,18 @@ void main() {
         'Kite received invalid profile data.',
       );
 
-      gateway.ownProfile = const MatrixUserProfile(
-        userId: '@brandon:example.org',
-        displayName: 'Brandon',
+      gateway.profiles['@alice:example.org'] = const MatrixUserProfile(
+        userId: '@alice:example.org',
+        displayName: 'Alice',
       );
       gateway.ignored = {' invalid-user '};
-      await controller.loadOwnProfile();
+      await controller.loadUserProfile('@alice:example.org');
 
-      expect(controller.ownProfile.value, isNull);
+      expect(controller.viewedProfile.value?.userId, '@alice:example.org');
       expect(controller.ignoredUserIds.value, isEmpty);
       expect(
         controller.errorMessage.value,
-        'Kite received invalid profile data.',
+        'Kite received invalid privacy settings.',
       );
     },
   );
@@ -332,6 +384,29 @@ void main() {
 
     expect(controller.viewedProfile.value, isNull);
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
+  });
+
+  test('privacy refresh failure does not blank a valid profile', () async {
+    final gateway = _FakeUserProfileGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+
+    gateway.loadIgnoredError = StateError('access_token=secret');
+    await controller.loadOwnProfile();
+
+    expect(controller.ownProfile.value?.displayName, 'Brandon');
+    expect(controller.errorMessage.value, isNull);
+
+    gateway.loadBlockedError = StateError('recovery_key=secret');
+    await controller.loadUserProfile('@alice:example.org');
+
+    expect(controller.viewedProfile.value?.displayName, 'Alice');
+    expect(controller.hasPrivacyState.value, isFalse);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not load your privacy settings.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
   });
 
   test('profile mutation cannot race an in-flight profile refresh', () async {
@@ -392,6 +467,10 @@ void main() {
     expect(gateway.updatedDisplayName, 'Brandon Dick');
     expect(controller.ownProfile.value?.displayName, 'Brandon Dick');
 
+    expect(await controller.updateDisplayName('   '), isTrue);
+    expect(gateway.updatedDisplayName, '');
+    expect(controller.ownProfile.value?.displayName, '');
+
     final avatar = Uri.parse('mxc://example.org/avatar');
     expect(await controller.updateAvatar(avatar), isTrue);
     expect(gateway.updatedAvatar, avatar);
@@ -439,8 +518,9 @@ void main() {
       final gateway = _FakeUserProfileGateway();
       final controller = UserProfileController(gateway);
       addTearDown(controller.dispose);
-      await controller.loadOwnProfile();
+      await controller.refreshPrivacyControls();
 
+      expect(controller.hasPrivacyState.value, isTrue);
       expect(await controller.setIgnored('@alice:example.org', true), isTrue);
       expect(controller.isIgnored('@alice:example.org'), isTrue);
 
@@ -462,8 +542,9 @@ void main() {
         ..blocked = {'@spam:example.org'};
       final controller = UserProfileController(gateway);
       addTearDown(controller.dispose);
-      await controller.loadOwnProfile();
+      await controller.loadUserProfile('@alice:example.org');
 
+      expect(controller.hasPrivacyState.value, isTrue);
       expect(controller.isBlocked('@spam:example.org'), isTrue);
       expect(await controller.setBlocked('@alice:example.org', true), isTrue);
       expect(controller.isBlocked('@alice:example.org'), isTrue);

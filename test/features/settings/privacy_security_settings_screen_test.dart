@@ -65,8 +65,7 @@ final class _RecoveryGateway implements EncryptionRecoveryGateway {
 }
 
 final class _SessionGateway implements SessionDeviceGateway {
-  @override
-  Future<List<SessionDevice>> loadDevices() async => const <SessionDevice>[
+  List<SessionDevice> loaded = const <SessionDevice>[
     SessionDevice(
       deviceId: 'CURRENT',
       isCurrent: true,
@@ -80,10 +79,56 @@ final class _SessionGateway implements SessionDeviceGateway {
   ];
 
   @override
+  Future<List<SessionDevice>> loadDevices() async => loaded;
+
+  @override
   Future<void> signOutDevice(String deviceId) async {}
 }
 
 void main() {
+  testWidgets(
+    'initial refresh requires the signed-in Matrix device to be present',
+    (tester) async {
+      final verification = DeviceVerificationController(_VerificationGateway());
+      final recovery = EncryptionRecoveryController(_RecoveryGateway());
+      final sessionGateway = _SessionGateway()
+        ..loaded = const <SessionDevice>[
+          SessionDevice(
+            deviceId: 'OTHER_DEVICE',
+            isCurrent: true,
+            verification: SessionDeviceVerification.verified,
+          ),
+        ];
+      final sessions = SessionDeviceController(sessionGateway);
+      addTearDown(verification.dispose);
+      addTearDown(recovery.dispose);
+      addTearDown(sessions.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PrivacySecuritySettingsScreen(
+            verificationController: verification,
+            recoveryController: recovery,
+            sessionDeviceController: sessions,
+            currentDeviceId: 'CURRENT',
+            onOpenVerification: () {},
+            onOpenRecovery: () {},
+            onOpenSessions: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(sessions.devices.value, isEmpty);
+      expect(
+        sessions.errorMessage.value,
+        'Kite could not confirm the current Matrix device.',
+      );
+      expect(find.text('Security status incomplete'), findsOneWidget);
+      expect(find.text('Security looks good'), findsNothing);
+    },
+  );
+
   testWidgets('unknown security state is never presented as healthy', (
     tester,
   ) async {
@@ -100,6 +145,7 @@ void main() {
           verificationController: verification,
           recoveryController: recovery,
           sessionDeviceController: sessions,
+          currentDeviceId: 'CURRENT',
           loadOnInit: false,
           onOpenVerification: () {},
           onOpenRecovery: () {},
@@ -152,6 +198,7 @@ void main() {
             verificationController: verification,
             recoveryController: recovery,
             sessionDeviceController: sessions,
+            currentDeviceId: 'CURRENT',
             loadOnInit: false,
             onOpenVerification: () {},
             onOpenRecovery: () {},
@@ -182,7 +229,7 @@ void main() {
     addTearDown(sessions.dispose);
     await verification.loadTrust();
     await recovery.refresh();
-    await sessions.load();
+    await sessions.load(expectedCurrentDeviceId: 'CURRENT');
 
     var verificationOpens = 0;
     var recoveryOpens = 0;
@@ -196,6 +243,7 @@ void main() {
           verificationController: verification,
           recoveryController: recovery,
           sessionDeviceController: sessions,
+          currentDeviceId: 'CURRENT',
           loadOnInit: false,
           appLockEnabled: true,
           onOpenVerification: () => verificationOpens += 1,

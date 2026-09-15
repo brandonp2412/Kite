@@ -98,12 +98,17 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
     final active = widget.accountController.activeAccount;
     final securityScope = widget.securityScopeController;
     if (securityScope != null) {
-      await securityScope.resetAndRefreshActiveAccount(
-        currentDeviceId: active?.session.deviceId,
-      );
-    } else if (widget.sessionDeviceController.resetForAccountChange()) {
+      if (active == null) {
+        securityScope.resetForAccountChange();
+      } else {
+        await securityScope.resetAndRefreshActiveAccount(
+          currentDeviceId: active.session.deviceId,
+        );
+      }
+    } else if (widget.sessionDeviceController.resetForAccountChange() &&
+        active != null) {
       await widget.sessionDeviceController.load(
-        expectedCurrentDeviceId: active?.session.deviceId,
+        expectedCurrentDeviceId: active.session.deviceId,
       );
     }
     if (!mounted) return;
@@ -155,7 +160,8 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
             final accounts = widget.accountController.accounts.value;
             final accountLoading = widget.accountController.isLoading.value;
             final busyAccounts = widget.accountController.busyAccountIds.value;
-            final accountOperationActive = busyAccounts.isNotEmpty;
+            final accountOperationActive =
+                accountLoading || busyAccounts.isNotEmpty;
             final accountError = widget.accountController.errorMessage.value;
             final devices = widget.sessionDeviceController.devices.value;
             final deviceLoading =
@@ -226,9 +232,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                   for (final device in devices)
                     _DeviceTile(
                       device: device,
-                      busy:
-                          accountOperationActive ||
-                          signingOutDevices.contains(device.deviceId),
+                      busy: securityOperationActive,
                       onSignOut: device.isCurrent
                           ? null
                           : () => _signOutDevice(device),

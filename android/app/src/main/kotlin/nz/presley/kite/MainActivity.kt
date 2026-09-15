@@ -49,6 +49,9 @@ class MainActivity : FlutterActivity() {
                 val pin = requiredPin(call)
                 val settings = requiredSettings(call)
                 require(settings.enabled) { "App lock must be enabled when enrolling a PIN." }
+                check(!preferences().contains(PIN_VERIFIER_KEY)) {
+                    "App lock PIN is already enrolled."
+                }
                 persistEnabledSettingsWithPin(pin, settings)
                 null
             }
@@ -61,8 +64,11 @@ class MainActivity : FlutterActivity() {
             }
             "saveSettings" -> onBackground(result) {
                 val settings = requiredSettings(call)
-                if (settings.enabled && !preferences().contains(PIN_VERIFIER_KEY)) {
-                    error("Cannot enable app lock without an enrolled PIN.")
+                require(settings.enabled) {
+                    "Protected app lock settings cannot disable app lock."
+                }
+                if (!preferences().contains(PIN_VERIFIER_KEY)) {
+                    error("Cannot update app lock without an enrolled PIN.")
                 }
                 persistSettings(settings)
                 null

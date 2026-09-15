@@ -33,6 +33,9 @@ final class PlatformAppLockGateway
     required String pin,
     required AppLockSettings settings,
   }) async {
+    if (!settings.enabled) {
+      throw StateError('PIN enrollment requires app lock to be enabled.');
+    }
     await _channel.invokeMethod<void>('enablePin', <String, Object?>{
       'pin': pin,
       ..._settingsPayload(settings),
@@ -54,6 +57,9 @@ final class PlatformAppLockGateway
 
   @override
   Future<void> saveSettings(AppLockSettings settings) async {
+    if (!settings.enabled) {
+      throw StateError('Protected app lock settings cannot disable app lock.');
+    }
     await _channel.invokeMethod<void>(
       'saveSettings',
       _settingsPayload(settings),
