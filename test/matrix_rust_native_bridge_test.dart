@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/diagnostics/crash_reporting.dart';
+import 'package:kite/diagnostics/structured_logging.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_native_bridge.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -136,10 +138,15 @@ void main() {
     'native boundary streams sync and pagination through Matrix models',
     () async {
       final client = _FakeRustClient();
+      final logSink = MemoryStructuredLogSink();
       final boundary = MatrixRustSdkBoundary(
         bridge: _FakeRustBridge(client),
         homeserver: Uri.parse('https://matrix.example.org'),
         resolveStoreSecret: (_) async => 'deterministic-secret',
+        logger: StructuredLogger(
+          sink: logSink,
+          traceIds: SequenceTraceIdGenerator(seed: 100),
+        ),
       );
       final batches = <MatrixSyncBatch>[];
       final subscription = boundary.syncBatches.listen(batches.add);
@@ -175,6 +182,25 @@ void main() {
       expect(page.reachedStart, isTrue);
       expect(page.events.single.eventId, r'$older');
       expect(batches, hasLength(1));
+      final timelineLogs = logSink.events
+          .where((event) => event.flow == DiagnosticFlow.timeline)
+          .toList(growable: false);
+      expect(timelineLogs.map((event) => event.event), <DiagnosticEvent>[
+        DiagnosticEvent.started,
+        DiagnosticEvent.completed,
+      ]);
+      expect(
+        timelineLogs.last.metrics[DiagnosticMetric.itemCount],
+        page.events.length,
+      );
+      expect(
+        logSink.events.any(
+          (event) =>
+              event.flow == DiagnosticFlow.sync &&
+              event.event == DiagnosticEvent.completed,
+        ),
+        isTrue,
+      );
 
       await boundary.close();
       expect(client.isClosed, isTrue);
@@ -188,6 +214,8 @@ void main() {
       final retryDelays = <Duration>[];
       final errors = <Object>[];
       final batches = <MatrixSyncBatch>[];
+      final logSink = MemoryStructuredLogSink();
+      final crashSink = MemoryCrashReportSink();
       final boundary = MatrixRustSdkBoundary(
         bridge: _FakeRustBridge(client),
         homeserver: Uri.parse('https://matrix.example.org'),
@@ -195,6 +223,11 @@ void main() {
         syncRetryDelay: (duration) async {
           retryDelays.add(duration);
         },
+        logger: StructuredLogger(
+          sink: logSink,
+          traceIds: SequenceTraceIdGenerator(seed: 200),
+        ),
+        crashReporter: SanitizingCrashReporter(crashSink),
       );
       final subscription = boundary.syncBatches.listen(
         batches.add,
@@ -222,6 +255,19 @@ void main() {
       expect(retryDelays, <Duration>[const Duration(seconds: 1)]);
       expect(batches.first.cursor, 'recovered');
       expect(client.syncCalls, greaterThanOrEqualTo(2));
+      final failedLogs = logSink.events
+          .where(
+            (event) =>
+                event.flow == DiagnosticFlow.sync &&
+                event.event == DiagnosticEvent.failed,
+          )
+          .toList(growable: false);
+      expect(failedLogs, hasLength(1));
+      expect(failedLogs.single.metrics[DiagnosticMetric.attempt], 1);
+      expect(crashSink.reports, hasLength(1));
+      expect(crashSink.reports.single.errorType, 'StateError');
+      expect(crashSink.reports.single.flow, DiagnosticFlow.sync);
+      expect(crashSink.reports.single.traceId, failedLogs.single.traceId);
     },
   );
 

@@ -3,6 +3,8 @@ import 'dart:ffi';
 import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
+import 'package:kite/diagnostics/crash_reporting.dart';
+import 'package:kite/diagnostics/structured_logging.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -327,6 +329,8 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     required this.resolveStoreSecret,
     MatrixRustSyncCodec? codec,
     MatrixRustSyncDelay? syncRetryDelay,
+    this.logger,
+    this.crashReporter,
   }) : _codec = codec ?? MatrixRustSyncCodec(),
        _syncRetryDelay = syncRetryDelay ?? Future<void>.delayed;
 
@@ -335,6 +339,8 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   final MatrixSdkStoreSecretResolver resolveStoreSecret;
   final MatrixRustSyncCodec _codec;
   final MatrixRustSyncDelay _syncRetryDelay;
+  final StructuredLogger? logger;
+  final CrashReporter? crashReporter;
   final StreamController<MatrixSyncBatch> _syncBatches =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
@@ -397,22 +403,47 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   @override
   Future<MatrixPaginationPage> paginateBackwards(String roomId) {
     return _enqueue<MatrixPaginationPage>(() async {
-      final normalizedRoomId = roomId.trim();
-      if (normalizedRoomId.isEmpty) {
-        throw ArgumentError.value(roomId, 'roomId', 'must not be empty');
-      }
-      final payload = await _requireClient().paginateBackwards(
-        roomId: normalizedRoomId,
+      final trace = logger?.trace(
+        DiagnosticFlow.timeline,
+        DiagnosticOperation.timelineUpdate,
       );
-      final decoded = _codec.decodePagination(payload);
-      if (decoded.roomId != normalizedRoomId) {
-        throw StateError('Matrix Rust SDK pagination room mismatch');
+      trace?.log(LogLevel.info, DiagnosticEvent.started);
+      try {
+        final normalizedRoomId = roomId.trim();
+        if (normalizedRoomId.isEmpty) {
+          throw ArgumentError.value(roomId, 'roomId', 'must not be empty');
+        }
+        final payload = await _requireClient().paginateBackwards(
+          roomId: normalizedRoomId,
+        );
+        final decoded = _codec.decodePagination(payload);
+        if (decoded.roomId != normalizedRoomId) {
+          throw StateError('Matrix Rust SDK pagination room mismatch');
+        }
+        trace?.log(
+          LogLevel.info,
+          DiagnosticEvent.completed,
+          metrics: <DiagnosticMetric, num>{
+            DiagnosticMetric.itemCount: decoded.events.length,
+          },
+        );
+        return MatrixPaginationPage(
+          roomId: decoded.roomId,
+          events: decoded.events,
+          reachedStart: decoded.reachedStart,
+        );
+      } catch (error, stackTrace) {
+        trace?.log(LogLevel.error, DiagnosticEvent.failed);
+        await _reportFailure(
+          error,
+          stackTrace,
+          trace,
+          flow: DiagnosticFlow.timeline,
+          operation: DiagnosticOperation.timelineUpdate,
+          state: CrashState.active,
+        );
+        Error.throwWithStackTrace(error, stackTrace);
       }
-      return MatrixPaginationPage(
-        roomId: decoded.roomId,
-        events: decoded.events,
-        reachedStart: decoded.reachedStart,
-      );
     });
   }
 
@@ -428,21 +459,74 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
 
   Future<void> _runSyncLoop(MatrixRustClient client) async {
     var firstRequest = true;
+    var failureAttempt = 0;
     while (_syncRequested && identical(_client, client)) {
+      final trace = logger?.trace(
+        DiagnosticFlow.sync,
+        DiagnosticOperation.syncCycle,
+      );
+      trace?.log(LogLevel.info, DiagnosticEvent.started);
       try {
         final payload = await client.syncOnce(
           timeout: firstRequest ? Duration.zero : _matrixRustSyncPollTimeout,
         );
         if (!_syncRequested || !identical(_client, client)) return;
         final decoded = _codec.decodeSync(payload);
+        trace?.log(
+          LogLevel.info,
+          DiagnosticEvent.completed,
+          metrics: <DiagnosticMetric, num>{
+            DiagnosticMetric.itemCount: decoded.batch.rooms.length,
+          },
+        );
         _syncBatches.add(decoded.batch);
         firstRequest = false;
+        failureAttempt = 0;
       } catch (error, stackTrace) {
         if (!_syncRequested || !identical(_client, client)) return;
+        failureAttempt += 1;
+        trace?.log(
+          LogLevel.error,
+          DiagnosticEvent.failed,
+          metrics: <DiagnosticMetric, num>{
+            DiagnosticMetric.attempt: failureAttempt,
+          },
+        );
+        await _reportFailure(
+          error,
+          stackTrace,
+          trace,
+          flow: DiagnosticFlow.sync,
+          operation: DiagnosticOperation.syncCycle,
+          state: CrashState.retrying,
+        );
         _syncBatches.addError(error, stackTrace);
         await _syncRetryDelay(const Duration(seconds: 1));
       }
     }
+  }
+
+  Future<void> _reportFailure(
+    Object error,
+    StackTrace stackTrace,
+    TraceLogger? trace, {
+    required DiagnosticFlow flow,
+    required DiagnosticOperation operation,
+    required CrashState state,
+  }) async {
+    final reporter = crashReporter;
+    if (reporter == null || trace == null) return;
+    await reporter.report(
+      error,
+      stackTrace: stackTrace,
+      context: CrashDiagnosticContext(
+        flow: flow,
+        traceId: trace.traceId,
+        operation: operation,
+        component: CrashComponent.matrixSdk,
+        state: state,
+      ),
+    );
   }
 
   Future<void> _stopSync() async {
