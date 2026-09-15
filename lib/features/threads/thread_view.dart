@@ -7,7 +7,33 @@ import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_media_viewer.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_location_card.dart';
+import 'package:kite/features/timeline/timeline_location_share_sheet.dart';
 import 'package:signals/signals_flutter.dart';
+
+class _ThreadLocationShareDelegate implements TimelineLocationShareDelegate {
+  const _ThreadLocationShareDelegate({required this.parent});
+
+  final TimelineMessage parent;
+
+  @override
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  ) => threadController.prepareLocation(kind);
+
+  @override
+  Future<void> openLocationSettings() =>
+      threadController.openLocationSettings();
+
+  @override
+  void sendLocation(String roomId, TimelineLocation location) {
+    threadController.sendLocation(
+      roomId: roomId,
+      parent: parent,
+      location: location,
+    );
+  }
+}
 
 class ThreadRoute extends PageRouteBuilder<void> {
   ThreadRoute({
@@ -246,10 +272,30 @@ class _ThreadViewState extends State<ThreadView> {
 
   Future<void> _pickAttachment() async {
     threadController.requireSupportedComposerAction(ThreadComposerAction.text);
-    final attachment = await showComposerAttachmentPicker(context);
+    final attachment = await showComposerAttachmentPicker(
+      context,
+      allowLiveLocation: false,
+      onLocationSelected: _shareLocation,
+    );
     if (!mounted || attachment == null) return;
     _pendingAttachment.value = attachment;
     _composerFocusNode.requestFocus();
+  }
+
+  void _shareLocation(TimelineLocationKind kind) {
+    threadController.requireSupportedComposerAction(
+      kind == TimelineLocationKind.liveLocation
+          ? ThreadComposerAction.liveLocation
+          : ThreadComposerAction.staticLocation,
+    );
+    showComposerLocationShareSheet(
+      context,
+      roomId: widget.roomId,
+      kind: kind,
+      controller: _ThreadLocationShareDelegate(parent: widget.parent),
+    ).whenComplete(() {
+      if (mounted) _composerFocusNode.requestFocus();
+    });
   }
 
   void _send() {
@@ -952,6 +998,14 @@ class _ThreadReplyRow extends StatelessWidget {
                                   attachment.kind == TimelineAttachmentKind.file
                                   ? null
                                   : () => _openMedia(context),
+                            ),
+                            if (reply.body.isNotEmpty)
+                              const SizedBox(height: KiteSpacing.xs),
+                          ],
+                          if (reply.location case final location?) ...<Widget>[
+                            TimelineLocationCard(
+                              messageId: 'thread-${reply.id}',
+                              location: location,
                             ),
                             if (reply.body.isNotEmpty)
                               const SizedBox(height: KiteSpacing.xs),

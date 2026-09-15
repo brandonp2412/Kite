@@ -833,6 +833,43 @@ void main() {
     );
   });
 
+  test(
+    'static thread location keeps the parent relation and settles',
+    () async {
+      final port = DeterministicThreadLocationPort(latency: Duration.zero);
+      final controller = ThreadController(locationPort: port);
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+
+      final preparation = await controller.prepareLocation(
+        TimelineLocationKind.staticLocation,
+      );
+      expect(preparation.isReady, isTrue);
+      final location = preparation.location!;
+      final reply = controller.sendLocation(
+        roomId: 'alice',
+        parent: parent,
+        location: location,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(reply.location, same(location));
+      expect(reply.sendState.value, TimelineSendState.sent);
+      expect(port.sentLocations, hasLength(1));
+      expect(port.sentLocations.single.parentEventId, parent.id);
+      expect(port.sentLocations.single.location, same(location));
+      expect(
+        controller.repliesFor(roomId: 'alice', parent: parent).value.last,
+        same(reply),
+      );
+    },
+  );
+
   test('thread composer boundary rejects live-location sharing', () {
     final controller = ThreadController();
 
@@ -852,6 +889,10 @@ void main() {
       () => controller.requireSupportedComposerAction(
         ThreadComposerAction.liveLocation,
       ),
+      throwsUnsupportedError,
+    );
+    expect(
+      () => controller.prepareLocation(TimelineLocationKind.liveLocation),
       throwsUnsupportedError,
     );
   });

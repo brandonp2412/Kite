@@ -71,6 +71,7 @@ void main() {
   tearDown(() {
     threadController.reset(
       sendPort: const DeterministicThreadSendPort(),
+      locationPort: DeterministicThreadLocationPort(),
       subscriptionPort: const DeterministicThreadSubscriptionPort(),
     );
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
@@ -139,6 +140,51 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_media_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread static location ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+        locationPort: DeterministicThreadLocationPort(latency: Duration.zero),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-composer-attach')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('attachment-option-live-location')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const Key('attachment-option-location')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('location-share-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('message-location-thread-kite-thread-0')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_location_${variant.name}.png'),
       );
     });
 

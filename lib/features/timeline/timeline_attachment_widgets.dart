@@ -33,6 +33,7 @@ const deterministicComposerAttachments = <TimelineAttachment>[
 Future<TimelineAttachment?> showComposerAttachmentPicker(
   BuildContext context, {
   ValueChanged<TimelineLocationKind>? onLocationSelected,
+  bool allowLiveLocation = true,
   VoidCallback? onPollSelected,
 }) {
   return showModalBottomSheet<TimelineAttachment>(
@@ -44,6 +45,7 @@ Future<TimelineAttachment?> showComposerAttachmentPicker(
     constraints: const BoxConstraints(maxWidth: 440),
     builder: (_) => ComposerAttachmentPickerSheet(
       onLocationSelected: onLocationSelected,
+      allowLiveLocation: allowLiveLocation,
       onPollSelected: onPollSelected,
     ),
   );
@@ -53,10 +55,12 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
   const ComposerAttachmentPickerSheet({
     super.key,
     this.onLocationSelected,
+    this.allowLiveLocation = true,
     this.onPollSelected,
   });
 
   final ValueChanged<TimelineLocationKind>? onLocationSelected;
+  final bool allowLiveLocation;
   final VoidCallback? onPollSelected;
 
   static const _labels = <String>['Photos', 'Videos', 'Camera', 'Files'];
@@ -96,7 +100,7 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
             onLocationSelected!(TimelineLocationKind.staticLocation);
           },
         ),
-      if (onLocationSelected != null)
+      if (onLocationSelected != null && allowLiveLocation)
         _ComposerAttachmentActionTile(
           key: const Key('attachment-option-live-location'),
           icon: Icons.my_location_rounded,

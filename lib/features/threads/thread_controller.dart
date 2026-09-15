@@ -23,6 +23,17 @@ abstract interface class ThreadAttachmentSendPort {
   });
 }
 
+abstract interface class ThreadLocationPort {
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind);
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineLocation location,
+  });
+  Future<void> openAppSettings();
+}
+
 enum ThreadSubscriptionOutcome { applied, failed }
 
 abstract interface class ThreadSubscriptionPort {
@@ -107,6 +118,62 @@ class DeterministicThreadSubscriptionPort implements ThreadSubscriptionPort {
   }
 }
 
+class DeterministicThreadLocationPort implements ThreadLocationPort {
+  DeterministicThreadLocationPort({
+    this.permission = TimelineLocationPermission.granted,
+    this.latency = const Duration(milliseconds: 120),
+    this.label = 'Britomart',
+    this.latitude = -36.8468,
+    this.longitude = 174.7682,
+  });
+
+  TimelineLocationPermission permission;
+  final Duration latency;
+  final String label;
+  final double latitude;
+  final double longitude;
+  int prepareRequests = 0;
+  int settingsRequests = 0;
+  final List<({String parentEventId, TimelineLocation location})>
+  sentLocations = <({String parentEventId, TimelineLocation location})>[];
+
+  @override
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind) async {
+    prepareRequests += 1;
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    if (permission != TimelineLocationPermission.granted) {
+      return TimelineLocationPreparation(permission: permission);
+    }
+    return TimelineLocationPreparation(
+      permission: permission,
+      location: TimelineLocation(
+        kind: kind,
+        latitude: latitude,
+        longitude: longitude,
+        label: label,
+        isLiveActive: false,
+      ),
+    );
+  }
+
+  @override
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineLocation location,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    sentLocations.add((parentEventId: parentEventId, location: location));
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<void> openAppSettings() async {
+    settingsRequests += 1;
+  }
+}
+
 class DeterministicThreadAttachmentSendPort
     implements ThreadAttachmentSendPort {
   const DeterministicThreadAttachmentSendPort({
@@ -156,6 +223,7 @@ class ThreadReply {
     required this.mine,
     required this.timeLabel,
     this.attachment,
+    this.location,
     TimelineSendState sendState = TimelineSendState.sent,
     Iterable<String> readBy = const <String>[],
   }) : sendState = signal(sendState),
@@ -167,6 +235,7 @@ class ThreadReply {
   final bool mine;
   final String timeLabel;
   final TimelineAttachment? attachment;
+  final TimelineLocation? location;
   final Signal<TimelineSendState> sendState;
   final Signal<List<String>> readByState;
 
@@ -177,11 +246,13 @@ class ThreadController {
   ThreadController({
     ThreadSendPort? sendPort,
     ThreadAttachmentSendPort? attachmentSendPort,
+    ThreadLocationPort? locationPort,
     ThreadPaginationPort? paginationPort,
     ThreadSubscriptionPort? subscriptionPort,
   }) : _sendPort = sendPort ?? const DeterministicThreadSendPort(),
        _attachmentSendPort =
            attachmentSendPort ?? const DeterministicThreadAttachmentSendPort(),
+       _locationPort = locationPort ?? DeterministicThreadLocationPort(),
        _paginationPort =
            paginationPort ?? const DeterministicThreadPaginationPort(),
        _subscriptionPort =
@@ -189,6 +260,7 @@ class ThreadController {
 
   ThreadSendPort _sendPort;
   ThreadAttachmentSendPort _attachmentSendPort;
+  ThreadLocationPort _locationPort;
   ThreadPaginationPort _paginationPort;
   ThreadSubscriptionPort _subscriptionPort;
   final Map<String, Signal<List<ThreadReply>>> _threads =
@@ -357,6 +429,19 @@ class ThreadController {
   bool supportsComposerAction(ThreadComposerAction action) {
     return action != ThreadComposerAction.liveLocation;
   }
+
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  ) {
+    requireSupportedComposerAction(
+      kind == TimelineLocationKind.liveLocation
+          ? ThreadComposerAction.liveLocation
+          : ThreadComposerAction.staticLocation,
+    );
+    return _locationPort.prepare(kind);
+  }
+
+  Future<void> openLocationSettings() => _locationPort.openAppSettings();
 
   void requireSupportedComposerAction(ThreadComposerAction action) {
     if (!supportsComposerAction(action)) {
@@ -591,6 +676,36 @@ class ThreadController {
     return reply;
   }
 
+  ThreadReply sendLocation({
+    required String roomId,
+    required TimelineMessage parent,
+    required TimelineLocation location,
+  }) {
+    requireSupportedComposerAction(
+      location.kind == TimelineLocationKind.liveLocation
+          ? ThreadComposerAction.liveLocation
+          : ThreadComposerAction.staticLocation,
+    );
+    final transactionId = 'kite-thread-${_transactionCounter++}';
+    final reply = ThreadReply(
+      id: transactionId,
+      sender: 'You',
+      body: '',
+      mine: true,
+      timeLabel: 'now',
+      location: location,
+      sendState: TimelineSendState.sending,
+    );
+    final replies = repliesFor(roomId: roomId, parent: parent);
+    replies.value = List<ThreadReply>.unmodifiable(<ThreadReply>[
+      ...replies.value,
+      reply,
+    ]);
+    _runtimeThreadParentIds.add(parent.id);
+    unawaited(_settleLocation(roomId: roomId, parent: parent, reply: reply));
+    return reply;
+  }
+
   ThreadReply sendAttachment({
     required String roomId,
     required TimelineMessage parent,
@@ -628,6 +743,8 @@ class ThreadController {
       unawaited(
         _settleAttachment(roomId: roomId, parent: parent, reply: reply),
       );
+    } else if (reply.location != null) {
+      unawaited(_settleLocation(roomId: roomId, parent: parent, reply: reply));
     } else {
       unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
     }
@@ -636,11 +753,13 @@ class ThreadController {
   void reset({
     ThreadSendPort? sendPort,
     ThreadAttachmentSendPort? attachmentSendPort,
+    ThreadLocationPort? locationPort,
     ThreadPaginationPort? paginationPort,
     ThreadSubscriptionPort? subscriptionPort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
+    if (locationPort != null) _locationPort = locationPort;
     if (paginationPort != null) _paginationPort = paginationPort;
     if (subscriptionPort != null) _subscriptionPort = subscriptionPort;
     _transactionCounter = 0;
@@ -656,6 +775,29 @@ class ThreadController {
     _isUpdatingSubscription.clear();
     _subscriptionFailed.clear();
     _runtimeThreadParentIds.clear();
+  }
+
+  Future<void> _settleLocation({
+    required String roomId,
+    required TimelineMessage parent,
+    required ThreadReply reply,
+  }) async {
+    final location = reply.location;
+    if (location == null) return;
+    try {
+      final outcome = await _locationPort.sendLocation(
+        roomId: roomId,
+        parentEventId: parent.id,
+        transactionId: reply.id,
+        location: location,
+      );
+      reply.sendState.value = switch (outcome) {
+        TimelineSendOutcome.sent => TimelineSendState.sent,
+        TimelineSendOutcome.failed => TimelineSendState.failed,
+      };
+    } catch (_) {
+      reply.sendState.value = TimelineSendState.failed;
+    }
   }
 
   Future<void> _settleAttachment({

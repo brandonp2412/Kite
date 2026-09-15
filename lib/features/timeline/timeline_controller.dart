@@ -521,7 +521,15 @@ class TimelineMessage {
   TimelinePoll? get poll => pollState.value;
 }
 
-class TimelineController {
+abstract interface class TimelineLocationShareDelegate {
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  );
+  Future<void> openLocationSettings();
+  void sendLocation(String roomId, TimelineLocation location);
+}
+
+class TimelineController implements TimelineLocationShareDelegate {
   TimelineController({
     TimelineSendPort? sendPort,
     TimelineAttachmentSendPort? attachmentSendPort,
@@ -704,12 +712,15 @@ class TimelineController {
     return message;
   }
 
+  @override
   Future<TimelineLocationPreparation> prepareLocation(
     TimelineLocationKind kind,
   ) => _locationPort.prepare(kind);
 
+  @override
   Future<void> openLocationSettings() => _locationPort.openAppSettings();
 
+  @override
   TimelineMessage sendLocation(String roomId, TimelineLocation location) {
     final transactionId = 'kite-local-${_transactionCounter++}';
     final message = TimelineMessage(

@@ -61,6 +61,7 @@ void main() {
   setUp(() {
     threadController.reset(
       sendPort: const DeterministicThreadSendPort(),
+      locationPort: DeterministicThreadLocationPort(),
       subscriptionPort: const DeterministicThreadSubscriptionPort(),
     );
     threadController.updateRoomUnreadThreadCount(
@@ -424,6 +425,59 @@ void main() {
     binding.reportData!['thread_attachment_send'] = <String, dynamic>{
       'journey': 'thread_attachment_preview_send',
       'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('sharing a static thread location stays within frame contract', (
+    tester,
+  ) async {
+    final port = DeterministicThreadLocationPort(latency: Duration.zero);
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+      locationPort: port,
+    );
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-composer-attach')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('attachment-option-live-location')),
+          findsNothing,
+        );
+        await tester.tap(find.byKey(const Key('attachment-option-location')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('location-share-confirm')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .last;
+    expect(reply.location?.kind, TimelineLocationKind.staticLocation);
+    expect(reply.sendState.value, TimelineSendState.sent);
+    expect(port.sentLocations.single.parentEventId, parent.id);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_static_location_share'] = <String, dynamic>{
+      'journey': 'share_static_thread_location',
+      'fixture': 'deterministic_thread_location_v1',
       'iterations': 1,
       ...result,
       'result': 'PASS',

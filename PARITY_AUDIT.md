@@ -225,7 +225,7 @@ The current Home Space filters, Space root/add-room/leave/settings flows, Thread
 | Thread follow/subscription state | Follow/unfollow state, in-flight state and failure state are implemented. | Present foundation — M6 |
 | Thread unread/read state | Per-thread and room-level unread counts plus latest-read reply state are modelled. | Present foundation — M6 |
 | Focus exact thread reply from route | Thread destination preserves root/reply identity and the thread view supports focused-reply state. | Present foundation — M6/M11 |
-| Prevent unsupported live-location sharing in thread | Controller rejects the unsupported thread composer action explicitly. | Present foundation — M6 |
+| Prevent unsupported live-location sharing in thread | The thread composer now exposes fixed-location sharing through a thread-aware transport that preserves the parent event relation, while the attachment picker omits live location and the controller independently rejects any live-location attempt. Static thread locations reuse the fixed-geometry timeline card; real SDK-backed thread/location transport remains to be wired. | Present foundation — M6 |
 | Dedicated all-threads list / pagination | Kite now exposes a room-scoped Threads list with bounded presentation paging, root/latest-reply metadata, unread state, and thread round-trip navigation. Real SDK-backed thread-list pagination remains to be wired. | Present foundation — M6 |
 
 This completes the current-upstream Space/Thread flow inventory while leaving the unimplemented Space UI and SDK-backed Threads-list pagination visible as parity gaps. Thread performance remains separately blocked by the strict Waydroid raster gate recorded in `PERFORMANCE.md`.

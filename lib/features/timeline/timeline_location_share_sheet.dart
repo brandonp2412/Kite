@@ -7,7 +7,7 @@ Future<void> showComposerLocationShareSheet(
   BuildContext context, {
   required String roomId,
   required TimelineLocationKind kind,
-  required TimelineController controller,
+  required TimelineLocationShareDelegate controller,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -34,7 +34,7 @@ class ComposerLocationShareSheet extends StatefulWidget {
 
   final String roomId;
   final TimelineLocationKind kind;
-  final TimelineController controller;
+  final TimelineLocationShareDelegate controller;
 
   @override
   State<ComposerLocationShareSheet> createState() =>
