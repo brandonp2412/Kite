@@ -194,6 +194,42 @@ void main() {
     expect(controller.errorMessage.value, 'Kite could not load that profile.');
   });
 
+  test(
+    'invalid profile target also invalidates an in-flight previous user',
+    () async {
+      final first = Completer<MatrixUserProfile>();
+      final gateway = _FakeUserProfileGateway()..deferredViewedProfile = first;
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+
+      final aliceLoad = controller.loadUserProfile('@alice:example.org');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.isLoading.value, isTrue);
+
+      await controller.loadUserProfile('not-a-matrix-id');
+      expect(controller.isLoading.value, isFalse);
+      expect(controller.viewedProfile.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'That Matrix user ID is not valid.',
+      );
+
+      first.complete(
+        const MatrixUserProfile(
+          userId: '@alice:example.org',
+          displayName: 'Alice',
+        ),
+      );
+      await aliceLoad;
+
+      expect(controller.viewedProfile.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'That Matrix user ID is not valid.',
+      );
+    },
+  );
+
   test('new profile request supersedes an in-flight previous user', () async {
     final first = Completer<MatrixUserProfile>();
     final second = Completer<MatrixUserProfile>();

@@ -143,14 +143,15 @@ final class UserProfileController {
 
   Future<void> loadUserProfile(String userId) async {
     if (isSaving.value) return;
+    final generation = _accountGeneration;
+    final requestGeneration = ++_profileRequestGeneration;
     if (!_isValidUserId(userId)) {
       viewedProfile.value = null;
+      isLoading.value = false;
       errorMessage.value = 'That Matrix user ID is not valid.';
       return;
     }
 
-    final generation = _accountGeneration;
-    final requestGeneration = ++_profileRequestGeneration;
     if (viewedProfile.value?.userId != userId) {
       viewedProfile.value = null;
     }
