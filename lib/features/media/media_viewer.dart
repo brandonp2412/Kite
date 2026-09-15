@@ -56,16 +56,7 @@ class MediaViewerRoute extends PageRouteBuilder<void> {
            onShare: onShare,
          ),
          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-           final reducedMotion = KiteMotion.prefersReducedMotion(context);
-           if (reducedMotion) return child;
-           return FadeTransition(
-             opacity: CurvedAnimation(
-               parent: animation,
-               curve: KiteMotion.standardCurve,
-               reverseCurve: KiteMotion.standardCurve.flipped,
-             ),
-             child: child,
-           );
+           return child;
          },
        ) {
     assert(items.isNotEmpty);
@@ -111,6 +102,8 @@ class _MediaViewerState extends State<MediaViewer> {
   final Signal<double> _dismissOffset = signal(0);
   final Signal<bool> _isDismissDragging = signal(false);
   final Signal<_PendingMediaAction?> _pendingAction = signal(null);
+  Animation<double>? _routeAnimation;
+  AnimationStatusListener? _routeAnimationListener;
   int _loadGeneration = 0;
 
   @override
@@ -119,12 +112,37 @@ class _MediaViewerState extends State<MediaViewer> {
     _pageController = PageController(initialPage: widget.initialIndex);
     _currentIndex = signal(widget.initialIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadFullResolution(widget.initialIndex);
+      if (mounted) _loadInitialFullResolution();
     });
+  }
+
+  void _loadInitialFullResolution() {
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.status == AnimationStatus.completed) {
+      _loadFullResolution(widget.initialIndex);
+      return;
+    }
+
+    void listener(AnimationStatus status) {
+      if (status != AnimationStatus.completed) return;
+      animation.removeStatusListener(listener);
+      _routeAnimation = null;
+      _routeAnimationListener = null;
+      if (mounted) _loadFullResolution(widget.initialIndex);
+    }
+
+    _routeAnimation = animation;
+    _routeAnimationListener = listener;
+    animation.addStatusListener(listener);
   }
 
   @override
   void dispose() {
+    final animation = _routeAnimation;
+    final listener = _routeAnimationListener;
+    if (animation != null && listener != null) {
+      animation.removeStatusListener(listener);
+    }
     _loadGeneration++;
     _pageController.dispose();
     super.dispose();
@@ -171,7 +189,6 @@ class _MediaViewerState extends State<MediaViewer> {
     final shouldDismiss =
         offset.abs() >= _dismissThreshold || velocity.abs() >= 850;
     if (shouldDismiss) {
-      _dismissOffset.value = offset.isNegative ? -320 : 320;
       _dismiss();
       return;
     }
@@ -282,16 +299,18 @@ class _MediaViewerState extends State<MediaViewer> {
                           ? Duration.zero
                           : KiteMotion.resolve(context, KiteMotion.standard),
                       curve: KiteMotion.standardCurve,
-                      child: PageView.builder(
-                        key: const Key('media-page-view'),
-                        controller: _pageController,
-                        onPageChanged: _onPageChanged,
-                        itemCount: widget.items.length,
-                        itemBuilder: (context, index) => _MediaPage(
-                          item: widget.items[index],
-                          index: index,
+                      child: RepaintBoundary(
+                        child: PageView.builder(
+                          key: const Key('media-page-view'),
+                          controller: _pageController,
+                          onPageChanged: _onPageChanged,
                           itemCount: widget.items.length,
-                          resolvedMedia: _resolvedMedia,
+                          itemBuilder: (context, index) => _MediaPage(
+                            item: widget.items[index],
+                            index: index,
+                            itemCount: widget.items.length,
+                            resolvedMedia: _resolvedMedia,
+                          ),
                         ),
                       ),
                     );
@@ -301,6 +320,7 @@ class _MediaViewerState extends State<MediaViewer> {
               _MediaTopControls(
                 currentIndex: _currentIndex,
                 visible: _controlsVisible,
+                dragging: _isDismissDragging,
                 pendingAction: _pendingAction,
                 items: widget.items,
                 onDismiss: _dismiss,
@@ -311,6 +331,7 @@ class _MediaViewerState extends State<MediaViewer> {
               _MediaCaptionOverlay(
                 currentIndex: _currentIndex,
                 visible: _controlsVisible,
+                dragging: _isDismissDragging,
                 items: widget.items,
               ),
             ],
@@ -379,6 +400,7 @@ class _MediaTopControls extends StatelessWidget {
   const _MediaTopControls({
     required this.currentIndex,
     required this.visible,
+    required this.dragging,
     required this.pendingAction,
     required this.items,
     required this.onDismiss,
@@ -389,6 +411,7 @@ class _MediaTopControls extends StatelessWidget {
 
   final ReadonlySignal<int> currentIndex;
   final ReadonlySignal<bool> visible;
+  final ReadonlySignal<bool> dragging;
   final ReadonlySignal<_PendingMediaAction?> pendingAction;
   final List<MediaViewerItem> items;
   final VoidCallback onDismiss;
@@ -406,6 +429,7 @@ class _MediaTopControls extends StatelessWidget {
     return SignalBuilder(
       builder: (context) {
         final isVisible = visible.value;
+        final isDragging = dragging.value;
         final index = currentIndex.value;
         final item = items[index];
         final pending = pendingAction.value;
@@ -421,7 +445,9 @@ class _MediaTopControls extends StatelessWidget {
           child: AnimatedOpacity(
             key: const Key('media-top-controls'),
             opacity: isVisible ? 1 : 0,
-            duration: KiteMotion.resolve(context, KiteMotion.standard),
+            duration: isDragging
+                ? Duration.zero
+                : KiteMotion.resolve(context, KiteMotion.standard),
             curve: KiteMotion.standardCurve,
             child: Align(
               alignment: Alignment.topCenter,
@@ -575,11 +601,13 @@ class _MediaCaptionOverlay extends StatelessWidget {
   const _MediaCaptionOverlay({
     required this.currentIndex,
     required this.visible,
+    required this.dragging,
     required this.items,
   });
 
   final ReadonlySignal<int> currentIndex;
   final ReadonlySignal<bool> visible;
+  final ReadonlySignal<bool> dragging;
   final List<MediaViewerItem> items;
 
   @override
@@ -587,6 +615,7 @@ class _MediaCaptionOverlay extends StatelessWidget {
     return SignalBuilder(
       builder: (context) {
         final isVisible = visible.value;
+        final isDragging = dragging.value;
         final item = items[currentIndex.value];
         final caption = item.caption;
         if (caption == null) return const SizedBox.shrink();
@@ -595,7 +624,9 @@ class _MediaCaptionOverlay extends StatelessWidget {
           child: AnimatedOpacity(
             key: const Key('media-caption-overlay'),
             opacity: isVisible ? 1 : 0,
-            duration: KiteMotion.resolve(context, KiteMotion.standard),
+            duration: isDragging
+                ? Duration.zero
+                : KiteMotion.resolve(context, KiteMotion.standard),
             curve: KiteMotion.standardCurve,
             child: Align(
               alignment: Alignment.bottomCenter,
