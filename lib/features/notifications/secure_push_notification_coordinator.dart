@@ -40,7 +40,8 @@ final class SecurePushNotificationCoordinator {
       return false;
     }
 
-    final previous = _notifications.notification(decoded.notification.id);
+    final routingId = decoded.notification.routingId;
+    final previous = _notifications.notification(routingId);
     _notifications.upsert(decoded.notification);
     try {
       await _delivery.upsert(
@@ -48,7 +49,7 @@ final class SecurePushNotificationCoordinator {
         content: decoded.content,
       );
     } catch (_) {
-      _restorePrevious(previous, decoded.notification.id);
+      _restorePrevious(previous, routingId);
       return false;
     }
 
@@ -132,9 +133,9 @@ final class SecurePushNotificationCoordinator {
         !trimmed.contains(RegExp(r'\s'));
   }
 
-  void _restorePrevious(KiteNotification? previous, String failedId) {
+  void _restorePrevious(KiteNotification? previous, String failedRoutingId) {
     if (previous == null) {
-      _notifications.remove(failedId);
+      _notifications.remove(failedRoutingId);
     } else {
       _notifications.upsert(previous);
     }

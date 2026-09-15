@@ -63,7 +63,9 @@ void main() {
       }
 
       expect(
-        repository.notification('message')!.destination,
+        repository
+            .notification(KiteNotification.routingIdFor('work', 'message'))!
+            .destination,
         const AppDestination.event(
           accountId: 'work',
           roomId: '!team:example.org',
@@ -71,18 +73,24 @@ void main() {
         ),
       );
       expect(
-        repository.notification('mention')!.kind,
+        repository
+            .notification(KiteNotification.routingIdFor('work', 'mention'))!
+            .kind,
         KiteNotificationKind.mention,
       );
       expect(
-        repository.notification('invite')!.destination,
+        repository
+            .notification(KiteNotification.routingIdFor('work', 'invite'))!
+            .destination,
         const AppDestination.room(
           accountId: 'work',
           roomId: '!invite:example.org',
         ),
       );
       expect(
-        repository.notification('thread')!.destination,
+        repository
+            .notification(KiteNotification.routingIdFor('work', 'thread'))!
+            .destination,
         const AppDestination.thread(
           accountId: 'work',
           roomId: '!team:example.org',
@@ -133,7 +141,12 @@ void main() {
       ),
       throwsArgumentError,
     );
-    expect(repository.notification('bad-thread'), isNull);
+    expect(
+      repository.notification(
+        KiteNotification.routingIdFor('work', 'bad-thread'),
+      ),
+      isNull,
+    );
 
     platform.failNextWith = StateError('platform unavailable');
     await expectLater(
@@ -150,6 +163,9 @@ void main() {
       ),
       throwsStateError,
     );
-    expect(repository.notification('failed'), isNull);
+    expect(
+      repository.notification(KiteNotification.routingIdFor('work', 'failed')),
+      isNull,
+    );
   });
 }

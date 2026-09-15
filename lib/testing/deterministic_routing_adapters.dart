@@ -7,7 +7,8 @@ final class FakeNotificationRepository
     implements MutableNotificationRepository, NotificationRegistrationPort {
   FakeNotificationRepository([Iterable<KiteNotification> initial = const []])
     : _notifications = <String, KiteNotification>{
-        for (final notification in initial) notification.id: notification,
+        for (final notification in initial)
+          notification.routingId: notification,
       };
 
   final Map<String, KiteNotification> _notifications;
@@ -24,7 +25,7 @@ final class FakeNotificationRepository
 
   @override
   void upsert(KiteNotification notification) {
-    _notifications[notification.id] = notification;
+    _notifications[notification.routingId] = notification;
   }
 
   @override
@@ -35,12 +36,12 @@ final class FakeNotificationRepository
   }
 
   @override
-  KiteNotification? notification(String id) => _notifications[id];
+  KiteNotification? notification(String routingId) => _notifications[routingId];
 
   @override
-  void remove(String id) {
-    if (_notifications.remove(id) != null) {
-      removedIds.add(id);
+  void remove(String routingId) {
+    if (_notifications.remove(routingId) != null) {
+      removedIds.add(routingId);
     }
   }
 }

@@ -13,6 +13,11 @@ final class KiteNotification {
   final KiteNotificationKind kind;
   final AppDestination destination;
 
+  String get routingId => routingIdFor(destination.accountId, id);
+
+  static String routingIdFor(String accountId, String id) =>
+      '${accountId.length}:$accountId${id.length}:$id';
+
   bool get clearsWhenRead => switch (kind) {
     KiteNotificationKind.message ||
     KiteNotificationKind.mention ||
@@ -112,11 +117,11 @@ final class NotificationPresentationPolicy {
 }
 
 abstract interface class NotificationRepository {
-  KiteNotification? notification(String id);
+  KiteNotification? notification(String routingId);
 
   Iterable<KiteNotification> activeForAccount(String accountId);
 
-  void remove(String id);
+  void remove(String routingId);
 }
 
 abstract interface class MutableNotificationRepository
@@ -161,8 +166,8 @@ final class NotificationCoordinator {
   final AppNavigationPort _navigation;
   final NotificationBadgeRefreshPort? _badgeRefresh;
 
-  Future<bool> tap(String notificationId) async {
-    final notification = _notifications.notification(notificationId);
+  Future<bool> tap(String notificationRoutingId) async {
+    final notification = _notifications.notification(notificationRoutingId);
     if (notification == null) return false;
 
     final destination = notification.destination;
@@ -189,7 +194,7 @@ final class NotificationCoordinator {
               notification.clearsWhenRead &&
               notification.destination.roomId == roomId,
         )
-        .map((notification) => notification.id)
+        .map((notification) => notification.routingId)
         .toList(growable: false);
 
     return _cancelAndRemove(idsToRemove);
@@ -210,7 +215,7 @@ final class NotificationCoordinator {
               notification.destination.eventId != null &&
               readEventIds.contains(notification.destination.eventId),
         )
-        .map((notification) => notification.id)
+        .map((notification) => notification.routingId)
         .toList(growable: false);
 
     return _cancelAndRemove(idsToRemove);

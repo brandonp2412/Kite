@@ -24,7 +24,7 @@ final class NotificationBadgeCoordinator {
     for (final accountId in normalized) {
       for (final notification in _notifications.activeForAccount(accountId)) {
         if (_countsTowardBadge(notification)) {
-          notificationIds.add(notification.id);
+          notificationIds.add(notification.routingId);
         }
       }
     }

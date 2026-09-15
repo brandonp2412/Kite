@@ -13,16 +13,16 @@ final class _FakeRepository implements NotificationRepository {
       items.where((item) => item.destination.accountId == accountId);
 
   @override
-  KiteNotification? notification(String id) {
+  KiteNotification? notification(String routingId) {
     for (final item in items) {
-      if (item.id == id) return item;
+      if (item.routingId == routingId) return item;
     }
     return null;
   }
 
   @override
-  void remove(String id) {
-    items.removeWhere((item) => item.id == id);
+  void remove(String routingId) {
+    items.removeWhere((item) => item.routingId == routingId);
   }
 }
 
@@ -94,6 +94,32 @@ void main() {
     },
   );
 
+  test('same source id in two accounts counts as two notifications', () async {
+    final repository = _FakeRepository(<KiteNotification>[
+      _notification(
+        id: 'same-id',
+        accountId: 'work',
+        kind: KiteNotificationKind.message,
+      ),
+      _notification(
+        id: 'same-id',
+        accountId: 'personal',
+        kind: KiteNotificationKind.message,
+      ),
+    ]);
+    final badges = _FakeBadgePort();
+    final coordinator = NotificationBadgeCoordinator(
+      notifications: repository,
+      badges: badges,
+    );
+
+    expect(
+      await coordinator.refreshForAccounts(const <String>['work', 'personal']),
+      2,
+    );
+    expect(badges.counts, <int>[2]);
+  });
+
   test(
     'badge refresh reflects notification removal after read reconciliation',
     () async {
@@ -116,7 +142,7 @@ void main() {
       );
 
       expect(await coordinator.refreshForAccounts(const <String>['work']), 2);
-      repository.remove('message');
+      repository.remove(KiteNotification.routingIdFor('work', 'message'));
       expect(await coordinator.refreshForAccounts(const <String>['work']), 1);
       expect(badges.counts, <int>[2, 1]);
     },
@@ -140,7 +166,12 @@ void main() {
 
       expect(await coordinator.clear(), 0);
       expect(badges.counts, <int>[0]);
-      expect(repository.notification('message'), isNotNull);
+      expect(
+        repository.notification(
+          KiteNotification.routingIdFor('work', 'message'),
+        ),
+        isNotNull,
+      );
     },
   );
 }

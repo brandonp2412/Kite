@@ -82,6 +82,31 @@ void main() {
     },
   );
 
+  test('same source id stays isolated across accounts', () async {
+    final delivery = FakeNotificationDeliveryPort();
+    final coordinator = NotificationDeliveryCoordinator(
+      privacy: FakeNotificationPrivacyPort(),
+      delivery: delivery,
+    );
+    final work = notification(id: 'same', accountId: 'work');
+    final personal = notification(id: 'same', accountId: 'personal');
+
+    await coordinator.upsert(notification: work, content: content('work'));
+    await coordinator.upsert(
+      notification: personal,
+      content: content('personal'),
+    );
+
+    expect(work.routingId, isNot(personal.routingId));
+    expect(coordinator.activePresentations, hasLength(2));
+    expect(await coordinator.cancel(work.routingId), isTrue);
+    expect(
+      coordinator.activePresentations.single.notification.destination.accountId,
+      'personal',
+    );
+    expect(delivery.cancelledIds, <String>[work.routingId]);
+  });
+
   test(
     'privacy refresh reissues active notifications without leaking content',
     () async {
@@ -138,7 +163,9 @@ void main() {
 
       await expectLater(coordinator.refreshPrivacy(), throwsStateError);
 
-      expect(delivery.cancelledIds, <String>['private']);
+      expect(delivery.cancelledIds, <String>[
+        notification(id: 'private').routingId,
+      ]);
       expect(coordinator.activePresentations, isEmpty);
       expect(delivery.shown.last.body, 'Sensitive launch details');
     },
@@ -163,8 +190,13 @@ void main() {
       );
       final groupKey = notification(id: 'one').groupKey;
 
-      expect(await coordinator.cancel('one'), isTrue);
-      expect(delivery.cancelledIds, <String>['one']);
+      expect(
+        await coordinator.cancel(notification(id: 'one').routingId),
+        isTrue,
+      );
+      expect(delivery.cancelledIds, <String>[
+        notification(id: 'one').routingId,
+      ]);
       expect(delivery.cancelledSummaryGroupKeys, <String>[groupKey]);
       expect(coordinator.activePresentations, hasLength(1));
 
@@ -180,7 +212,12 @@ void main() {
         coordinator.activePresentations.map((entry) => entry.notification.id),
         <String>['two'],
       );
-      expect(await coordinator.cancel('missing'), isFalse);
+      expect(
+        await coordinator.cancel(
+          KiteNotification.routingIdFor('work', 'missing'),
+        ),
+        isFalse,
+      );
     },
   );
 }

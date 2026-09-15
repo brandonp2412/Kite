@@ -13,6 +13,9 @@ final class _FakeBadgeRefreshPort implements NotificationBadgeRefreshPort {
   }
 }
 
+String _routingId(String accountId, String id) =>
+    KiteNotification.routingIdFor(accountId, id);
+
 void main() {
   group('notification routing', () {
     test(
@@ -39,7 +42,10 @@ void main() {
           navigation: navigation,
         );
 
-        expect(await coordinator.tap('notification-1'), isTrue);
+        expect(
+          await coordinator.tap(_routingId('work', 'notification-1')),
+          isTrue,
+        );
         expect(accounts.activeAccountId, 'work');
         expect(accounts.activations, <String>['work']);
         expect(navigation.opened, <AppDestination>[destination]);
@@ -88,9 +94,9 @@ void main() {
         navigation: navigation,
       );
 
-      expect(await coordinator.tap('room'), isTrue);
-      expect(await coordinator.tap('event'), isTrue);
-      expect(await coordinator.tap('thread'), isTrue);
+      expect(await coordinator.tap(_routingId('work', 'room')), isTrue);
+      expect(await coordinator.tap(_routingId('work', 'event')), isTrue);
+      expect(await coordinator.tap(_routingId('work', 'thread')), isTrue);
       expect(accounts.activations, isEmpty);
       expect(navigation.opened, <AppDestination>[room, event, thread]);
     });
@@ -119,7 +125,10 @@ void main() {
           navigation: navigation,
         );
 
-        expect(await coordinator.tap('notification-1'), isFalse);
+        expect(
+          await coordinator.tap(_routingId('work', 'notification-1')),
+          isFalse,
+        );
         expect(accounts.activations, <String>['work']);
         expect(accounts.activeAccountId, 'personal');
         expect(navigation.opened, isEmpty);
@@ -148,12 +157,18 @@ void main() {
         navigation: navigation,
       );
 
-      expect(await coordinator.tap('notification-1'), isFalse);
+      expect(
+        await coordinator.tap(_routingId('work', 'notification-1')),
+        isFalse,
+      );
       expect(navigation.opened, isEmpty);
 
       accounts.activates = true;
       navigation.failNextWith = StateError('route failed');
-      expect(await coordinator.tap('notification-1'), isFalse);
+      expect(
+        await coordinator.tap(_routingId('work', 'notification-1')),
+        isFalse,
+      );
       expect(accounts.activeAccountId, 'work');
       expect(navigation.opened, isEmpty);
     });
@@ -387,18 +402,27 @@ void main() {
           3,
         );
         expect(cancellations.cancelledIds, <String>[
-          'message',
-          'mention',
-          'thread',
+          _routingId('work', 'message'),
+          _routingId('work', 'mention'),
+          _routingId('work', 'thread'),
         ]);
         expect(notifications.removedIds, <String>[
-          'message',
-          'mention',
-          'thread',
+          _routingId('work', 'message'),
+          _routingId('work', 'mention'),
+          _routingId('work', 'thread'),
         ]);
-        expect(notifications.notification('invite'), isNotNull);
-        expect(notifications.notification('call'), isNotNull);
-        expect(notifications.notification('other-account'), isNotNull);
+        expect(
+          notifications.notification(_routingId('work', 'invite')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('work', 'call')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('personal', 'other-account')),
+          isNotNull,
+        );
         expect(badges.refreshes, 1);
       },
     );
@@ -435,7 +459,10 @@ void main() {
           ),
           0,
         );
-        expect(notifications.notification('message'), isNotNull);
+        expect(
+          notifications.notification(_routingId('work', 'message')),
+          isNotNull,
+        );
         expect(notifications.removedIds, isEmpty);
         expect(cancellations.cancelledIds, isEmpty);
         expect(badges.refreshes, 0);
@@ -489,10 +516,18 @@ void main() {
           ),
           1,
         );
-        expect(cancellations.cancelledIds, <String>['read']);
-        expect(notifications.notification('read'), isNull);
-        expect(notifications.notification('unread'), isNotNull);
-        expect(notifications.notification('other-account'), isNotNull);
+        expect(cancellations.cancelledIds, <String>[
+          _routingId('work', 'read'),
+        ]);
+        expect(notifications.notification(_routingId('work', 'read')), isNull);
+        expect(
+          notifications.notification(_routingId('work', 'unread')),
+          isNotNull,
+        );
+        expect(
+          notifications.notification(_routingId('personal', 'other-account')),
+          isNotNull,
+        );
       },
     );
   });

@@ -87,7 +87,12 @@ void main() {
         ),
         isTrue,
       );
-      expect(repository.notification('push-1'), isNotNull);
+      expect(
+        repository.notification(
+          KiteNotification.routingIdFor('work', 'push-1'),
+        ),
+        isNotNull,
+      );
       expect(deliveryPort.shown, hasLength(1));
       expect(deliveryPort.shown.single.contentsHidden, isTrue);
       expect(
@@ -204,7 +209,7 @@ void main() {
       ),
       isFalse,
     );
-    expect(repository.notification('push-1'), same(previous));
+    expect(repository.notification(previous.routingId), same(previous));
     expect(badges.refreshes, 0);
   });
 
@@ -234,7 +239,12 @@ void main() {
         ),
         isTrue,
       );
-      expect(repository.notification('push-1'), isNotNull);
+      expect(
+        repository.notification(
+          KiteNotification.routingIdFor('work', 'push-1'),
+        ),
+        isNotNull,
+      );
       expect(deliveryPort.shown, hasLength(1));
       expect(badges.refreshes, 1);
     },

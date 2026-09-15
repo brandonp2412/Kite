@@ -50,10 +50,11 @@ final class NotificationDeliveryCoordinator
       content: content,
     );
     final presentation = _presentationFor(next);
-    final previous = _active[notification.id];
+    final routingId = notification.routingId;
+    final previous = _active[routingId];
 
     await _delivery.show(presentation);
-    _active[notification.id] = next;
+    _active[routingId] = next;
 
     if (previous != null &&
         previous.notification.groupKey != notification.groupKey) {
@@ -64,12 +65,12 @@ final class NotificationDeliveryCoordinator
   }
 
   @override
-  Future<bool> cancel(String notificationId) async {
-    final current = _active[notificationId];
+  Future<bool> cancel(String notificationRoutingId) async {
+    final current = _active[notificationRoutingId];
     if (current == null) return false;
 
-    await _delivery.cancel(notificationId);
-    _active.remove(notificationId);
+    await _delivery.cancel(notificationRoutingId);
+    _active.remove(notificationRoutingId);
     await _refreshSummary(current.notification.groupKey);
     return true;
   }
@@ -84,8 +85,8 @@ final class NotificationDeliveryCoordinator
         firstFailure ??= error;
         if (_privacy.hideNotificationContents) {
           try {
-            await _delivery.cancel(active.notification.id);
-            _active.remove(active.notification.id);
+            await _delivery.cancel(active.notification.routingId);
+            _active.remove(active.notification.routingId);
           } catch (_) {}
         }
       }
