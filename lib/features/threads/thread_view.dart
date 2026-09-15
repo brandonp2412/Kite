@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_media_viewer.dart';
+import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -566,6 +569,25 @@ class _ThreadReplyRow extends StatelessWidget {
   final ThreadReply reply;
   final Signal<String?> focusSignal;
 
+  void _openMedia(BuildContext context) {
+    final model = ThreadMediaViewerModel.fromReplies(
+      roomId: roomId,
+      parent: parent,
+      replies: threadController
+          .repliesFor(roomId: roomId, parent: parent)
+          .value,
+      initialReplyId: reply.id,
+    );
+    Navigator.of(context).push(
+      MediaViewerRoute(
+        items: model.items,
+        initialIndex: model.initialIndex,
+        onSave: model.onSave,
+        onShare: model.onShare,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -646,12 +668,30 @@ class _ThreadReplyRow extends StatelessWidget {
                             ),
                             const SizedBox(height: KiteSpacing.xxs),
                           ],
-                          Text(
-                            reply.body,
-                            style: KiteTypography.body.copyWith(
-                              color: colors.onSurface,
+                          if (reply.attachment
+                              case final attachment?) ...<Widget>[
+                            TimelineAttachmentCard(
+                              messageId: 'thread-${reply.id}',
+                              attachment: attachment,
+                              heroTag:
+                                  attachment.kind == TimelineAttachmentKind.file
+                                  ? null
+                                  : threadMediaHeroTag(parent, reply),
+                              onTap:
+                                  attachment.kind == TimelineAttachmentKind.file
+                                  ? null
+                                  : () => _openMedia(context),
                             ),
-                          ),
+                            if (reply.body.isNotEmpty)
+                              const SizedBox(height: KiteSpacing.xs),
+                          ],
+                          if (reply.body.isNotEmpty)
+                            Text(
+                              reply.body,
+                              style: KiteTypography.body.copyWith(
+                                color: colors.onSurface,
+                              ),
+                            ),
                           const SizedBox(height: KiteSpacing.xxs),
                           Row(
                             mainAxisSize: MainAxisSize.min,

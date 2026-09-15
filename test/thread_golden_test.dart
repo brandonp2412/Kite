@@ -8,6 +8,40 @@ import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
+void _applyThreadMediaFixture() {
+  final parent = timelineController
+      .messagesFor('alice')
+      .value
+      .firstWhere((message) => message.id == 'alice-98');
+  final seededReplies = threadController
+      .repliesFor(roomId: 'alice', parent: parent)
+      .value;
+  threadController.applyThreadSnapshot(
+    roomId: 'alice',
+    parent: parent,
+    replies: <ThreadReply>[
+      seededReplies[0],
+      seededReplies[1],
+      ThreadReply(
+        id: 'alice-98-thread-2',
+        sender: 'Alice',
+        body: 'Done — the latest update is ready to review.',
+        mine: false,
+        timeLabel: '10:24',
+        attachment: const TimelineAttachment(
+          id: 'thread-review-image',
+          kind: TimelineAttachmentKind.image,
+          name: 'review.png',
+          sizeLabel: '1.8 MB · Photo',
+        ),
+      ),
+    ],
+    hasMore: true,
+    unreadCount: 2,
+    latestReadReplyId: seededReplies.first.id,
+  );
+}
+
 class _AlwaysFailThreadPort implements ThreadSendPort {
   const _AlwaysFailThreadPort();
 
@@ -59,6 +93,39 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread media ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      _applyThreadMediaFixture();
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('message-attachment-thread-alice-98-thread-2')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_media_${variant.name}.png'),
       );
     });
 

@@ -131,6 +131,63 @@ void main() {
     );
   });
 
+  test('thread snapshot replaces cached replies without broad state loss', () {
+    final controller = ThreadController();
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final mediaReply = ThreadReply(
+      id: 'alice-98-media',
+      sender: 'Alice',
+      body: 'Scoped media',
+      mine: false,
+      timeLabel: '10:04',
+      attachment: const TimelineAttachment(
+        id: 'thread-media',
+        kind: TimelineAttachmentKind.image,
+        name: 'thread.png',
+        sizeLabel: '1.2 MB · Photo',
+      ),
+    );
+
+    controller.applyThreadSnapshot(
+      roomId: 'alice',
+      parent: parent,
+      replies: <ThreadReply>[mediaReply],
+      hasMore: false,
+      unreadCount: 1,
+      latestReadReplyId: null,
+    );
+
+    expect(
+      controller.repliesFor(roomId: 'alice', parent: parent).value,
+      <ThreadReply>[mediaReply],
+    );
+    expect(
+      controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+      isFalse,
+    );
+    expect(controller.unreadCountFor(roomId: 'alice', parent: parent).value, 1);
+    expect(
+      controller.latestReadReplyIdFor(roomId: 'alice', parent: parent).value,
+      isNull,
+    );
+    expect(
+      () => controller.applyThreadSnapshot(
+        roomId: 'alice',
+        parent: parent,
+        replies: <ThreadReply>[mediaReply],
+        hasMore: false,
+        unreadCount: 2,
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('thread pagination prepends older replies exactly once', () async {
     final controller = ThreadController(
       paginationPort: const DeterministicThreadPaginationPort(
