@@ -187,6 +187,64 @@ void main() {
     );
   });
 
+  test('equivalent JSON content does not rewrite a timeline signal', () {
+    final cache = MatrixPresentationCache();
+    final first = MatrixTimelineEvent(
+      eventId: r'$same',
+      roomId: '!alpha:kite.test',
+      senderId: '@alice:kite.test',
+      type: 'm.room.message',
+      originServerTimestamp: DateTime.utc(2026, 9, 14, 11, 20, 6),
+      streamPosition: 6,
+      content: <String, Object?>{
+        'body': 'stable',
+        'metadata': <String, Object?>{'a': 1, 'b': 2},
+      },
+    );
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 'first',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:kite.test',
+            timelineEvents: <MatrixTimelineEvent>[first],
+          ),
+        ],
+      ),
+    );
+    final timelineBefore = cache.timelineSignal('!alpha:kite.test').value;
+
+    final equivalent = MatrixTimelineEvent(
+      eventId: r'$same',
+      roomId: '!alpha:kite.test',
+      senderId: '@alice:kite.test',
+      type: 'm.room.message',
+      originServerTimestamp: DateTime.utc(2026, 9, 14, 11, 20, 6),
+      streamPosition: 6,
+      content: <String, Object?>{
+        'metadata': <String, Object?>{'b': 2, 'a': 1},
+        'body': 'stable',
+      },
+    );
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 'second',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:kite.test',
+            timelineEvents: <MatrixTimelineEvent>[equivalent],
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      identical(timelineBefore, cache.timelineSignal('!alpha:kite.test').value),
+      isTrue,
+    );
+    expect(cache.lastSyncCursor, 'second');
+  });
+
   test(
     'stale batches cannot regress room state or rewrite unaffected signals',
     () {

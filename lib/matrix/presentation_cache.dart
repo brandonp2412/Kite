@@ -197,11 +197,33 @@ final class MatrixPresentationCache {
           a.roomId != b.roomId ||
           a.senderId != b.senderId ||
           a.type != b.type ||
-          a.content.toString() != b.content.toString()) {
+          !_sameJsonValue(a.content, b.content)) {
         return false;
       }
     }
     return true;
+  }
+
+  static bool _sameJsonValue(Object? left, Object? right) {
+    if (identical(left, right)) return true;
+    if (left is Map && right is Map) {
+      if (left.length != right.length) return false;
+      for (final entry in left.entries) {
+        if (!right.containsKey(entry.key) ||
+            !_sameJsonValue(entry.value, right[entry.key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    if (left is List && right is List) {
+      if (left.length != right.length) return false;
+      for (var index = 0; index < left.length; index += 1) {
+        if (!_sameJsonValue(left[index], right[index])) return false;
+      }
+      return true;
+    }
+    return left == right;
   }
 
   static bool _sameStrings(List<String> left, List<String> right) {
