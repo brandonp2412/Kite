@@ -45,16 +45,18 @@ final class _DeferredAccountGateway implements AccountManagementGateway {
 }
 
 final class _StableSessionGateway implements SessionDeviceGateway {
+  var currentDeviceId = 'WORK_DEVICE';
+
   @override
   Future<List<SessionDevice>> loadDevices() async {
-    return const <SessionDevice>[
+    return <SessionDevice>[
       SessionDevice(
-        deviceId: 'CURRENT',
+        deviceId: currentDeviceId,
         displayName: 'Nox',
         isCurrent: true,
         verification: SessionDeviceVerification.verified,
       ),
-      SessionDevice(
+      const SessionDevice(
         deviceId: 'PHONE',
         displayName: 'Phone',
         isCurrent: false,
@@ -87,11 +89,12 @@ void main() {
 
     final accountGateway = _DeferredAccountGateway();
     final accounts = AccountManagementController(accountGateway);
-    final devices = SessionDeviceController(_StableSessionGateway());
+    final sessionGateway = _StableSessionGateway();
+    final devices = SessionDeviceController(sessionGateway);
     addTearDown(accounts.dispose);
     addTearDown(devices.dispose);
     await accounts.load();
-    await devices.load();
+    await devices.load(expectedCurrentDeviceId: 'WORK_DEVICE');
 
     await tester.pumpWidget(
       MaterialApp(
@@ -104,7 +107,7 @@ void main() {
     );
 
     final list = find.byKey(const Key('account-security-list'));
-    final currentDevice = find.byKey(const Key('device-CURRENT'));
+    final currentDevice = find.byKey(const Key('device-WORK_DEVICE'));
     final status = find.byKey(const Key('account-security-status'));
     final initialList = _rectOf(tester, list);
     final initialDevice = _rectOf(tester, currentDevice);
@@ -119,9 +122,11 @@ void main() {
       expect(tester.takeException(), isNull);
     }
 
+    sessionGateway.currentDeviceId = 'PERSONAL_DEVICE';
     accountGateway.activation.complete();
     await tester.pump();
-    expect(_rectOf(tester, currentDevice), initialDevice);
+    final switchedDevice = find.byKey(const Key('device-PERSONAL_DEVICE'));
+    expect(_rectOf(tester, switchedDevice), initialDevice);
     expect(_rectOf(tester, status), initialStatus);
     expect(accounts.activeAccount?.accountId, 'personal');
   });
