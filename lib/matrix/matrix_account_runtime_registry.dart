@@ -216,7 +216,6 @@ final class MatrixAccountRuntimeRegistry {
   }
 
   Future<void> dispose() {
-    if (_disposed) return Future<void>.value();
     _disposed = true;
     return _enqueue<void>(() async {
       final active = _activeRuntime;

@@ -899,6 +899,29 @@ void main() {
     },
   );
 
+  test('dispose retries cleanup after a transient SDK close failure', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final registry = _registry(boundaries);
+
+    await registry.activate('@alice:example.org');
+    await registry.activate('@bob:example.org');
+    boundaries['@alice:example.org']!.closeFailuresRemaining = 1;
+
+    await expectLater(registry.dispose(), throwsStateError);
+    expect(registry.activeAccountId.value, isNull);
+    expect(registry.loadedAccountIds, hasLength(2));
+    expect(
+      () => registry.activate('@later:example.org'),
+      throwsA(isA<StateError>()),
+    );
+
+    await registry.dispose();
+
+    expect(boundaries['@alice:example.org']!.closeCalls, 2);
+    expect(boundaries['@bob:example.org']!.closeCalls, 1);
+    expect(registry.loadedAccountIds, isEmpty);
+  });
+
   test('dispose closes every loaded SDK boundary exactly once', () async {
     final boundaries = <String, _FakeAccountBoundary>{};
     final registry = _registry(boundaries);
@@ -983,6 +1006,7 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   int startCalls = 0;
   int stopCalls = 0;
   int closeCalls = 0;
+  int closeFailuresRemaining = 0;
   bool closeHadSyncListener = false;
   final List<String> paginationCalls = <String>[];
 
@@ -1049,8 +1073,14 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   @override
   Future<void> close() async {
     closeCalls += 1;
+    if (closeFailuresRemaining > 0) {
+      closeFailuresRemaining -= 1;
+      throw StateError('deterministic close failure for $accountId');
+    }
     closeHadSyncListener = _sync.hasListener;
-    await _sync.close();
+    if (!_sync.isClosed) {
+      await _sync.close();
+    }
   }
 
   void emit(MatrixSyncBatch batch) => _sync.add(batch);

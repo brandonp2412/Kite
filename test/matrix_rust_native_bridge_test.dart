@@ -186,6 +186,40 @@ void main() {
     },
   );
 
+  test(
+    'SDK boundary refuses cross-account store replacement while open',
+    () async {
+      final client = _FakeRustClient();
+      final bridge = _RecordingRustBridge(client);
+      final boundary = MatrixRustSdkBoundary(
+        bridge: bridge,
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: _RecordingCodecExecutor(),
+      );
+      addTearDown(boundary.close);
+
+      const aliceStore = MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      );
+      const bobStore = MatrixSdkStoreConfiguration(
+        accountId: '@bob:example.org',
+        storePath: '/tmp/kite/bob',
+        encryptionKeyId: 'bob-key',
+      );
+
+      await boundary.open(aliceStore);
+      await boundary.open(aliceStore);
+      expect(bridge.openCalls, 1);
+
+      await expectLater(boundary.open(bobStore), throwsStateError);
+      expect(bridge.openCalls, 1);
+      expect(client.isClosed, isFalse);
+    },
+  );
+
   test('SDK boundary rejects C-incompatible sync and pagination ids', () async {
     final client = _FakeRustClient();
     final boundary = MatrixRustSdkBoundary(
