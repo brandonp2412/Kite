@@ -28,6 +28,7 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   bool avatarWasCleared = false;
   String? openedDmUserId;
   Completer<MatrixUserProfile>? deferredOwnProfile;
+  Completer<MatrixUserProfile>? deferredViewedProfile;
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignored};
@@ -46,6 +47,8 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   @override
   Future<MatrixUserProfile> loadProfile(String userId) async {
     if (loadProfileError case final error?) throw error;
+    final deferred = deferredViewedProfile;
+    if (deferred != null) return deferred.future;
     return profiles[userId]!;
   }
 
@@ -131,9 +134,34 @@ void main() {
     expect(controller.viewedProfile.value?.displayName, 'Alice');
 
     await controller.loadUserProfile('alice');
-    expect(controller.viewedProfile.value?.displayName, 'Alice');
+    expect(controller.viewedProfile.value, isNull);
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
   });
+
+  test(
+    'loading a different profile clears stale user data immediately',
+    () async {
+      final gateway = _FakeUserProfileGateway();
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+      await controller.loadUserProfile('@alice:example.org');
+      expect(controller.viewedProfile.value?.displayName, 'Alice');
+
+      final deferred = Completer<MatrixUserProfile>();
+      gateway.deferredViewedProfile = deferred;
+      final loading = controller.loadUserProfile('@bob:example.org');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.isLoading.value, isTrue);
+      expect(controller.viewedProfile.value, isNull);
+
+      deferred.complete(
+        const MatrixUserProfile(userId: '@bob:example.org', displayName: 'Bob'),
+      );
+      await loading;
+      expect(controller.viewedProfile.value?.displayName, 'Bob');
+    },
+  );
 
   test(
     'rejects profile and privacy data that does not match Matrix identity',
