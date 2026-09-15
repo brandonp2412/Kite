@@ -117,6 +117,28 @@ void main() {
       );
     },
   );
+
+  test('Matrix native FFI operations stay off the Flutter UI isolate', () {
+    final nativeBridge = File('lib/matrix/matrix_rust_native_bridge.dart')
+        .readAsStringSync();
+
+    expect(
+      nativeBridge,
+      contains('final address = await Isolate.run<int>(() {'),
+    );
+    for (final operation in <String>[
+      '_MatrixNativeSyncOperation',
+      '_MatrixNativePaginateOperation',
+      '_MatrixNativeFreeOperation',
+    ]) {
+      expect(
+        RegExp('Isolate\\.run<[^>]+>\\(\\s*$operation\\(')
+            .hasMatch(nativeBridge),
+        isTrue,
+        reason: '$operation must execute through Isolate.run',
+      );
+    }
+  });
 }
 
 Iterable<File> _dartFilesUnder(String path) sync* {
