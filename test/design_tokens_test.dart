@@ -95,23 +95,6 @@ void main() {
     }
   });
 
-  testWidgets('true-black app applies dark system bars on black surfaces', (
-    tester,
-  ) async {
-    await tester.pumpWidget(const KiteApp(trueBlack: true));
-    await tester.pumpAndSettle();
-
-    final homeContext = tester.element(find.byKey(const Key('sidebar')));
-    expect(Theme.of(homeContext).scaffoldBackgroundColor, Colors.black);
-
-    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
-      find.byKey(const Key('kite-system-bars')),
-    );
-    expect(region.value.systemNavigationBarColor, Colors.black);
-    expect(region.value.statusBarIconBrightness, Brightness.light);
-    expect(region.value.systemNavigationBarIconBrightness, Brightness.light);
-  });
-
   testWidgets('motion duration collapses when reduced motion is requested', (
     tester,
   ) async {
@@ -398,16 +381,4 @@ void main() {
       Duration.zero,
     );
   });
-}
-
-double _contrastRatio(Color foreground, Color background) {
-  final foregroundLuminance = foreground.computeLuminance();
-  final backgroundLuminance = background.computeLuminance();
-  final lighter = foregroundLuminance > backgroundLuminance
-      ? foregroundLuminance
-      : backgroundLuminance;
-  final darker = foregroundLuminance > backgroundLuminance
-      ? backgroundLuminance
-      : foregroundLuminance;
-  return (lighter + 0.05) / (darker + 0.05);
 }

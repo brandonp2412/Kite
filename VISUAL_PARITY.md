@@ -19,12 +19,14 @@ Current Element X screenshot tests live under `tests/uitests/src/test/snapshots/
 - `features.home.impl.components_RoomSummaryRow_Day_0_en.png`
 - `features.home.impl.components_RoomSummaryRow_Night_0_en.png`
 
-Kite comparison renders are produced by `test/golden_gallery_test.dart` in:
+Kite comparison renders are produced by `test/golden_gallery_test.dart` in the canonical gallery set:
 
-- `test/goldens/gallery/home_phone_portrait_{light,dark}.png`
-- `test/goldens/gallery/home_phone_landscape_{light,dark}.png`
-- `test/goldens/gallery/home_tablet_{light,dark}.png`
-- `test/goldens/gallery/home_desktop_{light,dark}.png`
+- `test/goldens/home_phone_portrait_{light,dark,true_black}.png`
+- `test/goldens/home_phone_landscape_{light,dark,true_black}.png`
+- `test/goldens/home_tablet_{light,dark,true_black}.png`
+- `test/goldens/home_desktop_{light,dark,true_black}.png`
+
+The older duplicate `test/goldens/gallery/` set has been removed; it was no longer referenced after the canonical gallery gained all three theme variants and 3× deterministic rendering.
 
 Relevant current Element X message references used for the DM/composer and message-action reviews are:
 
@@ -35,6 +37,13 @@ Relevant current Element X message references used for the DM/composer and messa
 - `features.messages.impl.actionlist_ActionListViewContent_Day_{0..12}_en.png`
 - `features.messages.impl.actionlist_ActionListViewContent_Night_0_en.png`
 - `features.messages.impl.timeline.components.reactionsummary_ReactionSummaryViewContent_Day_0_en.png`
+
+Relevant current Element X Threads references used for the thread review are:
+
+- `features.messages.impl.topbars_ThreadTopBar_Day_0_en.png`
+- `features.messages.impl.threads.list_ThreadsListView_Day_0_en.png`
+- `features.messages.impl.threads.list_ThreadsListView_Night_0_en.png`
+- `features.messages.impl.timeline.components_ThreadSummaryView_Day_0_en.png`
 
 Relevant current Element X settings references used for the settings/security review are:
 
@@ -89,6 +98,15 @@ The current Element X action-list variants and reaction-summary snapshot were lo
 - Element X breadth: the current action-list variants add a message preview, quick-reaction row, Forward, Copy link, View source, Report content, content-specific copy actions, and poll actions where applicable. Kite does not yet expose that complete action set.
 - Reactions: Element X's reaction summary combines selected reaction chips/counts with reactor identity and timestamp detail. Kite's current top-level timeline has no equivalent reaction summary/picker, so reaction parity remains an implementation gap even though the visual review itself is complete.
 
+### Rendered Threads comparison, 2026-09-15
+
+Current Element X `ThreadTopBar_Day_0_en.png`, `ThreadsListView_Day_0_en.png`, `ThreadsListView_Night_0_en.png`, and `ThreadSummaryView_Day_0_en.png` LFS snapshots were loaded directly from the audited `develop` SHA and visually compared with Kite's `thread_light.png`, `thread_dark.png`, following/retry/focus variants, and the thread-unread room-list renders.
+
+- Open-thread hierarchy: both products give the thread a dedicated back affordance, a strong `Thread` title, and room context. Kite additionally keeps follow/unfollow state and reply count in the top region, then separates the root event from replies before the thread composer.
+- Thread-state coverage: Kite has deterministic light/dark renders for the normal thread, following state, failed-reply retry state, notification/deep-link focused reply, and room-list thread-unread decoration. The refreshed unread baselines include the same non-colour selected-room weight cue used by the main gallery.
+- Upstream list gap: current Element X has a dedicated Threads list whose rows combine root sender/body/time, reply count, and latest-reply identity/body. Kite can open and operate a thread from its timeline summary but does not yet have an equivalent dedicated all-threads list, so visual/capability parity remains open.
+- Performance blocker: the first profile-mode Kite thread-open run missed one raster frame at 37,648 µs against the unchanged 16,666 µs budget. Thread pagination passed, but the Milestone 15 thread benchmark remains open until first-open raster cost and the remaining thread journeys pass.
+
 ### Rendered room/member and user-profile comparison, 2026-09-15
 
 Kite's `room_members_light.png` and `room_members_dark.png` renders were compared with current Element X `RoomMemberListView_Day_0_en.png`, `RoomMemberListView_Night_0_en.png`, and `UserProfileView_Day_0_en.png` references from the audited SHA.
@@ -96,6 +114,7 @@ Kite's `room_members_light.png` and `room_members_dark.png` renders were compare
 - Member list: both products provide an obvious people context and search field. Kite's deterministic loaded state adds stable avatar/name/user-ID rows and trailing role labels, while Element X's captured loading state reserves the list region below its search field with a progress affordance.
 - Density and width: after the comparison exposed an over-wide desktop list, Kite now centers the member content within the same 720 px readable-content measure used by settings. Search, rows and role metadata retain their mobile rhythm without stretching across the 1200 px baseline.
 - User profile gap: Element X gives the profile a strong avatar/name/user-ID hierarchy plus Message/Share actions and security controls such as Verify/Block. Kite has member-profile/moderation foundations but no equivalent full user-profile render in this gallery, so user-profile visual parity remains open.
+- Empty/error-state coverage: room members now has deterministic light/dark empty and failed-load renders. A failed initial load presents a dedicated cloud-off state and a visible `Try again` action instead of stacking the generic `No members found` copy under the load error; the broader app-wide empty/loading/error/offline review remains open.
 
 ### Rendered settings/security comparison, 2026-09-15
 
@@ -113,11 +132,11 @@ The current Element X poll-event, location-event, and media-viewer snapshots wer
 - Media viewer: both products use an immersive dark canvas with restrained top chrome over the media. A fresh rendered comparison against `MediaViewerView_0_en.png` at the audited SHA exposed Kite's heavier circular controls and centered counter pill; Kite now matches the reference's quieter composition with an icon-only back/share/download row on one translucent top bar, while preserving 48 dp targets, explicit accessibility labels, left/right keyboard paging, caption overlay, adjacent-item paging and deterministic full-resolution replacement. The updated light/dark goldens preserve the same full-screen media geometry.
 - Media quality gap: Element X's reference uses production photographic media at display resolution. Kite's deterministic visual is intentionally synthetic, so the no-upscale/high-resolution production-media contract still needs real media-pipeline evidence.
 - Poll and location gaps: Element X has dedicated poll choice/results geometry and map/location event cards. Kite's current timeline fixture has no corresponding rendered poll or location event, so those visual and behavioural surfaces remain implementation gaps.
-- Performance blocker: Kite's media viewer remains visually reviewable, but the profile-mode media journey currently violates the strict zero-raster-late-frame gate documented in `PERFORMANCE.md`; this review does not close its Milestone 15 benchmark.
+- Performance verification: the current Waydroid profile-mode media viewer run passed all three journeys with zero build/raster budget violations at the unchanged 16,666 µs budget; repeated open/close recorded one non-gating total-span miss. The Milestone 15 media-viewer benchmark is therefore closed while physical-device release performance remains separately gated.
 
 ### True-black rendered comparison, 2026-09-15
 
-The current Element X `HomeTopBar_Night_0_en.png`, `RoomListContentView_Night_0_en.png`, direct-room timeline Night snapshot, and composer Night snapshot were fetched again from the audited `develop` SHA and compared with Kite's generated `home_phone_portrait_black.png` and `home_desktop_black.png`.
+The current Element X `HomeTopBar_Night_0_en.png`, `RoomListContentView_Night_0_en.png`, direct-room timeline Night snapshot, and composer Night snapshot were fetched again from the audited `develop` SHA and compared with Kite's generated `home_phone_portrait_true_black.png` and `home_desktop_true_black.png`.
 
 - Surface hierarchy: Element X Night uses a near-black content canvas with a dark charcoal timeline/row vocabulary and a green contextual header bloom. Kite true-black deliberately uses a pure-black canvas/navigation surface while retaining separate dark fields and message surfaces, so controls remain grouped without lifting the entire page off black.
 - Contrast and system chrome: Kite's true-black semantic surfaces retain high-contrast foregrounds and the app explicitly selects light status/navigation-bar icons with a black navigation-bar surface. This closes Kite's light/dark/true-black system-bar implementation contract, while minimum-contrast auditing for every state remains open.
@@ -153,7 +172,7 @@ For each major screen, compare matching light/dark states at representative phon
 | Group-room timeline | Element X adds group-specific sender/state-event hierarchy on top of the timeline system. | Kite has no group-room-specific rendered treatment yet. | None yet. | Not audited |
 | Composer / rich text | Element X uses a compact production composer with formatting, reply/edit/media and expansion states. | Kite has a deterministic rounded composer with attachment/input/send regions, but voice, rich-text formatting, expansion and several production states remain incomplete. | `home_tablet_*`, `home_desktop_*`; compare with `MessageComposerView_*`. | Reviewed; gaps remain |
 | Message actions / reactions | Element X uses a message preview, quick reactions, contextual actions, reaction summaries/pickers and destructive confirmations. | Kite has a themed action sheet with Reply/Edit/Copy/Remove and destructive confirmation, but quick reactions, Forward, Copy link, View source, reporting and reaction summary/picker UI remain incomplete. | `timeline_actions_{light,dark}.png`; compare with `ActionListViewContent_*` and `ReactionSummaryViewContent_*`. | Reviewed; gaps remain |
-| Threads | Current `develop` retains thread feature flags/Labs direction and dedicated thread timeline concepts. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
+| Threads | Current `develop` has a dedicated thread top bar, timeline thread summaries, and a Labs Threads list with root/reply metadata. | Kite opens a dedicated thread route with root context, replies, pagination, composer, follow state, retry/focus states, and room-list thread-unread decoration; a dedicated all-threads list is still missing. | `thread_{light,dark}.png`, following/retry/focus/unread variants; compare with `ThreadTopBar_*`, `ThreadSummaryView_*`, and `ThreadsListView_*`. | Reviewed; gaps remain |
 | Spaces | Element X ships dedicated Space discovery/navigation flows and hierarchy. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Room creation / invites | Element X has dedicated creation, invitation, join/knock and invite-preview states. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Room details / moderation | Element X has dedicated room details, membership and moderation flows with compact search/member hierarchy. | Kite has a deterministic room-member list/search and member-profile/moderation flows with a centered 720 px wide-layout measure; broader room-details editing/report/leave surfaces remain incomplete. | `room_members_{light,dark}.png`; compare with `RoomMemberListView_*`. | Reviewed; gaps remain |

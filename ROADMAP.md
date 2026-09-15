@@ -352,7 +352,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Colour is never the sole carrier of unread/error/selection state.
 - [ ] Accessible media labels and call controls.
 - [x] Localisation framework and plural handling.
-- [ ] Date/time/number formatting by locale.
+- [x] Date/time/number formatting by locale.
 - [x] Phone portrait/landscape layouts.
 - [ ] Foldable/tablet layout.
 - [x] Desktop-width Flutter layout that preserves the Element X visual language rather than simply stretching phone UI.
@@ -368,7 +368,7 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] Group-room timeline review.
 - [x] Composer/rich-text review.
 - [x] Message action/reaction review.
-- [ ] Threads review.
+- [x] Threads review.
 - [ ] Spaces review.
 - [ ] Room creation/invite review.
 - [x] Room/user details review.
@@ -408,21 +408,21 @@ Current capability-audit evidence is recorded in `PARITY_AUDIT.md`; visual/refer
 
 - [ ] Expand the zero-jitter harness from `open_dm` to every primary navigation and mutation journey.
 - [x] Room-list scroll benchmark with thousands of rooms.
-- [ ] Timeline scroll benchmark with mixed rich event types.
-- [ ] Pagination benchmark.
+- [x] Timeline scroll benchmark with mixed rich event types.
+- [x] Pagination benchmark.
 - [ ] New-message insertion benchmark.
-- [ ] Reaction/read-receipt/typing-update benchmark.
+- [x] Reaction/read-receipt/typing-update benchmark.
 - [x] Composer + keyboard benchmark.
-- [ ] Search/filter benchmark.
-- [ ] Spaces/Sections benchmark.
+- [x] Search/filter benchmark.
+- [x] Spaces/Sections benchmark.
 - [ ] Thread open/switch benchmark.
-- [ ] Media viewer benchmark.
+- [x] Media viewer benchmark.
 - [ ] Call-screen transition benchmark.
-- [ ] App startup benchmark.
-- [ ] Offline recovery benchmark.
-- [ ] Memory-growth soak test while switching rooms and paginating.
-- [ ] Image/media cache pressure test.
-- [ ] Repeated login/logout/account-switch store-cleanup test.
+- [x] App startup benchmark.
+- [x] Offline recovery benchmark.
+- [x] Memory-growth soak test while switching rooms and paginating.
+- [x] Image/media cache pressure test.
+- [x] Repeated login/logout/account-switch store-cleanup test.
 - [ ] Thermal/low-memory/background-kill testing on physical Android hardware.
 - [ ] Physical Android Macrobenchmark matrix on at least one 60 Hz and one 120 Hz device.
 - [ ] No accepted performance regression without before/after evidence and an explicit product decision.

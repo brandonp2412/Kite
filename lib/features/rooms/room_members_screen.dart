@@ -414,7 +414,9 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
                   ),
                   Expanded(
                     child: members.isEmpty && !loading
-                        ? const _EmptyMembers()
+                        ? errorMessage != null
+                              ? _MemberLoadError(onRetry: _controller.load)
+                              : const _EmptyMembers()
                         : ListView.builder(
                             key: const Key('member-list'),
                             itemCount: members.length,
@@ -516,6 +518,48 @@ class _InviteMemberDialogState extends State<_InviteMemberDialog> {
           child: const Text('Invite'),
         ),
       ],
+    );
+  }
+}
+
+class _MemberLoadError extends StatelessWidget {
+  const _MemberLoadError({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(KiteSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 40,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: KiteSpacing.sm),
+            const Text('Could not load members', style: KiteTypography.title),
+            const SizedBox(height: KiteSpacing.xs),
+            Text(
+              'Check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: KiteTypography.metadata.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: KiteSpacing.md),
+            FilledButton.tonalIcon(
+              key: const Key('member-load-retry'),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

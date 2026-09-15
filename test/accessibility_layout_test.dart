@@ -1,4 +1,4 @@
-import 'dart:ui' show SemanticsAction, SemanticsFlag;
+import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -108,8 +108,8 @@ void main() {
       find.byKey(const Key('room-alice')),
     );
     expect(
-      selectedSemantics.getSemanticsData().hasFlag(SemanticsFlag.isSelected),
-      isTrue,
+      selectedSemantics.getSemanticsData().flagsCollection.isSelected,
+      Tristate.isTrue,
     );
   });
 

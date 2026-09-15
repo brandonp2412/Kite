@@ -72,3 +72,5 @@ A native Android cold-start Macrobenchmark now uses `StartupTimingMetric`, `Star
 ## Regression policy
 
 Do not raise frame budgets, allow non-zero violations, reduce the number of benchmark iterations, disable the artificial-jitter negative control, or remove geometry checks merely to make a failing change pass. Fix the regression instead. Any intentional contract revision must be documented in the same change with the reason and before/after benchmark evidence.
+
+The 2026-09-15 first profile-mode Thread 2.x benchmark run on Glass Waydroid kept the pinned 16,666 µs budget unchanged. Opening a thread is not release-ready: 1 of 4 sampled frames missed the raster budget, with worst build/raster/total-span timings of 2,038/37,648/39,827 µs. Thread pagination itself passed with 3 sampled frames, zero build/raster/total-span violations, and worst timings of 1,122/9,557/10,856 µs. The driver connection disposed while the remaining thread cases were starting, so retry/subscription/send journeys are not claimed from that run. Milestone 15 thread open/switch therefore remains open; no threshold or test was weakened.

@@ -8,7 +8,7 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
-import 'package:kite/l10n/generated/app_localizations.dart';
+import 'package:kite/l10n/kite_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
