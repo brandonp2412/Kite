@@ -270,6 +270,35 @@ void main() {
     expect(controller.isLoading.value, isFalse);
   });
 
+  test('rejects non-MXC avatar data before it reaches the gateway', () async {
+    final gateway = _FakeUserProfileGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+    await controller.loadOwnProfile();
+
+    expect(
+      await controller.updateAvatar(
+        Uri.parse('file:///tmp/private-avatar.jpg'),
+      ),
+      isFalse,
+    );
+    expect(gateway.updatedAvatar, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid Matrix avatar.',
+    );
+
+    gateway.ownProfile = MatrixUserProfile(
+      userId: '@brandon:example.org',
+      avatarUri: Uri.parse('https://example.org/avatar.jpg'),
+    );
+    await controller.loadOwnProfile();
+    expect(
+      controller.errorMessage.value,
+      'Kite received invalid profile data.',
+    );
+  });
+
   test('updates display name and avatar only after gateway success', () async {
     final gateway = _FakeUserProfileGateway();
     final controller = UserProfileController(gateway);

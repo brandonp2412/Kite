@@ -77,6 +77,7 @@ final class UserProfileController {
       if (generation != _accountGeneration) return;
       if (!_isValidUserId(profile.userId) ||
           profile.userId != profile.userId.trim() ||
+          !_isValidAvatarUri(profile.avatarUri) ||
           !_areValidUserIds(ignored) ||
           !_areValidUserIds(blocked)) {
         errorMessage.value = 'Kite received invalid profile data.';
@@ -157,6 +158,7 @@ final class UserProfileController {
       if (generation != _accountGeneration) return;
       if (profile.userId != userId ||
           !_isValidUserId(profile.userId) ||
+          !_isValidAvatarUri(profile.avatarUri) ||
           !_areValidUserIds(ignored) ||
           !_areValidUserIds(blocked)) {
         errorMessage.value = 'Kite received invalid profile data.';
@@ -209,6 +211,10 @@ final class UserProfileController {
   Future<bool> updateAvatar(Uri? avatarUri) async {
     final current = ownProfile.value;
     if (current == null || isSaving.value || isLoading.value) return false;
+    if (!_isValidAvatarUri(avatarUri)) {
+      errorMessage.value = 'Kite received an invalid Matrix avatar.';
+      return false;
+    }
 
     final generation = _accountGeneration;
     isSaving.value = true;
@@ -334,6 +340,17 @@ final class UserProfileController {
         isSaving.value = false;
       }
     }
+  }
+
+  bool _isValidAvatarUri(Uri? avatarUri) {
+    if (avatarUri == null) return true;
+    return avatarUri.scheme == 'mxc' &&
+        avatarUri.host.isNotEmpty &&
+        avatarUri.userInfo.isEmpty &&
+        !avatarUri.hasQuery &&
+        !avatarUri.hasFragment &&
+        avatarUri.pathSegments.length == 1 &&
+        avatarUri.pathSegments.single.isNotEmpty;
   }
 
   bool _isValidRoomId(String roomId) {
