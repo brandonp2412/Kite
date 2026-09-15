@@ -194,6 +194,39 @@ void main() {
     expect(controller.errorMessage.value, 'Kite could not load that profile.');
   });
 
+  test('new profile request supersedes an in-flight previous user', () async {
+    final first = Completer<MatrixUserProfile>();
+    final second = Completer<MatrixUserProfile>();
+    final gateway = _FakeUserProfileGateway()..deferredViewedProfile = first;
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+
+    final aliceLoad = controller.loadUserProfile('@alice:example.org');
+    await Future<void>.delayed(Duration.zero);
+    gateway.deferredViewedProfile = second;
+    final bobLoad = controller.loadUserProfile('@bob:example.org');
+    await Future<void>.delayed(Duration.zero);
+
+    second.complete(
+      const MatrixUserProfile(userId: '@bob:example.org', displayName: 'Bob'),
+    );
+    await bobLoad;
+    expect(controller.viewedProfile.value?.userId, '@bob:example.org');
+    expect(controller.isLoading.value, isFalse);
+
+    first.complete(
+      const MatrixUserProfile(
+        userId: '@alice:example.org',
+        displayName: 'Alice',
+      ),
+    );
+    await aliceLoad;
+
+    expect(controller.viewedProfile.value?.userId, '@bob:example.org');
+    expect(controller.viewedProfile.value?.displayName, 'Bob');
+    expect(controller.errorMessage.value, isNull);
+  });
+
   test(
     'loading a different profile clears stale user data immediately',
     () async {

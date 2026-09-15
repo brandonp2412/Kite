@@ -122,6 +122,45 @@ void main() {
     expect(controller.ownProfile.value?.avatarUri, selectedAvatar);
   });
 
+  testWidgets(
+    'changing viewed user reloads without showing the previous profile',
+    (tester) async {
+      _useLargeView(tester);
+      final gateway = _FakeProfileGateway();
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UserProfileScreen.user(
+            controller: controller,
+            userId: '@alice:example.org',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Alice'), findsOneWidget);
+
+      gateway.other = const MatrixUserProfile(
+        userId: '@bob:example.org',
+        displayName: 'Bob',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UserProfileScreen.user(
+            controller: controller,
+            userId: '@bob:example.org',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(controller.viewedProfile.value?.userId, '@bob:example.org');
+      expect(find.text('Bob'), findsOneWidget);
+      expect(find.text('Alice'), findsNothing);
+    },
+  );
+
   testWidgets('viewed profile loads privacy state and opens a DM', (
     tester,
   ) async {

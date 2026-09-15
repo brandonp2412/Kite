@@ -44,6 +44,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _loadProfileIfEnabled();
+  }
+
+  @override
+  void didUpdateWidget(UserProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller &&
+        oldWidget.userId == widget.userId) {
+      return;
+    }
+    _loadProfileIfEnabled();
+  }
+
+  void _loadProfileIfEnabled() {
     if (!widget.loadOnInit) return;
     if (widget.isOwnProfile) {
       unawaited(widget.controller.loadOwnProfile());
