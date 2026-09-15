@@ -173,6 +173,35 @@ void main() {
     expect(failureFor(base('call')), NotificationIngressFailure.missingCallId);
   });
 
+  test('malformed Matrix target identities are rejected before routing', () {
+    final invalidRoom = parser.parse(
+      transport: NotificationIngressTransport.fcm,
+      data: base('invite')..['room_id'] = 'room:example.org',
+    );
+    final invalidEvent = parser.parse(
+      transport: NotificationIngressTransport.fcm,
+      data: base('message')..['event_id'] = 'event',
+    );
+    final invalidRoot = parser.parse(
+      transport: NotificationIngressTransport.backgroundSync,
+      data: base('thread')
+        ..['event_id'] = r'$reply'
+        ..['thread_root_event_id'] = 'root',
+    );
+    final invalidCall = parser.parse(
+      transport: NotificationIngressTransport.backgroundSync,
+      data: base('call')..['call_id'] = 'call with spaces',
+    );
+
+    expect(invalidRoom.failure, NotificationIngressFailure.invalidRoomId);
+    expect(invalidEvent.failure, NotificationIngressFailure.invalidEventId);
+    expect(
+      invalidRoot.failure,
+      NotificationIngressFailure.invalidThreadRootEventId,
+    );
+    expect(invalidCall.failure, NotificationIngressFailure.invalidCallId);
+  });
+
   test('cross-kind target fields are rejected instead of misrouting', () {
     final invite = parser.parse(
       transport: NotificationIngressTransport.fcm,

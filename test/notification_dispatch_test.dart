@@ -168,6 +168,39 @@ void main() {
       throwsArgumentError,
     );
     expect(repository.notification('bad-call'), isNull);
+
+    for (final invalid in <MatrixNotificationEvent>[
+      const MatrixNotificationEvent(
+        id: 'bad-room',
+        kind: MatrixNotificationEventKind.invite,
+        accountId: 'work',
+        roomId: 'room:example.org',
+        title: 'Invite',
+        body: 'Malformed room id',
+      ),
+      const MatrixNotificationEvent(
+        id: 'bad-event',
+        kind: MatrixNotificationEventKind.message,
+        accountId: 'work',
+        roomId: '!team:example.org',
+        eventId: 'event',
+        title: 'Message',
+        body: 'Malformed event id',
+      ),
+      const MatrixNotificationEvent(
+        id: 'cross-kind',
+        kind: MatrixNotificationEventKind.call,
+        accountId: 'work',
+        roomId: '!calls:example.org',
+        eventId: r'$wrong',
+        callId: 'rtc-42',
+        title: 'Call',
+        body: 'Conflicting target identity',
+      ),
+    ]) {
+      await expectLater(dispatcher.dispatch(invalid), throwsArgumentError);
+      expect(repository.notification(invalid.id), isNull);
+    }
     expect(platform.shown, isEmpty);
 
     platform.failNextWith = StateError('platform unavailable');

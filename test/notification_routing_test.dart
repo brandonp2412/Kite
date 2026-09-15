@@ -449,4 +449,38 @@ void main() {
       ]);
     },
   );
+
+  test('call deep-link coordinator rejects malformed identity before account switch', () async {
+    final accounts = FakeAccountActivationPort('personal');
+    final navigation = FakeAppNavigationPort();
+    final coordinator = CallDeepLinkCoordinator(
+      accounts: accounts,
+      navigation: navigation,
+    );
+
+    await expectLater(
+      coordinator.open(
+        const CallDeepLinkTarget(
+          accountId: 'work',
+          roomId: 'team:example.org',
+          callId: 'matrix-rtc-session',
+        ),
+      ),
+      throwsArgumentError,
+    );
+    await expectLater(
+      coordinator.open(
+        const CallDeepLinkTarget(
+          accountId: 'work',
+          roomId: '!team:example.org',
+          callId: 'call with spaces',
+        ),
+      ),
+      throwsArgumentError,
+    );
+
+    expect(accounts.activeAccountId, 'personal');
+    expect(accounts.activations, isEmpty);
+    expect(navigation.opened, isEmpty);
+  });
 }
