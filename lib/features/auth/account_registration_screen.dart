@@ -77,6 +77,7 @@ class _AccountRegistrationScreenState extends State<AccountRegistrationScreen> {
 
   @override
   void dispose() {
+    _passwordController.clear();
     _usernameController.dispose();
     _passwordController.dispose();
     if (_ownsController) _controller.dispose();

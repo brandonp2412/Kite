@@ -334,6 +334,50 @@ void main() {
     expect(gateway.oidcCalls, 1);
   });
 
+  testWidgets('browser authentication clears an entered password first', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway()
+      ..oidcError = const AuthenticationRejectedException(
+        'Browser sign in was cancelled.',
+      );
+    final homeserver = HomeserverAddress.parse('matrix.example.org');
+    gateway.discoveryResult = HomeserverLoginMethods(
+      homeserver: homeserver,
+      methods: const <AuthenticationMethod>{
+        AuthenticationMethod.password,
+        AuthenticationMethod.oidc,
+        AuthenticationMethod.sso,
+      },
+    );
+
+    await tester.pumpWidget(_app(gateway));
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'must-not-survive-browser-handoff',
+    );
+
+    await tester.tap(find.byKey(const Key('oidc-login')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.oidcCalls, 1);
+    expect(find.text('Browser sign in was cancelled.'), findsOneWidget);
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.controller?.text, isEmpty);
+    expect(
+      find.textContaining('must-not-survive-browser-handoff'),
+      findsNothing,
+    );
+  });
+
   testWidgets('registration handoff uses the discovered homeserver', (
     tester,
   ) async {
@@ -361,9 +405,17 @@ void main() {
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
 
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'must-not-survive-registration-handoff',
+    );
     expect(find.text('Create an account'), findsOneWidget);
     await tester.tap(find.byKey(const Key('registration-available')));
     expect(requestedHomeserver?.uri, homeserver.uri);
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.controller?.text, isEmpty);
   });
 
   testWidgets(

@@ -64,6 +64,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
 
   @override
   void dispose() {
+    _passwordController.clear();
     _homeserverController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -84,11 +85,13 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   }
 
   Future<void> _oidcLogin() async {
+    _passwordController.clear();
     await _controller.loginWithOidc();
     _completeAuthenticationIfNeeded();
   }
 
   Future<void> _ssoLogin() async {
+    _passwordController.clear();
     await _controller.loginWithSso();
     _completeAuthenticationIfNeeded();
   }
@@ -117,6 +120,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   }
 
   Future<void> _requestRegistration(HomeserverAddress homeserver) async {
+    _passwordController.clear();
     final handoff = widget.onRegistrationRequested;
     if (handoff != null) {
       handoff(homeserver);
