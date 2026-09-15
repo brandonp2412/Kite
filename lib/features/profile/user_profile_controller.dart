@@ -108,6 +108,16 @@ final class UserProfileController {
     }
   }
 
+  bool resetForAccountChange() {
+    if (isLoading.value || isSaving.value) return false;
+    ownProfile.value = null;
+    viewedProfile.value = null;
+    ignoredUserIds.value = const <String>{};
+    blockedUserIds.value = const <String>{};
+    errorMessage.value = null;
+    return true;
+  }
+
   Future<void> loadUserProfile(String userId) async {
     if (isLoading.value || isSaving.value) return;
     if (!_isValidUserId(userId)) {

@@ -125,6 +125,46 @@ void main() {
     },
   );
 
+  test('account change reset clears profile and privacy state', () async {
+    final gateway = _FakeUserProfileGateway()
+      ..ignored = {'@ignored:example.org'}
+      ..blocked = {'@blocked:example.org'};
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loadOwnProfile();
+    await controller.loadUserProfile('@alice:example.org');
+    expect(controller.ownProfile.value, isNotNull);
+    expect(controller.viewedProfile.value, isNotNull);
+    expect(controller.ignoredUserIds.value, isNotEmpty);
+    expect(controller.blockedUserIds.value, isNotEmpty);
+
+    expect(controller.resetForAccountChange(), isTrue);
+
+    expect(controller.ownProfile.value, isNull);
+    expect(controller.viewedProfile.value, isNull);
+    expect(controller.ignoredUserIds.value, isEmpty);
+    expect(controller.blockedUserIds.value, isEmpty);
+    expect(controller.errorMessage.value, isNull);
+  });
+
+  test('account change reset cannot race an in-flight profile load', () async {
+    final gateway = _FakeUserProfileGateway()
+      ..deferredOwnProfile = Completer<MatrixUserProfile>();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+
+    final loading = controller.loadOwnProfile();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.resetForAccountChange(), isFalse);
+    expect(controller.isLoading.value, isTrue);
+
+    gateway.deferredOwnProfile!.complete(gateway.ownProfile);
+    await loading;
+    expect(controller.ownProfile.value?.userId, '@brandon:example.org');
+  });
+
   test('loads another user profile and rejects malformed Matrix IDs', () async {
     final gateway = _FakeUserProfileGateway();
     final controller = UserProfileController(gateway);
