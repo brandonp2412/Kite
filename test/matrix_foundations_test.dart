@@ -417,6 +417,56 @@ void main() {
   );
 
   test(
+    'connectivity binding observes changes while initial state is applying',
+    () async {
+      final runtime = _ControlledConnectivityRuntime();
+      final changes = StreamController<MatrixNetworkState>.broadcast(
+        sync: true,
+      );
+      final binding = MatrixConnectivityBinding(
+        runtime,
+        MatrixNetworkState.online,
+        changes.stream,
+      );
+
+      final attach = binding.attach();
+      expect(binding.isAttached, isTrue);
+      expect(runtime.states, <MatrixNetworkState>[MatrixNetworkState.online]);
+
+      changes.add(MatrixNetworkState.offline);
+      expect(runtime.states, <MatrixNetworkState>[
+        MatrixNetworkState.online,
+        MatrixNetworkState.offline,
+      ]);
+
+      runtime.completeInitialUpdate();
+      await attach;
+      await binding.detach();
+      await changes.close();
+    },
+  );
+
+  test('failed initial connectivity update leaves binding detached', () async {
+    final runtime = _ControlledConnectivityRuntime();
+    final changes = StreamController<MatrixNetworkState>.broadcast(sync: true);
+    final binding = MatrixConnectivityBinding(
+      runtime,
+      MatrixNetworkState.online,
+      changes.stream,
+    );
+
+    final attach = binding.attach();
+    runtime.failInitialUpdate(StateError('deterministic connectivity failure'));
+
+    await expectLater(attach, throwsA(isA<StateError>()));
+    expect(binding.isAttached, isFalse);
+
+    changes.add(MatrixNetworkState.offline);
+    expect(runtime.states, <MatrixNetworkState>[MatrixNetworkState.online]);
+    await changes.close();
+  });
+
+  test(
     'near-edge pagination coalesces one in-flight request per room',
     () async {
       final engine = _FakeMatrixEngine();
@@ -574,6 +624,25 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   }
 
   void emit(MatrixSyncBatch batch) => _sync.add(batch);
+}
+
+final class _ControlledConnectivityRuntime
+    implements MatrixConnectivityRuntime {
+  final Completer<void> _initialUpdate = Completer<void>();
+  final List<MatrixNetworkState> states = <MatrixNetworkState>[];
+  var _updateCount = 0;
+
+  @override
+  Future<void> updateNetworkState(MatrixNetworkState state) {
+    states.add(state);
+    _updateCount += 1;
+    if (_updateCount == 1) return _initialUpdate.future;
+    return Future<void>.value();
+  }
+
+  void completeInitialUpdate() => _initialUpdate.complete();
+
+  void failInitialUpdate(Object error) => _initialUpdate.completeError(error);
 }
 
 final class _FakeMatrixEngine implements MatrixEngine {

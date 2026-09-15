@@ -61,10 +61,23 @@ final class MatrixConnectivityBinding {
 
   Future<void> attach() async {
     if (_subscription != null) return;
-    await _runtime.updateNetworkState(_initialState);
-    _subscription = _changes.listen((state) {
+
+    final initialUpdate = _runtime.updateNetworkState(_initialState);
+    late final StreamSubscription<MatrixNetworkState> subscription;
+    subscription = _changes.listen((state) {
       unawaited(_runtime.updateNetworkState(state));
     });
+    _subscription = subscription;
+
+    try {
+      await initialUpdate;
+    } catch (error, stackTrace) {
+      if (identical(_subscription, subscription)) {
+        _subscription = null;
+      }
+      await subscription.cancel();
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> detach() async {
