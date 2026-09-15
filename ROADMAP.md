@@ -94,6 +94,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Deep-link routing for room, event, user, invite, and call links.
 - [ ] Multiple accounts if present in current Element X baseline, with isolated stores and notification routing.
 
+**Verification note (2026-09-15):** the Matrix Rust SDK boundary, current incremental sync path, encrypted SDK store, narrow presentation updates, and automatic back-pagination are implemented with focused passing tests. Their boxes remain unchecked because the repository quality gate is currently blocked by pre-existing Home tablet/desktop golden mismatches outside this producer lane. The Rust bridge tests/build, analyzer, and native ABI smoke stage pass before that unrelated golden failure stops the gate.
+
 **Benchmarks:** cold app open, warm app open, account switch, sync update into room list, room pagination, offline-to-online recovery.
 
 ## Milestone 2 — Authentication, session verification, encryption, and app lock
