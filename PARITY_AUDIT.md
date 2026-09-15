@@ -52,3 +52,106 @@ The current Element X preferences root, advanced settings, notification settings
 ### Settings audit conclusion
 
 The settings inventory is current and no entry is silently omitted from the parity plan, but the Milestone 14 “every Element X settings entry” checkbox remains open because multiple entries are still gaps rather than implemented capabilities or approved intentional differences. The highest-value missing surfaces are a real settings root, profile/account/device management, app-lock/encryption entry points, notification defaults/troubleshooting, and the remaining advanced media/privacy controls.
+
+## Room-list action audit
+
+The current `RoomListEvent.kt` and `RoomListMenuAction.kt` at the reference SHA were read exhaustively. State-only events such as visible-range updates and banner dismissal are included where they correspond to user-visible room-list behaviour.
+
+| Element X room-list action | Current Kite capability | Status / owner |
+| --- | --- | --- |
+| Search/results toggle | Room-list search/filter benchmark surfaces exist, but the production Home header has no search entry yet. | Gap — M3 |
+| Show/hide room context menu | No room-row context menu is exposed by current `HomeScreen`. | Gap — M3/M10 |
+| Accept invite | Invite membership foundations exist outside Home; no room-list invite action is rendered. | Gap — M9 |
+| Decline invite / decline-and-block menu | No equivalent room-list flow. | Gap — M9/M10 |
+| Leave room, optionally confirmed | Room membership mutation foundation supports leave, but Home exposes no room-row action. | Foundation only — M9 |
+| Mark as read | No room-list action. | Gap — M3 |
+| Mark as unread | No room-list action. | Gap — M3 |
+| Favourite / unfavourite room | Deterministic fixtures model favourite state, but current Home has no mutation action. | Gap — M3 |
+| Verification/banner dismissal | Verification foundations exist, but Home has no equivalent prompt/banner flow. | Gap — M2/M3 |
+| New-notification-sound banner dismissal | No corresponding Home banner. | Gap — M10/M11 |
+| Invite friends menu action | No Home overflow/menu action. | Gap — M3/M9 |
+| Report bug menu action | Support settings provide problem reporting, but not from the Home menu. | Partial — M10 |
+
+This completes the current-upstream room-list action inventory; it intentionally does not claim capability parity. Each missing action remains scheduled by the owning milestone above.
+
+## Message action audit
+
+`TimelineItemAction.kt` at the reference SHA defines the complete current action enum, and `MessagesEvent.kt` adds reaction toggling plus live-location and room-read actions. Kite's current action sheet and TalkBack custom actions expose Reply, Copy text, Edit, and Remove only.
+
+| Element X message action / event | Current Kite capability | Status / owner |
+| --- | --- | --- |
+| View in timeline | Deep-link/focus foundations exist; no message action is exposed. | Gap — M4/M11 |
+| Forward | No current message action. | Gap — M4 |
+| Copy text | Implemented in action sheet and TalkBack actions. | Present — M4/M12 |
+| Copy caption | No production caption action. | Gap — M5 |
+| Copy link | No current message action. | Gap — M4 |
+| Remove/redact | Implemented for own messages with confirmation. | Present — M4 |
+| Reply | Implemented in composer context and TalkBack actions. | Present — M4 |
+| Reply in thread | Thread entry/reply exists through thread summaries, but not as an action-list item. | Partial — M6 |
+| Edit message | Implemented for own text messages. | Present — M4 |
+| Edit poll / End poll | No production poll composer/action flow. | Gap — M4/M5 |
+| Edit / add / remove caption | No production media-caption mutation flow. | Gap — M5 |
+| View source | No current message action. | Gap — M4/M10 |
+| Report content | No current message action. | Gap — M4/M10 |
+| Pin / unpin | No production pinned-message action. | Gap — M4 |
+| Retry sending | Failed local sends expose a dedicated retry affordance rather than the action sheet. | Present, intentional placement difference — M4 |
+| Toggle reaction | Reaction mutation benchmark foundations exist, but no production reaction picker/summary action is rendered. | Gap — M4 |
+| User/profile click | Member/profile foundations exist; current timeline sender chrome is not actionable. | Gap — M4/M10 |
+| Show/stop live-location share | No production live-location flow. | Gap — M5 |
+| Mark fully read and exit | No equivalent room/timeline action. | Gap — M3/M4 |
+
+This completes the current-upstream message-action inventory while retaining every unimplemented action as a visible parity gap.
+
+## Timeline event-type audit
+
+The sealed `TimelineItemEventContent` family, its concrete model files, the virtual timeline models, and grouped-event wrapper were enumerated at the reference SHA. Kite's production `TimelineMessage` currently models text, replies, edit/redaction state and local send state; the mixed-event benchmark surface is deliberately synthetic and is not counted as production support.
+
+| Element X timeline type | Current Kite capability | Status / owner |
+| --- | --- | --- |
+| Text / formatted text / emote / notice | Plain text is rendered; production formatted/emote/notice variants are not distinct. | Partial — M4 |
+| Image / video / audio / voice / file | Media viewer and media workflow foundations exist, but the production Home timeline model does not render these event types. | Gap — M5/M7 |
+| Gallery / multi-attachment | No production timeline event model. | Gap — M5/M7 |
+| Sticker | No production timeline event model. | Gap — M5 |
+| Poll | Benchmark fixtures model a synthetic poll shape only; no production poll timeline UI. | Gap — M4/M5 |
+| Static / live location | Benchmark fixtures model a synthetic location shape only; no production map/location timeline UI. | Gap — M5 |
+| Encrypted / undecryptable event | Encryption foundations exist, but there is no dedicated production timeline event state. | Gap — M2/M4 |
+| Redacted event | Implemented for current text messages. | Present — M4 |
+| Room-membership state event | Room membership foundations exist; no production timeline state-event renderer. | Gap — M4/M9 |
+| Profile-change state event | No production timeline renderer. | Gap — M4/M10 |
+| Generic state event | No production timeline renderer. | Gap — M4 |
+| MatrixRTC notification | Call foundations are separate from the timeline; no production RTC timeline event. | Gap — M8 |
+| Legacy call invite | No production timeline event. | Gap — M8 |
+| Unknown/unsupported event | No explicit production unknown-event fallback row. | Gap — M4 |
+| Thread root / thread response metadata | Thread summaries and dedicated thread view exist. | Partial — M6 |
+| Reactions / read receipts / local-send state attached to events | Local-send state is rendered; mutation benchmark coverage exists for reactions/receipts, but production reaction/receipt UI remains incomplete. | Partial — M4 |
+| Grouped events | No equivalent production grouped-event presentation. | Gap — M4 |
+| Day separator | No production virtual item. | Gap — M4 |
+| Read marker | No production virtual item. | Gap — M4 |
+| Typing notification | Mutation benchmark foundation exists; no production virtual row/indicator in the current timeline. | Gap — M4 |
+| Loading indicator / room-beginning marker | Pagination exists, but these production virtual timeline items are not rendered. | Gap — M4 |
+| Last-forward indicator | No production virtual item. | Gap — M4 |
+
+This completes the current-upstream timeline event-type inventory without treating synthetic benchmark shapes as shipped UI.
+
+## Room and user moderation audit
+
+The current moderation API exposes Display profile, Kick, Ban and Unban, while user-profile actions add Start DM, Block, Unblock, Withdraw verification and Copy. Room-level management adds leave, report, favourite/read state and room notification actions.
+
+| Element X moderation/profile action | Current Kite capability | Status / owner |
+| --- | --- | --- |
+| Display member profile | User-profile controller/screen foundations exist and room members are selectable. | Present foundation — M9/M10 |
+| Kick member | Permission-aware action and confirmation are implemented in `RoomMembersScreen`. | Present — M9 |
+| Ban member | Permission-aware action and confirmation are implemented; mutation accepts a reason. | Present — M9 |
+| Unban member | Permission-aware action and confirmation are implemented. | Present — M9 |
+| Change member power level | Kite additionally exposes User/Moderator/Admin power-level mutations with authorization checks. | Present — M9 |
+| Invite member | Permission-aware membership mutation exists. | Present foundation — M9 |
+| Start DM from profile | Profile foundations exist; no complete production navigation flow is claimed. | Partial — M9/M10 |
+| Block / unblock user | `UserProfileController` models and persists block state. | Present foundation — M10 |
+| Withdraw verification | Verification foundations exist; profile action parity is incomplete. | Gap — M2/M10 |
+| Copy user/profile identifier | No complete production profile action parity claimed. | Gap — M10 |
+| Report room, optionally leave | Room mutation port supports report-with-reason and leave, but the production report-room flow is incomplete. | Foundation only — M9/M10 |
+| Leave room | Room membership mutation foundation exists; production entry points remain incomplete. | Foundation only — M9 |
+| Favourite / mark read / mark unread room | No complete production room-details actions. | Gap — M3/M9 |
+| Mute / unmute and per-room notification mode | Notification settings foundations model per-room modes, but room-details parity is incomplete. | Partial — M10/M11 |
+
+This completes the current-upstream room/user moderation action inventory; gaps remain explicitly owned by M2, M3, M9, M10 and M11.

@@ -394,10 +394,10 @@ Current capability-audit evidence is recorded in `PARITY_AUDIT.md`; visual/refer
 - [x] Re-scan current upstream feature modules, release notes, screenshots, and Labs flags.
 - [x] Build a screen-by-screen parity matrix with `Element X behaviour`, `Kite behaviour`, `test`, and `status` columns.
 - [ ] Run through every Element X settings entry and verify Kite has the corresponding capability or a documented intentional difference.
-- [ ] Run through every Element X room-list action.
-- [ ] Run through every Element X timeline event type.
-- [ ] Run through every Element X message action.
-- [ ] Run through every Element X room/user moderation action.
+- [x] Run through every Element X room-list action.
+- [x] Run through every Element X timeline event type.
+- [x] Run through every Element X message action.
+- [x] Run through every Element X room/user moderation action.
 - [ ] Run through every Element X notification/deep-link route.
 - [ ] Run through every Element X call flow.
 - [ ] Run through every Element X Space/Thread flow.
