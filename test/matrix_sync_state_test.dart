@@ -116,6 +116,64 @@ void main() {
     },
   );
 
+  test(
+    'rapid connectivity transitions preserve offline stop before recovery',
+    () async {
+      final engine = _StateFakeMatrixEngine();
+      final runtime = MatrixRuntimeCoordinator(
+        engine: engine,
+        applyBatch: (_) {},
+        applyPagination: (_) {},
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+
+      await runtime.start();
+      expect(engine.startCalls, 1);
+
+      final offline = runtime.updateNetworkState(MatrixNetworkState.offline);
+      final online = runtime.updateNetworkState(MatrixNetworkState.online);
+      await Future.wait<void>(<Future<void>>[offline, online]);
+
+      expect(engine.stopCalls, 1);
+      expect(engine.startCalls, 2);
+      expect(runtime.isSyncing, isTrue);
+      expect(runtime.syncState.value.phase, MatrixSyncPhase.running);
+
+      await runtime.stop();
+      await engine.close();
+    },
+  );
+
+  test(
+    'rapid activity transitions preserve background stop before resume',
+    () async {
+      final engine = _StateFakeMatrixEngine();
+      final runtime = MatrixRuntimeCoordinator(
+        engine: engine,
+        applyBatch: (_) {},
+        applyPagination: (_) {},
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+
+      await runtime.start();
+      expect(engine.startCalls, 1);
+
+      final background = runtime.updateActivity(MatrixAppActivity.background);
+      final foreground = runtime.updateActivity(MatrixAppActivity.foreground);
+      await Future.wait<void>(<Future<void>>[background, foreground]);
+
+      expect(engine.stopCalls, 1);
+      expect(engine.startCalls, 2);
+      expect(runtime.isSyncing, isTrue);
+      expect(runtime.syncState.value.phase, MatrixSyncPhase.running);
+
+      await runtime.stop();
+      await engine.close();
+    },
+  );
+
   test('unexpected sync stream closure clears running state', () async {
     final engine = _StateFakeMatrixEngine();
     final coordinator = MatrixSyncCoordinator(

@@ -67,52 +67,60 @@ final class MatrixRuntimeCoordinator
     );
   }
 
-  Future<void> start() async {
-    if (_started) {
-      await _enqueueReconcile();
-      return;
-    }
-    _started = true;
-    try {
-      await _enqueueReconcile();
-    } catch (_) {
+  Future<void> start() {
+    return _enqueueTransition(() async {
+      if (_started) {
+        await _reconcile();
+        return;
+      }
+      _started = true;
+      try {
+        await _reconcile();
+      } catch (_) {
+        _started = false;
+        rethrow;
+      }
+    });
+  }
+
+  @override
+  Future<void> updateActivity(MatrixAppActivity activity) {
+    return _enqueueTransition(() async {
+      final stateChanged = _activity != activity;
+      _activity = activity;
+      if (!stateChanged && shouldSync == _sync.isRunning) return;
+      await _reconcile();
+    });
+  }
+
+  @override
+  Future<void> updateNetworkState(MatrixNetworkState state) {
+    return _enqueueTransition(() async {
+      final stateChanged = _networkState != state;
+      _networkState = state;
+      if (!stateChanged && shouldSync == _sync.isRunning) return;
+      await _reconcile();
+    });
+  }
+
+  Future<void> stop() {
+    return _enqueueTransition(() async {
+      if (!_started && !_sync.isRunning) return;
       _started = false;
-      rethrow;
-    }
+      await _reconcile();
+    });
   }
 
-  @override
-  Future<void> updateActivity(MatrixAppActivity activity) async {
-    final stateChanged = _activity != activity;
-    _activity = activity;
-    if (!stateChanged && shouldSync == _sync.isRunning) return;
-    await _enqueueReconcile();
-  }
-
-  @override
-  Future<void> updateNetworkState(MatrixNetworkState state) async {
-    final stateChanged = _networkState != state;
-    _networkState = state;
-    if (!stateChanged && shouldSync == _sync.isRunning) return;
-    await _enqueueReconcile();
-  }
-
-  Future<void> stop() async {
-    if (!_started && !_sync.isRunning) return;
-    _started = false;
-    await _enqueueReconcile();
-  }
-
-  Future<void> _enqueueReconcile() {
-    final reconcile = _transition.then<void>(
-      (_) => _reconcile(),
-      onError: (Object _, StackTrace _) => _reconcile(),
+  Future<void> _enqueueTransition(Future<void> Function() action) {
+    final transition = _transition.then<void>(
+      (_) => action(),
+      onError: (Object _, StackTrace _) => action(),
     );
-    _transition = reconcile.then<void>(
+    _transition = transition.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
     );
-    return reconcile;
+    return transition;
   }
 
   Future<void> _reconcile() async {
