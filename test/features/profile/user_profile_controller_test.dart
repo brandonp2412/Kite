@@ -109,17 +109,20 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
 
 void main() {
   test(
-    'loads own profile and ignored users without clearing known state',
+    'loads own profile without waiting on unrelated privacy state',
     () async {
       final gateway = _FakeUserProfileGateway()
-        ..ignored = {'@spam:example.org'};
+        ..ignored = {'@spam:example.org'}
+        ..loadIgnoredError = StateError('access_token=secret')
+        ..loadBlockedError = StateError('recovery_key=secret');
       final controller = UserProfileController(gateway);
       addTearDown(controller.dispose);
 
       await controller.loadOwnProfile();
 
       expect(controller.ownProfile.value?.displayName, 'Brandon');
-      expect(controller.isIgnored('@spam:example.org'), isTrue);
+      expect(controller.isIgnored('@spam:example.org'), isFalse);
+      expect(controller.errorMessage.value, isNull);
 
       gateway.loadOwnError = StateError('access_token=secret');
       await controller.loadOwnProfile();
@@ -315,14 +318,14 @@ void main() {
         'Kite received invalid profile data.',
       );
 
-      gateway.ownProfile = const MatrixUserProfile(
-        userId: '@brandon:example.org',
-        displayName: 'Brandon',
+      gateway.profiles['@alice:example.org'] = const MatrixUserProfile(
+        userId: '@alice:example.org',
+        displayName: 'Alice',
       );
       gateway.ignored = {' invalid-user '};
-      await controller.loadOwnProfile();
+      await controller.loadUserProfile('@alice:example.org');
 
-      expect(controller.ownProfile.value?.userId, '@brandon:example.org');
+      expect(controller.viewedProfile.value?.userId, '@alice:example.org');
       expect(controller.ignoredUserIds.value, isEmpty);
       expect(
         controller.errorMessage.value,
@@ -351,13 +354,8 @@ void main() {
     await controller.loadOwnProfile();
 
     expect(controller.ownProfile.value?.displayName, 'Brandon');
-    expect(
-      controller.errorMessage.value,
-      'Kite could not load your privacy settings.',
-    );
-    expect(controller.errorMessage.value, isNot(contains('secret')));
+    expect(controller.errorMessage.value, isNull);
 
-    gateway.loadIgnoredError = null;
     gateway.loadBlockedError = StateError('recovery_key=secret');
     await controller.loadUserProfile('@alice:example.org');
 
@@ -501,7 +499,7 @@ void main() {
         ..blocked = {'@spam:example.org'};
       final controller = UserProfileController(gateway);
       addTearDown(controller.dispose);
-      await controller.loadOwnProfile();
+      await controller.loadUserProfile('@alice:example.org');
 
       expect(controller.isBlocked('@spam:example.org'), isTrue);
       expect(await controller.setBlocked('@alice:example.org', true), isTrue);

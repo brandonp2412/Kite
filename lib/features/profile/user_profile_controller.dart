@@ -78,10 +78,6 @@ final class UserProfileController {
         return;
       }
       ownProfile.value = profile;
-      await _loadPrivacyControls(
-        generation: generation,
-        requestGeneration: requestGeneration,
-      );
     } catch (_) {
       if (_isCurrentRequest(generation, requestGeneration)) {
         errorMessage.value = 'Kite could not load your profile.';
@@ -332,10 +328,13 @@ final class UserProfileController {
     required int requestGeneration,
   }) async {
     try {
-      final ignored = await _gateway.loadIgnoredUserIds();
+      final privacy = await Future.wait<Set<String>>(<Future<Set<String>>>[
+        _gateway.loadIgnoredUserIds(),
+        _gateway.loadBlockedUserIds(),
+      ]);
       if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final blocked = await _gateway.loadBlockedUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
+      final ignored = privacy[0];
+      final blocked = privacy[1];
       if (!_areValidUserIds(ignored) || !_areValidUserIds(blocked)) {
         errorMessage.value = 'Kite received invalid privacy settings.';
         return;
