@@ -7,7 +7,7 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
   MatrixLifecycleBinding(this._runtime, {WidgetsBinding? binding})
     : _binding = binding ?? WidgetsBinding.instance;
 
-  final MatrixRuntimeCoordinator _runtime;
+  final MatrixActivityRuntime _runtime;
   final WidgetsBinding _binding;
   bool _attached = false;
 
@@ -52,7 +52,7 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
 final class MatrixConnectivityBinding {
   MatrixConnectivityBinding(this._runtime, this._initialState, this._changes);
 
-  final MatrixRuntimeCoordinator _runtime;
+  final MatrixConnectivityRuntime _runtime;
   final MatrixNetworkState _initialState;
   final Stream<MatrixNetworkState> _changes;
   StreamSubscription<MatrixNetworkState>? _subscription;

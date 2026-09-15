@@ -9,7 +9,16 @@ enum MatrixAppActivity { foreground, background }
 
 enum MatrixNetworkState { online, offline }
 
-final class MatrixRuntimeCoordinator {
+abstract interface class MatrixActivityRuntime {
+  Future<void> updateActivity(MatrixAppActivity activity);
+}
+
+abstract interface class MatrixConnectivityRuntime {
+  Future<void> updateNetworkState(MatrixNetworkState state);
+}
+
+final class MatrixRuntimeCoordinator
+    implements MatrixActivityRuntime, MatrixConnectivityRuntime {
   MatrixRuntimeCoordinator({
     required MatrixEngine engine,
     required void Function(MatrixSyncBatch) applyBatch,
@@ -72,6 +81,7 @@ final class MatrixRuntimeCoordinator {
     }
   }
 
+  @override
   Future<void> updateActivity(MatrixAppActivity activity) async {
     final stateChanged = _activity != activity;
     _activity = activity;
@@ -79,6 +89,7 @@ final class MatrixRuntimeCoordinator {
     await _enqueueReconcile();
   }
 
+  @override
   Future<void> updateNetworkState(MatrixNetworkState state) async {
     final stateChanged = _networkState != state;
     _networkState = state;

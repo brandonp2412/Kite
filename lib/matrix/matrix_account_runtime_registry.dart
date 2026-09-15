@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:kite/matrix/matrix_account_store_registry.dart';
+import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
@@ -46,6 +47,10 @@ final class MatrixAccountRuntimeRegistry {
   MatrixPresentationCache? get activeCache {
     final accountId = activeAccountId.value;
     return accountId == null ? null : _runtimes[accountId]?.cache;
+  }
+
+  ReadonlySignal<MatrixSyncState>? get activeSyncState {
+    return _activeRuntime?.runtime.syncState;
   }
 
   ReadonlySignal<MatrixPaginationState>? activePaginationState(String roomId) {

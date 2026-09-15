@@ -1,18 +1,22 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_navigation.dart';
 import 'package:kite/matrix/matrix_restoration.dart';
+import 'package:kite/matrix/matrix_runtime_bindings.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 import 'package:kite/matrix/matrix_session_runtime.dart';
 import 'package:kite/matrix/presentation_store.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('process recreation restores account cache and navigation before sync resumes', () async {
     final directory = await Directory.systemTemp.createTemp(
       'kite-session-runtime-test-',
@@ -90,6 +94,69 @@ void main() {
   });
 
   test(
+    'session facade forwards lifecycle and connectivity to active account',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-lifecycle-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(
+          FileMatrixRestorationStore(
+            File('${directory.path}/restoration.json'),
+          ),
+        ),
+        isAccountAvailable: (_) => true,
+      );
+
+      await session.activateAccount('@alice:example.org');
+      final boundary = boundaries['@alice:example.org']!;
+      expect(boundary.startCalls, 1);
+      expect(session.syncState, isNotNull);
+
+      final lifecycle = MatrixLifecycleBinding(session);
+      await lifecycle.handleLifecycleState(AppLifecycleState.paused);
+      expect(boundary.stopCalls, 1);
+      await lifecycle.handleLifecycleState(AppLifecycleState.resumed);
+      expect(boundary.startCalls, 2);
+
+      final changes = StreamController<MatrixNetworkState>.broadcast(
+        sync: true,
+      );
+      final connectivity = MatrixConnectivityBinding(
+        session,
+        MatrixNetworkState.online,
+        changes.stream,
+      );
+      await connectivity.attach();
+      changes.add(MatrixNetworkState.offline);
+      while (boundary.stopCalls < 2) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      changes.add(MatrixNetworkState.online);
+      while (boundary.startCalls < 3) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(boundary.stopCalls, 2);
+      expect(boundary.startCalls, 3);
+      await connectivity.detach();
+      await changes.close();
+    },
+  );
+
+  test(
     'stale process restoration is cleared without opening an SDK store',
     () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -161,6 +228,7 @@ final class _FakeBoundary implements MatrixSdkBoundary {
   int openCalls = 0;
   int startCalls = 0;
   MatrixSdkSyncConfiguration? lastSyncConfiguration;
+  int stopCalls = 0;
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -203,7 +271,9 @@ final class _FakeBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> stopSync() async {}
+  Future<void> stopSync() async {
+    stopCalls += 1;
+  }
 
   @override
   Future<MatrixPaginationPage> paginateBackwards(String roomId) async {

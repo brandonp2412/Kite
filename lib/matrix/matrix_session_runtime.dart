@@ -1,11 +1,14 @@
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
+import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_navigation.dart';
 import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_restoration.dart';
+import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
-final class MatrixSessionRuntime {
+final class MatrixSessionRuntime
+    implements MatrixActivityRuntime, MatrixConnectivityRuntime {
   MatrixSessionRuntime({
     required this.accounts,
     required this.restoration,
@@ -34,6 +37,18 @@ final class MatrixSessionRuntime {
   }
 
   Future<void> resumeSync() => accounts.resumeActive();
+
+  ReadonlySignal<MatrixSyncState>? get syncState => accounts.activeSyncState;
+
+  @override
+  Future<void> updateActivity(MatrixAppActivity activity) {
+    return accounts.updateActivity(activity);
+  }
+
+  @override
+  Future<void> updateNetworkState(MatrixNetworkState state) {
+    return accounts.updateNetworkState(state);
+  }
 
   ReadonlySignal<MatrixPaginationState>? paginationState(String roomId) {
     return accounts.activePaginationState(roomId);
