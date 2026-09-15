@@ -258,7 +258,9 @@ class _StatusCard extends StatelessWidget {
           Text(historyLabel),
           const SizedBox(height: KiteSpacing.xs),
           Text(
-            status?.hasUnverifiedSessions == true
+            status == null
+                ? 'Session verification status unknown.'
+                : status!.hasUnverifiedSessions
                 ? 'Some sessions are not verified.'
                 : 'No unverified sessions reported.',
           ),

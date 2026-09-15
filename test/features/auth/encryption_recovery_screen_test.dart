@@ -86,6 +86,19 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('unknown recovery state never claims sessions are verified', (
+    tester,
+  ) async {
+    final controller = EncryptionRecoveryController(_FakeRecoveryGateway());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_app(controller));
+
+    expect(find.text('Checking backup status'), findsOneWidget);
+    expect(find.text('Session verification status unknown.'), findsOneWidget);
+    expect(find.text('No unverified sessions reported.'), findsNothing);
+  });
+
   testWidgets('renders SDK recovery state and delegates recovery actions', (
     tester,
   ) async {
