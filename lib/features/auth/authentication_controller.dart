@@ -60,6 +60,7 @@ final class AuthenticationController {
         username: username.trim(),
         password: password,
       ),
+      expectedHomeserver: methods.homeserver,
     );
   }
 
@@ -72,6 +73,7 @@ final class AuthenticationController {
     }
     await _runSignIn(
       () => _gateway.loginWithOidc(homeserver: methods.homeserver),
+      expectedHomeserver: methods.homeserver,
     );
   }
 
@@ -84,6 +86,7 @@ final class AuthenticationController {
     }
     await _runSignIn(
       () => _gateway.loginWithSso(homeserver: methods.homeserver),
+      expectedHomeserver: methods.homeserver,
     );
   }
 
@@ -97,12 +100,22 @@ final class AuthenticationController {
   }
 
   Future<void> _runSignIn(
-    Future<AuthenticatedSession> Function() action,
-  ) async {
+    Future<AuthenticatedSession> Function() action, {
+    HomeserverAddress? expectedHomeserver,
+  }) async {
     errorMessage.value = null;
     progress.value = AuthenticationProgress.signingIn;
     try {
-      session.value = await action();
+      final authenticated = await action();
+      if (!_isValidSession(
+        authenticated,
+        expectedHomeserver: expectedHomeserver,
+      )) {
+        session.value = null;
+        errorMessage.value = 'Kite received an invalid authentication session.';
+        return;
+      }
+      session.value = authenticated;
     } on AuthenticationException catch (error) {
       errorMessage.value = error.publicMessage;
     } catch (_) {
@@ -110,6 +123,24 @@ final class AuthenticationController {
     } finally {
       progress.value = AuthenticationProgress.idle;
     }
+  }
+
+  bool _isValidSession(
+    AuthenticatedSession candidate, {
+    HomeserverAddress? expectedHomeserver,
+  }) {
+    final userId = candidate.userId.trim();
+    final deviceId = candidate.deviceId.trim();
+    if (userId != candidate.userId ||
+        !userId.startsWith('@') ||
+        !userId.contains(':') ||
+        userId.contains(RegExp(r'\s')) ||
+        deviceId.isEmpty ||
+        deviceId != candidate.deviceId) {
+      return false;
+    }
+    return expectedHomeserver == null ||
+        candidate.homeserver.uri == expectedHomeserver.uri;
   }
 
   void changeHomeserver() {
