@@ -352,6 +352,75 @@ void main() {
       );
     });
 
+    testWidgets('thread list ${variant.name} reference render', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-threads-action')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+      expect(find.byKey(const Key('thread-list-row-alice-98')), findsOneWidget);
+      expect(find.byKey(const Key('thread-list-load-more')), findsOneWidget);
+      expect(
+        find.byKey(const Key('thread-list-unread-alice-98')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_list_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread list phone ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-alice')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('compact-room-threads-action')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('compact-room-threads-action')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+      expect(find.byKey(const Key('thread-list-row-alice-98')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_list_phone_${variant.name}.png'),
+      );
+    });
+
     testWidgets('thread room unread ${variant.name} reference render', (
       tester,
     ) async {

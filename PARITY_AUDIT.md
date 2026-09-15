@@ -226,6 +226,6 @@ The current Home Space filters, Space root/add-room/leave/settings flows, Thread
 | Thread unread/read state | Per-thread and room-level unread counts plus latest-read reply state are modelled. | Present foundation — M6 |
 | Focus exact thread reply from route | Thread destination preserves root/reply identity and the thread view supports focused-reply state. | Present foundation — M6/M11 |
 | Prevent unsupported live-location sharing in thread | Controller rejects the unsupported thread composer action explicitly. | Present foundation — M6 |
-| Dedicated all-threads list / pagination | Element X has a current Labs Threads list; Kite has no equivalent all-threads screen. | Gap — M6 |
+| Dedicated all-threads list / pagination | Kite now exposes a room-scoped Threads list with bounded presentation paging, root/latest-reply metadata, unread state, and thread round-trip navigation. Real SDK-backed thread-list pagination remains to be wired. | Present foundation — M6 |
 
-This completes the current-upstream Space/Thread flow inventory while leaving all unimplemented Space UI and the dedicated Threads list visible as parity gaps. Thread performance remains separately blocked by the strict Waydroid raster gate recorded in `PERFORMANCE.md`.
+This completes the current-upstream Space/Thread flow inventory while leaving the unimplemented Space UI and SDK-backed Threads-list pagination visible as parity gaps. Thread performance remains separately blocked by the strict Waydroid raster gate recorded in `PERFORMANCE.md`.

@@ -387,6 +387,67 @@ void main() {
     };
   });
 
+  testWidgets('opening the thread list stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('room-threads-action')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+    expect(find.byKey(const Key('thread-list-row-alice-98')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_list_open'] = <String, dynamic>{
+      'journey': 'open_thread_list',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('paging the thread list stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-threads-action')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('thread-list-row-alice-30')), findsNothing);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-list-load-more')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('thread-list-row-alice-30')), findsOneWidget);
+    expect(find.byKey(const Key('thread-list-load-more')), findsNothing);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_list_paging'] = <String, dynamic>{
+      'journey': 'page_thread_list',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('opening thread media stays within the frame contract', (
     tester,
   ) async {

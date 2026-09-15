@@ -431,6 +431,98 @@ void main() {
     },
   );
 
+  testWidgets(
+    'thread list navigation and paging stay geometry-stable at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final messageList = find.byKey(const Key('message-list'));
+      final roomScrollable = find.descendant(
+        of: messageList,
+        matching: find.byType(Scrollable),
+      );
+      final roomScrollState = tester.state<ScrollableState>(roomScrollable);
+      roomScrollState.position.jumpTo(48);
+      await tester.pump();
+      final roomOffset = roomScrollState.position.pixels;
+
+      await tester.tap(find.byKey(const Key('room-threads-action')));
+      await tester.pump();
+      await tester.pump(PerformanceContract.motionFrame);
+
+      final panel = find.byKey(const Key('thread-list-panel'));
+      expect(panel, findsOneWidget);
+      final panelSize = _rectOf(tester, panel).size;
+      double? previousLeft;
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        final rect = _rectOf(tester, panel);
+        expect(rect.size, panelSize);
+        if (previousLeft != null) {
+          expect(rect.left, lessThanOrEqualTo(previousLeft + 0.01));
+        }
+        previousLeft = rect.left;
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+
+      final header = find.byKey(const Key('thread-list-header'));
+      final list = find.byKey(const Key('thread-list'));
+      final firstRow = find.byKey(const Key('thread-list-row-alice-98'));
+      final headerRect = _rectOf(tester, header);
+      final listRect = _rectOf(tester, list);
+      final firstRowRect = _rectOf(tester, firstRow);
+      expect(find.byKey(const Key('thread-list-row-alice-30')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('thread-list-load-more')));
+      await tester.pump();
+      expect(find.byKey(const Key('thread-list-row-alice-30')), findsOneWidget);
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, panel).size, panelSize);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, list), listRect);
+        expect(_rectOf(tester, firstRow), firstRowRect);
+        expect(tester.takeException(), isNull);
+      }
+
+      final threadListScrollable = find.descendant(
+        of: list,
+        matching: find.byType(Scrollable),
+      );
+      final threadListScrollState = tester.state<ScrollableState>(
+        threadListScrollable,
+      );
+      final threadListOffset = threadListScrollState.position.pixels;
+
+      await tester.tap(find.byKey(const Key('thread-list-row-alice-64')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('thread-panel')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('thread-back')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+      expect(threadListScrollState.position.pixels, threadListOffset);
+      await tester.tap(find.byKey(const Key('thread-list-back')));
+      await tester.pumpAndSettle();
+      expect(roomScrollState.position.pixels, roomOffset);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('thread route preserves a nonzero main timeline scroll anchor', (
     tester,
   ) async {

@@ -17,6 +17,7 @@ import 'package:kite/features/home/spaces_screen.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_list_view.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -507,6 +508,19 @@ class _CompactChatScreen extends StatelessWidget {
           builder: (context) =>
               Text(BenchmarkFixture.room(selectedRoomId.value).name),
         ),
+        actions: <Widget>[
+          IconButton(
+            key: const Key('compact-room-threads-action'),
+            tooltip: 'Threads',
+            onPressed: () => Navigator.of(context).push(
+              ThreadListRoute(
+                roomId: selectedRoomId.value,
+                reduceMotion: KiteMotion.prefersReducedMotion(context),
+              ),
+            ),
+            icon: const Icon(Icons.forum_outlined),
+          ),
+        ],
       ),
       body: const _ChatPanel(showHeader: false),
     );
@@ -1038,6 +1052,17 @@ class _ChatHeader extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  key: const Key('room-threads-action'),
+                  tooltip: 'Threads',
+                  onPressed: () => Navigator.of(context).push(
+                    ThreadListRoute(
+                      roomId: roomId,
+                      reduceMotion: KiteMotion.prefersReducedMotion(context),
+                    ),
+                  ),
+                  icon: const Icon(Icons.forum_outlined, size: 20),
                 ),
                 IconButton(
                   key: const Key('room-content-gallery-action'),
