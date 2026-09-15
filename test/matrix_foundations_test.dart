@@ -347,6 +347,19 @@ void main() {
     await engine.close();
   });
 
+  testWidgets('failed initial lifecycle update leaves observer detached', (
+    tester,
+  ) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final runtime = _FailingActivityRuntime();
+    final binding = MatrixLifecycleBinding(runtime, binding: tester.binding);
+
+    await expectLater(binding.attach(), throwsA(isA<StateError>()));
+
+    expect(binding.isAttached, isFalse);
+    expect(runtime.states, <MatrixAppActivity>[MatrixAppActivity.foreground]);
+  });
+
   test(
     'connectivity binding forwards loss and recovery without cache reset',
     () async {
@@ -624,6 +637,16 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   }
 
   void emit(MatrixSyncBatch batch) => _sync.add(batch);
+}
+
+final class _FailingActivityRuntime implements MatrixActivityRuntime {
+  final List<MatrixAppActivity> states = <MatrixAppActivity>[];
+
+  @override
+  Future<void> updateActivity(MatrixAppActivity activity) async {
+    states.add(activity);
+    throw StateError('deterministic lifecycle failure');
+  }
 }
 
 final class _ControlledConnectivityRuntime

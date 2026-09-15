@@ -17,9 +17,15 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
     if (_attached) return;
     _binding.addObserver(this);
     _attached = true;
-    final lifecycleState = _binding.lifecycleState;
-    if (lifecycleState != null) {
-      await handleLifecycleState(lifecycleState);
+    try {
+      final lifecycleState = _binding.lifecycleState;
+      if (lifecycleState != null) {
+        await handleLifecycleState(lifecycleState);
+      }
+    } catch (error, stackTrace) {
+      _binding.removeObserver(this);
+      _attached = false;
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
