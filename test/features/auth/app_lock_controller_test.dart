@@ -5,11 +5,13 @@ final class _FakeAppLockCredentials implements AppLockCredentialGateway {
   AppLockSettings stored = const AppLockSettings.disabled();
   String? enrolledPin;
   Object? loadError;
+  Object? disableError;
   int disableCalls = 0;
 
   @override
   Future<void> disable() async {
     disableCalls += 1;
+    if (disableError case final error?) throw error;
     enrolledPin = null;
     stored = const AppLockSettings.disabled();
   }
@@ -201,6 +203,7 @@ void main() {
       );
       await controller.disable('9999');
       expect(controller.settings.value.enabled, isTrue);
+      expect(controller.isLocked.value, isTrue);
       expect(credentials.disableCalls, 0);
 
       await controller.disable('1234');
@@ -209,4 +212,24 @@ void main() {
       expect(credentials.disableCalls, 1);
     },
   );
+
+  test('failed app lock disable never unlocks protected content', () async {
+    final credentials = _FakeAppLockCredentials();
+    final controller = AppLockController(credentials, _FakeBiometrics());
+    addTearDown(controller.dispose);
+
+    await controller.enableWithPin(pin: '1234', hideNotificationContents: true);
+    credentials.disableError = StateError('credential delete failed');
+
+    await controller.disable('1234');
+
+    expect(controller.settings.value.enabled, isTrue);
+    expect(controller.isLocked.value, isTrue);
+    expect(controller.shouldHideNotificationContents, isTrue);
+    expect(credentials.disableCalls, 1);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not disable app lock securely.',
+    );
+  });
 }
