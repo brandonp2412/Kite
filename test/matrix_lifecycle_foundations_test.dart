@@ -276,6 +276,24 @@ void main() {
       );
       expect(parser.parse(Uri.parse('https://example.org/room')), isNull);
     });
+
+    test('matrix scheme path segments are decoded exactly once', () {
+      expect(
+        parser.parse(Uri.parse('matrix:r/%2521literal:example.org')),
+        const MatrixNavigationTarget.room('!%21literal:example.org'),
+      );
+    });
+
+    test(
+      'malformed matrix.to fragment encoding is rejected without throwing',
+      () {
+        expect(
+          () => parser.parse(Uri.parse('https://matrix.to/#/%E0%A4%A')),
+          returnsNormally,
+        );
+        expect(parser.parse(Uri.parse('https://matrix.to/#/%E0%A4%A')), isNull);
+      },
+    );
   });
 
   test(
