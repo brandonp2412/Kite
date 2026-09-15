@@ -118,6 +118,20 @@ void main() {
     },
   );
 
+  test('Matrix sync callbacks do not eagerly clone the presentation cache', () {
+    final source = File('lib/matrix/matrix_account_runtime_registry.dart')
+        .readAsStringSync();
+    final callbacks = RegExp(
+      r'applyBatch: \(batch\) \{([\s\S]*?)\},\s*applyPagination: \(page\) \{([\s\S]*?)\},',
+    ).firstMatch(source);
+
+    expect(callbacks, isNotNull);
+    expect(callbacks!.group(1), isNot(contains('snapshot()')));
+    expect(callbacks.group(2), isNot(contains('snapshot()')));
+    expect(source, contains('_schedulePresentationWrite(accountId, cache)'));
+    expect(source, contains('final snapshot = cache.snapshot();'));
+  });
+
   test('Matrix native FFI operations stay off the Flutter UI isolate', () {
     final nativeBridge = File('lib/matrix/matrix_rust_native_bridge.dart')
         .readAsStringSync();
