@@ -38,5 +38,34 @@ void main() {
         matchesGoldenFile('goldens/home_room_list_states_${variant.name}.png'),
       );
     });
+
+    testWidgets('room options ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final store = RoomListStateStore(
+        deterministicRoomListEntries(BenchmarkFixture.rooms),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: HomeScreen(roomListStore: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const Key('room-alice')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('room-options-sheet-alice')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/home_room_options_${variant.name}.png'),
+      );
+    });
   }
 }

@@ -474,6 +474,119 @@ class _RoomList extends StatelessWidget {
   final RoomListStateStore store;
   final ValueChanged<String>? onRoomTap;
 
+  Future<void> _showMoveSectionSheet(BuildContext context, String roomId) {
+    final currentSectionId = store.sectionIdFor(roomId);
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        key: Key('room-options-sheet-$roomId'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.lg,
+            0,
+            KiteSpacing.lg,
+            KiteSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Room options',
+                style: Theme.of(sheetContext).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              SignalBuilder(
+                builder: (context) {
+                  final favourite = store.roomSignal(roomId).value.isFavourite;
+                  return ListTile(
+                    key: Key('room-favourite-toggle-$roomId'),
+                    contentPadding: EdgeInsets.zero,
+                    minTileHeight: 52,
+                    leading: Icon(
+                      favourite
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: favourite
+                          ? Theme.of(sheetContext).colorScheme.primary
+                          : Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(
+                      favourite
+                          ? 'Remove from favourites'
+                          : 'Add to favourites',
+                    ),
+                    onTap: () => store.toggleFavourite(roomId),
+                  );
+                },
+              ),
+              const Divider(height: KiteSpacing.lg),
+              Text(
+                'Move to section',
+                style: Theme.of(sheetContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: KiteSpacing.xs),
+              for (final section in store.sections)
+                ListTile(
+                  key: Key('room-section-move-$roomId-${section.id}'),
+                  contentPadding: EdgeInsets.zero,
+                  minTileHeight: 52,
+                  leading: Icon(
+                    section.id == currentSectionId
+                        ? Icons.check_circle_rounded
+                        : Icons.circle_outlined,
+                    color: section.id == currentSectionId
+                        ? Theme.of(sheetContext).colorScheme.primary
+                        : Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(section.name),
+                  onTap: section.id == currentSectionId
+                      ? null
+                      : () {
+                          store.moveRoomToSection(roomId, section.id);
+                          Navigator.of(sheetContext).pop();
+                        },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _roomRow(BuildContext context, String roomId, double rowExtent) {
+    return SizedBox(
+      height: rowExtent,
+      child: SignalBuilder(
+        builder: (context) {
+          final room = store.roomSignal(roomId).value;
+          final selected = selectedRoomId.value == room.id;
+          final unreadThreadCount = threadController
+              .unreadThreadCountForRoom(room.id)
+              .value;
+          return _RoomListRow(
+            key: ValueKey<String>(room.id),
+            room: room,
+            selected: selected,
+            unreadThreadCount: unreadThreadCount,
+            onLongPress: () => _showMoveSectionSheet(context, room.id),
+            onTap: () {
+              final handler = onRoomTap;
+              if (handler != null) {
+                handler(room.id);
+              } else {
+                selectRoom(room.id);
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
@@ -483,39 +596,114 @@ class _RoomList extends StatelessWidget {
       child: SignalBuilder(
         builder: (context) {
           final ids = store.visibleRoomIds.value;
+          final sectionsVisible =
+              store.selectedFilter.value == RoomListFilter.all &&
+              store.selectedSpaceId.value == null;
+          if (!sectionsVisible) {
+            return ListView.builder(
+              key: const Key('room-list'),
+              itemCount: ids.length,
+              itemExtent: rowExtent,
+              itemBuilder: (context, index) =>
+                  _roomRow(context, ids[index], rowExtent),
+            );
+          }
+
+          store.sectionLayoutRevision.value;
+          final collapsed = store.collapsedSectionIds.value;
+          final items = <Object>[];
+          for (final section in store.sections) {
+            final sectionRoomIds = store.visibleRoomIdsForSection(section.id);
+            if (sectionRoomIds.isEmpty) continue;
+            items.add(section);
+            if (!collapsed.contains(section.id)) items.addAll(sectionRoomIds);
+          }
           return ListView.builder(
             key: const Key('room-list'),
-            itemCount: ids.length,
-            itemExtent: rowExtent,
+            itemCount: items.length,
             itemBuilder: (context, index) {
-              final roomId = ids[index];
-              return SignalBuilder(
-                builder: (context) {
-                  final room = store.roomSignal(roomId).value;
-                  final selected = selectedRoomId.value == room.id;
-                  final unreadThreadCount = threadController
-                      .unreadThreadCountForRoom(room.id)
-                      .value;
-                  return _RoomListRow(
-                    key: ValueKey<String>(room.id),
-                    room: room,
-                    selected: selected,
-                    unreadThreadCount: unreadThreadCount,
-                    onTap: () {
-                      final handler = onRoomTap;
-                      if (handler != null) {
-                        handler(room.id);
-                      } else {
-                        selectRoom(room.id);
-                      }
-                    },
-                  );
-                },
-              );
+              final item = items[index];
+              if (item is RoomListSection) {
+                return _RoomSectionHeader(section: item, store: store);
+              }
+              return _roomRow(context, item as String, rowExtent);
             },
           );
         },
       ),
+    );
+  }
+}
+
+class _RoomSectionHeader extends StatelessWidget {
+  const _RoomSectionHeader({required this.section, required this.store});
+
+  final RoomListSection section;
+  final RoomListStateStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    return SignalBuilder(
+      builder: (context) {
+        store.sectionLayoutRevision.value;
+        final collapsed = store.collapsedSectionIds.value.contains(section.id);
+        final unreadCount = store.sectionUnreadCount(section.id);
+        final colors = Theme.of(context).colorScheme;
+        return SizedBox(
+          key: Key('room-section-${section.id}'),
+          height: 44,
+          child: Material(
+            color: context.kiteColors.canvas,
+            child: InkWell(
+              key: Key('room-section-toggle-${section.id}'),
+              onTap: () => store.toggleSectionCollapsed(section.id),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+                child: Row(
+                  children: <Widget>[
+                    AnimatedRotation(
+                      turns: collapsed ? -0.25 : 0,
+                      duration: KiteMotion.resolve(context, KiteMotion.fast),
+                      curve: KiteMotion.standardCurve,
+                      child: const Icon(Icons.expand_more_rounded, size: 20),
+                    ),
+                    const SizedBox(width: KiteSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        section.name,
+                        style: Theme.of(context).textTheme.labelLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    if (unreadCount > 0)
+                      Container(
+                        key: Key('room-section-unread-${section.id}'),
+                        constraints: const BoxConstraints(minWidth: 24),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.secondaryContainer,
+                          borderRadius: BorderRadius.circular(KiteRadii.pill),
+                        ),
+                        child: Text(
+                          '$unreadCount',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: colors.onSecondaryContainer,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -527,12 +715,14 @@ class _RoomListRow extends StatefulWidget {
     required this.selected,
     required this.unreadThreadCount,
     required this.onTap,
+    this.onLongPress,
   });
 
   final RoomListEntry room;
   final bool selected;
   final int unreadThreadCount;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   State<_RoomListRow> createState() => _RoomListRowState();
@@ -612,6 +802,7 @@ class _RoomListRowState extends State<_RoomListRow> {
           focusColor: Colors.transparent,
           selected: selected,
           onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: KiteSpacing.md,
           ),
