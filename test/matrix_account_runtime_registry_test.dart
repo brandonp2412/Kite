@@ -99,6 +99,102 @@ void main() {
     },
   );
 
+  test('failed boundary creation does not reserve an account store', () async {
+    final stores = MatrixAccountStoreRegistry(
+      rootPath: '/data/kite/matrix',
+      encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+    );
+    final registry = MatrixAccountRuntimeRegistry(
+      storeRegistry: stores,
+      boundaryFactory: (_) => throw StateError('boundary unavailable'),
+      initialActivity: MatrixAppActivity.foreground,
+      initialNetworkState: MatrixNetworkState.online,
+    );
+    addTearDown(registry.dispose);
+
+    await expectLater(
+      registry.activate('@alice:example.org'),
+      throwsStateError,
+    );
+
+    expect(stores.stores, isEmpty);
+    expect(registry.loadedAccountIds, isEmpty);
+    expect(registry.activeAccountId.value, isNull);
+  });
+
+  test(
+    'failed boundary creation preserves a pre-registered account store',
+    () async {
+      final stores = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+      );
+      final existing = stores.forAccount('@alice:example.org');
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: stores,
+        boundaryFactory: (_) => throw StateError('boundary unavailable'),
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@alice:example.org'),
+        throwsStateError,
+      );
+
+      expect(stores.stores, <MatrixSdkStoreConfiguration>[existing]);
+      expect(registry.loadedAccountIds, isEmpty);
+    },
+  );
+
+  test(
+    'invalid SDK capability rollback leaves other accounts isolated',
+    () async {
+      final stores = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+      );
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: stores,
+        boundaryFactory: (accountId) {
+          return boundaries.putIfAbsent(
+            accountId,
+            () => _FakeAccountBoundary(
+              accountId: accountId,
+              capabilitiesOverride: accountId == '@broken:example.org'
+                  ? const <MatrixSdkCapability>{
+                      MatrixSdkCapability.auditedEncryption,
+                      MatrixSdkCapability.incrementalSync,
+                    }
+                  : null,
+            ),
+          );
+        },
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@broken:example.org'),
+        throwsA(isA<MatrixSdkContractException>()),
+      );
+      expect(stores.stores, isEmpty);
+      expect(registry.loadedAccountIds, isEmpty);
+
+      final aliceCache = await registry.activate('@alice:example.org');
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(stores.stores.single.accountId, '@alice:example.org');
+      expect(
+        aliceCache.roomSummarySignal('!alice:example.org').value?.displayName,
+        'Alice room',
+      );
+    },
+  );
+
   test(
     'cached account and navigation restoration publish atomically',
     () async {
@@ -1102,20 +1198,24 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
     this.failStart = false,
     this.failStartCalls = const <int>{},
     this.startGate,
+    this.capabilitiesOverride,
   });
 
   final String accountId;
   final bool failStart;
   final Set<int> failStartCalls;
   final Completer<void>? startGate;
+  final Set<MatrixSdkCapability>? capabilitiesOverride;
 
   @override
-  Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
-    MatrixSdkCapability.auditedEncryption,
-    MatrixSdkCapability.encryptedPersistentStore,
-    MatrixSdkCapability.incrementalSync,
-    MatrixSdkCapability.backPagination,
-  };
+  Set<MatrixSdkCapability> get capabilities =>
+      capabilitiesOverride ??
+      const <MatrixSdkCapability>{
+        MatrixSdkCapability.auditedEncryption,
+        MatrixSdkCapability.encryptedPersistentStore,
+        MatrixSdkCapability.incrementalSync,
+        MatrixSdkCapability.backPagination,
+      };
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);

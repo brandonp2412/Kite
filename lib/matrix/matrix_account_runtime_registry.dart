@@ -351,37 +351,47 @@ final class MatrixAccountRuntimeRegistry {
     if (existing != null) return existing;
 
     final cache = MatrixPresentationCache();
+    final storeAlreadyRegistered = storeRegistry.stores.any(
+      (configuration) => configuration.accountId == accountId,
+    );
     final store = storeRegistry.forAccount(accountId);
-    final engine = MatrixBoundaryEngine(
-      boundary: boundaryFactory(accountId),
-      store: store,
-      syncConfigurationProvider: () =>
-          MatrixSdkSyncConfiguration(resumeFromCursor: cache.lastSyncCursor),
-    );
-    final runtime = MatrixRuntimeCoordinator(
-      engine: engine,
-      applyBatch: (batch) {
-        cache.applySync(batch);
-        if (presentationStore != null) {
-          unawaited(_schedulePresentationWrite(accountId, cache));
-        }
-      },
-      applyPagination: (page) {
-        cache.applyPagination(page);
-        if (presentationStore != null) {
-          unawaited(_schedulePresentationWrite(accountId, cache));
-        }
-      },
-      initialActivity: _activity,
-      initialNetworkState: _networkState,
-    );
-    final accountRuntime = _MatrixAccountRuntime(
-      engine: engine,
-      runtime: runtime,
-      cache: cache,
-    );
-    _runtimes[accountId] = accountRuntime;
-    return accountRuntime;
+    try {
+      final engine = MatrixBoundaryEngine(
+        boundary: boundaryFactory(accountId),
+        store: store,
+        syncConfigurationProvider: () =>
+            MatrixSdkSyncConfiguration(resumeFromCursor: cache.lastSyncCursor),
+      );
+      final runtime = MatrixRuntimeCoordinator(
+        engine: engine,
+        applyBatch: (batch) {
+          cache.applySync(batch);
+          if (presentationStore != null) {
+            unawaited(_schedulePresentationWrite(accountId, cache));
+          }
+        },
+        applyPagination: (page) {
+          cache.applyPagination(page);
+          if (presentationStore != null) {
+            unawaited(_schedulePresentationWrite(accountId, cache));
+          }
+        },
+        initialActivity: _activity,
+        initialNetworkState: _networkState,
+      );
+      final accountRuntime = _MatrixAccountRuntime(
+        engine: engine,
+        runtime: runtime,
+        cache: cache,
+      );
+      _runtimes[accountId] = accountRuntime;
+      return accountRuntime;
+    } catch (_) {
+      if (!storeAlreadyRegistered) {
+        storeRegistry.removeAccount(accountId);
+      }
+      rethrow;
+    }
   }
 
   Future<void> _ensureHydrated(
