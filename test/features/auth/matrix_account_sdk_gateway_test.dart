@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/device_verification_controller.dart';
 import 'package:kite/features/auth/matrix_account_sdk_gateway.dart';
+import 'package:kite/features/notifications/push_registration.dart';
 import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
@@ -16,6 +17,9 @@ final class _FakeAccountBoundary implements MatrixAccountSdkBoundary {
   String? receivedPassword;
   String? receivedRecoveryKey;
   String? receivedVerificationQrCode;
+  String? receivedDeviceToken;
+  String? receivedEncryptedPayload;
+  MatrixSdkPushProvider? receivedPushProvider;
   MatrixAccountSdkException? passwordError;
 
   final session = MatrixSdkSessionDescriptor(
@@ -79,6 +83,36 @@ final class _FakeAccountBoundary implements MatrixAccountSdkBoundary {
       backupState: MatrixSdkBackupState.ready,
       historicalRecoveryState: MatrixSdkHistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
+    );
+  }
+
+  @override
+  Future<void> registerPush({
+    required String accountId,
+    required MatrixSdkPushProvider provider,
+    required String deviceToken,
+  }) async {
+    receivedPushProvider = provider;
+    receivedDeviceToken = deviceToken;
+  }
+
+  @override
+  Future<MatrixSdkDecryptedPushNotification?> processEncryptedPushPayload({
+    required String accountId,
+    required String encryptedPayload,
+  }) async {
+    receivedEncryptedPayload = encryptedPayload;
+    return const MatrixSdkDecryptedPushNotification(
+      id: 'notification-1',
+      kind: MatrixSdkNotificationKind.mention,
+      destination: MatrixSdkNotificationDestination(
+        kind: MatrixSdkNotificationDestinationKind.event,
+        accountId: 'account-1',
+        roomId: '!room:example.org',
+        eventId: r'$event',
+      ),
+      title: 'Alice',
+      body: 'Decrypted message body',
     );
   }
 
@@ -190,4 +224,46 @@ void main() {
     );
     expect(recovery.backupState.name, 'ready');
   });
+
+  test(
+    'push tokens and encrypted payloads stay behind the SDK boundary',
+    () async {
+      final boundary = _FakeAccountBoundary(<MatrixAccountSdkCapability>{
+        MatrixAccountSdkCapability.pushNotifications,
+      });
+      final gateway = MatrixAccountSdkGateway(boundary);
+
+      await gateway.register(
+        accountId: 'account-1',
+        provider: PushProvider.fcm,
+        deviceToken: 'opaque-device-token',
+      );
+      final decoded = await gateway.processEncryptedPayload(
+        accountId: 'account-1',
+        encryptedPayload: 'opaque-encrypted-payload',
+      );
+
+      expect(boundary.receivedPushProvider, MatrixSdkPushProvider.fcm);
+      expect(boundary.receivedDeviceToken, 'opaque-device-token');
+      expect(boundary.receivedEncryptedPayload, 'opaque-encrypted-payload');
+      expect(decoded?.notification.destination.accountId, 'account-1');
+      expect(decoded?.notification.destination.eventId, r'$event');
+      expect(decoded?.content.title, 'Alice');
+      expect(decoded?.content.body, 'Decrypted message body');
+      expect(
+        const MatrixSdkDecryptedPushNotification(
+          id: 'n',
+          kind: MatrixSdkNotificationKind.message,
+          destination: MatrixSdkNotificationDestination(
+            kind: MatrixSdkNotificationDestinationKind.room,
+            accountId: 'a',
+            roomId: '!r:example.org',
+          ),
+          title: 'secret title',
+          body: 'secret body',
+        ).toString(),
+        allOf(isNot(contains('secret title')), isNot(contains('secret body'))),
+      );
+    },
+  );
 }

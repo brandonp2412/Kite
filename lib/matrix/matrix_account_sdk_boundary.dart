@@ -19,6 +19,7 @@ enum MatrixAccountSdkCapability {
   profileManagement,
   privacyControls,
   multiAccount,
+  pushNotifications,
 }
 
 enum MatrixSdkAuthenticationMethod { password, oidc, sso }
@@ -43,6 +44,12 @@ enum MatrixSdkEncryptionTrustState {
 }
 
 enum MatrixSdkDeviceVerification { verified, unverified, unknown }
+
+enum MatrixSdkPushProvider { fcm, apns, unifiedPush }
+
+enum MatrixSdkNotificationKind { message, mention, invite, thread, call }
+
+enum MatrixSdkNotificationDestinationKind { room, event, thread, call }
 
 final class MatrixSdkSessionDescriptor {
   const MatrixSdkSessionDescriptor({
@@ -191,6 +198,44 @@ final class MatrixSdkUserProfile {
   final Uri? avatarUri;
 }
 
+final class MatrixSdkNotificationDestination {
+  const MatrixSdkNotificationDestination({
+    required this.kind,
+    required this.accountId,
+    required this.roomId,
+    this.eventId,
+    this.threadRootEventId,
+    this.callId,
+  });
+
+  final MatrixSdkNotificationDestinationKind kind;
+  final String accountId;
+  final String roomId;
+  final String? eventId;
+  final String? threadRootEventId;
+  final String? callId;
+}
+
+final class MatrixSdkDecryptedPushNotification {
+  const MatrixSdkDecryptedPushNotification({
+    required this.id,
+    required this.kind,
+    required this.destination,
+    required this.title,
+    required this.body,
+  });
+
+  final String id;
+  final MatrixSdkNotificationKind kind;
+  final MatrixSdkNotificationDestination destination;
+  final String title;
+  final String body;
+
+  @override
+  String toString() =>
+      'MatrixSdkDecryptedPushNotification(id: $id, content: <redacted>)';
+}
+
 abstract interface class MatrixAccountSdkBoundary {
   Set<MatrixAccountSdkCapability> get accountCapabilities;
 
@@ -294,6 +339,19 @@ abstract interface class MatrixAccountSdkBoundary {
   Future<void> setUserIgnored({required String userId, required bool ignored});
 
   Future<void> setUserBlocked({required String userId, required bool blocked});
+
+  Future<void> registerPush({
+    required String accountId,
+    required MatrixSdkPushProvider provider,
+    required String deviceToken,
+  });
+
+  Future<void> unregisterPush(String accountId);
+
+  Future<MatrixSdkDecryptedPushNotification?> processEncryptedPushPayload({
+    required String accountId,
+    required String encryptedPayload,
+  });
 }
 
 final class MatrixAccountSdkException implements Exception {

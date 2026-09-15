@@ -6,6 +6,9 @@ import 'package:kite/features/auth/encryption_recovery_controller.dart';
 import 'package:kite/features/auth/encryption_trust_controller.dart';
 import 'package:kite/features/auth/session_device_controller.dart';
 import 'package:kite/features/auth/session_lifecycle.dart';
+import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_routing.dart';
+import 'package:kite/features/notifications/push_registration.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -20,7 +23,8 @@ final class MatrixAccountSdkGateway
         EncryptionTrustGateway,
         SessionDeviceGateway,
         AccountManagementGateway,
-        UserProfileGateway {
+        UserProfileGateway,
+        PushRegistrationGateway {
   const MatrixAccountSdkGateway(this._boundary);
 
   final MatrixAccountSdkBoundary _boundary;
@@ -424,6 +428,59 @@ final class MatrixAccountSdkGateway
     );
   }
 
+  @override
+  Future<void> register({
+    required String accountId,
+    required PushProvider provider,
+    required String deviceToken,
+  }) {
+    return _run(
+      MatrixAccountSdkCapability.pushNotifications,
+      () => _boundary.registerPush(
+        accountId: accountId,
+        provider: switch (provider) {
+          PushProvider.fcm => MatrixSdkPushProvider.fcm,
+          PushProvider.apns => MatrixSdkPushProvider.apns,
+          PushProvider.unifiedPush => MatrixSdkPushProvider.unifiedPush,
+        },
+        deviceToken: deviceToken,
+      ),
+    );
+  }
+
+  @override
+  Future<void> unregister({required String accountId}) {
+    return _run(
+      MatrixAccountSdkCapability.pushNotifications,
+      () => _boundary.unregisterPush(accountId),
+    );
+  }
+
+  @override
+  Future<DecryptedPushNotification?> processEncryptedPayload({
+    required String accountId,
+    required String encryptedPayload,
+  }) {
+    return _run(MatrixAccountSdkCapability.pushNotifications, () async {
+      final decoded = await _boundary.processEncryptedPushPayload(
+        accountId: accountId,
+        encryptedPayload: encryptedPayload,
+      );
+      if (decoded == null) return null;
+      return DecryptedPushNotification(
+        notification: KiteNotification(
+          id: decoded.id,
+          kind: _notificationKind(decoded.kind),
+          destination: _notificationDestination(decoded.destination),
+        ),
+        content: KiteNotificationContent(
+          title: decoded.title,
+          body: decoded.body,
+        ),
+      );
+    });
+  }
+
   Future<T> _run<T>(
     MatrixAccountSdkCapability capability,
     Future<T> Function() action,
@@ -580,5 +637,58 @@ final class MatrixAccountSdkGateway
       displayName: profile.displayName,
       avatarUri: profile.avatarUri,
     );
+  }
+
+  static KiteNotificationKind _notificationKind(
+    MatrixSdkNotificationKind kind,
+  ) => switch (kind) {
+    MatrixSdkNotificationKind.message => KiteNotificationKind.message,
+    MatrixSdkNotificationKind.mention => KiteNotificationKind.mention,
+    MatrixSdkNotificationKind.invite => KiteNotificationKind.invite,
+    MatrixSdkNotificationKind.thread => KiteNotificationKind.thread,
+    MatrixSdkNotificationKind.call => KiteNotificationKind.call,
+  };
+
+  static AppDestination _notificationDestination(
+    MatrixSdkNotificationDestination destination,
+  ) {
+    return switch (destination.kind) {
+      MatrixSdkNotificationDestinationKind.room => AppDestination.room(
+        accountId: destination.accountId,
+        roomId: destination.roomId,
+      ),
+      MatrixSdkNotificationDestinationKind.event => AppDestination.event(
+        accountId: destination.accountId,
+        roomId: destination.roomId,
+        eventId:
+            destination.eventId ??
+            (throw const MatrixSdkContractException(
+              'Event notification is missing its event ID',
+            )),
+      ),
+      MatrixSdkNotificationDestinationKind.thread => AppDestination.thread(
+        accountId: destination.accountId,
+        roomId: destination.roomId,
+        eventId:
+            destination.eventId ??
+            (throw const MatrixSdkContractException(
+              'Thread notification is missing its event ID',
+            )),
+        threadRootEventId:
+            destination.threadRootEventId ??
+            (throw const MatrixSdkContractException(
+              'Thread notification is missing its root event ID',
+            )),
+      ),
+      MatrixSdkNotificationDestinationKind.call => AppDestination.call(
+        accountId: destination.accountId,
+        roomId: destination.roomId,
+        callId:
+            destination.callId ??
+            (throw const MatrixSdkContractException(
+              'Call notification is missing its call ID',
+            )),
+      ),
+    };
   }
 }
