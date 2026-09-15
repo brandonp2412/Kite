@@ -114,6 +114,45 @@ mod tests {
     }
 
     #[test]
+    fn encrypted_store_rejects_the_wrong_passphrase() {
+        let homeserver = CString::new("http://localhost:8008").unwrap();
+        let store = temporary_store();
+        let store_text = CString::new(store.to_string_lossy().as_bytes()).unwrap();
+        let first_passphrase = CString::new("first-deterministic-secret").unwrap();
+        let wrong_passphrase = CString::new("wrong-deterministic-secret").unwrap();
+
+        let first = unsafe {
+            kite_matrix_client_new(
+                homeserver.as_ptr(),
+                store_text.as_ptr(),
+                first_passphrase.as_ptr(),
+            )
+        };
+        assert!(!first.is_null());
+        unsafe { kite_matrix_client_free(first) };
+
+        let wrong = unsafe {
+            kite_matrix_client_new(
+                homeserver.as_ptr(),
+                store_text.as_ptr(),
+                wrong_passphrase.as_ptr(),
+            )
+        };
+        assert!(wrong.is_null());
+
+        let reopened = unsafe {
+            kite_matrix_client_new(
+                homeserver.as_ptr(),
+                store_text.as_ptr(),
+                first_passphrase.as_ptr(),
+            )
+        };
+        assert!(!reopened.is_null());
+        unsafe { kite_matrix_client_free(reopened) };
+        fs::remove_dir_all(store).unwrap();
+    }
+
+    #[test]
     fn rejects_missing_or_empty_store_secret() {
         let homeserver = CString::new("http://localhost:8008").unwrap();
         let store = CString::new(temporary_store().to_string_lossy().as_bytes()).unwrap();
