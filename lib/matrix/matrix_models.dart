@@ -57,6 +57,18 @@ final class MatrixSyncBatch {
   final List<MatrixRoomDelta> rooms;
 }
 
+final class MatrixPaginationPage {
+  const MatrixPaginationPage({
+    required this.roomId,
+    required this.events,
+    required this.reachedStart,
+  });
+
+  final String roomId;
+  final List<MatrixTimelineEvent> events;
+  final bool reachedStart;
+}
+
 final class MatrixPresentationSnapshot {
   MatrixPresentationSnapshot({
     required List<MatrixRoomSummary> rooms,

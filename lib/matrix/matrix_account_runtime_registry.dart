@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_cache.dart';
@@ -45,6 +46,25 @@ final class MatrixAccountRuntimeRegistry {
   MatrixPresentationCache? get activeCache {
     final accountId = activeAccountId.value;
     return accountId == null ? null : _runtimes[accountId]?.cache;
+  }
+
+  ReadonlySignal<MatrixPaginationState>? activePaginationState(String roomId) {
+    return _activeRuntime?.runtime.paginationState(roomId);
+  }
+
+  Future<void> onTimelineViewportChanged({
+    required String roomId,
+    required int oldestVisibleIndex,
+    required bool hasMoreHistory,
+  }) {
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null) return Future<void>.value();
+    return active.runtime.onTimelineViewportChanged(
+      roomId: roomId,
+      oldestVisibleIndex: oldestVisibleIndex,
+      hasMoreHistory: hasMoreHistory,
+    );
   }
 
   Future<MatrixPresentationCache> activate(String accountId) {
@@ -199,6 +219,13 @@ final class MatrixAccountRuntimeRegistry {
       engine: engine,
       applyBatch: (batch) {
         cache.applySync(batch);
+        final store = presentationStore;
+        if (store != null) {
+          unawaited(_persistPresentation(accountId, cache.snapshot()));
+        }
+      },
+      applyPagination: (page) {
+        cache.applyPagination(page);
         final store = presentationStore;
         if (store != null) {
           unawaited(_persistPresentation(accountId, cache.snapshot()));

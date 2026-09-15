@@ -1,34 +1,45 @@
 import 'dart:async';
 
 import 'package:kite/matrix/matrix_engine.dart';
+import 'package:kite/matrix/matrix_models.dart';
 import 'package:signals/signals.dart';
 
 enum MatrixPaginationPhase { idle, loading, failed }
 
 final class MatrixPaginationState {
-  const MatrixPaginationState._(this.phase, this.error, this.stackTrace);
+  const MatrixPaginationState.idle({this.reachedStart = false})
+    : phase = MatrixPaginationPhase.idle,
+      error = null,
+      stackTrace = null;
 
-  const MatrixPaginationState.idle()
-    : this._(MatrixPaginationPhase.idle, null, null);
+  const MatrixPaginationState.loading({this.reachedStart = false})
+    : phase = MatrixPaginationPhase.loading,
+      error = null,
+      stackTrace = null;
 
-  const MatrixPaginationState.loading()
-    : this._(MatrixPaginationPhase.loading, null, null);
-
-  MatrixPaginationState.failed(Object error, StackTrace stackTrace)
-    : this._(MatrixPaginationPhase.failed, error, stackTrace);
+  MatrixPaginationState.failed(
+    this.error,
+    this.stackTrace, {
+    this.reachedStart = false,
+  }) : phase = MatrixPaginationPhase.failed;
 
   final MatrixPaginationPhase phase;
   final Object? error;
   final StackTrace? stackTrace;
+  final bool reachedStart;
+
+  bool get hasMoreHistory => !reachedStart;
 }
 
 final class MatrixBackPaginationController {
   MatrixBackPaginationController({
     required this.engine,
+    required this.applyPage,
     this.edgeThreshold = 8,
   });
 
   final MatrixEngine engine;
+  final void Function(MatrixPaginationPage) applyPage;
   final int edgeThreshold;
   final Map<String, Future<void>> _inFlight = <String, Future<void>>{};
   final Map<String, Signal<MatrixPaginationState>> _states =
@@ -51,7 +62,9 @@ final class MatrixBackPaginationController {
     if (isPaginating(roomId)) return;
     final state = _states[roomId];
     if (state?.value.phase == MatrixPaginationPhase.failed) {
-      state!.value = const MatrixPaginationState.idle();
+      state!.value = MatrixPaginationState.idle(
+        reachedStart: state.value.reachedStart,
+      );
     }
   }
 
@@ -60,42 +73,47 @@ final class MatrixBackPaginationController {
     required int firstVisibleIndex,
     required bool hasMoreHistory,
   }) {
-    if (!hasMoreHistory || firstVisibleIndex > edgeThreshold) {
+    final state = _stateSignal(roomId);
+    if (!hasMoreHistory ||
+        state.value.reachedStart ||
+        firstVisibleIndex > edgeThreshold) {
       return Future<void>.value();
     }
 
     final existing = _inFlight[roomId];
     if (existing != null) return existing;
 
-    final state = _stateSignal(roomId);
-    state.value = const MatrixPaginationState.loading();
-
-    late final Future<void> pagination;
-    late final Future<void> request;
-    try {
-      request = engine.paginateBackwards(roomId);
-    } catch (error, stackTrace) {
-      state.value = MatrixPaginationState.failed(error, stackTrace);
-      return Future<void>.error(error, stackTrace);
-    }
-    pagination = request.then<void>(
-      (_) {
-        if (identical(_inFlight[roomId], pagination)) {
-          state.value = const MatrixPaginationState.idle();
-        }
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        if (identical(_inFlight[roomId], pagination)) {
-          state.value = MatrixPaginationState.failed(error, stackTrace);
-        }
-        Error.throwWithStackTrace(error, stackTrace);
-      },
+    state.value = MatrixPaginationState.loading(
+      reachedStart: state.value.reachedStart,
     );
+
+    final pagination = _paginate(roomId, state);
     _inFlight[roomId] = pagination;
     return pagination.whenComplete(() {
       if (identical(_inFlight[roomId], pagination)) {
         _inFlight.remove(roomId);
       }
     });
+  }
+
+  Future<void> _paginate(
+    String roomId,
+    Signal<MatrixPaginationState> state,
+  ) async {
+    try {
+      final page = await engine.paginateBackwards(roomId);
+      if (page.roomId != roomId) {
+        throw StateError('Matrix pagination room mismatch');
+      }
+      applyPage(page);
+      state.value = MatrixPaginationState.idle(reachedStart: page.reachedStart);
+    } catch (error, stackTrace) {
+      state.value = MatrixPaginationState.failed(
+        error,
+        stackTrace,
+        reachedStart: state.value.reachedStart,
+      );
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 }

@@ -342,13 +342,12 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   Future<void> _transition = Future<void>.value();
   Future<void>? _syncLoop;
   bool _syncRequested = false;
-  String? _syncCursor;
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
     MatrixSdkCapability.auditedEncryption,
     MatrixSdkCapability.encryptedPersistentStore,
-    MatrixSdkCapability.slidingSync,
+    MatrixSdkCapability.incrementalSync,
     MatrixSdkCapability.backPagination,
   };
 
@@ -396,8 +395,8 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) {
-    return _enqueue(() async {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) {
+    return _enqueue<MatrixPaginationPage>(() async {
       final normalizedRoomId = roomId.trim();
       if (normalizedRoomId.isEmpty) {
         throw ArgumentError.value(roomId, 'roomId', 'must not be empty');
@@ -409,20 +408,11 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       if (decoded.roomId != normalizedRoomId) {
         throw StateError('Matrix Rust SDK pagination room mismatch');
       }
-      final cursor = _syncCursor;
-      if (decoded.events.isNotEmpty && cursor != null) {
-        _syncBatches.add(
-          MatrixSyncBatch(
-            cursor: cursor,
-            rooms: <MatrixRoomDelta>[
-              MatrixRoomDelta(
-                roomId: normalizedRoomId,
-                timelineEvents: decoded.events,
-              ),
-            ],
-          ),
-        );
-      }
+      return MatrixPaginationPage(
+        roomId: decoded.roomId,
+        events: decoded.events,
+        reachedStart: decoded.reachedStart,
+      );
     });
   }
 
@@ -432,7 +422,6 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       await _stopSync();
       final client = _client;
       _client = null;
-      _syncCursor = null;
       await client?.close();
     });
   }
@@ -446,7 +435,6 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         );
         if (!_syncRequested || !identical(_client, client)) return;
         final decoded = _codec.decodeSync(payload);
-        _syncCursor = decoded.batch.cursor;
         _syncBatches.add(decoded.batch);
         firstRequest = false;
       } catch (error, stackTrace) {
@@ -476,12 +464,25 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     return client;
   }
 
-  Future<void> _enqueue(Future<void> Function() operation) {
+  Future<T> _enqueue<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
     final next = _transition.then<void>(
-      (_) => operation(),
-      onError: (Object _, StackTrace _) => operation(),
+      (_) async {
+        try {
+          completer.complete(await operation());
+        } catch (error, stackTrace) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+      onError: (Object _, StackTrace _) async {
+        try {
+          completer.complete(await operation());
+        } catch (error, stackTrace) {
+          completer.completeError(error, stackTrace);
+        }
+      },
     );
     _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
-    return next;
+    return completer.future;
   }
 }

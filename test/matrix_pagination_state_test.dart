@@ -10,8 +10,10 @@ void main() {
     'pagination exposes leaf loading state and coalesces requests',
     () async {
       final engine = _PaginationFakeMatrixEngine();
+      final pages = <MatrixPaginationPage>[];
       final controller = MatrixBackPaginationController(
         engine: engine,
+        applyPage: pages.add,
         edgeThreshold: 4,
       );
       final state = controller.stateSignal('!room:kite.test');
@@ -38,13 +40,18 @@ void main() {
 
       expect(controller.isPaginating('!room:kite.test'), isFalse);
       expect(state.value.phase, MatrixPaginationPhase.idle);
+      expect(state.value.reachedStart, isFalse);
+      expect(pages, hasLength(1));
       await engine.close();
     },
   );
 
   test('pagination failure is observable, clearable, and retryable', () async {
     final engine = _PaginationFakeMatrixEngine();
-    final controller = MatrixBackPaginationController(engine: engine);
+    final controller = MatrixBackPaginationController(
+      engine: engine,
+      applyPage: (_) {},
+    );
     final state = controller.stateSignal('!room:kite.test');
 
     final failed = controller.maybePaginate(
@@ -83,7 +90,10 @@ void main() {
   test('synchronous pagination failure still leaves retryable state', () async {
     final failure = StateError('synchronous pagination failure');
     final engine = _PaginationFakeMatrixEngine(syncFailure: failure);
-    final controller = MatrixBackPaginationController(engine: engine);
+    final controller = MatrixBackPaginationController(
+      engine: engine,
+      applyPage: (_) {},
+    );
     final state = controller.stateSignal('!room:kite.test');
 
     await expectLater(
@@ -110,6 +120,7 @@ void main() {
       final engine = _PaginationFakeMatrixEngine();
       final controller = MatrixBackPaginationController(
         engine: engine,
+        applyPage: (_) {},
         edgeThreshold: 3,
       );
       final state = controller.stateSignal('!room:kite.test');
@@ -130,6 +141,36 @@ void main() {
       await engine.close();
     },
   );
+
+  test('SDK reached-start state suppresses later edge requests', () async {
+    final engine = _PaginationFakeMatrixEngine();
+    final pages = <MatrixPaginationPage>[];
+    final controller = MatrixBackPaginationController(
+      engine: engine,
+      applyPage: pages.add,
+    );
+    final state = controller.stateSignal('!room:kite.test');
+
+    final first = controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    engine.completePagination(reachedStart: true);
+    await first;
+
+    expect(state.value.reachedStart, isTrue);
+    expect(state.value.hasMoreHistory, isFalse);
+    expect(pages, hasLength(1));
+
+    await controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    expect(engine.paginationCalls, <String>['!room:kite.test']);
+    await engine.close();
+  });
 }
 
 final class _PaginationFakeMatrixEngine implements MatrixEngine {
@@ -139,7 +180,7 @@ final class _PaginationFakeMatrixEngine implements MatrixEngine {
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast();
   final List<String> paginationCalls = <String>[];
-  Completer<void>? _pagination;
+  Completer<MatrixPaginationPage>? _pagination;
 
   @override
   Stream<MatrixSyncBatch> get syncBatches => _sync.stream;
@@ -151,17 +192,24 @@ final class _PaginationFakeMatrixEngine implements MatrixEngine {
   Future<void> stop() async {}
 
   @override
-  Future<void> paginateBackwards(String roomId) {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) {
     paginationCalls.add(roomId);
     final failure = syncFailure;
     if (failure != null) throw failure;
-    final pagination = Completer<void>();
+    final pagination = Completer<MatrixPaginationPage>();
     _pagination = pagination;
     return pagination.future;
   }
 
-  void completePagination() {
-    _pagination!.complete();
+  void completePagination({bool reachedStart = false}) {
+    final roomId = paginationCalls.last;
+    _pagination!.complete(
+      MatrixPaginationPage(
+        roomId: roomId,
+        events: const <MatrixTimelineEvent>[],
+        reachedStart: reachedStart,
+      ),
+    );
     _pagination = null;
   }
 

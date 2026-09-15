@@ -1,5 +1,6 @@
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
 import 'package:kite/matrix/matrix_navigation.dart';
+import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_restoration.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
@@ -33,6 +34,22 @@ final class MatrixSessionRuntime {
   }
 
   Future<void> resumeSync() => accounts.resumeActive();
+
+  ReadonlySignal<MatrixPaginationState>? paginationState(String roomId) {
+    return accounts.activePaginationState(roomId);
+  }
+
+  Future<void> onTimelineViewportChanged({
+    required String roomId,
+    required int oldestVisibleIndex,
+    required bool hasMoreHistory,
+  }) {
+    return accounts.onTimelineViewportChanged(
+      roomId: roomId,
+      oldestVisibleIndex: oldestVisibleIndex,
+      hasMoreHistory: hasMoreHistory,
+    );
+  }
 
   Future<MatrixPresentationCache> activateAccount(
     String accountId, {

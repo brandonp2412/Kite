@@ -130,6 +130,86 @@ void main() {
     },
   );
 
+  test(
+    'cached timeline paginates while initial sync is still starting',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final startGate = Completer<void>();
+      final cachedEvent = MatrixTimelineEvent(
+        eventId: r'$cached:example.org',
+        roomId: '!alice:example.org',
+        senderId: '@alice:example.org',
+        type: 'm.room.message',
+        originServerTimestamp: DateTime.utc(2026, 9, 15, 2),
+        streamPosition: 2,
+      );
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{
+          '@alice:example.org': MatrixPresentationSnapshot(
+            syncCursor: 'persisted-cursor',
+            rooms: <MatrixRoomSummary>[
+              MatrixRoomSummary(
+                roomId: '!alice:example.org',
+                displayName: 'Cached Alice room',
+                lastActivity: DateTime.utc(2026, 9, 15, 2),
+                streamPosition: 2,
+              ),
+            ],
+            timelines: <String, List<MatrixTimelineEvent>>{
+              '!alice:example.org': <MatrixTimelineEvent>[cachedEvent],
+            },
+          ),
+        },
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+        startGateFor: '@alice:example.org',
+        startGate: startGate,
+      );
+      addTearDown(registry.dispose);
+
+      final activation = registry.activate('@alice:example.org');
+      while (!boundaries.containsKey('@alice:example.org')) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      final boundary = boundaries['@alice:example.org']!;
+      while (boundary.startCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      final state = registry.activePaginationState('!alice:example.org')!;
+      await registry.onTimelineViewportChanged(
+        roomId: '!alice:example.org',
+        oldestVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+
+      expect(boundary.paginationCalls, <String>['!alice:example.org']);
+      expect(state.value.reachedStart, isTrue);
+      expect(
+        registry.activeCache!
+            .timelineSignal('!alice:example.org')
+            .value
+            .map((event) => event.eventId),
+        <String>[r'$older:example.org', r'$cached:example.org'],
+      );
+      expect(registry.activeCache?.lastSyncCursor, 'persisted-cursor');
+
+      await registry.flushPresentationWrites('@alice:example.org');
+      expect(
+        presentationStore
+            .snapshots['@alice:example.org']!
+            .timelines['!alice:example.org']!
+            .map((event) => event.eventId),
+        <String>[r'$older:example.org', r'$cached:example.org'],
+      );
+
+      startGate.complete();
+      await activation;
+    },
+  );
+
   test('incremental sync mutates only the owning account cache', () async {
     final boundaries = <String, _FakeAccountBoundary>{};
     final registry = _registry(boundaries);
@@ -325,7 +405,7 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
     MatrixSdkCapability.auditedEncryption,
     MatrixSdkCapability.encryptedPersistentStore,
-    MatrixSdkCapability.slidingSync,
+    MatrixSdkCapability.incrementalSync,
     MatrixSdkCapability.backPagination,
   };
 
@@ -340,6 +420,7 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   int startCalls = 0;
   int stopCalls = 0;
   int closeCalls = 0;
+  final List<String> paginationCalls = <String>[];
 
   @override
   Stream<MatrixSyncBatch> get syncBatches => _sync.stream;
@@ -381,7 +462,23 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) async {}
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
+    paginationCalls.add(roomId);
+    return MatrixPaginationPage(
+      roomId: roomId,
+      events: <MatrixTimelineEvent>[
+        MatrixTimelineEvent(
+          eventId: r'$older:example.org',
+          roomId: roomId,
+          senderId: '@alice:example.org',
+          type: 'm.room.message',
+          originServerTimestamp: DateTime.utc(2026, 9, 15, 1),
+          streamPosition: 1,
+        ),
+      ],
+      reachedStart: true,
+    );
+  }
 
   @override
   Future<void> close() async {

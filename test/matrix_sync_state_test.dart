@@ -50,6 +50,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: (_) {},
+        applyPagination: (_) {},
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -168,8 +169,13 @@ final class _StateFakeMatrixEngine implements MatrixEngine {
   Future<void> stop() async {}
 
   @override
-  Future<void> paginateBackwards(String roomId) async {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
     paginationCalls.add(roomId);
+    return MatrixPaginationPage(
+      roomId: roomId,
+      events: const <MatrixTimelineEvent>[],
+      reachedStart: false,
+    );
   }
 
   void emit(MatrixSyncBatch batch) => _sync.add(batch);

@@ -48,7 +48,7 @@ void main() {
         capabilities: const <MatrixSdkCapability>{
           MatrixSdkCapability.auditedEncryption,
           MatrixSdkCapability.encryptedPersistentStore,
-          MatrixSdkCapability.slidingSync,
+          MatrixSdkCapability.incrementalSync,
         },
       );
       final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
@@ -65,7 +65,7 @@ void main() {
         capabilities: const <MatrixSdkCapability>{
           MatrixSdkCapability.auditedEncryption,
           MatrixSdkCapability.encryptedPersistentStore,
-          MatrixSdkCapability.slidingSync,
+          MatrixSdkCapability.incrementalSync,
           MatrixSdkCapability.backPagination,
         },
       );
@@ -113,7 +113,7 @@ void main() {
           capabilities: const <MatrixSdkCapability>{
             MatrixSdkCapability.auditedEncryption,
             MatrixSdkCapability.encryptedPersistentStore,
-            MatrixSdkCapability.slidingSync,
+            MatrixSdkCapability.incrementalSync,
             MatrixSdkCapability.backPagination,
           },
           startBatch: MatrixSyncBatch(cursor: 'initial', rooms: initialRooms),
@@ -179,27 +179,23 @@ void main() {
           capabilities: const <MatrixSdkCapability>{
             MatrixSdkCapability.auditedEncryption,
             MatrixSdkCapability.encryptedPersistentStore,
-            MatrixSdkCapability.slidingSync,
+            MatrixSdkCapability.incrementalSync,
             MatrixSdkCapability.backPagination,
           },
-          paginationBatches: <String, MatrixSyncBatch>{
-            roomId: MatrixSyncBatch(
-              cursor: 'history-1',
-              rooms: <MatrixRoomDelta>[
-                MatrixRoomDelta(
+          paginationPages: <String, MatrixPaginationPage>{
+            roomId: MatrixPaginationPage(
+              roomId: roomId,
+              events: <MatrixTimelineEvent>[
+                MatrixTimelineEvent(
+                  eventId: r'$older:kite.test',
                   roomId: roomId,
-                  timelineEvents: <MatrixTimelineEvent>[
-                    MatrixTimelineEvent(
-                      eventId: r'$older:kite.test',
-                      roomId: roomId,
-                      senderId: '@alice:kite.test',
-                      type: 'm.room.message',
-                      originServerTimestamp: DateTime.utc(2026, 9, 15, 1),
-                      streamPosition: 1,
-                    ),
-                  ],
+                  senderId: '@alice:kite.test',
+                  type: 'm.room.message',
+                  originServerTimestamp: DateTime.utc(2026, 9, 15, 1),
+                  streamPosition: 1,
                 ),
               ],
+              reachedStart: true,
             ),
           },
         );
@@ -236,10 +232,12 @@ void main() {
         );
 
         await sync.start();
-        await engine.paginateBackwards(roomId);
+        final page = await engine.paginateBackwards(roomId);
+        cache.applyPagination(page);
 
         expect(boundary.paginatedRooms, <String>[roomId]);
-        expect(cache.lastSyncCursor, 'history-1');
+        expect(page.reachedStart, isTrue);
+        expect(cache.lastSyncCursor, isNull);
         expect(
           cache.timelineSignal(roomId).value.map((event) => event.eventId),
           <String>[r'$older:kite.test', r'$newer:kite.test'],
@@ -264,6 +262,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: applied.add,
+        applyPagination: (_) {},
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -299,6 +298,7 @@ void main() {
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
       applyBatch: (_) {},
+      applyPagination: (_) {},
       initialActivity: MatrixAppActivity.foreground,
       initialNetworkState: MatrixNetworkState.online,
     );
@@ -321,6 +321,7 @@ void main() {
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
       applyBatch: applied.add,
+      applyPagination: (_) {},
       initialActivity: MatrixAppActivity.foreground,
       initialNetworkState: MatrixNetworkState.online,
     );
@@ -367,6 +368,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: cache.applySync,
+        applyPagination: cache.applyPagination,
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -420,6 +422,7 @@ void main() {
       final engine = _FakeMatrixEngine();
       final controller = MatrixBackPaginationController(
         engine: engine,
+        applyPage: (_) {},
         edgeThreshold: 5,
       );
 
@@ -472,7 +475,10 @@ void main() {
     'failed near-edge pagination clears in-flight state for retry',
     () async {
       final engine = _FakeMatrixEngine();
-      final controller = MatrixBackPaginationController(engine: engine);
+      final controller = MatrixBackPaginationController(
+        engine: engine,
+        applyPage: (_) {},
+      );
 
       final failed = controller.maybePaginate(
         roomId: '!alpha:kite.test',
@@ -510,13 +516,13 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   _FakeSdkBoundary({
     required this.capabilities,
     this.startBatch,
-    this.paginationBatches = const <String, MatrixSyncBatch>{},
+    this.paginationPages = const <String, MatrixPaginationPage>{},
   });
 
   @override
   final Set<MatrixSdkCapability> capabilities;
   final MatrixSyncBatch? startBatch;
-  final Map<String, MatrixSyncBatch> paginationBatches;
+  final Map<String, MatrixPaginationPage> paginationPages;
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
@@ -551,10 +557,14 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) async {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
     paginatedRooms.add(roomId);
-    final batch = paginationBatches[roomId];
-    if (batch != null) _sync.add(batch);
+    return paginationPages[roomId] ??
+        MatrixPaginationPage(
+          roomId: roomId,
+          events: const <MatrixTimelineEvent>[],
+          reachedStart: false,
+        );
   }
 
   @override
@@ -572,7 +582,7 @@ final class _FakeMatrixEngine implements MatrixEngine {
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
   final List<String> paginationCalls = <String>[];
-  Completer<void>? _pagination;
+  Completer<MatrixPaginationPage>? _pagination;
   int startFailuresRemaining;
   int startCalls = 0;
   int stopCalls = 0;
@@ -601,15 +611,21 @@ final class _FakeMatrixEngine implements MatrixEngine {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) {
     paginationCalls.add(roomId);
-    final pagination = Completer<void>();
+    final pagination = Completer<MatrixPaginationPage>();
     _pagination = pagination;
     return pagination.future;
   }
 
-  void completePagination() {
-    _pagination!.complete();
+  void completePagination({bool reachedStart = false}) {
+    _pagination!.complete(
+      MatrixPaginationPage(
+        roomId: paginationCalls.last,
+        events: const <MatrixTimelineEvent>[],
+        reachedStart: reachedStart,
+      ),
+    );
     _pagination = null;
   }
 

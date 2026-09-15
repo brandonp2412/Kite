@@ -57,6 +57,15 @@ final class MatrixPresentationCache {
     _refreshRoomOrder();
   }
 
+  void applyPagination(MatrixPaginationPage page) {
+    if (page.events.isEmpty) return;
+    final timeline = timelineSignal(page.roomId);
+    final merged = _mergeEvents(timeline.value, page.events);
+    if (!_sameTimeline(timeline.value, merged)) {
+      timeline.value = merged;
+    }
+  }
+
   void applySync(MatrixSyncBatch batch) {
     for (final room in batch.rooms) {
       final summary = room.summary;

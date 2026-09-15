@@ -4,7 +4,7 @@ import 'package:kite/matrix/matrix_models.dart';
 enum MatrixSdkCapability {
   auditedEncryption,
   encryptedPersistentStore,
-  slidingSync,
+  incrementalSync,
   backPagination,
 }
 
@@ -44,7 +44,7 @@ abstract interface class MatrixSdkBoundary {
 
   Future<void> stopSync();
 
-  Future<void> paginateBackwards(String roomId);
+  Future<MatrixPaginationPage> paginateBackwards(String roomId);
 
   Future<void> close();
 }
@@ -69,7 +69,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       boundary,
       MatrixSdkCapability.encryptedPersistentStore,
     );
-    _requireBoundaryCapability(boundary, MatrixSdkCapability.slidingSync);
+    _requireBoundaryCapability(boundary, MatrixSdkCapability.incrementalSync);
     return MatrixBoundaryEngine._(
       boundary,
       store,
@@ -109,10 +109,10 @@ final class MatrixBoundaryEngine implements MatrixEngine {
   }
 
   @override
-  Future<void> paginateBackwards(String roomId) async {
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
     _requireCapability(MatrixSdkCapability.backPagination);
     await _ensureOpen();
-    await _boundary.paginateBackwards(roomId);
+    return _boundary.paginateBackwards(roomId);
   }
 
   Future<void> close() async {

@@ -19,7 +19,7 @@ void main() {
     expect(boundary.capabilities, <MatrixSdkCapability>{
       MatrixSdkCapability.auditedEncryption,
       MatrixSdkCapability.encryptedPersistentStore,
-      MatrixSdkCapability.slidingSync,
+      MatrixSdkCapability.incrementalSync,
       MatrixSdkCapability.backPagination,
     });
     expect(
@@ -169,12 +169,12 @@ void main() {
         r'$event1',
       );
 
-      await boundary.paginateBackwards('!room:kite.test');
+      final page = await boundary.paginateBackwards('!room:kite.test');
       expect(client.paginationCalls, <String>['!room:kite.test']);
-      expect(
-        batches.last.rooms.single.timelineEvents.single.eventId,
-        r'$older',
-      );
+      expect(page.roomId, '!room:kite.test');
+      expect(page.reachedStart, isTrue);
+      expect(page.events.single.eventId, r'$older');
+      expect(batches, hasLength(1));
 
       await boundary.close();
       expect(client.isClosed, isTrue);

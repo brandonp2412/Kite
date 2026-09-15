@@ -10,7 +10,7 @@ abstract interface class MatrixEngine {
 
   Future<void> stop();
 
-  Future<void> paginateBackwards(String roomId);
+  Future<MatrixPaginationPage> paginateBackwards(String roomId);
 }
 
 enum MatrixSyncPhase { idle, starting, running, failed }

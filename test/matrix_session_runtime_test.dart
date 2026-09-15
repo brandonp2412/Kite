@@ -166,7 +166,7 @@ final class _FakeBoundary implements MatrixSdkBoundary {
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
     MatrixSdkCapability.auditedEncryption,
     MatrixSdkCapability.encryptedPersistentStore,
-    MatrixSdkCapability.slidingSync,
+    MatrixSdkCapability.incrementalSync,
     MatrixSdkCapability.backPagination,
   };
 
@@ -206,7 +206,13 @@ final class _FakeBoundary implements MatrixSdkBoundary {
   Future<void> stopSync() async {}
 
   @override
-  Future<void> paginateBackwards(String roomId) async {}
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
+    return MatrixPaginationPage(
+      roomId: roomId,
+      events: const <MatrixTimelineEvent>[],
+      reachedStart: true,
+    );
+  }
 
   @override
   Future<void> close() async {
