@@ -4,6 +4,7 @@ import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_ingress.dart';
+import 'package:kite/features/notifications/notification_resolution.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/features/notifications/notification_settings_policy.dart';
 import 'package:kite/features/notifications/notification_transport.dart';
@@ -59,6 +60,24 @@ final class FakeNotificationCancellationPort
     if (failure != null) throw failure;
     cancelledIds.add(notificationId);
     return true;
+  }
+}
+
+final class FakeNotificationEventResolver
+    implements NotificationEventResolverPort {
+  MatrixNotificationEvent? event;
+  Object? failNextWith;
+  final List<KiteNotification> resolutions = <KiteNotification>[];
+
+  @override
+  Future<MatrixNotificationEvent?> resolve(
+    KiteNotification notification,
+  ) async {
+    resolutions.add(notification);
+    final failure = failNextWith;
+    failNextWith = null;
+    if (failure != null) throw failure;
+    return event;
   }
 }
 
