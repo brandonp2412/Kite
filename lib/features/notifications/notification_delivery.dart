@@ -56,11 +56,20 @@ final class NotificationDeliveryCoordinator
     await _delivery.show(presentation);
     _active[routingId] = next;
 
-    if (previous != null &&
-        previous.notification.groupKey != notification.groupKey) {
-      await _refreshSummary(previous.notification.groupKey);
+    try {
+      if (previous != null &&
+          previous.notification.groupKey != notification.groupKey) {
+        await _refreshSummary(previous.notification.groupKey);
+      }
+      await _refreshSummary(notification.groupKey);
+    } catch (_) {
+      await _rollbackUpsert(
+        routingId: routingId,
+        previous: previous,
+        failed: next,
+      );
+      rethrow;
     }
-    await _refreshSummary(notification.groupKey);
     return presentation;
   }
 
@@ -117,8 +126,9 @@ final class NotificationDeliveryCoordinator
     ];
 
     if (group.length < 2) {
-      if (_activeSummaryGroups.remove(groupKey)) {
+      if (_activeSummaryGroups.contains(groupKey)) {
         await _delivery.cancelSummary(groupKey);
+        _activeSummaryGroups.remove(groupKey);
       }
       return;
     }
@@ -126,6 +136,34 @@ final class NotificationDeliveryCoordinator
     final summary = _policy.summaries(group).single;
     await _delivery.showSummary(summary);
     _activeSummaryGroups.add(groupKey);
+  }
+
+  Future<void> _rollbackUpsert({
+    required String routingId,
+    required _ActiveNotification? previous,
+    required _ActiveNotification failed,
+  }) async {
+    if (previous == null) {
+      _active.remove(routingId);
+      try {
+        await _delivery.cancel(routingId);
+      } catch (_) {}
+    } else {
+      _active[routingId] = previous;
+      try {
+        await _delivery.show(_presentationFor(previous));
+      } catch (_) {}
+    }
+
+    final affectedGroups = <String>{
+      failed.notification.groupKey,
+      if (previous != null) previous.notification.groupKey,
+    };
+    for (final groupKey in affectedGroups) {
+      try {
+        await _refreshSummary(groupKey);
+      } catch (_) {}
+    }
   }
 }
 

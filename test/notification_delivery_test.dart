@@ -172,6 +172,72 @@ void main() {
   );
 
   test(
+    'summary creation failure rolls back the new active notification',
+    () async {
+      final delivery = FakeNotificationDeliveryPort();
+      final coordinator = NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: delivery,
+      );
+
+      await coordinator.upsert(
+        notification: notification(id: 'one'),
+        content: content('one'),
+      );
+      delivery.failNextSummaryWith = StateError('summary unavailable');
+
+      await expectLater(
+        coordinator.upsert(
+          notification: notification(id: 'two'),
+          content: content('two'),
+        ),
+        throwsStateError,
+      );
+
+      expect(
+        coordinator.activePresentations.map((entry) => entry.notification.id),
+        <String>['one'],
+      );
+      expect(delivery.cancelledIds, <String>[
+        notification(id: 'two').routingId,
+      ]);
+    },
+  );
+
+  test(
+    'failed summary cancellation remains tracked for a later repair',
+    () async {
+      final delivery = FakeNotificationDeliveryPort();
+      final coordinator = NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: delivery,
+      );
+
+      await coordinator.upsert(
+        notification: notification(id: 'one'),
+        content: content('one'),
+      );
+      await coordinator.upsert(
+        notification: notification(id: 'two'),
+        content: content('two'),
+      );
+      final groupKey = notification(id: 'one').groupKey;
+      delivery.failNextCancelSummaryWith = StateError('summary cancel failed');
+
+      await expectLater(
+        coordinator.cancel(notification(id: 'one').routingId),
+        throwsStateError,
+      );
+      expect(coordinator.activePresentations, hasLength(1));
+      expect(delivery.cancelledSummaryGroupKeys, isEmpty);
+
+      await coordinator.refreshPrivacy();
+
+      expect(delivery.cancelledSummaryGroupKeys, <String>[groupKey]);
+    },
+  );
+
+  test(
     'cancel collapses summaries and failed delivery does not become active',
     () async {
       final delivery = FakeNotificationDeliveryPort();

@@ -77,6 +77,8 @@ final class FakeNotificationDeliveryPort implements NotificationDeliveryPort {
   final List<String> cancelledIds = <String>[];
   final List<String> cancelledSummaryGroupKeys = <String>[];
   Object? failNextWith;
+  Object? failNextSummaryWith;
+  Object? failNextCancelSummaryWith;
 
   @override
   Future<void> show(KiteNotificationPresentation presentation) async {
@@ -92,12 +94,18 @@ final class FakeNotificationDeliveryPort implements NotificationDeliveryPort {
 
   @override
   Future<void> showSummary(KiteNotificationSummary summary) async {
+    final summaryFailure = failNextSummaryWith;
+    failNextSummaryWith = null;
+    if (summaryFailure != null) throw summaryFailure;
     _throwIfNeeded();
     summaries.add(summary);
   }
 
   @override
   Future<void> cancelSummary(String groupKey) async {
+    final summaryFailure = failNextCancelSummaryWith;
+    failNextCancelSummaryWith = null;
+    if (summaryFailure != null) throw summaryFailure;
     _throwIfNeeded();
     cancelledSummaryGroupKeys.add(groupKey);
   }
