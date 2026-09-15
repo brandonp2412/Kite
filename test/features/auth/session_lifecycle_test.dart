@@ -82,6 +82,39 @@ void main() {
     },
   );
 
+  test('rejects malformed restored session metadata and clears it', () async {
+    final gateway = _FakeSessionLifecycleGateway()
+      ..restored = _session(userId: ' alice ', deviceId: ' DEVICE ');
+    final controller = SessionLifecycleController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.restore();
+
+    expect(controller.state.value, isA<SessionSignedOut>());
+    expect(gateway.clearCalls, 1);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not restore your previous session.',
+    );
+  });
+
+  test('rejects malformed newly authenticated session metadata', () async {
+    final gateway = _FakeSessionLifecycleGateway();
+    final controller = SessionLifecycleController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.acceptAuthenticatedSession(
+      _session(userId: '@alice:matrix.example.org', deviceId: ' DEVICE '),
+    );
+
+    expect(controller.state.value, isA<SessionSignedOut>());
+    expect(gateway.persisted, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid authentication session.',
+    );
+  });
+
   test(
     'soft logout only resumes the same Matrix account and homeserver',
     () async {

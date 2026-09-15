@@ -52,9 +52,19 @@ final class SessionLifecycleController {
     state.value = const SessionRestoring();
     try {
       final restored = await _gateway.restore();
-      state.value = restored == null
-          ? const SessionSignedOut()
-          : SessionAuthenticated(restored);
+      if (restored == null) {
+        state.value = const SessionSignedOut();
+        return;
+      }
+      if (!_isValidSession(restored)) {
+        state.value = const SessionSignedOut();
+        errorMessage.value = 'Kite could not restore your previous session.';
+        try {
+          await _gateway.clear();
+        } catch (_) {}
+        return;
+      }
+      state.value = SessionAuthenticated(restored);
     } catch (_) {
       state.value = const SessionSignedOut();
       errorMessage.value = 'Kite could not restore your previous session.';
@@ -63,6 +73,11 @@ final class SessionLifecycleController {
 
   Future<void> acceptAuthenticatedSession(AuthenticatedSession session) async {
     errorMessage.value = null;
+    if (!_isValidSession(session)) {
+      state.value = const SessionSignedOut();
+      errorMessage.value = 'Kite received an invalid authentication session.';
+      return;
+    }
     try {
       await _gateway.persist(session);
       state.value = SessionAuthenticated(session);
@@ -121,6 +136,17 @@ final class SessionLifecycleController {
         errorMessage.value = 'Kite could not clear the local session securely.';
       }
     }
+  }
+
+  bool _isValidSession(AuthenticatedSession session) {
+    final userId = session.userId.trim();
+    final deviceId = session.deviceId.trim();
+    return userId == session.userId &&
+        userId.startsWith('@') &&
+        userId.contains(':') &&
+        !userId.contains(RegExp(r'\s')) &&
+        deviceId.isNotEmpty &&
+        deviceId == session.deviceId;
   }
 
   void dispose() {
