@@ -114,9 +114,9 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Unverified-device/user warnings and recovery UX.
 - [ ] Encryption state and trust indicators in room/details flows.
 - [ ] Encrypted history sharing on invite when supported by room/server policy.
-- [x] PIN app lock.
-- [x] Biometric unlock.
-- [x] Hide notification contents while Kite is locked.
+- [ ] PIN app lock.
+- [ ] Biometric unlock.
+- [ ] Hide notification contents while Kite is locked.
 - [ ] Session/device list, current-device identification, verification state, and remote sign-out.
 
 **Exit:** a user can install Kite on a clean device, securely sign in, verify it, recover encrypted history, lock the app, and manage sessions without needing Element X.
@@ -318,7 +318,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Badge counts and clear-on-read behaviour.
 - [ ] Privacy/security settings.
 - [ ] Session/device management.
-- [x] App lock settings.
+- [ ] App lock settings.
 - [x] Cache/storage management without destroying diagnostic logs unexpectedly.
 - [x] Report-a-problem flow with sanitised logs.
 - [x] About/version/licenses.
