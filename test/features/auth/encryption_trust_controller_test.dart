@@ -116,6 +116,51 @@ void main() {
     );
   });
 
+  test('same-room refresh preserves trusted state while offline', () async {
+    final gateway = _FakeEncryptionTrustGateway();
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+    expect(await controller.load('!room:example.org'), isTrue);
+    final trustedSnapshot = controller.state.value;
+
+    gateway.failure = StateError('network unavailable');
+    expect(await controller.load('!room:example.org'), isFalse);
+
+    expect(controller.state.value, same(trustedSnapshot));
+    expect(
+      controller.errorMessage.value,
+      'Kite could not read encryption trust state.',
+    );
+  });
+
+  test(
+    'loading another room never exposes stale trust from the prior room',
+    () async {
+      final gateway = _FakeEncryptionTrustGateway();
+      final controller = EncryptionTrustController(gateway);
+      addTearDown(controller.dispose);
+      expect(await controller.load('!room:example.org'), isTrue);
+
+      final deferred = Completer<RoomEncryptionTrust>();
+      gateway.deferredLoad = deferred;
+      final loading = controller.load('!other:example.org');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.state.value, isNull);
+      deferred.complete(
+        RoomEncryptionTrust(
+          roomId: '!other:example.org',
+          isEncrypted: true,
+          trustState: EncryptionTrustState.verified,
+          historySharingSupported: false,
+          historySharingEnabled: false,
+        ),
+      );
+      expect(await loading, isTrue);
+      expect(controller.state.value?.roomId, '!other:example.org');
+    },
+  );
+
   test('distinguishes unverified users from verified room state', () async {
     final gateway = _FakeEncryptionTrustGateway()
       ..current = RoomEncryptionTrust(

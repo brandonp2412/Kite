@@ -112,7 +112,9 @@ final class EncryptionTrustController {
       errorMessage.value = 'Choose a valid Matrix room.';
       return false;
     }
-    state.value = null;
+    if (state.value?.roomId != normalizedRoomId) {
+      state.value = null;
+    }
     return _run(
       () => _gateway.loadRoomTrust(normalizedRoomId),
       expectedRoomId: normalizedRoomId,
