@@ -93,6 +93,26 @@ void main() {
       },
     );
 
+    test('falls back to a valid backup when the primary snapshot is corrupt', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-presentation-backup-fallback-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final store = FileMatrixPresentationStore(directory);
+      const accountId = '@alice:example.org';
+      await store.save(accountId, _snapshot(cursor: 'backup-good'));
+
+      final file = File(
+        '${directory.path}/${Uri.encodeComponent(accountId)}/presentation.json',
+      );
+      await file.copy('${file.path}.bak');
+      await file.writeAsString('{corrupt-primary');
+
+      expect((await store.load(accountId))?.syncCursor, 'backup-good');
+    });
+
     test('ignores malformed persisted snapshots', () async {
       final directory = await Directory.systemTemp.createTemp(
         'kite-presentation-malformed-',

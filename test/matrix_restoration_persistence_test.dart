@@ -85,6 +85,35 @@ void main() {
     });
 
     test(
+      'falls back to a valid backup when primary restoration is corrupt',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'kite-restoration-backup-fallback-',
+        );
+        addTearDown(() async {
+          if (await directory.exists()) await directory.delete(recursive: true);
+        });
+        final file = File('${directory.path}/restoration.json');
+        final store = FileMatrixRestorationStore(file);
+        await store.save(
+          const MatrixRestorationSnapshot(
+            accountId: '@alice:example.org',
+            navigationTarget: MatrixNavigationTarget.room(
+              '!backup:example.org',
+            ),
+          ),
+        );
+
+        await file.copy('${file.path}.bak');
+        await file.writeAsString('{corrupt-primary');
+
+        final restored = await store.load();
+        expect(restored?.accountId, '@alice:example.org');
+        expect(restored?.navigationTarget.roomIdOrAlias, '!backup:example.org');
+      },
+    );
+
+    test(
       'malformed persisted state falls back without startup failure',
       () async {
         final directory = await Directory.systemTemp.createTemp(

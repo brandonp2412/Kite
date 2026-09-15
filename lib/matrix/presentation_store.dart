@@ -22,17 +22,23 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
 
   @override
   Future<MatrixPresentationSnapshot?> load(String accountId) async {
-    final contents = await RecoverableFile(_fileFor(accountId)).readString();
-    if (contents == null || contents.trim().isEmpty) return null;
+    final contents = await RecoverableFile(_fileFor(accountId))
+        .readCandidates();
+    if (contents.isEmpty) return null;
 
     return Isolate.run<MatrixPresentationSnapshot?>(() {
-      try {
-        final decoded = jsonDecode(contents);
-        if (decoded is! Map<String, dynamic>) return null;
-        return _decodeSnapshot(decoded);
-      } on FormatException {
-        return null;
+      for (final candidate in contents) {
+        if (candidate.trim().isEmpty) continue;
+        try {
+          final decoded = jsonDecode(candidate);
+          if (decoded is! Map<String, dynamic>) continue;
+          final snapshot = _decodeSnapshot(decoded);
+          if (snapshot != null) return snapshot;
+        } on FormatException {
+          continue;
+        }
       }
+      return null;
     });
   }
 

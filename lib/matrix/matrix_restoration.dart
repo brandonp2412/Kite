@@ -33,33 +33,37 @@ final class FileMatrixRestorationStore implements MatrixRestorationStore {
 
   @override
   Future<MatrixRestorationSnapshot?> load() async {
-    final contents = await RecoverableFile(file).readString();
-    if (contents == null || contents.trim().isEmpty) return null;
+    final contents = await RecoverableFile(file).readCandidates();
+    if (contents.isEmpty) return null;
 
     return Isolate.run<MatrixRestorationSnapshot?>(() {
-      try {
-        final decoded = jsonDecode(contents);
-        if (decoded is! Map<String, dynamic>) return null;
-        if (decoded['version'] != _schemaVersion) return null;
+      for (final candidate in contents) {
+        if (candidate.trim().isEmpty) continue;
+        try {
+          final decoded = jsonDecode(candidate);
+          if (decoded is! Map<String, dynamic>) continue;
+          if (decoded['version'] != _schemaVersion) continue;
 
-        final accountId = decoded['accountId'];
-        final target = decoded['navigationTarget'];
-        if (accountId is! String || accountId.isEmpty || target is! Map) {
-          return null;
+          final accountId = decoded['accountId'];
+          final target = decoded['navigationTarget'];
+          if (accountId is! String || accountId.isEmpty || target is! Map) {
+            continue;
+          }
+
+          final navigationTarget = _decodeNavigationTarget(
+            Map<String, dynamic>.from(target),
+          );
+          if (navigationTarget == null) continue;
+
+          return MatrixRestorationSnapshot(
+            accountId: accountId,
+            navigationTarget: navigationTarget,
+          );
+        } on FormatException {
+          continue;
         }
-
-        final navigationTarget = _decodeNavigationTarget(
-          Map<String, dynamic>.from(target),
-        );
-        if (navigationTarget == null) return null;
-
-        return MatrixRestorationSnapshot(
-          accountId: accountId,
-          navigationTarget: navigationTarget,
-        );
-      } on FormatException {
-        return null;
       }
+      return null;
     });
   }
 

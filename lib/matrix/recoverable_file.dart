@@ -10,9 +10,21 @@ final class RecoverableFile {
   File get backup => File('${file.path}.bak');
 
   Future<String?> readString() async {
-    if (await file.exists()) return file.readAsString();
-    if (await backup.exists()) return backup.readAsString();
-    return null;
+    final candidates = await readCandidates();
+    return candidates.isEmpty ? null : candidates.first;
+  }
+
+  Future<List<String>> readCandidates() async {
+    final contents = <String>[];
+    for (final candidate in <File>[file, backup]) {
+      if (!await candidate.exists()) continue;
+      try {
+        contents.add(await candidate.readAsString());
+      } on FileSystemException {
+        continue;
+      }
+    }
+    return List<String>.unmodifiable(contents);
   }
 
   Future<void> replaceWithString(String contents) async {
