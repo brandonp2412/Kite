@@ -88,8 +88,7 @@ final class ThreadMediaViewerModel {
     final mediaReplies = replies
         .where(
           (reply) =>
-              reply.attachment != null &&
-              reply.attachment!.kind != TimelineAttachmentKind.file,
+              reply.attachment != null && reply.attachment!.kind.isVisualMedia,
         )
         .toList(growable: false);
     final initialIndex = mediaReplies.indexWhere(
@@ -147,6 +146,8 @@ String threadMediaSemanticLabel(ThreadReply reply) {
     TimelineAttachmentKind.image => 'Image',
     TimelineAttachmentKind.video => 'Video',
     TimelineAttachmentKind.file => 'File',
+    TimelineAttachmentKind.audio => 'Audio',
+    TimelineAttachmentKind.voice => 'Voice message',
   };
   return '$type in thread from ${reply.sender}: ${attachment.name}';
 }

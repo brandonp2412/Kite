@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_media_viewer.dart';
+import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 class _RecordingThreadMediaActionPort implements ThreadMediaActionPort {
@@ -314,10 +316,29 @@ void main() {
       );
       await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      final destination = AppDestination.thread(
+        accountId: '@alice:kite.test',
+        roomId: 'alice',
+        eventId: 'alice-98-thread-2',
+        threadRootEventId: 'alice-98',
+      );
+      final navigatorContext = tester.element(
+        find.byKey(const Key('chat-panel')),
+      );
+      Navigator.of(navigatorContext).push(
+        ThreadRoute.fromDestination(
+          destination: destination,
+          parent: parent,
+          reduceMotion: true,
+        ),
+      );
       await tester.pumpAndSettle();
 
       final panel = find.byKey(const Key('thread-panel'));
+      final focusedReply = find.byKey(
+        const Key('thread-focused-alice-98-thread-2'),
+      );
+      expect(focusedReply, findsOneWidget);
       final list = find.byKey(const Key('thread-reply-list'));
       final mediaOpen = find.byKey(
         const Key('message-attachment-open-thread-alice-98-thread-2'),
@@ -363,6 +384,23 @@ void main() {
       expect(
         find.byKey(const Key('thread-reply-alice-98-thread-2')),
         findsOneWidget,
+      );
+      expect(focusedReply, findsOneWidget);
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: parent)
+            .value,
+        'alice-98-thread-2',
+      );
+
+      await tester.tap(find.byKey(const Key('thread-back')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('thread-panel')), findsNothing);
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: parent)
+            .value,
+        isNull,
       );
     },
   );

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
@@ -25,6 +26,32 @@ class _FailOnceThreadPort implements ThreadSendPort {
   }
 }
 
+class _FailOncePaginationPort implements ThreadPaginationPort {
+  var calls = 0;
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    calls += 1;
+    if (calls == 1) throw StateError('thread pagination failed');
+    return ThreadPage(
+      replies: <ThreadReply>[
+        ThreadReply(
+          id: '$parentEventId-recovered-older',
+          sender: 'Alice',
+          body: 'Recovered older context',
+          mine: false,
+          timeLabel: '09:30',
+        ),
+      ],
+      hasMore: false,
+    );
+  }
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const virtualizedBenchmark = bool.fromEnvironment(
@@ -34,6 +61,7 @@ void main() {
   setUp(() {
     threadController.reset(
       sendPort: const DeterministicThreadSendPort(),
+      locationPort: DeterministicThreadLocationPort(),
       subscriptionPort: const DeterministicThreadSubscriptionPort(),
     );
     threadController.updateRoomUnreadThreadCount(
@@ -62,6 +90,18 @@ void main() {
     );
 
     expect(find.byKey(const Key('thread-panel')), findsOneWidget);
+    expect(
+      find.byKey(const Key('thread-unread-divider-alice-98-thread-1')),
+      findsOneWidget,
+    );
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+    expect(
+      threadController.unreadCountFor(roomId: 'alice', parent: parent).value,
+      0,
+    );
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['thread_open'] = <String, dynamic>{
       'journey': 'open_thread',
@@ -108,6 +148,56 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets(
+    'retrying failed thread pagination stays within the frame contract',
+    (tester) async {
+      final port = _FailOncePaginationPort();
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: port,
+      );
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+
+      await tester.tap(find.byKey(const Key('thread-load-older')));
+      await tester.pumpAndSettle();
+      expect(port.calls, 1);
+      expect(find.byKey(const Key('thread-pagination-error')), findsOneWidget);
+
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          await tester.tap(find.byKey(const Key('thread-load-older')));
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: virtualizedBenchmark
+            ? PerformanceContract.gateVirtualizedTotalSpan
+            : PerformanceContract.gatePhysicalTotalSpan,
+      );
+
+      expect(port.calls, 2);
+      expect(
+        threadController.repliesFor(roomId: 'alice', parent: parent).value,
+        hasLength(4),
+      );
+      expect(find.text('Start of thread'), findsOneWidget);
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['thread_pagination_retry'] = <String, dynamic>{
+        'journey': 'retry_thread_pagination',
+        'fixture': 'deterministic_thread_v1',
+        'iterations': 1,
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
 
   testWidgets(
     'retrying a failed thread reply stays within the frame contract',
@@ -239,6 +329,49 @@ void main() {
       'result': 'PASS',
     };
   });
+  testWidgets('thread read receipt update stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .firstWhere((candidate) => candidate.mine);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        threadController.updateReadReceipts(
+          roomId: 'alice',
+          parent: parent,
+          replyId: reply.id,
+          readers: const <String>['Sam', 'Maya', 'Jordan'],
+        );
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(Key('thread-read-receipts-${reply.id}')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_read_receipt'] = <String, dynamic>{
+      'journey': 'update_thread_read_receipt',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('thread attachment preview and send stay within frame contract', (
     tester,
   ) async {
@@ -291,6 +424,120 @@ void main() {
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['thread_attachment_send'] = <String, dynamic>{
       'journey': 'thread_attachment_preview_send',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('sharing a static thread location stays within frame contract', (
+    tester,
+  ) async {
+    final port = DeterministicThreadLocationPort(latency: Duration.zero);
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+      locationPort: port,
+    );
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-composer-attach')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('attachment-option-live-location')),
+          findsNothing,
+        );
+        await tester.tap(find.byKey(const Key('attachment-option-location')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('location-share-confirm')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .last;
+    expect(reply.location?.kind, TimelineLocationKind.staticLocation);
+    expect(reply.sendState.value, TimelineSendState.sent);
+    expect(port.sentLocations.single.parentEventId, parent.id);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_static_location_share'] = <String, dynamic>{
+      'journey': 'share_static_thread_location',
+      'fixture': 'deterministic_thread_location_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('opening the thread list stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('room-threads-action')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+    expect(find.byKey(const Key('thread-list-row-alice-98')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_list_open'] = <String, dynamic>{
+      'journey': 'open_thread_list',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('paging the thread list stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-threads-action')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('thread-list-row-alice-30')), findsNothing);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-list-load-more')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('thread-list-row-alice-30')), findsOneWidget);
+    expect(find.byKey(const Key('thread-list-load-more')), findsNothing);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_list_paging'] = <String, dynamic>{
+      'journey': 'page_thread_list',
       'fixture': 'deterministic_thread_v1',
       'iterations': 1,
       ...result,
@@ -365,8 +612,78 @@ void main() {
   });
 
   testWidgets(
+    'retargeting a mounted thread focus stays within the frame contract',
+    (tester) async {
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+        ),
+      );
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+
+      Widget threadFor(String focusedReplyId) {
+        return MaterialApp(
+          theme: KiteTheme.dark,
+          home: ThreadView(
+            key: const ValueKey<String>('retargeted-thread-view'),
+            roomId: 'alice',
+            parent: parent,
+            focusedReplyId: focusedReplyId,
+          ),
+        );
+      }
+
+      await tester.pumpWidget(threadFor('alice-98-thread-0'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsOneWidget,
+      );
+
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          await tester.pumpWidget(threadFor('alice-98-thread-2'));
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: virtualizedBenchmark
+            ? PerformanceContract.gateVirtualizedTotalSpan
+            : PerformanceContract.gatePhysicalTotalSpan,
+      );
+
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        findsOneWidget,
+      );
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['thread_focus_retarget'] = <String, dynamic>{
+        'journey': 'retarget_thread_focus',
+        'fixture': 'deterministic_thread_v1',
+        'iterations': 1,
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
+
+  testWidgets(
     'opening a focused thread destination stays within the frame contract',
     (tester) async {
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+          pageSize: 24,
+        ),
+      );
       await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
       await tester.pumpAndSettle();
       final parent = timelineController
@@ -376,7 +693,7 @@ void main() {
       final destination = AppDestination.thread(
         accountId: '@alice:kite.test',
         roomId: 'alice',
-        eventId: 'alice-98-thread-2',
+        eventId: 'alice-98-thread-older-0',
         threadRootEventId: 'alice-98',
       );
       final navigatorContext = tester.element(
@@ -401,9 +718,10 @@ void main() {
       );
 
       expect(
-        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        find.byKey(const Key('thread-focused-alice-98-thread-older-0')),
         findsOneWidget,
       );
+      expect(find.text('27 replies'), findsOneWidget);
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['thread_focus_open'] = <String, dynamic>{
         'journey': 'open_focused_thread_reply',

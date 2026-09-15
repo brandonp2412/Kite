@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
@@ -39,6 +40,32 @@ class _ControlledThreadPort implements ThreadSendPort {
     final completer = Completer<TimelineSendOutcome>();
     attempts.add(completer);
     return completer.future;
+  }
+}
+
+class _FailOncePaginationPort implements ThreadPaginationPort {
+  var calls = 0;
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    calls += 1;
+    if (calls == 1) throw StateError('pagination failed');
+    return ThreadPage(
+      replies: <ThreadReply>[
+        ThreadReply(
+          id: '$parentEventId-recovered-older',
+          sender: 'Alice',
+          body: 'Recovered older context',
+          mine: false,
+          timeLabel: '09:30',
+        ),
+      ],
+      hasMore: false,
+    );
   }
 }
 
@@ -123,11 +150,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('3 replies'), findsOneWidget);
+    expect(
+      threadController
+          .unreadCountFor(
+            roomId: 'alice',
+            parent: timelineController
+                .messagesFor('alice')
+                .value
+                .firstWhere((message) => message.id == 'alice-98'),
+          )
+          .value,
+      0,
+    );
+    final unreadDivider = find.byKey(
+      const Key('thread-unread-divider-alice-98-thread-1'),
+    );
+    expect(unreadDivider, findsOneWidget);
     final threadPanelRect = _rectOf(tester, panel);
     final threadComposer = find.byKey(const Key('thread-composer'));
     final threadReplyList = find.byKey(const Key('thread-reply-list'));
     final composerRect = _rectOf(tester, threadComposer);
     final replyListRect = _rectOf(tester, threadReplyList);
+    final unreadDividerRect = _rectOf(tester, unreadDivider);
     final newestReply = find.byKey(const Key('thread-reply-alice-98-thread-2'));
     final newestReplyRect = _rectOf(tester, newestReply);
 
@@ -142,6 +186,7 @@ void main() {
     expect(_rectOf(tester, panel), threadPanelRect);
     expect(_rectOf(tester, threadComposer), composerRect);
     expect(_rectOf(tester, threadReplyList), replyListRect);
+    expect(_rectOf(tester, unreadDivider), unreadDividerRect);
     expect(_rectOf(tester, newestReply), newestReplyRect);
 
     await tester.enterText(
@@ -173,6 +218,143 @@ void main() {
     expect(find.text('6 replies'), findsOneWidget);
     expect(find.byKey(const Key('thread-unread-alice-98')), findsNothing);
     expect(roomUnread, findsNothing);
+  });
+
+  testWidgets('thread read receipt update preserves reply geometry at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    threadController.reset(sendPort: const DeterministicThreadSendPort());
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .firstWhere((candidate) => candidate.mine);
+    final row = find.byKey(Key('thread-reply-${reply.id}'));
+    final state = find.byKey(Key('thread-send-state-${reply.id}'));
+    final list = find.byKey(const Key('thread-reply-list'));
+    final composer = find.byKey(const Key('thread-composer'));
+    final rowRect = _rectOf(tester, row);
+    final stateRect = _rectOf(tester, state);
+    final listRect = _rectOf(tester, list);
+    final composerRect = _rectOf(tester, composer);
+
+    threadController.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: reply.id,
+      readers: const <String>['Sam', 'Maya', 'Jordan'],
+    );
+
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, row), rowRect);
+      expect(_rectOf(tester, state), stateRect);
+      expect(_rectOf(tester, list), listRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(tester.takeException(), isNull);
+    }
+
+    final receipts = find.byKey(Key('thread-read-receipts-${reply.id}'));
+    expect(receipts, findsOneWidget);
+    await tester.tap(receipts);
+    await tester.pumpAndSettle();
+
+    final details = find.byKey(const Key('thread-read-receipt-details'));
+    expect(details, findsOneWidget);
+    expect(
+      find.descendant(of: details, matching: find.text('Jordan')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: details, matching: find.text('Maya')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: details, matching: find.text('Sam')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('thread pagination retry preserves geometry at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final port = _FailOncePaginationPort();
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(),
+      paginationPort: port,
+    );
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(const Key('thread-panel'));
+    final composer = find.byKey(const Key('thread-composer'));
+    final list = find.byKey(const Key('thread-reply-list'));
+    final pagination = find.byKey(const Key('thread-pagination'));
+    final newestReply = find.byKey(const Key('thread-reply-alice-98-thread-2'));
+    final panelRect = _rectOf(tester, panel);
+    final composerRect = _rectOf(tester, composer);
+    final listRect = _rectOf(tester, list);
+    final paginationRect = _rectOf(tester, pagination);
+    final newestReplyRect = _rectOf(tester, newestReply);
+
+    await tester.tap(find.byKey(const Key('thread-load-older')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('thread-pagination-error')), findsOneWidget);
+    expect(find.text('Retry older replies'), findsOneWidget);
+    expect(port.calls, 1);
+
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, panel), panelRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(_rectOf(tester, list), listRect);
+      expect(_rectOf(tester, pagination), paginationRect);
+      expect(_rectOf(tester, newestReply), newestReplyRect);
+      expect(tester.takeException(), isNull);
+    }
+
+    await tester.tap(find.byKey(const Key('thread-load-older')));
+    await tester.pumpAndSettle();
+    expect(port.calls, 2);
+    expect(find.text('Start of thread'), findsOneWidget);
+    expect(find.byKey(const Key('thread-pagination-error')), findsNothing);
+    expect(_rectOf(tester, panel), panelRect);
+    expect(_rectOf(tester, composer), composerRect);
+    expect(_rectOf(tester, list), listRect);
+    expect(_rectOf(tester, pagination), paginationRect);
+    expect(_rectOf(tester, newestReply), newestReplyRect);
   });
 
   testWidgets('thread subscription toggle preserves geometry at 120 Hz', (
@@ -323,6 +505,98 @@ void main() {
     },
   );
 
+  testWidgets(
+    'thread list navigation and paging stay geometry-stable at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final messageList = find.byKey(const Key('message-list'));
+      final roomScrollable = find.descendant(
+        of: messageList,
+        matching: find.byType(Scrollable),
+      );
+      final roomScrollState = tester.state<ScrollableState>(roomScrollable);
+      roomScrollState.position.jumpTo(48);
+      await tester.pump();
+      final roomOffset = roomScrollState.position.pixels;
+
+      await tester.tap(find.byKey(const Key('room-threads-action')));
+      await tester.pump();
+      await tester.pump(PerformanceContract.motionFrame);
+
+      final panel = find.byKey(const Key('thread-list-panel'));
+      expect(panel, findsOneWidget);
+      final panelSize = _rectOf(tester, panel).size;
+      double? previousLeft;
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        final rect = _rectOf(tester, panel);
+        expect(rect.size, panelSize);
+        if (previousLeft != null) {
+          expect(rect.left, lessThanOrEqualTo(previousLeft + 0.01));
+        }
+        previousLeft = rect.left;
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+
+      final header = find.byKey(const Key('thread-list-header'));
+      final list = find.byKey(const Key('thread-list'));
+      final firstRow = find.byKey(const Key('thread-list-row-alice-98'));
+      final headerRect = _rectOf(tester, header);
+      final listRect = _rectOf(tester, list);
+      final firstRowRect = _rectOf(tester, firstRow);
+      expect(find.byKey(const Key('thread-list-row-alice-30')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('thread-list-load-more')));
+      await tester.pump();
+      expect(find.byKey(const Key('thread-list-row-alice-30')), findsOneWidget);
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, panel).size, panelSize);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, list), listRect);
+        expect(_rectOf(tester, firstRow), firstRowRect);
+        expect(tester.takeException(), isNull);
+      }
+
+      final threadListScrollable = find.descendant(
+        of: list,
+        matching: find.byType(Scrollable),
+      );
+      final threadListScrollState = tester.state<ScrollableState>(
+        threadListScrollable,
+      );
+      final threadListOffset = threadListScrollState.position.pixels;
+
+      await tester.tap(find.byKey(const Key('thread-list-row-alice-64')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('thread-panel')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('thread-back')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+      expect(threadListScrollState.position.pixels, threadListOffset);
+      await tester.tap(find.byKey(const Key('thread-list-back')));
+      await tester.pumpAndSettle();
+      expect(roomScrollState.position.pixels, roomOffset);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('thread route preserves a nonzero main timeline scroll anchor', (
     tester,
   ) async {
@@ -368,6 +642,128 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets(
+    'retargeting a mounted thread keeps focus and composer state scoped',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+          pageSize: 24,
+        ),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      final firstParent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+      final secondParent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-81');
+
+      Widget threadFor(TimelineMessage parent, String focusedReplyId) {
+        return MaterialApp(
+          theme: KiteTheme.light,
+          home: ThreadView(
+            key: const ValueKey<String>('retargeted-thread-view'),
+            roomId: 'alice',
+            parent: parent,
+            focusedReplyId: focusedReplyId,
+          ),
+        );
+      }
+
+      await tester.pumpWidget(threadFor(firstParent, 'alice-98-thread-0'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsOneWidget,
+      );
+
+      final panel = find.byKey(const Key('thread-panel'));
+      final composer = find.byKey(const Key('thread-composer'));
+      final list = find.byKey(const Key('thread-reply-list'));
+      final panelRect = _rectOf(tester, panel);
+      final composerRect = _rectOf(tester, composer);
+      final listRect = _rectOf(tester, list);
+
+      await tester.enterText(
+        find.byKey(const Key('thread-composer-field')),
+        'draft for the first thread',
+      );
+      await tester.pump();
+      await tester.pumpWidget(threadFor(firstParent, 'alice-98-thread-2'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-0')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        findsOneWidget,
+      );
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: firstParent)
+            .value,
+        'alice-98-thread-2',
+      );
+      expect(_rectOf(tester, panel), panelRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(_rectOf(tester, list), listRect);
+
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, panel), panelRect);
+        expect(_rectOf(tester, composer), composerRect);
+        expect(_rectOf(tester, list), listRect);
+        expect(tester.takeException(), isNull);
+      }
+
+      await tester.pumpWidget(threadFor(secondParent, 'alice-81-thread-1'));
+      await tester.pumpAndSettle();
+
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: firstParent)
+            .value,
+        isNull,
+      );
+      expect(
+        threadController
+            .focusedReplyIdFor(roomId: 'alice', parent: secondParent)
+            .value,
+        'alice-81-thread-1',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('thread-composer-field')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(
+        find.byKey(const Key('thread-focused-alice-81-thread-1')),
+        findsOneWidget,
+      );
+      expect(_rectOf(tester, panel), panelRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(_rectOf(tester, list), listRect);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'focused thread destination stays scoped and geometry-stable at 120 Hz',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -379,7 +775,13 @@ void main() {
       display.refreshRate = PerformanceContract.motionRefreshRateHz;
       addTearDown(display.resetRefreshRate);
 
-      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+          pageSize: 24,
+        ),
+      );
       timelineController.reset(sendPort: DeterministicTimelineSendPort());
       selectRoom('alice');
       await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
@@ -402,7 +804,7 @@ void main() {
       final destination = AppDestination.thread(
         accountId: '@alice:kite.test',
         roomId: 'alice',
-        eventId: 'alice-98-thread-2',
+        eventId: 'alice-98-thread-older-0',
         threadRootEventId: 'alice-98',
       );
       final navigatorContext = tester.element(
@@ -417,14 +819,19 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final focused = find.byKey(const Key('thread-focused-alice-98-thread-2'));
+      final focused = find.byKey(
+        const Key('thread-focused-alice-98-thread-older-0'),
+      );
       final focusedRow = find.byKey(
-        const Key('thread-reply-alice-98-thread-2'),
+        const Key('thread-reply-alice-98-thread-older-0'),
       );
       final list = find.byKey(const Key('thread-reply-list'));
       expect(focused, findsOneWidget);
+      expect(find.text('27 replies'), findsOneWidget);
       final focusedRect = _rectOf(tester, focusedRow);
       final listRect = _rectOf(tester, list);
+      expect(focusedRect.top, greaterThanOrEqualTo(listRect.top));
+      expect(focusedRect.bottom, lessThanOrEqualTo(listRect.bottom));
 
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
@@ -444,7 +851,7 @@ void main() {
         isNull,
       );
       expect(
-        find.byKey(const Key('thread-focused-alice-98-thread-2')),
+        find.byKey(const Key('thread-focused-alice-98-thread-older-0')),
         findsNothing,
       );
     },

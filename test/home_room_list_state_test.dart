@@ -4,6 +4,7 @@ import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/threads/thread_controller.dart';
 
 void main() {
   test('room-list store updates one stable room signal', () {
@@ -26,8 +27,15 @@ void main() {
     store.selectFilter(RoomListFilter.people);
     expect(store.visibleRoomIds.value, <String>['alice', 'bob']);
 
+    final bob = store.roomSignal('bob').value;
+    store.update(bob.copyWith(unreadThreadCount: 2));
     store.selectFilter(RoomListFilter.unreads);
-    expect(store.visibleRoomIds.value, <String>['kite', 'alice', 'room-3']);
+    expect(store.visibleRoomIds.value, <String>[
+      'kite',
+      'alice',
+      'bob',
+      'room-3',
+    ]);
 
     store.selectFilter(RoomListFilter.favourites);
     expect(store.visibleRoomIds.value, <String>['room-3']);
@@ -229,6 +237,12 @@ void main() {
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
+    threadController.reset();
+    addTearDown(threadController.reset);
+    threadController.updateRoomUnreadThreadCount(
+      roomId: 'bob',
+      unreadThreadCount: 2,
+    );
 
     final store = RoomListStateStore(
       deterministicRoomListEntries(BenchmarkFixture.rooms),
@@ -263,10 +277,14 @@ void main() {
     await tester.tap(find.byKey(const Key('room-filter-unreads')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('room-kite')), findsOne);
+    expect(find.byKey(const Key('room-bob')), findsOne);
     expect(find.byKey(const Key('room-room-3')), findsOne);
+    expect(store.roomSignal('bob').value.unreadThreadCount, 2);
 
     await tester.tap(find.byKey(const Key('home-read-all')));
     await tester.pumpAndSettle();
+    expect(threadController.unreadThreadCountForRoom('bob').value, 0);
+    expect(store.roomSignal('bob').value.unreadThreadCount, 0);
     expect(store.visibleRoomIds.value, isEmpty);
     expect(find.byKey(const Key('room-kite')), findsNothing);
   });

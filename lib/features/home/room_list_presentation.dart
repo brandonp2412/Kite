@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
+import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
 enum RoomListFilter { all, unreads, people, rooms, favourites }
@@ -55,6 +57,7 @@ final class RoomListEntry {
     required this.latestEventBody,
     this.latestSender,
     this.unreadCount = 0,
+    this.unreadThreadCount = 0,
     this.hasMention = false,
     this.hasMutedActivity = false,
     this.hasActiveCall = false,
@@ -72,11 +75,30 @@ final class RoomListEntry {
     );
   }
 
+  factory RoomListEntry.fromMatrix(
+    MatrixRoomSummary summary,
+    MatrixTimelineEvent? latestEvent,
+  ) {
+    final body = latestEvent?.content['body'];
+    return RoomListEntry(
+      id: summary.roomId,
+      name: summary.displayName,
+      latestEventBody: body is String && body.trim().isNotEmpty
+          ? body.trim()
+          : latestEvent == null
+          ? ''
+          : _fallbackPreview(latestEvent),
+      latestSender: latestEvent?.senderId,
+      unreadCount: summary.unreadCount,
+    );
+  }
+
   final String id;
   final String name;
   final String latestEventBody;
   final String? latestSender;
   final int unreadCount;
+  final int unreadThreadCount;
   final bool hasMention;
   final bool hasMutedActivity;
   final bool hasActiveCall;
@@ -87,7 +109,11 @@ final class RoomListEntry {
 
   bool matches(RoomListFilter filter) => switch (filter) {
     RoomListFilter.all => true,
-    RoomListFilter.unreads => unreadCount > 0 || hasMention || hasMutedActivity,
+    RoomListFilter.unreads =>
+      unreadCount > 0 ||
+          unreadThreadCount > 0 ||
+          hasMention ||
+          hasMutedActivity,
     RoomListFilter.people => isDirect,
     RoomListFilter.rooms => !isDirect,
     RoomListFilter.favourites => isFavourite,
@@ -97,6 +123,7 @@ final class RoomListEntry {
     String? latestEventBody,
     String? latestSender,
     int? unreadCount,
+    int? unreadThreadCount,
     bool? hasMention,
     bool? hasMutedActivity,
     bool? hasActiveCall,
@@ -111,6 +138,7 @@ final class RoomListEntry {
       latestEventBody: latestEventBody ?? this.latestEventBody,
       latestSender: latestSender ?? this.latestSender,
       unreadCount: unreadCount ?? this.unreadCount,
+      unreadThreadCount: unreadThreadCount ?? this.unreadThreadCount,
       hasMention: hasMention ?? this.hasMention,
       hasMutedActivity: hasMutedActivity ?? this.hasMutedActivity,
       hasActiveCall: hasActiveCall ?? this.hasActiveCall,
@@ -126,7 +154,7 @@ final class RoomListStateStore {
   RoomListStateStore(
     List<RoomListEntry> rooms, {
     this.sections = deterministicRoomListSections,
-  }) : roomIds = List<String>.unmodifiable(rooms.map((room) => room.id)),
+  }) : _roomIds = List<String>.unmodifiable(rooms.map((room) => room.id)),
        _rooms = <String, Signal<RoomListEntry>>{
          for (final room in rooms) room.id: signal(room),
        },
@@ -173,9 +201,10 @@ final class RoomListStateStore {
     };
   }
 
-  final List<String> roomIds;
+  List<String> _roomIds;
   final Map<String, Signal<RoomListEntry>> _rooms;
   final Map<String, String> _sectionByRoom;
+  List<String> get roomIds => _roomIds;
   late final Map<String, Signal<int>> _sectionUnreadCounts;
   final List<RoomListSection> sections;
   final Signal<RoomListFilter> selectedFilter;
@@ -204,7 +233,9 @@ final class RoomListStateStore {
         _matches(previous, filter, spaceId) != _matches(room, filter, spaceId);
     final previousUnread = _hasUnreadState(previous);
     final nextUnread = _hasUnreadState(room);
-    target.value = room;
+    if (!_sameRoom(previous, room)) {
+      target.value = room;
+    }
     if (previousUnread != nextUnread) {
       final count = _sectionUnreadCounts[_sectionByRoom[room.id]]!;
       count.value += nextUnread ? 1 : -1;
@@ -212,6 +243,61 @@ final class RoomListStateStore {
     if (membershipChanged) {
       _refreshVisibleRoomIds();
     }
+  }
+
+  void reconcile(List<RoomListEntry> rooms) {
+    final ids = rooms.map((room) => room.id).toList(growable: false);
+    if (ids.toSet().length != ids.length) {
+      throw ArgumentError.value(rooms, 'rooms', 'Room IDs must be unique.');
+    }
+    final sectionIds = sections.map((section) => section.id).toSet();
+    for (final room in rooms) {
+      if (!_rooms.containsKey(room.id) &&
+          !sectionIds.contains(_defaultSectionId(room))) {
+        throw ArgumentError.value(
+          room,
+          'rooms',
+          'Default room section must exist.',
+        );
+      }
+    }
+
+    batch(() {
+      final incomingIds = ids.toSet();
+      for (final roomId in _roomIds.where(
+        (roomId) => !incomingIds.contains(roomId),
+      )) {
+        final previous = _rooms.remove(roomId)?.peek();
+        final sectionId = _sectionByRoom.remove(roomId);
+        if (previous != null &&
+            sectionId != null &&
+            _hasUnreadState(previous)) {
+          _sectionUnreadCounts[sectionId]!.value--;
+        }
+      }
+      for (final room in rooms) {
+        final target = _rooms[room.id];
+        if (target == null) {
+          _rooms[room.id] = signal(room);
+          final sectionId = _defaultSectionId(room);
+          _sectionByRoom[room.id] = sectionId;
+          if (_hasUnreadState(room)) {
+            _sectionUnreadCounts[sectionId]!.value++;
+          }
+          continue;
+        }
+        final previous = target.peek();
+        if (_hasUnreadState(previous) != _hasUnreadState(room)) {
+          final count = _sectionUnreadCounts[_sectionByRoom[room.id]]!;
+          count.value += _hasUnreadState(room) ? 1 : -1;
+        }
+        if (!_sameRoom(previous, room)) {
+          target.value = room;
+        }
+      }
+      _roomIds = List<String>.unmodifiable(ids);
+      _refreshVisibleRoomIds();
+    });
   }
 
   void selectFilter(RoomListFilter filter) {
@@ -234,11 +320,15 @@ final class RoomListStateStore {
     for (final roomId in roomIds) {
       final target = _rooms[roomId]!;
       final room = target.value;
-      if (room.unreadCount == 0 && !room.hasMention && !room.hasMutedActivity) {
+      if (room.unreadCount == 0 &&
+          room.unreadThreadCount == 0 &&
+          !room.hasMention &&
+          !room.hasMutedActivity) {
         continue;
       }
       target.value = room.copyWith(
         unreadCount: 0,
+        unreadThreadCount: 0,
         hasMention: false,
         hasMutedActivity: false,
       );
@@ -326,12 +416,59 @@ final class RoomListStateStore {
   void _refreshVisibleRoomIds() {
     final filter = selectedFilter.value;
     final spaceId = selectedSpaceId.value;
-    visibleRoomIds.value = List<String>.unmodifiable(
+    final next = List<String>.unmodifiable(
       roomIds.where(
         (roomId) => _matches(_rooms[roomId]!.value, filter, spaceId),
       ),
     );
+    if (!listEquals(visibleRoomIds.peek(), next)) {
+      visibleRoomIds.value = next;
+    }
   }
+}
+
+List<RoomListEntry> matrixRoomListEntries(MatrixPresentationCache cache) {
+  return List<RoomListEntry>.unmodifiable(<RoomListEntry>[
+    for (final roomId in cache.roomOrder.value)
+      if (cache.roomSummarySignal(roomId).value case final summary?)
+        RoomListEntry.fromMatrix(
+          summary,
+          _latestTimelineEvent(cache.timelineSignal(roomId).value),
+        ),
+  ]);
+}
+
+MatrixTimelineEvent? _latestTimelineEvent(List<MatrixTimelineEvent> events) {
+  return events.isEmpty ? null : events.last;
+}
+
+bool _sameRoom(RoomListEntry left, RoomListEntry right) {
+  return left.id == right.id &&
+      left.name == right.name &&
+      left.latestEventBody == right.latestEventBody &&
+      left.latestSender == right.latestSender &&
+      left.unreadCount == right.unreadCount &&
+      left.unreadThreadCount == right.unreadThreadCount &&
+      left.hasMention == right.hasMention &&
+      left.hasMutedActivity == right.hasMutedActivity &&
+      left.hasActiveCall == right.hasActiveCall &&
+      left.isMuted == right.isMuted &&
+      left.isFavourite == right.isFavourite &&
+      left.isDirect == right.isDirect &&
+      listEquals(left.spaceIds, right.spaceIds);
+}
+
+String _fallbackPreview(MatrixTimelineEvent event) {
+  if (event.type != 'm.room.message') return 'Room activity';
+  return switch (event.content['msgtype']) {
+    'm.image' => 'Image',
+    'm.video' => 'Video',
+    'm.audio' => 'Audio',
+    'm.file' => 'File',
+    'm.notice' => 'Notice',
+    'm.emote' => 'Message',
+    _ => 'Message',
+  };
 }
 
 List<RoomListEntry> deterministicRoomListEntries(List<BenchmarkRoom> rooms) {

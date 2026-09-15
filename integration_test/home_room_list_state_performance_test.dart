@@ -7,6 +7,7 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/threads/thread_controller.dart';
 
 import 'performance_benchmark_harness.dart';
 
@@ -128,6 +129,12 @@ void main() {
   });
 
   testWidgets('read-all mutation has zero late Flutter frames', (tester) async {
+    threadController.reset();
+    addTearDown(threadController.reset);
+    threadController.updateRoomUnreadThreadCount(
+      roomId: 'bob',
+      unreadThreadCount: 2,
+    );
     final store = RoomListStateStore(
       deterministicRoomListEntries(BenchmarkFixture.rooms),
     );
@@ -142,6 +149,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(store.roomSignal('bob').value.unreadThreadCount, 2);
     final result = await measureFrames(
       binding: binding,
       action: () async {
@@ -151,6 +159,8 @@ void main() {
       enforceTotalSpan: enforceTotalSpan,
     );
 
+    expect(threadController.unreadThreadCountForRoom('bob').value, 0);
+    expect(store.roomSignal('bob').value.unreadThreadCount, 0);
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['room_list_read_all'] = <String, dynamic>{
       'journey': 'room_list_read_all',

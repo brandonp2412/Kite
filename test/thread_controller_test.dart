@@ -88,6 +88,68 @@ class _ControlledThreadPort implements ThreadSendPort {
   }
 }
 
+class _ThrowingThreadPort implements ThreadSendPort {
+  @override
+  Future<TimelineSendOutcome> sendReply({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required String body,
+  }) async {
+    throw StateError('thread send failed');
+  }
+}
+
+class _ThrowingThreadAttachmentPort implements ThreadAttachmentSendPort {
+  @override
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+  }) async {
+    throw StateError('thread attachment send failed');
+  }
+}
+
+class _ThrowingSubscriptionPort implements ThreadSubscriptionPort {
+  @override
+  Future<ThreadSubscriptionOutcome> setFollowing({
+    required String roomId,
+    required String parentEventId,
+    required bool following,
+  }) async {
+    throw StateError('thread subscription failed');
+  }
+}
+
+class _FailOncePaginationPort implements ThreadPaginationPort {
+  var calls = 0;
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    calls += 1;
+    if (calls == 1) throw StateError('thread pagination failed');
+    return ThreadPage(
+      replies: <ThreadReply>[
+        ThreadReply(
+          id: '$parentEventId-recovered-older',
+          sender: 'Alice',
+          body: 'Recovered older context',
+          mine: false,
+          timeLabel: '09:30',
+        ),
+      ],
+      hasMore: false,
+    );
+  }
+}
+
 void main() {
   test('deterministic thread summary seeds only supported parent events', () {
     final controller = ThreadController();
@@ -117,6 +179,45 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'first runtime reply promotes an unthreaded event into a thread',
+    () async {
+      final controller = ThreadController(
+        sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+      );
+      final parent = TimelineMessage(
+        id: 'alice-99',
+        sender: 'Alice',
+        body: 'Start a thread here',
+        mine: false,
+        timeLabel: '10:01',
+      );
+
+      expect(controller.hasThread(parent.id), isFalse);
+      expect(
+        controller.repliesFor(roomId: 'alice', parent: parent).value,
+        isEmpty,
+      );
+
+      controller.sendReply(
+        roomId: 'alice',
+        parent: parent,
+        rawBody: 'First threaded reply',
+      );
+
+      expect(controller.hasThread(parent.id), isTrue);
+      expect(
+        controller
+            .repliesFor(roomId: 'alice', parent: parent)
+            .value
+            .single
+            .body,
+        'First threaded reply',
+      );
+      await Future<void>.delayed(Duration.zero);
+    },
+  );
 
   test('thread unread state advances to the latest reply when marked read', () {
     final controller = ThreadController();
@@ -172,6 +273,58 @@ void main() {
         unreadThreadCount: -1,
       ),
       throwsArgumentError,
+    );
+  });
+
+  test('marking a room read clears every loaded thread unread state', () {
+    final controller = ThreadController();
+    final firstParent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'First parent',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final secondParent = TimelineMessage(
+      id: 'alice-81',
+      sender: 'Alice',
+      body: 'Second parent',
+      mine: false,
+      timeLabel: '09:55',
+    );
+    final firstReplies = controller
+        .repliesFor(roomId: 'alice', parent: firstParent)
+        .value;
+    final secondReplies = controller
+        .repliesFor(roomId: 'alice', parent: secondParent)
+        .value;
+    controller.updateRoomUnreadThreadCount(
+      roomId: 'alice',
+      unreadThreadCount: 4,
+    );
+
+    controller.markRoomThreadsRead('alice');
+
+    expect(
+      controller.unreadCountFor(roomId: 'alice', parent: firstParent).value,
+      0,
+    );
+    expect(
+      controller.unreadCountFor(roomId: 'alice', parent: secondParent).value,
+      0,
+    );
+    expect(controller.unreadThreadCountForRoom('alice').value, 0);
+    expect(
+      controller
+          .latestReadReplyIdFor(roomId: 'alice', parent: firstParent)
+          .value,
+      firstReplies.last.id,
+    );
+    expect(
+      controller
+          .latestReadReplyIdFor(roomId: 'alice', parent: secondParent)
+          .value,
+      secondReplies.last.id,
     );
   });
 
@@ -265,6 +418,113 @@ void main() {
     await controller.loadOlder(roomId: 'alice', parent: parent);
     expect(replies.value, hasLength(initialIds.length + 2));
   });
+
+  test(
+    'thread pagination failure remains retryable and clears on success',
+    () async {
+      final port = _FailOncePaginationPort();
+      final controller = ThreadController(paginationPort: port);
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+      final replies = controller.repliesFor(roomId: 'alice', parent: parent);
+      final initialCount = replies.value.length;
+
+      await controller.loadOlder(roomId: 'alice', parent: parent);
+
+      expect(port.calls, 1);
+      expect(replies.value, hasLength(initialCount));
+      expect(
+        controller.paginationFailedFor(roomId: 'alice', parent: parent).value,
+        isTrue,
+      );
+      expect(
+        controller.isLoadingOlderFor(roomId: 'alice', parent: parent).value,
+        isFalse,
+      );
+      expect(
+        controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+        isTrue,
+      );
+
+      await controller.loadOlder(roomId: 'alice', parent: parent);
+
+      expect(port.calls, 2);
+      expect(replies.value, hasLength(initialCount + 1));
+      expect(replies.value.first.id, 'alice-98-recovered-older');
+      expect(
+        controller.paginationFailedFor(roomId: 'alice', parent: parent).value,
+        isFalse,
+      );
+      expect(
+        controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'focused reply lookup paginates older thread pages with a hard bound',
+    () async {
+      final controller = ThreadController(
+        paginationPort: const DeterministicThreadPaginationPort(
+          latency: Duration.zero,
+        ),
+      );
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+
+      expect(
+        controller
+            .repliesFor(roomId: 'alice', parent: parent)
+            .value
+            .any((reply) => reply.id == 'alice-98-thread-older-0'),
+        isFalse,
+      );
+      expect(
+        await controller.ensureReplyAvailable(
+          roomId: 'alice',
+          parent: parent,
+          replyId: 'alice-98-thread-older-0',
+        ),
+        isTrue,
+      );
+      expect(
+        controller
+            .repliesFor(roomId: 'alice', parent: parent)
+            .value
+            .any((reply) => reply.id == 'alice-98-thread-older-0'),
+        isTrue,
+      );
+      expect(
+        await controller.ensureReplyAvailable(
+          roomId: 'alice',
+          parent: parent,
+          replyId: 'missing-reply',
+          maxPages: 0,
+        ),
+        isFalse,
+      );
+      await expectLater(
+        controller.ensureReplyAvailable(
+          roomId: 'alice',
+          parent: parent,
+          replyId: 'missing-reply',
+          maxPages: -1,
+        ),
+        throwsArgumentError,
+      );
+    },
+  );
 
   test(
     'failed thread reply retries without duplicating the local event',
@@ -390,6 +650,87 @@ void main() {
       expect(reply.sendState.value, TimelineSendState.sent);
     },
   );
+  test(
+    'thrown send failures settle text and media replies as retryable',
+    () async {
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+      final controller = ThreadController(
+        sendPort: _ThrowingThreadPort(),
+        attachmentSendPort: _ThrowingThreadAttachmentPort(),
+      );
+
+      final textReply = controller.sendReply(
+        roomId: 'alice',
+        parent: parent,
+        rawBody: 'Retryable text',
+      );
+      final mediaReply = controller.sendAttachment(
+        roomId: 'alice',
+        parent: parent,
+        attachment: const TimelineAttachment(
+          id: 'thread-photo',
+          kind: TimelineAttachmentKind.image,
+          name: 'thread-photo.jpg',
+          sizeLabel: '2.4 MB · Photo',
+        ),
+        caption: 'Retryable media',
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(textReply.sendState.value, TimelineSendState.failed);
+      expect(mediaReply.sendState.value, TimelineSendState.failed);
+    },
+  );
+
+  test('thread read receipts are normalized and remain leaf reply state', () {
+    final controller = ThreadController();
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final replies = controller.repliesFor(roomId: 'alice', parent: parent);
+    final mine = replies.value.firstWhere((reply) => reply.mine);
+    final incoming = replies.value.firstWhere((reply) => !reply.mine);
+    final mineState = mine.readByState;
+    final replyList = replies.value;
+
+    controller.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: mine.id,
+      readers: const <String>[' Sam ', 'Alice', 'Sam', 'You', ''],
+    );
+
+    expect(mine.readByState, same(mineState));
+    expect(mine.readBy, <String>['Alice', 'Sam']);
+    expect(replies.value, same(replyList));
+
+    controller.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: incoming.id,
+      readers: const <String>['Sam'],
+    );
+    controller.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: 'missing-reply',
+      readers: const <String>['Sam'],
+    );
+
+    expect(incoming.readBy, isEmpty);
+  });
+
   test('thread notification subscription is scoped and failure-safe', () async {
     final port = _ControlledSubscriptionPort();
     final controller = ThreadController(subscriptionPort: port);
@@ -462,6 +803,73 @@ void main() {
     );
   });
 
+  test('thrown subscription failures expose the retry state', () async {
+    final controller = ThreadController(
+      subscriptionPort: _ThrowingSubscriptionPort(),
+    );
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+
+    await controller.toggleFollowing(roomId: 'alice', parent: parent);
+
+    expect(
+      controller.subscriptionFailedFor(roomId: 'alice', parent: parent).value,
+      isTrue,
+    );
+    expect(
+      controller
+          .isUpdatingSubscriptionFor(roomId: 'alice', parent: parent)
+          .value,
+      isFalse,
+    );
+    expect(
+      controller.isFollowingFor(roomId: 'alice', parent: parent).value,
+      isFalse,
+    );
+  });
+
+  test(
+    'static thread location keeps the parent relation and settles',
+    () async {
+      final port = DeterministicThreadLocationPort(latency: Duration.zero);
+      final controller = ThreadController(locationPort: port);
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+
+      final preparation = await controller.prepareLocation(
+        TimelineLocationKind.staticLocation,
+      );
+      expect(preparation.isReady, isTrue);
+      final location = preparation.location!;
+      final reply = controller.sendLocation(
+        roomId: 'alice',
+        parent: parent,
+        location: location,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(reply.location, same(location));
+      expect(reply.sendState.value, TimelineSendState.sent);
+      expect(port.sentLocations, hasLength(1));
+      expect(port.sentLocations.single.parentEventId, parent.id);
+      expect(port.sentLocations.single.location, same(location));
+      expect(
+        controller.repliesFor(roomId: 'alice', parent: parent).value.last,
+        same(reply),
+      );
+    },
+  );
+
   test('thread composer boundary rejects live-location sharing', () {
     final controller = ThreadController();
 
@@ -481,6 +889,10 @@ void main() {
       () => controller.requireSupportedComposerAction(
         ThreadComposerAction.liveLocation,
       ),
+      throwsUnsupportedError,
+    );
+    expect(
+      () => controller.prepareLocation(TimelineLocationKind.liveLocation),
       throwsUnsupportedError,
     );
   });

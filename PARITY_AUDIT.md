@@ -83,13 +83,13 @@ This completes the current-upstream room-list action inventory; it intentionally
 | View in timeline | Deep-link/focus foundations exist; no message action is exposed. | Gap — M4/M11 |
 | Forward | No current message action. | Gap — M4 |
 | Copy text | Implemented in action sheet and TalkBack actions. | Present — M4/M12 |
-| Copy caption | No production caption action. | Gap — M5 |
+| Copy caption | Media-caption messages expose a dedicated Copy caption action backed by the existing exact-text clipboard path. | Present — M5 |
 | Copy link | No current message action. | Gap — M4 |
 | Remove/redact | Implemented for own messages with confirmation. | Present — M4 |
 | Reply | Implemented in composer context and TalkBack actions. | Present — M4 |
-| Reply in thread | Thread entry/reply exists through thread summaries, but not as an action-list item. | Partial — M6 |
+| Reply in thread | The message action sheet and accessibility actions open a dedicated thread from any non-redacted event; the first runtime reply promotes a previously unthreaded event into timeline/thread-list thread state. | Present foundation — M6 |
 | Edit message | Implemented for own text messages. | Present — M4 |
-| Edit poll / End poll | No production poll composer/action flow. | Gap — M4/M5 |
+| Edit poll / End poll | Own active polls expose an explicit End poll action with fixed-geometry ending/final state. Poll editing is not implemented because the current deterministic boundary does not yet model an upstream-compatible edit transport. | Partial — M4/M5 |
 | Edit / add / remove caption | No production media-caption mutation flow. | Gap — M5 |
 | View source | No current message action. | Gap — M4/M10 |
 | Report content | No current message action. | Gap — M4/M10 |
@@ -97,23 +97,23 @@ This completes the current-upstream room-list action inventory; it intentionally
 | Retry sending | Failed local sends expose a dedicated retry affordance rather than the action sheet. | Present, intentional placement difference — M4 |
 | Toggle reaction | Reaction mutation benchmark foundations exist, but no production reaction picker/summary action is rendered. | Gap — M4 |
 | User/profile click | Member/profile foundations exist; current timeline sender chrome is not actionable. | Gap — M4/M10 |
-| Show/stop live-location share | No production live-location flow. | Gap — M5 |
+| Show/stop live-location share | The composer now exposes fixed and live location actions with stable preview/loading/permission states, starts live sharing through an SDK-ready location port, and gives own active live-location cards a fixed-geometry Stop action with in-place progress/ended state. Real platform geolocation/permission adapters and Matrix transport are still required. | Present foundation — M5 |
 | Mark fully read and exit | No equivalent room/timeline action. | Gap — M3/M4 |
 
 This completes the current-upstream message-action inventory while retaining every unimplemented action as a visible parity gap.
 
 ## Timeline event-type audit
 
-The sealed `TimelineItemEventContent` family, its concrete model files, the virtual timeline models, and grouped-event wrapper were enumerated at the reference SHA. Kite's production `TimelineMessage` currently models text, replies, edit/redaction state and local send state; the mixed-event benchmark surface is deliberately synthetic and is not counted as production support.
+The sealed `TimelineItemEventContent` family, its concrete model files, the virtual timeline models, and grouped-event wrapper were enumerated at the reference SHA. Kite's production `TimelineMessage` currently models text, replies, edit/redaction state, local send state, static/live location payloads, and poll question/choice/result state; the mixed-event benchmark surface is deliberately synthetic and is not counted as production support beyond those concrete event models.
 
 | Element X timeline type | Current Kite capability | Status / owner |
 | --- | --- | --- |
 | Text / formatted text / emote / notice | Plain text is rendered; production formatted/emote/notice variants are not distinct. | Partial — M4 |
-| Image / video / audio / voice / file | Media viewer and media workflow foundations exist, but the production Home timeline model does not render these event types. | Gap — M5/M7 |
+| Image / video / audio / voice / file | Production timeline attachments render image/video/file cards plus fixed-geometry audio and voice-message playback cards. Audio/voice playback state is leaf-level and stays out of the image/video viewer; deterministic 120 Hz geometry and light/dark references cover the shared card. Real Matrix audio/voice event mapping, audio-engine playback and voice-message recording/upload transport remain open. | Partial — M4/M5/M7 |
 | Gallery / multi-attachment | No production timeline event model. | Gap — M5/M7 |
 | Sticker | No production timeline event model. | Gap — M5 |
-| Poll | Benchmark fixtures model a synthetic poll shape only; no production poll timeline UI. | Gap — M4/M5 |
-| Static / live location | Benchmark fixtures model a synthetic location shape only; no production map/location timeline UI. | Gap — M5 |
+| Poll | Production timeline messages now carry an SDK-ready poll payload and render fixed-height choice/result rows with explicit selected, ending and ended states. The composer creates 2–6 choice polls, vote changes mutate only the poll leaf signal, and own active polls can be ended. Deterministic light/dark goldens and 120 Hz geometry tests pass; real Matrix poll event mapping/interoperability and locked profile evidence remain unfinished. | Present foundation — M4/M5 |
+| Static / live location | Production timeline messages carry an SDK-ready location payload and render a fixed-geometry map/location card with explicit static/live/ending/ended state. The composer has deterministic fixed/live location preparation, permission-denied/permanently-denied recovery, send, and stop workflows; live state changes mutate only the message location signal. Real platform geolocation/permission adapters and Matrix SDK event mapping/interoperability remain unfinished. | Present foundation — M4/M5 |
 | Encrypted / undecryptable event | Encryption foundations exist, but there is no dedicated production timeline event state. | Gap — M2/M4 |
 | Redacted event | Implemented for current text messages. | Present — M4 |
 | Room-membership state event | Room membership foundations exist; no production timeline state-event renderer. | Gap — M4/M9 |
@@ -225,7 +225,7 @@ The current Home Space filters, Space root/add-room/leave/settings flows, Thread
 | Thread follow/subscription state | Follow/unfollow state, in-flight state and failure state are implemented. | Present foundation — M6 |
 | Thread unread/read state | Per-thread and room-level unread counts plus latest-read reply state are modelled. | Present foundation — M6 |
 | Focus exact thread reply from route | Thread destination preserves root/reply identity and the thread view supports focused-reply state. | Present foundation — M6/M11 |
-| Prevent unsupported live-location sharing in thread | Controller rejects the unsupported thread composer action explicitly. | Present foundation — M6 |
-| Dedicated all-threads list / pagination | Element X has a current Labs Threads list; Kite has no equivalent all-threads screen. | Gap — M6 |
+| Prevent unsupported live-location sharing in thread | The thread composer now exposes fixed-location sharing through a thread-aware transport that preserves the parent event relation, while the attachment picker omits live location and the controller independently rejects any live-location attempt. Static thread locations reuse the fixed-geometry timeline card; real SDK-backed thread/location transport remains to be wired. | Present foundation — M6 |
+| Dedicated all-threads list / pagination | Kite now exposes a room-scoped Threads list with bounded presentation paging, root/latest-reply metadata, unread state, and thread round-trip navigation. Real SDK-backed thread-list pagination remains to be wired. | Present foundation — M6 |
 
-This completes the current-upstream Space/Thread flow inventory while leaving all unimplemented Space UI and the dedicated Threads list visible as parity gaps. Thread performance remains separately blocked by the strict Waydroid raster gate recorded in `PERFORMANCE.md`.
+This completes the current-upstream Space/Thread flow inventory while leaving the unimplemented Space UI and SDK-backed Threads-list pagination visible as parity gaps. Thread performance remains separately blocked by the strict Waydroid raster gate recorded in `PERFORMANCE.md`.

@@ -23,6 +23,17 @@ abstract interface class ThreadAttachmentSendPort {
   });
 }
 
+abstract interface class ThreadLocationPort {
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind);
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineLocation location,
+  });
+  Future<void> openAppSettings();
+}
+
 enum ThreadSubscriptionOutcome { applied, failed }
 
 abstract interface class ThreadSubscriptionPort {
@@ -54,9 +65,11 @@ abstract interface class ThreadPaginationPort {
 class DeterministicThreadPaginationPort implements ThreadPaginationPort {
   const DeterministicThreadPaginationPort({
     this.latency = const Duration(milliseconds: 90),
-  });
+    this.pageSize = 2,
+  }) : assert(pageSize > 0);
 
   final Duration latency;
+  final int pageSize;
 
   @override
   Future<ThreadPage> loadOlder({
@@ -69,22 +82,19 @@ class DeterministicThreadPaginationPort implements ThreadPaginationPort {
       return const ThreadPage(replies: <ThreadReply>[], hasMore: false);
     }
     return ThreadPage(
-      replies: <ThreadReply>[
-        ThreadReply(
-          id: '$parentEventId-thread-older-0',
-          sender: 'Mina',
-          body: 'I added the earlier context here.',
-          mine: false,
-          timeLabel: '09:58',
-        ),
-        ThreadReply(
-          id: '$parentEventId-thread-older-1',
-          sender: 'You',
-          body: 'Thanks — that fills in the missing part.',
-          mine: true,
-          timeLabel: '10:02',
-        ),
-      ],
+      replies: List<ThreadReply>.generate(pageSize, (index) {
+        return ThreadReply(
+          id: '$parentEventId-thread-older-$index',
+          sender: index.isEven ? 'Mina' : 'You',
+          body: switch (index) {
+            0 => 'I added the earlier context here.',
+            1 => 'Thanks — that fills in the missing part.',
+            _ => 'Earlier thread context ${index + 1}',
+          },
+          mine: index.isOdd,
+          timeLabel: '09:${(30 + index).toString().padLeft(2, '0')}',
+        );
+      }, growable: false),
       hasMore: false,
     );
   }
@@ -105,6 +115,62 @@ class DeterministicThreadSubscriptionPort implements ThreadSubscriptionPort {
   }) async {
     await Future<void>.delayed(latency);
     return ThreadSubscriptionOutcome.applied;
+  }
+}
+
+class DeterministicThreadLocationPort implements ThreadLocationPort {
+  DeterministicThreadLocationPort({
+    this.permission = TimelineLocationPermission.granted,
+    this.latency = const Duration(milliseconds: 120),
+    this.label = 'Britomart',
+    this.latitude = -36.8468,
+    this.longitude = 174.7682,
+  });
+
+  TimelineLocationPermission permission;
+  final Duration latency;
+  final String label;
+  final double latitude;
+  final double longitude;
+  int prepareRequests = 0;
+  int settingsRequests = 0;
+  final List<({String parentEventId, TimelineLocation location})>
+  sentLocations = <({String parentEventId, TimelineLocation location})>[];
+
+  @override
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind) async {
+    prepareRequests += 1;
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    if (permission != TimelineLocationPermission.granted) {
+      return TimelineLocationPreparation(permission: permission);
+    }
+    return TimelineLocationPreparation(
+      permission: permission,
+      location: TimelineLocation(
+        kind: kind,
+        latitude: latitude,
+        longitude: longitude,
+        label: label,
+        isLiveActive: false,
+      ),
+    );
+  }
+
+  @override
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineLocation location,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    sentLocations.add((parentEventId: parentEventId, location: location));
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<void> openAppSettings() async {
+    settingsRequests += 1;
   }
 }
 
@@ -157,8 +223,12 @@ class ThreadReply {
     required this.mine,
     required this.timeLabel,
     this.attachment,
+    this.location,
     TimelineSendState sendState = TimelineSendState.sent,
-  }) : sendState = signal(sendState);
+    Iterable<String> readBy = const <String>[],
+  }) : sendState = signal(sendState),
+       readByState = signal(List<String>.unmodifiable(readBy)),
+       audioPlaybackState = signal(TimelineAudioPlaybackState.paused);
 
   final String id;
   final String sender;
@@ -166,18 +236,25 @@ class ThreadReply {
   final bool mine;
   final String timeLabel;
   final TimelineAttachment? attachment;
+  final TimelineLocation? location;
   final Signal<TimelineSendState> sendState;
+  final Signal<List<String>> readByState;
+  final Signal<TimelineAudioPlaybackState> audioPlaybackState;
+
+  List<String> get readBy => readByState.value;
 }
 
 class ThreadController {
   ThreadController({
     ThreadSendPort? sendPort,
     ThreadAttachmentSendPort? attachmentSendPort,
+    ThreadLocationPort? locationPort,
     ThreadPaginationPort? paginationPort,
     ThreadSubscriptionPort? subscriptionPort,
   }) : _sendPort = sendPort ?? const DeterministicThreadSendPort(),
        _attachmentSendPort =
            attachmentSendPort ?? const DeterministicThreadAttachmentSendPort(),
+       _locationPort = locationPort ?? DeterministicThreadLocationPort(),
        _paginationPort =
            paginationPort ?? const DeterministicThreadPaginationPort(),
        _subscriptionPort =
@@ -185,12 +262,14 @@ class ThreadController {
 
   ThreadSendPort _sendPort;
   ThreadAttachmentSendPort _attachmentSendPort;
+  ThreadLocationPort _locationPort;
   ThreadPaginationPort _paginationPort;
   ThreadSubscriptionPort _subscriptionPort;
   final Map<String, Signal<List<ThreadReply>>> _threads =
       <String, Signal<List<ThreadReply>>>{};
   final Map<String, Signal<bool>> _hasMore = <String, Signal<bool>>{};
   final Map<String, Signal<bool>> _isLoadingOlder = <String, Signal<bool>>{};
+  final Map<String, Signal<bool>> _paginationFailed = <String, Signal<bool>>{};
   final Map<String, Signal<int>> _unreadCount = <String, Signal<int>>{};
   final Map<String, Signal<int>> _roomUnreadThreadCount =
       <String, Signal<int>>{};
@@ -203,9 +282,12 @@ class ThreadController {
       <String, Signal<bool>>{};
   final Map<String, Signal<bool>> _subscriptionFailed =
       <String, Signal<bool>>{};
+  final Set<String> _runtimeThreadParentIds = <String>{};
   int _transactionCounter = 0;
 
   bool hasThread(String parentEventId) {
+    if (_runtimeThreadParentIds.contains(parentEventId)) return true;
+
     final separator = parentEventId.lastIndexOf('-');
     if (separator == -1) return false;
     final index = int.tryParse(parentEventId.substring(separator + 1));
@@ -244,6 +326,7 @@ class ThreadController {
       ]);
       _hasMore.putIfAbsent(key, () => signal(true));
       _isLoadingOlder.putIfAbsent(key, () => signal(false));
+      _paginationFailed.putIfAbsent(key, () => signal(false));
       _unreadCount.putIfAbsent(key, () => signal(2));
       _latestReadReplyId.putIfAbsent(key, () => signal(replies.first.id));
       return signal(replies);
@@ -270,10 +353,16 @@ class ThreadController {
     _threads.putIfAbsent(key, () => signal(snapshot)).value = snapshot;
     _hasMore.putIfAbsent(key, () => signal(hasMore)).value = hasMore;
     _isLoadingOlder.putIfAbsent(key, () => signal(false)).value = false;
+    _paginationFailed.putIfAbsent(key, () => signal(false)).value = false;
     _unreadCount.putIfAbsent(key, () => signal(unreadCount)).value =
         unreadCount;
     _latestReadReplyId.putIfAbsent(key, () => signal(latestReadReplyId)).value =
         latestReadReplyId;
+    if (snapshot.isEmpty) {
+      _runtimeThreadParentIds.remove(parent.id);
+    } else {
+      _runtimeThreadParentIds.add(parent.id);
+    }
   }
 
   Signal<bool> hasMoreFor({
@@ -290,6 +379,14 @@ class ThreadController {
   }) {
     repliesFor(roomId: roomId, parent: parent);
     return _isLoadingOlder[_key(roomId, parent.id)] ?? signal(false);
+  }
+
+  Signal<bool> paginationFailedFor({
+    required String roomId,
+    required TimelineMessage parent,
+  }) {
+    repliesFor(roomId: roomId, parent: parent);
+    return _paginationFailed[_key(roomId, parent.id)] ?? signal(false);
   }
 
   Signal<int> unreadCountFor({
@@ -318,9 +415,35 @@ class ThreadController {
     unreadThreadCountForRoom(roomId).value = unreadThreadCount;
   }
 
+  void markRoomThreadsRead(String roomId) {
+    final prefix = '$roomId::';
+    for (final entry in _unreadCount.entries) {
+      if (!entry.key.startsWith(prefix)) continue;
+      entry.value.value = 0;
+      final replies = _threads[entry.key]?.peek() ?? const <ThreadReply>[];
+      _latestReadReplyId[entry.key]?.value = replies.isEmpty
+          ? null
+          : replies.last.id;
+    }
+    _roomUnreadThreadCount[roomId]?.value = 0;
+  }
+
   bool supportsComposerAction(ThreadComposerAction action) {
     return action != ThreadComposerAction.liveLocation;
   }
+
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  ) {
+    requireSupportedComposerAction(
+      kind == TimelineLocationKind.liveLocation
+          ? ThreadComposerAction.liveLocation
+          : ThreadComposerAction.staticLocation,
+    );
+    return _locationPort.prepare(kind);
+  }
+
+  Future<void> openLocationSettings() => _locationPort.openAppSettings();
 
   void requireSupportedComposerAction(ThreadComposerAction action) {
     if (!supportsComposerAction(action)) {
@@ -386,6 +509,8 @@ class ThreadController {
       } else {
         failed.value = true;
       }
+    } catch (_) {
+      failed.value = true;
     } finally {
       updating.value = false;
     }
@@ -428,6 +553,29 @@ class ThreadController {
     focus.value = null;
   }
 
+  void updateReadReceipts({
+    required String roomId,
+    required TimelineMessage parent,
+    required String replyId,
+    required Iterable<String> readers,
+  }) {
+    final replies = repliesFor(roomId: roomId, parent: parent).peek();
+    final matches = replies.where((reply) => reply.id == replyId);
+    if (matches.isEmpty) return;
+    final reply = matches.single;
+    if (!reply.mine || reply.sendState.peek() != TimelineSendState.sent) return;
+
+    final next =
+        readers
+            .map((reader) => reader.trim())
+            .where((reader) => reader.isNotEmpty && reader != 'You')
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    if (listEquals(reply.readByState.peek(), next)) return;
+    reply.readByState.value = List<String>.unmodifiable(next);
+  }
+
   void markRead({required String roomId, required TimelineMessage parent}) {
     final replies = repliesFor(roomId: roomId, parent: parent).value;
     final key = _key(roomId, parent.id);
@@ -441,6 +589,30 @@ class ThreadController {
     _latestReadReplyId[key]?.value = replies.isEmpty ? null : replies.last.id;
   }
 
+  Future<bool> ensureReplyAvailable({
+    required String roomId,
+    required TimelineMessage parent,
+    required String replyId,
+    int maxPages = 20,
+  }) async {
+    if (maxPages < 0) {
+      throw ArgumentError.value(maxPages, 'maxPages', 'Must not be negative');
+    }
+    final replies = repliesFor(roomId: roomId, parent: parent);
+    if (replies.value.any((reply) => reply.id == replyId)) return true;
+
+    var remainingPages = maxPages;
+    while (remainingPages > 0 &&
+        hasMoreFor(roomId: roomId, parent: parent).value) {
+      final previousLength = replies.value.length;
+      await loadOlder(roomId: roomId, parent: parent);
+      if (replies.value.any((reply) => reply.id == replyId)) return true;
+      if (replies.value.length == previousLength) break;
+      remainingPages -= 1;
+    }
+    return false;
+  }
+
   Future<void> loadOlder({
     required String roomId,
     required TimelineMessage parent,
@@ -452,6 +624,8 @@ class ThreadController {
     if (!hasMore.value || loading.value) return;
 
     loading.value = true;
+    final failed = paginationFailedFor(roomId: roomId, parent: parent);
+    failed.value = false;
     try {
       final page = await _paginationPort.loadOlder(
         roomId: roomId,
@@ -469,6 +643,8 @@ class ThreadController {
         ]);
       }
       hasMore.value = page.hasMore;
+    } catch (_) {
+      failed.value = true;
     } finally {
       loading.value = false;
     }
@@ -497,7 +673,38 @@ class ThreadController {
       ...replies.value,
       reply,
     ]);
+    _runtimeThreadParentIds.add(parent.id);
     unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
+    return reply;
+  }
+
+  ThreadReply sendLocation({
+    required String roomId,
+    required TimelineMessage parent,
+    required TimelineLocation location,
+  }) {
+    requireSupportedComposerAction(
+      location.kind == TimelineLocationKind.liveLocation
+          ? ThreadComposerAction.liveLocation
+          : ThreadComposerAction.staticLocation,
+    );
+    final transactionId = 'kite-thread-${_transactionCounter++}';
+    final reply = ThreadReply(
+      id: transactionId,
+      sender: 'You',
+      body: '',
+      mine: true,
+      timeLabel: 'now',
+      location: location,
+      sendState: TimelineSendState.sending,
+    );
+    final replies = repliesFor(roomId: roomId, parent: parent);
+    replies.value = List<ThreadReply>.unmodifiable(<ThreadReply>[
+      ...replies.value,
+      reply,
+    ]);
+    _runtimeThreadParentIds.add(parent.id);
+    unawaited(_settleLocation(roomId: roomId, parent: parent, reply: reply));
     return reply;
   }
 
@@ -522,8 +729,18 @@ class ThreadController {
       ...replies.value,
       reply,
     ]);
+    _runtimeThreadParentIds.add(parent.id);
     unawaited(_settleAttachment(roomId: roomId, parent: parent, reply: reply));
     return reply;
+  }
+
+  void toggleAudioPlayback(ThreadReply reply) {
+    final kind = reply.attachment?.kind;
+    if (kind == null || !kind.isAudio) return;
+    reply.audioPlaybackState.value =
+        reply.audioPlaybackState.peek() == TimelineAudioPlaybackState.playing
+        ? TimelineAudioPlaybackState.paused
+        : TimelineAudioPlaybackState.playing;
   }
 
   void retryReply({
@@ -537,6 +754,8 @@ class ThreadController {
       unawaited(
         _settleAttachment(roomId: roomId, parent: parent, reply: reply),
       );
+    } else if (reply.location != null) {
+      unawaited(_settleLocation(roomId: roomId, parent: parent, reply: reply));
     } else {
       unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
     }
@@ -545,17 +764,20 @@ class ThreadController {
   void reset({
     ThreadSendPort? sendPort,
     ThreadAttachmentSendPort? attachmentSendPort,
+    ThreadLocationPort? locationPort,
     ThreadPaginationPort? paginationPort,
     ThreadSubscriptionPort? subscriptionPort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
+    if (locationPort != null) _locationPort = locationPort;
     if (paginationPort != null) _paginationPort = paginationPort;
     if (subscriptionPort != null) _subscriptionPort = subscriptionPort;
     _transactionCounter = 0;
     _threads.clear();
     _hasMore.clear();
     _isLoadingOlder.clear();
+    _paginationFailed.clear();
     _unreadCount.clear();
     _roomUnreadThreadCount.clear();
     _latestReadReplyId.clear();
@@ -563,6 +785,30 @@ class ThreadController {
     _isFollowing.clear();
     _isUpdatingSubscription.clear();
     _subscriptionFailed.clear();
+    _runtimeThreadParentIds.clear();
+  }
+
+  Future<void> _settleLocation({
+    required String roomId,
+    required TimelineMessage parent,
+    required ThreadReply reply,
+  }) async {
+    final location = reply.location;
+    if (location == null) return;
+    try {
+      final outcome = await _locationPort.sendLocation(
+        roomId: roomId,
+        parentEventId: parent.id,
+        transactionId: reply.id,
+        location: location,
+      );
+      reply.sendState.value = switch (outcome) {
+        TimelineSendOutcome.sent => TimelineSendState.sent,
+        TimelineSendOutcome.failed => TimelineSendState.failed,
+      };
+    } catch (_) {
+      reply.sendState.value = TimelineSendState.failed;
+    }
   }
 
   Future<void> _settleAttachment({
@@ -572,17 +818,21 @@ class ThreadController {
   }) async {
     final attachment = reply.attachment;
     if (attachment == null) return;
-    final outcome = await _attachmentSendPort.sendAttachment(
-      roomId: roomId,
-      parentEventId: parent.id,
-      transactionId: reply.id,
-      attachment: attachment,
-      caption: reply.body,
-    );
-    reply.sendState.value = switch (outcome) {
-      TimelineSendOutcome.sent => TimelineSendState.sent,
-      TimelineSendOutcome.failed => TimelineSendState.failed,
-    };
+    try {
+      final outcome = await _attachmentSendPort.sendAttachment(
+        roomId: roomId,
+        parentEventId: parent.id,
+        transactionId: reply.id,
+        attachment: attachment,
+        caption: reply.body,
+      );
+      reply.sendState.value = switch (outcome) {
+        TimelineSendOutcome.sent => TimelineSendState.sent,
+        TimelineSendOutcome.failed => TimelineSendState.failed,
+      };
+    } catch (_) {
+      reply.sendState.value = TimelineSendState.failed;
+    }
   }
 
   Future<void> _settle({
@@ -590,16 +840,20 @@ class ThreadController {
     required TimelineMessage parent,
     required ThreadReply reply,
   }) async {
-    final outcome = await _sendPort.sendReply(
-      roomId: roomId,
-      parentEventId: parent.id,
-      transactionId: reply.id,
-      body: reply.body,
-    );
-    reply.sendState.value = switch (outcome) {
-      TimelineSendOutcome.sent => TimelineSendState.sent,
-      TimelineSendOutcome.failed => TimelineSendState.failed,
-    };
+    try {
+      final outcome = await _sendPort.sendReply(
+        roomId: roomId,
+        parentEventId: parent.id,
+        transactionId: reply.id,
+        body: reply.body,
+      );
+      reply.sendState.value = switch (outcome) {
+        TimelineSendOutcome.sent => TimelineSendState.sent,
+        TimelineSendOutcome.failed => TimelineSendState.failed,
+      };
+    } catch (_) {
+      reply.sendState.value = TimelineSendState.failed;
+    }
   }
 
   String _key(String roomId, String parentEventId) => '$roomId::$parentEventId';

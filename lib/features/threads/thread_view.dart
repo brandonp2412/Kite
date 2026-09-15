@@ -7,7 +7,33 @@ import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_media_viewer.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_location_card.dart';
+import 'package:kite/features/timeline/timeline_location_share_sheet.dart';
 import 'package:signals/signals_flutter.dart';
+
+class _ThreadLocationShareDelegate implements TimelineLocationShareDelegate {
+  const _ThreadLocationShareDelegate({required this.parent});
+
+  final TimelineMessage parent;
+
+  @override
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  ) => threadController.prepareLocation(kind);
+
+  @override
+  Future<void> openLocationSettings() =>
+      threadController.openLocationSettings();
+
+  @override
+  void sendLocation(String roomId, TimelineLocation location) {
+    threadController.sendLocation(
+      roomId: roomId,
+      parent: parent,
+      location: location,
+    );
+  }
+}
 
 class ThreadRoute extends PageRouteBuilder<void> {
   ThreadRoute({
@@ -85,11 +111,15 @@ class ThreadView extends StatefulWidget {
 class _ThreadViewState extends State<ThreadView> {
   final TextEditingController _composerController = TextEditingController();
   final FocusNode _composerFocusNode = FocusNode();
+  final ScrollController _replyScrollController = ScrollController();
   final Signal<TimelineAttachment?> _pendingAttachment = signal(null);
+  final Map<String, GlobalKey> _replyKeys = <String, GlobalKey>{};
+  String? _initialUnreadBoundaryReplyId;
 
   @override
   void initState() {
     super.initState();
+    _initialUnreadBoundaryReplyId = _captureUnreadBoundaryReplyId();
     final focusedReplyId = widget.focusedReplyId;
     if (focusedReplyId != null) {
       threadController.focusReply(
@@ -101,6 +131,50 @@ class _ThreadViewState extends State<ThreadView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       threadController.markRead(roomId: widget.roomId, parent: widget.parent);
+      _revealFocusedReply();
+    });
+  }
+
+  @override
+  void didUpdateWidget(ThreadView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final threadChanged =
+        oldWidget.roomId != widget.roomId ||
+        oldWidget.parent.id != widget.parent.id;
+    final focusChanged = oldWidget.focusedReplyId != widget.focusedReplyId;
+    if (!threadChanged && !focusChanged) return;
+
+    final previousFocus = oldWidget.focusedReplyId;
+    if (previousFocus != null) {
+      threadController.clearFocus(
+        roomId: oldWidget.roomId,
+        parent: oldWidget.parent,
+        onlyIfReplyId: previousFocus,
+      );
+    }
+
+    if (threadChanged) {
+      _composerController.clear();
+      _pendingAttachment.value = null;
+      _replyKeys.clear();
+      _initialUnreadBoundaryReplyId = _captureUnreadBoundaryReplyId();
+    }
+
+    final focusedReplyId = widget.focusedReplyId;
+    if (focusedReplyId != null) {
+      threadController.focusReply(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        replyId: focusedReplyId,
+      );
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (threadChanged) {
+        threadController.markRead(roomId: widget.roomId, parent: widget.parent);
+      }
+      _revealFocusedReply();
     });
   }
 
@@ -116,15 +190,112 @@ class _ThreadViewState extends State<ThreadView> {
     }
     _composerController.dispose();
     _composerFocusNode.dispose();
+    _replyScrollController.dispose();
     super.dispose();
+  }
+
+  GlobalKey _replyKey(String replyId) {
+    return _replyKeys.putIfAbsent(replyId, () => GlobalKey());
+  }
+
+  String? _captureUnreadBoundaryReplyId() {
+    final replies = threadController
+        .repliesFor(roomId: widget.roomId, parent: widget.parent)
+        .value;
+    final unreadCount = threadController
+        .unreadCountFor(roomId: widget.roomId, parent: widget.parent)
+        .peek();
+    if (replies.isEmpty || unreadCount <= 0) return null;
+
+    final latestReadReplyId = threadController
+        .latestReadReplyIdFor(roomId: widget.roomId, parent: widget.parent)
+        .peek();
+    final latestReadIndex = latestReadReplyId == null
+        ? -1
+        : replies.indexWhere((reply) => reply.id == latestReadReplyId);
+    final fallbackIndex = replies.length - unreadCount;
+    final boundaryIndex = latestReadIndex >= 0
+        ? latestReadIndex + 1
+        : fallbackIndex.clamp(0, replies.length - 1);
+    if (boundaryIndex >= replies.length) return null;
+    return replies[boundaryIndex].id;
+  }
+
+  Future<void> _revealFocusedReply() async {
+    final replyId = widget.focusedReplyId;
+    if (replyId == null) return;
+    try {
+      final available = await threadController.ensureReplyAvailable(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        replyId: replyId,
+      );
+      if (!mounted || !available) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _positionFocusedReply(replyId, attempt: 0);
+      });
+    } catch (_) {
+      return;
+    }
+  }
+
+  void _positionFocusedReply(String replyId, {required int attempt}) {
+    if (!mounted || !_replyScrollController.hasClients) return;
+    final targetContext = _replyKeys[replyId]?.currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        alignment: 0.5,
+        duration: Duration.zero,
+      );
+      return;
+    }
+    if (attempt >= 2) return;
+
+    final replies = threadController
+        .repliesFor(roomId: widget.roomId, parent: widget.parent)
+        .value;
+    final replyIndex = replies.indexWhere((reply) => reply.id == replyId);
+    if (replyIndex == -1 || replies.length < 2) return;
+    final reverseIndex = replies.length - 1 - replyIndex;
+    final fraction = reverseIndex / (replies.length - 1);
+    final position = _replyScrollController.position;
+    position.jumpTo(
+      (position.maxScrollExtent * fraction)
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _positionFocusedReply(replyId, attempt: attempt + 1);
+    });
   }
 
   Future<void> _pickAttachment() async {
     threadController.requireSupportedComposerAction(ThreadComposerAction.text);
-    final attachment = await showComposerAttachmentPicker(context);
+    final attachment = await showComposerAttachmentPicker(
+      context,
+      allowLiveLocation: false,
+      onLocationSelected: _shareLocation,
+    );
     if (!mounted || attachment == null) return;
     _pendingAttachment.value = attachment;
     _composerFocusNode.requestFocus();
+  }
+
+  void _shareLocation(TimelineLocationKind kind) {
+    threadController.requireSupportedComposerAction(
+      kind == TimelineLocationKind.liveLocation
+          ? ThreadComposerAction.liveLocation
+          : ThreadComposerAction.staticLocation,
+    );
+    showComposerLocationShareSheet(
+      context,
+      roomId: widget.roomId,
+      kind: kind,
+      controller: _ThreadLocationShareDelegate(parent: widget.parent),
+    ).whenComplete(() {
+      if (mounted) _composerFocusNode.requestFocus();
+    });
   }
 
   void _send() {
@@ -275,6 +446,12 @@ class _ThreadViewState extends State<ThreadView> {
                         parent: widget.parent,
                       )
                       .value;
+                  final paginationFailed = threadController
+                      .paginationFailedFor(
+                        roomId: widget.roomId,
+                        parent: widget.parent,
+                      )
+                      .value;
                   final focusSignal = threadController.focusedReplyIdFor(
                     roomId: widget.roomId,
                     parent: widget.parent,
@@ -283,6 +460,7 @@ class _ThreadViewState extends State<ThreadView> {
                     children: <Widget>[
                       ListView.builder(
                         key: const Key('thread-reply-list'),
+                        controller: _replyScrollController,
                         reverse: true,
                         padding: const EdgeInsets.fromLTRB(
                           KiteSpacing.md,
@@ -293,12 +471,22 @@ class _ThreadViewState extends State<ThreadView> {
                         itemCount: replies.length,
                         itemBuilder: (context, index) {
                           final reply = replies[replies.length - 1 - index];
-                          return _ThreadReplyRow(
-                            key: ValueKey<String>(reply.id),
-                            roomId: widget.roomId,
-                            parent: widget.parent,
-                            reply: reply,
-                            focusSignal: focusSignal,
+                          return KeyedSubtree(
+                            key: _replyKey(reply.id),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                if (_initialUnreadBoundaryReplyId == reply.id)
+                                  _ThreadUnreadDivider(replyId: reply.id),
+                                _ThreadReplyRow(
+                                  key: ValueKey<String>(reply.id),
+                                  roomId: widget.roomId,
+                                  parent: widget.parent,
+                                  reply: reply,
+                                  focusSignal: focusSignal,
+                                ),
+                              ],
+                            ),
                           );
                         },
                       ),
@@ -313,6 +501,11 @@ class _ThreadViewState extends State<ThreadView> {
                             child: hasMore
                                 ? TextButton.icon(
                                     key: const Key('thread-load-older'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: paginationFailed
+                                          ? colors.error
+                                          : null,
+                                    ),
                                     onPressed: loading
                                         ? null
                                         : () => threadController.loadOlder(
@@ -326,13 +519,22 @@ class _ThreadViewState extends State<ThreadView> {
                                               strokeWidth: 2,
                                             ),
                                           )
-                                        : const Icon(
-                                            Icons.history_rounded,
+                                        : Icon(
+                                            paginationFailed
+                                                ? Icons.error_outline_rounded
+                                                : Icons.history_rounded,
+                                            key: paginationFailed
+                                                ? const Key(
+                                                    'thread-pagination-error',
+                                                  )
+                                                : null,
                                             size: 18,
                                           ),
                                     label: Text(
                                       loading
                                           ? 'Loading…'
+                                          : paginationFailed
+                                          ? 'Retry older replies'
                                           : 'Load older replies',
                                     ),
                                   )
@@ -464,6 +666,47 @@ class _ThreadViewState extends State<ThreadView> {
                   ],
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThreadUnreadDivider extends StatelessWidget {
+  const _ThreadUnreadDivider({required this.replyId});
+
+  final String replyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      label: 'Unread replies start here',
+      container: true,
+      child: SizedBox(
+        key: Key('thread-unread-divider-$replyId'),
+        height: 32,
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Divider(color: colors.primary.withValues(alpha: 0.5)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.sm),
+              child: Text(
+                'NEW REPLIES',
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Divider(color: colors.primary.withValues(alpha: 0.5)),
             ),
           ],
         ),
@@ -627,6 +870,19 @@ class _ThreadReplyRow extends StatelessWidget {
   final ThreadReply reply;
   final Signal<String?> focusSignal;
 
+  Future<void> _showReadReceipts(BuildContext context, List<String> readers) {
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (_) => _ThreadReadReceiptDetailsSheet(readers: readers),
+    );
+  }
+
   void _openMedia(BuildContext context) {
     final model = ThreadMediaViewerModel.fromReplies(
       roomId: roomId,
@@ -659,6 +915,9 @@ class _ThreadReplyRow extends StatelessWidget {
           child: DecoratedBox(
             key: focused ? Key('thread-focused-${reply.id}') : null,
             decoration: BoxDecoration(
+              color: focused
+                  ? colors.primaryContainer.withValues(alpha: 0.24)
+                  : Colors.transparent,
               border: Border(
                 left: BorderSide(
                   width: 2,
@@ -731,14 +990,26 @@ class _ThreadReplyRow extends StatelessWidget {
                             TimelineAttachmentCard(
                               messageId: 'thread-${reply.id}',
                               attachment: attachment,
-                              heroTag:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : threadMediaHeroTag(parent, reply),
-                              onTap:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : () => _openMedia(context),
+                              audioPlaybackState: reply.audioPlaybackState,
+                              heroTag: attachment.kind.isVisualMedia
+                                  ? threadMediaHeroTag(parent, reply)
+                                  : null,
+                              onTap: attachment.kind.isVisualMedia
+                                  ? () => _openMedia(context)
+                                  : null,
+                              onToggleAudio: attachment.kind.isAudio
+                                  ? () => threadController.toggleAudioPlayback(
+                                      reply,
+                                    )
+                                  : null,
+                            ),
+                            if (reply.body.isNotEmpty)
+                              const SizedBox(height: KiteSpacing.xs),
+                          ],
+                          if (reply.location case final location?) ...<Widget>[
+                            TimelineLocationCard(
+                              messageId: 'thread-${reply.id}',
+                              location: location,
                             ),
                             if (reply.body.isNotEmpty)
                               const SizedBox(height: KiteSpacing.xs),
@@ -766,40 +1037,73 @@ class _ThreadReplyRow extends StatelessWidget {
                                 SignalBuilder(
                                   builder: (context) {
                                     final state = reply.sendState.value;
+                                    final readers = reply.readByState.value;
                                     return SizedBox(
                                       key: Key('thread-send-state-${reply.id}'),
-                                      width: 20,
-                                      height: 20,
-                                      child: state == TimelineSendState.failed
-                                          ? Tooltip(
-                                              message: 'Retry sending',
-                                              child: InkResponse(
-                                                key: Key(
-                                                  'thread-retry-${reply.id}',
-                                                ),
-                                                radius: 18,
-                                                containedInkWell: true,
-                                                onTap: () =>
-                                                    threadController.retryReply(
-                                                      roomId: roomId,
-                                                      parent: parent,
-                                                      reply: reply,
-                                                    ),
-                                                child: Icon(
-                                                  Icons.error_rounded,
-                                                  semanticLabel: 'Thread reply failed. Retry sending',
-                                                  size: 14,
-                                                  color: colors.error,
-                                                ),
-                                              ),
-                                            )
-                                          : Icon(
-                                              state == TimelineSendState.sending
-                                                  ? Icons.schedule_rounded
-                                                  : Icons.done_rounded,
-                                              size: 14,
-                                              color: colors.onSurfaceVariant,
+                                      width: 44,
+                                      height: 24,
+                                      child: switch (state) {
+                                        TimelineSendState.failed => Tooltip(
+                                          message: 'Retry sending',
+                                          child: InkResponse(
+                                            key: Key(
+                                              'thread-retry-${reply.id}',
                                             ),
+                                            radius: 18,
+                                            containedInkWell: true,
+                                            onTap: () =>
+                                                threadController.retryReply(
+                                                  roomId: roomId,
+                                                  parent: parent,
+                                                  reply: reply,
+                                                ),
+                                            child: Icon(
+                                              Icons.error_rounded,
+                                              semanticLabel: 'Thread reply failed. Retry sending',
+                                              size: 14,
+                                              color: colors.error,
+                                            ),
+                                          ),
+                                        ),
+                                        TimelineSendState.sending => Icon(
+                                          Icons.schedule_rounded,
+                                          semanticLabel: 'Sending thread reply',
+                                          size: 14,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                        TimelineSendState.sent
+                                            when readers.isNotEmpty =>
+                                          Semantics(
+                                            button: true,
+                                            label:
+                                                'Read by ${readers.join(', ')}',
+                                            child: Tooltip(
+                                              message:
+                                                  'Read by ${readers.join(', ')}',
+                                              child: GestureDetector(
+                                                key: Key(
+                                                  'thread-read-receipts-${reply.id}',
+                                                ),
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap: () => _showReadReceipts(
+                                                  context,
+                                                  readers,
+                                                ),
+                                                child:
+                                                    _ThreadReadReceiptAvatars(
+                                                      readers: readers,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        TimelineSendState.sent => Icon(
+                                          Icons.done_rounded,
+                                          semanticLabel: 'Thread reply sent',
+                                          size: 14,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      },
                                     );
                                   },
                                 ),
@@ -816,6 +1120,122 @@ class _ThreadReplyRow extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _ThreadReadReceiptAvatars extends StatelessWidget {
+  const _ThreadReadReceiptAvatars({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final visible = readers.take(3).toList(growable: false);
+    return SizedBox(
+      width: 44,
+      height: 24,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          for (var index = 0; index < visible.length; index++)
+            Positioned(
+              left: 4.0 + (index * 10),
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: colors.secondaryContainer,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.primaryContainer, width: 1),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  visible[index].characters.first.toUpperCase(),
+                  style: KiteTypography.metadata.copyWith(
+                    color: colors.onSecondaryContainer,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          if (readers.length > 3)
+            Positioned(
+              right: 0,
+              child: Text(
+                '+${readers.length - 3}',
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThreadReadReceiptDetailsSheet extends StatelessWidget {
+  const _ThreadReadReceiptDetailsSheet({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      key: const Key('thread-read-receipt-details'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.md,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Read by',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.sm),
+          for (final reader in readers)
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: <Widget>[
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    foregroundColor: theme.colorScheme.onSecondaryContainer,
+                    child: Text(
+                      reader.characters.first.toUpperCase(),
+                      style: KiteTypography.metadata.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: KiteSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      reader,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KiteTypography.body,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

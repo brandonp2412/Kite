@@ -54,10 +54,24 @@ class _AlwaysFailThreadPort implements ThreadSendPort {
   }) async => TimelineSendOutcome.failed;
 }
 
+class _AlwaysFailPaginationPort implements ThreadPaginationPort {
+  const _AlwaysFailPaginationPort();
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    throw StateError('thread pagination failed');
+  }
+}
+
 void main() {
   tearDown(() {
     threadController.reset(
       sendPort: const DeterministicThreadSendPort(),
+      locationPort: DeterministicThreadLocationPort(),
       subscriptionPort: const DeterministicThreadSubscriptionPort(),
     );
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
@@ -126,6 +140,51 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_media_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread static location ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+        locationPort: DeterministicThreadLocationPort(latency: Duration.zero),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-composer-attach')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('attachment-option-live-location')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const Key('attachment-option-location')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('location-share-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('message-location-thread-kite-thread-0')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_location_${variant.name}.png'),
       );
     });
 
@@ -208,6 +267,103 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_following_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread read receipts ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+      final reply = threadController
+          .repliesFor(roomId: 'alice', parent: parent)
+          .value
+          .firstWhere((candidate) => candidate.mine);
+      threadController.updateReadReceipts(
+        roomId: 'alice',
+        parent: parent,
+        replyId: reply.id,
+        readers: const <String>['Maya', 'Sam', 'Jordan'],
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(Key('thread-read-receipts-${reply.id}')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_read_receipts_${variant.name}.png'),
+      );
+
+      await tester.tap(find.byKey(Key('thread-read-receipts-${reply.id}')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('thread-read-receipt-details')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile(
+          'goldens/thread_read_receipt_details_${variant.name}.png',
+        ),
+      );
+    });
+
+    testWidgets('thread pagination error ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const _AlwaysFailPaginationPort(),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-load-older')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-pagination-error')), findsOneWidget);
+      expect(find.text('Retry older replies'), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile(
+          'goldens/thread_pagination_error_${variant.name}.png',
+        ),
       );
     });
 
@@ -302,6 +458,75 @@ void main() {
       );
     });
 
+    testWidgets('thread list ${variant.name} reference render', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-threads-action')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+      expect(find.byKey(const Key('thread-list-row-alice-98')), findsOneWidget);
+      expect(find.byKey(const Key('thread-list-load-more')), findsOneWidget);
+      expect(
+        find.byKey(const Key('thread-list-unread-alice-98')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_list_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread list phone ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-alice')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('compact-room-threads-action')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('compact-room-threads-action')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
+      expect(find.byKey(const Key('thread-list-row-alice-98')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_list_phone_${variant.name}.png'),
+      );
+    });
+
     testWidgets('thread room unread ${variant.name} reference render', (
       tester,
     ) async {
@@ -330,6 +555,40 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_room_unread_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread unread filter ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(sendPort: const DeterministicThreadSendPort());
+      threadController.updateRoomUnreadThreadCount(
+        roomId: 'bob',
+        unreadThreadCount: 2,
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-filter-unreads')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('room-bob')), findsOneWidget);
+      expect(find.byKey(const Key('room-thread-unread-bob')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/thread_unread_filter_${variant.name}.png'),
       );
     });
   }

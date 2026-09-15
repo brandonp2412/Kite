@@ -3,13 +3,293 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
+import 'package:kite/matrix/matrix_models.dart';
 import 'package:signals/signals.dart';
 
 enum TimelineSendState { sending, sent, failed }
 
 enum TimelineSendOutcome { sent, failed }
 
-enum TimelineAttachmentKind { image, video, file }
+enum TimelineAttachmentKind { image, video, file, audio, voice }
+
+extension TimelineAttachmentKindProperties on TimelineAttachmentKind {
+  bool get isVisualMedia =>
+      this == TimelineAttachmentKind.image ||
+      this == TimelineAttachmentKind.video;
+
+  bool get isAudio =>
+      this == TimelineAttachmentKind.audio ||
+      this == TimelineAttachmentKind.voice;
+}
+
+enum TimelineAudioPlaybackState { paused, playing }
+
+enum TimelineLocationKind { staticLocation, liveLocation }
+
+enum TimelineLocationPermission { granted, denied, permanentlyDenied }
+
+@immutable
+final class TimelinePollOption {
+  const TimelinePollOption({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
+
+@immutable
+final class TimelinePoll {
+  TimelinePoll({
+    required this.question,
+    required List<TimelinePollOption> options,
+    Map<String, int> voteCounts = const <String, int>{},
+    this.selectedOptionId,
+    this.isEnded = false,
+    this.isEnding = false,
+  }) : options = List<TimelinePollOption>.unmodifiable(options),
+       voteCounts = Map<String, int>.unmodifiable(voteCounts);
+
+  final String question;
+  final List<TimelinePollOption> options;
+  final Map<String, int> voteCounts;
+  final String? selectedOptionId;
+  final bool isEnded;
+  final bool isEnding;
+
+  int get totalVotes => voteCounts.values.fold(0, (sum, count) => sum + count);
+
+  int votesFor(String optionId) => voteCounts[optionId] ?? 0;
+
+  TimelinePoll select(String optionId) {
+    if (isEnded || !options.any((option) => option.id == optionId)) return this;
+    if (selectedOptionId == optionId) return this;
+    final next = Map<String, int>.of(voteCounts);
+    final previous = selectedOptionId;
+    if (previous != null) {
+      final previousCount = next[previous] ?? 0;
+      if (previousCount <= 1) {
+        next.remove(previous);
+      } else {
+        next[previous] = previousCount - 1;
+      }
+    }
+    next[optionId] = (next[optionId] ?? 0) + 1;
+    return TimelinePoll(
+      question: question,
+      options: options,
+      voteCounts: next,
+      selectedOptionId: optionId,
+      isEnded: isEnded,
+      isEnding: isEnding,
+    );
+  }
+
+  TimelinePoll withEnding(bool value) => TimelinePoll(
+    question: question,
+    options: options,
+    voteCounts: voteCounts,
+    selectedOptionId: selectedOptionId,
+    isEnded: isEnded,
+    isEnding: value,
+  );
+
+  TimelinePoll ended() => TimelinePoll(
+    question: question,
+    options: options,
+    voteCounts: voteCounts,
+    selectedOptionId: selectedOptionId,
+    isEnded: true,
+    isEnding: false,
+  );
+}
+
+abstract interface class TimelinePollPort {
+  Future<TimelineSendOutcome> createPoll({
+    required String roomId,
+    required String transactionId,
+    required TimelinePoll poll,
+  });
+
+  Future<TimelineSendOutcome> votePoll({
+    required String roomId,
+    required String eventId,
+    required String optionId,
+  });
+
+  Future<TimelineSendOutcome> endPoll({
+    required String roomId,
+    required String eventId,
+  });
+}
+
+final class DeterministicTimelinePollPort implements TimelinePollPort {
+  DeterministicTimelinePollPort({
+    this.latency = const Duration(milliseconds: 120),
+  });
+
+  final Duration latency;
+  final List<String> createdEventIds = <String>[];
+  final List<({String eventId, String optionId})> votes =
+      <({String eventId, String optionId})>[];
+  final List<String> endedEventIds = <String>[];
+
+  @override
+  Future<TimelineSendOutcome> createPoll({
+    required String roomId,
+    required String transactionId,
+    required TimelinePoll poll,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    createdEventIds.add(transactionId);
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<TimelineSendOutcome> votePoll({
+    required String roomId,
+    required String eventId,
+    required String optionId,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    votes.add((eventId: eventId, optionId: optionId));
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<TimelineSendOutcome> endPoll({
+    required String roomId,
+    required String eventId,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    endedEventIds.add(eventId);
+    return TimelineSendOutcome.sent;
+  }
+}
+
+@immutable
+final class TimelineLocationPreparation {
+  const TimelineLocationPreparation({required this.permission, this.location});
+
+  final TimelineLocationPermission permission;
+  final TimelineLocation? location;
+
+  bool get isReady =>
+      permission == TimelineLocationPermission.granted && location != null;
+}
+
+abstract interface class TimelineLocationPort {
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind);
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String transactionId,
+    required TimelineLocation location,
+  });
+  Future<TimelineSendOutcome> stopLiveLocation({
+    required String roomId,
+    required String eventId,
+  });
+  Future<void> openAppSettings();
+}
+
+final class DeterministicTimelineLocationPort implements TimelineLocationPort {
+  DeterministicTimelineLocationPort({
+    this.permission = TimelineLocationPermission.granted,
+    this.latency = const Duration(milliseconds: 120),
+    this.label = 'Britomart',
+    this.latitude = -36.8468,
+    this.longitude = 174.7682,
+  });
+
+  TimelineLocationPermission permission;
+  final Duration latency;
+  final String label;
+  final double latitude;
+  final double longitude;
+  int prepareRequests = 0;
+  int settingsRequests = 0;
+  final List<TimelineLocation> sentLocations = <TimelineLocation>[];
+  final List<String> stoppedEventIds = <String>[];
+
+  @override
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind) async {
+    prepareRequests++;
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    if (permission != TimelineLocationPermission.granted) {
+      return TimelineLocationPreparation(permission: permission);
+    }
+    return TimelineLocationPreparation(
+      permission: permission,
+      location: TimelineLocation(
+        kind: kind,
+        latitude: latitude,
+        longitude: longitude,
+        label: label,
+        isLiveActive: kind == TimelineLocationKind.liveLocation,
+      ),
+    );
+  }
+
+  @override
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String transactionId,
+    required TimelineLocation location,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    sentLocations.add(location);
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<TimelineSendOutcome> stopLiveLocation({
+    required String roomId,
+    required String eventId,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    stoppedEventIds.add(eventId);
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<void> openAppSettings() async {
+    settingsRequests++;
+  }
+}
+
+@immutable
+final class TimelineLocation {
+  const TimelineLocation({
+    required this.kind,
+    required this.latitude,
+    required this.longitude,
+    required this.label,
+    this.isLiveActive = false,
+    this.isLiveStopping = false,
+  });
+
+  final TimelineLocationKind kind;
+  final double latitude;
+  final double longitude;
+  final String label;
+  final bool isLiveActive;
+  final bool isLiveStopping;
+
+  TimelineLocation copyWith({
+    double? latitude,
+    double? longitude,
+    String? label,
+    bool? isLiveActive,
+    bool? isLiveStopping,
+  }) {
+    return TimelineLocation(
+      kind: kind,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      label: label ?? this.label,
+      isLiveActive: isLiveActive ?? this.isLiveActive,
+      isLiveStopping: isLiveStopping ?? this.isLiveStopping,
+    );
+  }
+}
 
 @immutable
 final class TimelineAttachment {
@@ -18,12 +298,14 @@ final class TimelineAttachment {
     required this.kind,
     required this.name,
     required this.sizeLabel,
+    this.durationLabel,
   });
 
   final String id;
   final TimelineAttachmentKind kind;
   final String name;
   final String sizeLabel;
+  final String? durationLabel;
 }
 
 abstract interface class TimelineAttachmentSendPort {
@@ -190,6 +472,8 @@ class TimelineMessage {
     this.replyToSender,
     this.replyToBody,
     this.attachment,
+    TimelineLocation? location,
+    TimelinePoll? poll,
     TimelineSendState sendState = TimelineSendState.sent,
     bool edited = false,
     bool redacted = false,
@@ -206,6 +490,9 @@ class TimelineMessage {
          Map<String, TimelineReactionSummary>.unmodifiable(reactions),
        ),
        readByState = signal<List<String>>(List<String>.unmodifiable(readBy)),
+       locationState = signal<TimelineLocation?>(location),
+       pollState = signal<TimelinePoll?>(poll),
+       audioPlaybackState = signal(TimelineAudioPlaybackState.paused),
        sendState = signal(sendState);
 
   factory TimelineMessage.fromFixture(BenchmarkMessage message, int index) {
@@ -221,6 +508,34 @@ class TimelineMessage {
     );
   }
 
+  static TimelineMessage? fromMatrixEvent(
+    MatrixTimelineEvent event, {
+    required String currentUserId,
+  }) {
+    if (event.type != 'm.room.message') return null;
+    final content = event.content;
+    final msgtype = content['msgtype'];
+    if (msgtype is! String) return null;
+    final rawBody = content['body'];
+    final body = rawBody is String ? rawBody.trim() : '';
+    final attachment = _matrixAttachment(event, msgtype, body);
+    final supportedText =
+        msgtype == 'm.text' || msgtype == 'm.notice' || msgtype == 'm.emote';
+    if (!supportedText && attachment == null) return null;
+
+    final localTime = event.originServerTimestamp.toLocal();
+    final mediaBody = attachment == null ? body : _matrixMediaCaption(content);
+    return TimelineMessage(
+      id: event.eventId,
+      sender: event.senderId,
+      body: mediaBody,
+      mine: event.senderId == currentUserId,
+      timeLabel:
+          '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
+      attachment: attachment,
+    );
+  }
+
   final String id;
   final String sender;
   final Signal<String> bodyText;
@@ -230,6 +545,9 @@ class TimelineMessage {
   final String? replyToSender;
   final String? replyToBody;
   final TimelineAttachment? attachment;
+  final Signal<TimelineLocation?> locationState;
+  final Signal<TimelinePoll?> pollState;
+  final Signal<TimelineAudioPlaybackState> audioPlaybackState;
   final Signal<bool> editedState;
   final Signal<bool> redactedState;
   final Signal<List<String>> editHistoryState;
@@ -244,15 +562,27 @@ class TimelineMessage {
   bool get isReply => replyToMessageId != null;
   Map<String, TimelineReactionSummary> get reactions => reactionState.value;
   List<String> get readBy => readByState.value;
+  TimelineLocation? get location => locationState.value;
+  TimelinePoll? get poll => pollState.value;
 }
 
-class TimelineController {
+abstract interface class TimelineLocationShareDelegate {
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  );
+  Future<void> openLocationSettings();
+  void sendLocation(String roomId, TimelineLocation location);
+}
+
+class TimelineController implements TimelineLocationShareDelegate {
   TimelineController({
     TimelineSendPort? sendPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
     TimelineLinkOpenPort? linkOpenPort,
+    TimelineLocationPort? locationPort,
+    TimelinePollPort? pollPort,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
        _attachmentSendPort =
            attachmentSendPort ??
@@ -260,7 +590,9 @@ class TimelineController {
        _moderationPort =
            moderationPort ?? DeterministicTimelineModerationPort(),
        _sharePort = sharePort ?? DeterministicTimelineSharePort(),
-       _linkOpenPort = linkOpenPort ?? DeterministicTimelineLinkOpenPort() {
+       _linkOpenPort = linkOpenPort ?? DeterministicTimelineLinkOpenPort(),
+       _locationPort = locationPort ?? DeterministicTimelineLocationPort(),
+       _pollPort = pollPort ?? DeterministicTimelinePollPort() {
     reset();
   }
 
@@ -269,6 +601,8 @@ class TimelineController {
   TimelineModerationPort _moderationPort;
   TimelineSharePort _sharePort;
   TimelineLinkOpenPort _linkOpenPort;
+  TimelineLocationPort _locationPort;
+  TimelinePollPort _pollPort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
   final Map<String, Signal<List<String>>> _typingUsers =
@@ -314,6 +648,21 @@ class TimelineController {
     signal.value = List<String>.unmodifiable(next);
   }
 
+  void updateLocation(
+    String roomId,
+    String eventId,
+    TimelineLocation location,
+  ) {
+    final matches = messagesFor(roomId)
+        .peek()
+        .where((candidate) => candidate.id == eventId);
+    if (matches.isEmpty) return;
+    final target = matches.single;
+    final current = target.locationState.peek();
+    if (current == null || current.kind != location.kind) return;
+    target.locationState.value = location;
+  }
+
   void updateReadReceipts(
     String roomId,
     String eventId,
@@ -346,6 +695,46 @@ class TimelineController {
         ]),
       );
     });
+  }
+
+  void applyMatrixEvents(
+    String roomId,
+    Iterable<MatrixTimelineEvent> events, {
+    required String currentUserId,
+  }) {
+    final target = _messages.putIfAbsent(
+      roomId,
+      () => signal<List<TimelineMessage>>(const <TimelineMessage>[]),
+    );
+    final current = target.peek();
+    final existingById = <String, TimelineMessage>{
+      for (final message in current) message.id: message,
+    };
+    final projected = <TimelineMessage>[];
+    for (final event in events) {
+      if (event.roomId != roomId) continue;
+      final mapped = TimelineMessage.fromMatrixEvent(
+        event,
+        currentUserId: currentUserId,
+      );
+      if (mapped == null) continue;
+      final existing = existingById[mapped.id];
+      projected.add(
+        existing != null && _sameMatrixProjection(existing, mapped)
+            ? existing
+            : mapped,
+      );
+    }
+    projected.addAll(
+      current.where(
+        (message) =>
+            message.id.startsWith('kite-local-') &&
+            !projected.any((candidate) => candidate.id == message.id),
+      ),
+    );
+    final next = List<TimelineMessage>.unmodifiable(projected);
+    if (_sameMessageIdentityList(current, next)) return;
+    target.value = next;
   }
 
   TimelineMessage sendText(
@@ -408,6 +797,181 @@ class TimelineController {
     return message;
   }
 
+  @override
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  ) => _locationPort.prepare(kind);
+
+  @override
+  Future<void> openLocationSettings() => _locationPort.openAppSettings();
+
+  @override
+  TimelineMessage sendLocation(String roomId, TimelineLocation location) {
+    final transactionId = 'kite-local-${_transactionCounter++}';
+    final message = TimelineMessage(
+      id: transactionId,
+      sender: 'You',
+      body: '',
+      mine: true,
+      timeLabel: 'now',
+      location: location,
+      sendState: TimelineSendState.sending,
+    );
+    final roomMessages = messagesFor(roomId);
+    roomMessages.value = List<TimelineMessage>.unmodifiable(<TimelineMessage>[
+      ...roomMessages.value,
+      message,
+    ]);
+    unawaited(_settleLocation(roomId, message));
+    return message;
+  }
+
+  TimelineMessage sendPoll(
+    String roomId, {
+    required String question,
+    required List<String> options,
+  }) {
+    final normalizedQuestion = question.trim();
+    final normalizedOptions = options
+        .map((option) => option.trim())
+        .where((option) => option.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedQuestion.isEmpty) {
+      throw ArgumentError.value(
+        question,
+        'question',
+        'Poll question is required',
+      );
+    }
+    if (normalizedOptions.length < 2 || normalizedOptions.length > 6) {
+      throw ArgumentError.value(
+        options,
+        'options',
+        'Polls require between 2 and 6 choices',
+      );
+    }
+    if (normalizedOptions.toSet().length != normalizedOptions.length) {
+      throw ArgumentError.value(
+        options,
+        'options',
+        'Poll choices must be unique',
+      );
+    }
+
+    final transactionId = 'kite-local-${_transactionCounter++}';
+    final poll = TimelinePoll(
+      question: normalizedQuestion,
+      options: <TimelinePollOption>[
+        for (var index = 0; index < normalizedOptions.length; index++)
+          TimelinePollOption(
+            id: 'option-$index',
+            label: normalizedOptions[index],
+          ),
+      ],
+    );
+    final message = TimelineMessage(
+      id: transactionId,
+      sender: 'You',
+      body: '',
+      mine: true,
+      timeLabel: 'now',
+      poll: poll,
+      sendState: TimelineSendState.sending,
+    );
+    final roomMessages = messagesFor(roomId);
+    roomMessages.value = List<TimelineMessage>.unmodifiable(<TimelineMessage>[
+      ...roomMessages.value,
+      message,
+    ]);
+    unawaited(_settlePoll(roomId, message));
+    return message;
+  }
+
+  void updatePoll(String roomId, String eventId, TimelinePoll poll) {
+    final matches = messagesFor(roomId)
+        .peek()
+        .where((candidate) => candidate.id == eventId);
+    if (matches.isEmpty) return;
+    final message = matches.single;
+    if (message.pollState.peek() == null) return;
+    message.pollState.value = poll;
+  }
+
+  Future<bool> votePoll(
+    String roomId,
+    TimelineMessage message,
+    String optionId,
+  ) async {
+    final current = message.pollState.peek();
+    if (current == null || current.isEnded || current.isEnding) return false;
+    final next = current.select(optionId);
+    if (identical(next, current)) return false;
+    message.pollState.value = next;
+    final outcome = await _pollPort.votePoll(
+      roomId: roomId,
+      eventId: message.id,
+      optionId: optionId,
+    );
+    if (outcome == TimelineSendOutcome.sent) return true;
+    if (identical(message.pollState.peek(), next)) {
+      message.pollState.value = current;
+    }
+    return false;
+  }
+
+  Future<bool> endPoll(String roomId, TimelineMessage message) async {
+    final current = message.pollState.peek();
+    if (!message.mine ||
+        current == null ||
+        current.isEnded ||
+        current.isEnding) {
+      return false;
+    }
+    final ending = current.withEnding(true);
+    message.pollState.value = ending;
+    final outcome = await _pollPort.endPoll(
+      roomId: roomId,
+      eventId: message.id,
+    );
+    if (outcome == TimelineSendOutcome.sent) {
+      message.pollState.value = ending.ended();
+      return true;
+    }
+    if (identical(message.pollState.peek(), ending)) {
+      message.pollState.value = current;
+    }
+    return false;
+  }
+
+  Future<bool> stopLiveLocation(String roomId, TimelineMessage message) async {
+    final current = message.locationState.peek();
+    if (!message.mine ||
+        current == null ||
+        current.kind != TimelineLocationKind.liveLocation ||
+        !current.isLiveActive ||
+        current.isLiveStopping) {
+      return false;
+    }
+    message.locationState.value = current.copyWith(isLiveStopping: true);
+    final outcome = await _locationPort.stopLiveLocation(
+      roomId: roomId,
+      eventId: message.id,
+    );
+    final latest = message.locationState.peek();
+    if (latest == null || latest.kind != TimelineLocationKind.liveLocation) {
+      return false;
+    }
+    if (outcome == TimelineSendOutcome.sent) {
+      message.locationState.value = latest.copyWith(
+        isLiveActive: false,
+        isLiveStopping: false,
+      );
+      return true;
+    }
+    message.locationState.value = latest.copyWith(isLiveStopping: false);
+    return false;
+  }
+
   void editText(TimelineMessage message, String rawBody) {
     if (!message.mine || message.redacted) return;
     final body = rawBody.trim();
@@ -432,6 +996,15 @@ class TimelineController {
       message.readByState.value = const <String>[];
       message.redactedState.value = true;
     });
+  }
+
+  void toggleAudioPlayback(TimelineMessage message) {
+    final kind = message.attachment?.kind;
+    if (message.redacted || kind == null || !kind.isAudio) return;
+    message.audioPlaybackState.value =
+        message.audioPlaybackState.peek() == TimelineAudioPlaybackState.playing
+        ? TimelineAudioPlaybackState.paused
+        : TimelineAudioPlaybackState.playing;
   }
 
   void toggleReaction(TimelineMessage message, String emoji) {
@@ -509,7 +1082,11 @@ class TimelineController {
   void retry(String roomId, TimelineMessage message) {
     if (message.sendState.value != TimelineSendState.failed) return;
     message.sendState.value = TimelineSendState.sending;
-    if (message.attachment != null) {
+    if (message.poll != null) {
+      unawaited(_settlePoll(roomId, message));
+    } else if (message.location != null) {
+      unawaited(_settleLocation(roomId, message));
+    } else if (message.attachment != null) {
       unawaited(_settleAttachment(roomId, message));
     } else {
       unawaited(_settle(roomId, message));
@@ -522,16 +1099,48 @@ class TimelineController {
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
     TimelineLinkOpenPort? linkOpenPort,
+    TimelineLocationPort? locationPort,
+    TimelinePollPort? pollPort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
     if (sharePort != null) _sharePort = sharePort;
     if (linkOpenPort != null) _linkOpenPort = linkOpenPort;
+    if (locationPort != null) _locationPort = locationPort;
+    if (pollPort != null) _pollPort = pollPort;
     _transactionCounter = 0;
     _messages.clear();
     _typingUsers.clear();
     _unreadMarkerEventIds.clear();
+  }
+
+  Future<void> _settlePoll(String roomId, TimelineMessage message) async {
+    final poll = message.pollState.peek();
+    if (poll == null) return;
+    final outcome = await _pollPort.createPoll(
+      roomId: roomId,
+      transactionId: message.id,
+      poll: poll,
+    );
+    message.sendState.value = switch (outcome) {
+      TimelineSendOutcome.sent => TimelineSendState.sent,
+      TimelineSendOutcome.failed => TimelineSendState.failed,
+    };
+  }
+
+  Future<void> _settleLocation(String roomId, TimelineMessage message) async {
+    final location = message.locationState.peek();
+    if (location == null) return;
+    final outcome = await _locationPort.sendLocation(
+      roomId: roomId,
+      transactionId: message.id,
+      location: location,
+    );
+    message.sendState.value = switch (outcome) {
+      TimelineSendOutcome.sent => TimelineSendState.sent,
+      TimelineSendOutcome.failed => TimelineSendState.failed,
+    };
   }
 
   Future<void> _settleAttachment(String roomId, TimelineMessage message) async {
@@ -560,6 +1169,124 @@ class TimelineController {
       TimelineSendOutcome.failed => TimelineSendState.failed,
     };
   }
+}
+
+TimelineAttachment? _matrixAttachment(
+  MatrixTimelineEvent event,
+  String msgtype,
+  String body,
+) {
+  final info = event.content['info'];
+  final infoMap = info is Map ? info : const <Object?, Object?>{};
+  final mimetype = infoMap['mimetype'];
+  final mime = mimetype is String ? mimetype.toLowerCase() : '';
+  final kind = switch (msgtype) {
+    'm.image' => TimelineAttachmentKind.image,
+    'm.video' => TimelineAttachmentKind.video,
+    'm.audio' =>
+      _isMatrixVoiceMessage(event.content)
+          ? TimelineAttachmentKind.voice
+          : TimelineAttachmentKind.audio,
+    'm.file' when mime.startsWith('audio/') => TimelineAttachmentKind.audio,
+    'm.file' => TimelineAttachmentKind.file,
+    _ => null,
+  };
+  if (kind == null) return null;
+
+  final filename = event.content['filename'];
+  final name = filename is String && filename.trim().isNotEmpty
+      ? filename.trim()
+      : body.isNotEmpty
+      ? body
+      : _defaultAttachmentName(kind);
+  final size = infoMap['size'];
+  final sizeLabel = size is int && size >= 0
+      ? '${_formatBytes(size)} · ${_attachmentKindLabel(kind)}'
+      : _attachmentKindLabel(kind);
+  final duration = infoMap['duration'];
+  final durationLabel = duration is int && duration >= 0
+      ? _formatDuration(Duration(milliseconds: duration))
+      : null;
+  final url = event.content['url'];
+  final file = event.content['file'];
+  final encryptedUrl = file is Map ? file['url'] : null;
+  final attachmentId = switch ((url, encryptedUrl)) {
+    (final String value, _) when value.isNotEmpty => value,
+    (_, final String value) when value.isNotEmpty => value,
+    _ => event.eventId,
+  };
+  return TimelineAttachment(
+    id: attachmentId,
+    kind: kind,
+    name: name,
+    sizeLabel: sizeLabel,
+    durationLabel: durationLabel,
+  );
+}
+
+bool _isMatrixVoiceMessage(Map<String, Object?> content) {
+  return content.containsKey('org.matrix.msc3245.voice') ||
+      content.containsKey('m.voice');
+}
+
+String _matrixMediaCaption(Map<String, Object?> content) {
+  final caption = content['org.matrix.msc1767.caption'];
+  return caption is String ? caption.trim() : '';
+}
+
+String _defaultAttachmentName(TimelineAttachmentKind kind) => switch (kind) {
+  TimelineAttachmentKind.image => 'Image',
+  TimelineAttachmentKind.video => 'Video',
+  TimelineAttachmentKind.file => 'File',
+  TimelineAttachmentKind.audio => 'Audio',
+  TimelineAttachmentKind.voice => 'Voice message',
+};
+
+String _attachmentKindLabel(TimelineAttachmentKind kind) => switch (kind) {
+  TimelineAttachmentKind.image => 'Image',
+  TimelineAttachmentKind.video => 'Video',
+  TimelineAttachmentKind.file => 'File',
+  TimelineAttachmentKind.audio => 'Audio',
+  TimelineAttachmentKind.voice => 'Voice',
+};
+
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+String _formatDuration(Duration duration) {
+  final totalSeconds = duration.inSeconds;
+  final minutes = totalSeconds ~/ 60;
+  final seconds = totalSeconds % 60;
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+bool _sameMatrixProjection(TimelineMessage left, TimelineMessage right) {
+  final leftAttachment = left.attachment;
+  final rightAttachment = right.attachment;
+  return left.id == right.id &&
+      left.sender == right.sender &&
+      left.body == right.body &&
+      left.mine == right.mine &&
+      left.timeLabel == right.timeLabel &&
+      leftAttachment?.id == rightAttachment?.id &&
+      leftAttachment?.kind == rightAttachment?.kind &&
+      leftAttachment?.name == rightAttachment?.name &&
+      leftAttachment?.sizeLabel == rightAttachment?.sizeLabel &&
+      leftAttachment?.durationLabel == rightAttachment?.durationLabel;
+}
+
+bool _sameMessageIdentityList(
+  List<TimelineMessage> left,
+  List<TimelineMessage> right,
+) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (!identical(left[index], right[index])) return false;
+  }
+  return true;
 }
 
 final timelineController = TimelineController();

@@ -81,6 +81,11 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(message.sendState.value, TimelineSendState.sent);
+
+    await tester.longPress(find.byKey(Key('message-bubble-${message.id}')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-copy')), findsOneWidget);
+    expect(find.text('Copy caption'), findsOneWidget);
   });
 
   testWidgets('attachment preview can be removed without sending', (

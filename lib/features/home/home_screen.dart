@@ -17,12 +17,17 @@ import 'package:kite/features/home/spaces_screen.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_list_view.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
+import 'package:kite/features/timeline/timeline_location_card.dart';
+import 'package:kite/features/timeline/timeline_location_share_sheet.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
+import 'package:kite/features/timeline/timeline_poll_card.dart';
+import 'package:kite/features/timeline/timeline_poll_sheet.dart';
 import 'package:kite/l10n/kite_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -115,6 +120,7 @@ class _HomeSidebar extends StatefulWidget {
 class _HomeSidebarState extends State<_HomeSidebar> {
   late RoomListStateStore _ownedStore;
   late RoomInviteStore _ownedInviteStore;
+  final List<void Function()> _disposeThreadUnreadEffects = <void Function()>[];
 
   RoomListStateStore get store => widget.store ?? _ownedStore;
   RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore;
@@ -124,6 +130,45 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     super.initState();
     _ownedStore = RoomListStateStore(widget.rooms);
     _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
+    _bindThreadUnreadState();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != widget.store) {
+      _clearThreadUnreadEffects();
+      _bindThreadUnreadState();
+    }
+  }
+
+  void _bindThreadUnreadState() {
+    for (final roomId in store.roomIds) {
+      _disposeThreadUnreadEffects.add(
+        effect(() {
+          final unreadThreadCount = threadController
+              .unreadThreadCountForRoom(roomId)
+              .value;
+          final roomSignal = store.roomSignal(roomId);
+          final room = roomSignal.peek();
+          if (room.unreadThreadCount == unreadThreadCount) return;
+          store.update(room.copyWith(unreadThreadCount: unreadThreadCount));
+        }),
+      );
+    }
+  }
+
+  void _clearThreadUnreadEffects() {
+    for (final dispose in _disposeThreadUnreadEffects) {
+      dispose();
+    }
+    _disposeThreadUnreadEffects.clear();
+  }
+
+  @override
+  void dispose() {
+    _clearThreadUnreadEffects();
+    super.dispose();
   }
 
   @override
@@ -198,7 +243,12 @@ class _HomeHeader extends StatelessWidget {
             IconButton(
               key: const Key('home-read-all'),
               tooltip: 'Mark all as read',
-              onPressed: store.markAllRead,
+              onPressed: () {
+                for (final roomId in store.roomIds) {
+                  threadController.markRoomThreadsRead(roomId);
+                }
+                store.markAllRead();
+              },
               icon: const Icon(Icons.done_all_rounded),
             ),
           ],
@@ -462,6 +512,19 @@ class _CompactChatScreen extends StatelessWidget {
           builder: (context) =>
               Text(BenchmarkFixture.room(selectedRoomId.value).name),
         ),
+        actions: <Widget>[
+          IconButton(
+            key: const Key('compact-room-threads-action'),
+            tooltip: 'Threads',
+            onPressed: () => Navigator.of(context).push(
+              ThreadListRoute(
+                roomId: selectedRoomId.value,
+                reduceMotion: KiteMotion.prefersReducedMotion(context),
+              ),
+            ),
+            icon: const Icon(Icons.forum_outlined),
+          ),
+        ],
       ),
       body: const _ChatPanel(showHeader: false),
     );
@@ -1003,12 +1066,14 @@ typedef _ReactionAction = void Function(String emoji);
 
 enum _MessageAction {
   reply,
+  replyInThread,
   edit,
   copy,
   share,
   forward,
   report,
   redact,
+  endPoll,
   reactionPicker,
 }
 
@@ -1189,6 +1254,17 @@ class _ChatHeader extends StatelessWidget {
                   ),
                 ),
                 IconButton(
+                  key: const Key('room-threads-action'),
+                  tooltip: 'Threads',
+                  onPressed: () => Navigator.of(context).push(
+                    ThreadListRoute(
+                      roomId: roomId,
+                      reduceMotion: KiteMotion.prefersReducedMotion(context),
+                    ),
+                  ),
+                  icon: const Icon(Icons.forum_outlined, size: 20),
+                ),
+                IconButton(
                   key: const Key('room-content-gallery-action'),
                   tooltip: 'Shared content',
                   onPressed: () {
@@ -1246,11 +1322,32 @@ class _Timeline extends StatefulWidget {
 class _TimelineState extends State<_Timeline> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _unreadMarkerKey = GlobalKey();
+  String? _displayedRoomId;
+  List<TimelineMessage> _displayedMessages = const <TimelineMessage>[];
+  List<TimelineMessage>? _pendingTailMessages;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_flushPendingAtTail);
+  }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_flushPendingAtTail);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _flushPendingAtTail() {
+    final pending = _pendingTailMessages;
+    if (!mounted || pending == null || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels > position.minScrollExtent + 0.5) return;
+    setState(() {
+      _displayedMessages = pending;
+      _pendingTailMessages = null;
+    });
   }
 
   Future<void> _jumpToUnread(String roomId) async {
@@ -1313,7 +1410,33 @@ class _TimelineState extends State<_Timeline> {
     return SignalBuilder(
       builder: (context) {
         final roomId = selectedRoomId.value;
-        final messages = timelineController.messagesFor(roomId).value;
+        final sourceMessages = timelineController.messagesFor(roomId).value;
+        if (_displayedRoomId != roomId) {
+          _displayedRoomId = roomId;
+          _displayedMessages = sourceMessages;
+          _pendingTailMessages = null;
+        } else if (!_sameMessageIdentityList(
+          _displayedMessages,
+          sourceMessages,
+        )) {
+          final awayFromTail =
+              _scrollController.hasClients &&
+              _scrollController.position.pixels >
+                  _scrollController.position.minScrollExtent + 0.5;
+          final remoteTailAppend =
+              awayFromTail &&
+              _isStrictMessageTailAppend(_displayedMessages, sourceMessages) &&
+              sourceMessages
+                  .skip(_displayedMessages.length)
+                  .every((message) => !message.id.startsWith('kite-local-'));
+          if (remoteTailAppend) {
+            _pendingTailMessages = sourceMessages;
+          } else {
+            _displayedMessages = sourceMessages;
+            _pendingTailMessages = null;
+          }
+        }
+        final messages = _displayedMessages;
         final unreadMarkerEventId = timelineController
             .unreadMarkerFor(roomId)
             .value;
@@ -1368,6 +1491,28 @@ class _TimelineState extends State<_Timeline> {
       },
     );
   }
+}
+
+bool _sameMessageIdentityList(
+  List<TimelineMessage> left,
+  List<TimelineMessage> right,
+) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (!identical(left[index], right[index])) return false;
+  }
+  return true;
+}
+
+bool _isStrictMessageTailAppend(
+  List<TimelineMessage> previous,
+  List<TimelineMessage> next,
+) {
+  if (previous.isEmpty || next.length <= previous.length) return false;
+  for (var index = 0; index < previous.length; index++) {
+    if (!identical(previous[index], next[index])) return false;
+  }
+  return true;
 }
 
 class _UnreadJumpButton extends StatelessWidget {
@@ -1521,6 +1666,14 @@ class _MessageRow extends StatelessWidget {
     switch (action) {
       case _MessageAction.reply:
         onReply(roomId, message);
+      case _MessageAction.replyInThread:
+        await Navigator.of(context).push(
+          ThreadRoute(
+            roomId: roomId,
+            parent: message,
+            reduceMotion: KiteMotion.prefersReducedMotion(context),
+          ),
+        );
       case _MessageAction.edit:
         onEdit(roomId, message);
       case _MessageAction.copy:
@@ -1602,6 +1755,8 @@ class _MessageRow extends StatelessWidget {
               duration: Duration(seconds: 2),
             ),
           );
+      case _MessageAction.endPoll:
+        await timelineController.endPoll(roomId, message);
       case _MessageAction.reactionPicker:
         final emoji = await showModalBottomSheet<String>(
           context: context,
@@ -1641,6 +1796,14 @@ class _MessageRow extends StatelessWidget {
     switch (action) {
       case _MessageAction.reply:
         onReply(roomId, message);
+      case _MessageAction.replyInThread:
+        await Navigator.of(context).push(
+          ThreadRoute(
+            roomId: roomId,
+            parent: message,
+            reduceMotion: KiteMotion.prefersReducedMotion(context),
+          ),
+        );
       case _MessageAction.edit:
         onEdit(roomId, message);
       case _MessageAction.copy:
@@ -1655,6 +1818,8 @@ class _MessageRow extends StatelessWidget {
               duration: const Duration(seconds: 2),
             ),
           );
+      case _MessageAction.endPoll:
+        await timelineController.endPoll(roomId, message);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -1708,17 +1873,36 @@ class _MessageRow extends StatelessWidget {
                       unawaited(
                         _performAccessibleAction(context, _MessageAction.reply),
                       ),
-                  CustomSemanticsAction(
-                    label: localizations.copyTextAction,
-                  ): () => unawaited(
-                    _performAccessibleAction(context, _MessageAction.copy),
-                  ),
-                  if (message.mine)
+                  const CustomSemanticsAction(label: 'Reply in thread'): () =>
+                      unawaited(
+                        _performAccessibleAction(
+                          context,
+                          _MessageAction.replyInThread,
+                        ),
+                      ),
+                  if (message.body.isNotEmpty)
+                    CustomSemanticsAction(
+                      label: localizations.copyTextAction,
+                    ): () => unawaited(
+                      _performAccessibleAction(context, _MessageAction.copy),
+                    ),
+                  if (message.mine && message.poll == null)
                     CustomSemanticsAction(
                       label: localizations.editMessageAction,
                     ): () => unawaited(
                       _performAccessibleAction(context, _MessageAction.edit),
                     ),
+                  if (message.mine &&
+                      message.poll != null &&
+                      !message.poll!.isEnded &&
+                      !message.poll!.isEnding)
+                    const CustomSemanticsAction(label: 'End poll'): () =>
+                        unawaited(
+                          _performAccessibleAction(
+                            context,
+                            _MessageAction.endPoll,
+                          ),
+                        ),
                   if (message.mine)
                     CustomSemanticsAction(
                       label: localizations.deleteMessageAction,
@@ -1771,6 +1955,8 @@ class _MessageRow extends StatelessWidget {
                         );
                       }
                       final attachment = message.attachment;
+                      final location = message.location;
+                      final poll = message.poll;
                       final linkPreview = timelineLinkPreviewForText(
                         message.body,
                       );
@@ -1783,16 +1969,56 @@ class _MessageRow extends StatelessWidget {
                             TimelineAttachmentCard(
                               messageId: message.id,
                               attachment: attachment,
-                              heroTag:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : timelineMediaHeroTag(message),
-                              onTap:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : () => _openMedia(context),
+                              audioPlaybackState: message.audioPlaybackState,
+                              heroTag: attachment.kind.isVisualMedia
+                                  ? timelineMediaHeroTag(message)
+                                  : null,
+                              onTap: attachment.kind.isVisualMedia
+                                  ? () => _openMedia(context)
+                                  : null,
+                              onToggleAudio: attachment.kind.isAudio
+                                  ? () => timelineController
+                                        .toggleAudioPlayback(message)
+                                  : null,
                             ),
-                          if (attachment != null && message.body.isNotEmpty)
+                          if (attachment != null &&
+                              (location != null ||
+                                  poll != null ||
+                                  message.body.isNotEmpty))
+                            const SizedBox(height: KiteSpacing.xs),
+                          if (location != null)
+                            TimelineLocationCard(
+                              messageId: message.id,
+                              location: location,
+                              onStopLiveLocation:
+                                  mine &&
+                                      location.kind ==
+                                          TimelineLocationKind.liveLocation &&
+                                      location.isLiveActive
+                                  ? () => unawaited(
+                                      timelineController.stopLiveLocation(
+                                        roomId,
+                                        message,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          if (location != null &&
+                              (poll != null || message.body.isNotEmpty))
+                            const SizedBox(height: KiteSpacing.xs),
+                          if (poll != null)
+                            TimelinePollCard(
+                              messageId: message.id,
+                              poll: poll,
+                              onVote: (optionId) => unawaited(
+                                timelineController.votePoll(
+                                  roomId,
+                                  message,
+                                  optionId,
+                                ),
+                              ),
+                            ),
+                          if (poll != null && message.body.isNotEmpty)
                             const SizedBox(height: KiteSpacing.xs),
                           if (message.body.isNotEmpty)
                             TimelineMessageBody(
@@ -1871,10 +2097,7 @@ class _MessageRow extends StatelessWidget {
           : CrossAxisAlignment.start,
       children: <Widget>[
         bubble,
-        if (threadController.hasThread(message.id)) ...<Widget>[
-          const SizedBox(height: KiteSpacing.xs),
-          _ThreadSummaryButton(roomId: roomId, parent: message),
-        ],
+        _ThreadSummaryButton(roomId: roomId, parent: message),
       ],
     );
 
@@ -2033,97 +2256,100 @@ class _ThreadSummaryButton extends StatelessWidget {
             .unreadCountFor(roomId: roomId, parent: parent)
             .value;
         final latest = replies.last;
-        return Semantics(
-          button: true,
-          label:
-              'Open thread with $count replies${unread > 0 ? ', $unread unread' : ''}',
-          child: InkWell(
-            key: Key('thread-summary-${parent.id}'),
-            onTap: () => _open(context),
-            borderRadius: BorderRadius.circular(KiteRadii.md),
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 168, maxWidth: 360),
-              padding: const EdgeInsets.symmetric(
-                horizontal: KiteSpacing.sm,
-                vertical: KiteSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest.withValues(alpha: 0.58),
-                borderRadius: BorderRadius.circular(KiteRadii.md),
-                border: Border.all(
-                  color: colors.outlineVariant.withValues(alpha: 0.7),
-                  width: KiteStroke.hairline,
+        return Padding(
+          padding: const EdgeInsets.only(top: KiteSpacing.xs),
+          child: Semantics(
+            button: true,
+            label:
+                'Open thread with $count replies${unread > 0 ? ', $unread unread' : ''}',
+            child: InkWell(
+              key: Key('thread-summary-${parent.id}'),
+              onTap: () => _open(context),
+              borderRadius: BorderRadius.circular(KiteRadii.md),
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 168, maxWidth: 360),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: KiteSpacing.sm,
+                  vertical: KiteSpacing.xs,
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  SizedBox.square(
-                    dimension: 20,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: <Widget>[
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Icon(
-                            Icons.forum_outlined,
-                            size: 17,
-                            color: colors.primary,
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest.withValues(alpha: 0.58),
+                  borderRadius: BorderRadius.circular(KiteRadii.md),
+                  border: Border.all(
+                    color: colors.outlineVariant.withValues(alpha: 0.7),
+                    width: KiteStroke.hairline,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    SizedBox.square(
+                      dimension: 20,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: <Widget>[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Icon(
+                              Icons.forum_outlined,
+                              size: 17,
+                              color: colors.primary,
+                            ),
                           ),
-                        ),
-                        if (unread > 0)
-                          Positioned(
-                            key: Key('thread-unread-${parent.id}'),
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: colors.primary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: colors.surfaceContainerHighest,
-                                  width: 1,
+                          if (unread > 0)
+                            Positioned(
+                              key: Key('thread-unread-${parent.id}'),
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: colors.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: colors.surfaceContainerHighest,
+                                    width: 1,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: KiteSpacing.xs),
-                  Flexible(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          '$count ${count == 1 ? 'reply' : 'replies'}',
-                          style: KiteTypography.metadata.copyWith(
-                            color: colors.primary,
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(width: KiteSpacing.xs),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '$count ${count == 1 ? 'reply' : 'replies'}',
+                            style: KiteTypography.metadata.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${latest.sender}: ${latest.body}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: KiteTypography.metadata.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontSize: 11,
+                          Text(
+                            '${latest.sender}: ${latest.body}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: KiteTypography.metadata.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: KiteSpacing.xs),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 19,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ],
+                    const SizedBox(width: KiteSpacing.xs),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 19,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2218,7 +2444,7 @@ class _MessageActionSheet extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  message.body,
+                  message.poll?.question ?? message.body,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: KiteTypography.body.copyWith(
@@ -2244,24 +2470,37 @@ class _MessageActionSheet extends StatelessWidget {
                   onTap: () => Navigator.of(context).pop(_MessageAction.reply),
                 ),
                 _MessageActionButton(
-                  key: const Key('message-action-copy'),
-                  icon: Icons.content_copy_rounded,
-                  label: AppLocalizations.of(context).copyTextAction,
-                  onTap: () => Navigator.of(context).pop(_MessageAction.copy),
-                ),
-                _MessageActionButton(
-                  key: const Key('message-action-share'),
-                  icon: Icons.share_outlined,
-                  label: 'Share',
-                  onTap: () => Navigator.of(context).pop(_MessageAction.share),
-                ),
-                _MessageActionButton(
-                  key: const Key('message-action-forward'),
-                  icon: Icons.forward_to_inbox_rounded,
-                  label: 'Forward',
+                  key: const Key('message-action-reply-thread'),
+                  icon: Icons.forum_outlined,
+                  label: 'Reply in thread',
                   onTap: () =>
-                      Navigator.of(context).pop(_MessageAction.forward),
+                      Navigator.of(context).pop(_MessageAction.replyInThread),
                 ),
+                if (message.body.isNotEmpty)
+                  _MessageActionButton(
+                    key: const Key('message-action-copy'),
+                    icon: Icons.content_copy_rounded,
+                    label: message.attachment == null
+                        ? AppLocalizations.of(context).copyTextAction
+                        : 'Copy caption',
+                    onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+                  ),
+                if (message.poll == null)
+                  _MessageActionButton(
+                    key: const Key('message-action-share'),
+                    icon: Icons.share_outlined,
+                    label: 'Share',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.share),
+                  ),
+                if (message.poll == null)
+                  _MessageActionButton(
+                    key: const Key('message-action-forward'),
+                    icon: Icons.forward_to_inbox_rounded,
+                    label: 'Forward',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.forward),
+                  ),
                 if (!message.mine)
                   _MessageActionButton(
                     key: const Key('message-action-report'),
@@ -2270,12 +2509,23 @@ class _MessageActionSheet extends StatelessWidget {
                     onTap: () =>
                         Navigator.of(context).pop(_MessageAction.report),
                   ),
-                if (message.mine)
+                if (message.mine && message.poll == null)
                   _MessageActionButton(
                     key: const Key('message-action-edit'),
                     icon: Icons.edit_outlined,
                     label: AppLocalizations.of(context).editMessageAction,
                     onTap: () => Navigator.of(context).pop(_MessageAction.edit),
+                  ),
+                if (message.mine &&
+                    message.poll != null &&
+                    !message.poll!.isEnded &&
+                    !message.poll!.isEnding)
+                  _MessageActionButton(
+                    key: const Key('message-action-end-poll'),
+                    icon: Icons.stop_circle_outlined,
+                    label: 'End poll',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.endPoll),
                   ),
                 if (message.mine)
                   _MessageActionButton(
@@ -3233,7 +3483,36 @@ class _ComposerState extends State<_Composer> {
   }
 
   Future<void> _pickAttachment(String roomId) async {
-    final attachment = await showComposerAttachmentPicker(context);
+    final attachment = await showComposerAttachmentPicker(
+      context,
+      onLocationSelected: (kind) {
+        if (!mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(
+            showComposerLocationShareSheet(
+              context,
+              roomId: roomId,
+              kind: kind,
+              controller: timelineController,
+            ),
+          );
+        });
+      },
+      onPollSelected: () {
+        if (!mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(
+            showComposerPollSheet(
+              context,
+              roomId: roomId,
+              controller: timelineController,
+            ),
+          );
+        });
+      },
+    );
     if (!mounted || attachment == null) return;
     setState(() {
       _pendingAttachment = attachment;
