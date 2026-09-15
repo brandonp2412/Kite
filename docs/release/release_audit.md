@@ -6,7 +6,7 @@ This document records the executable release-security and dependency baseline. `
 
 ## Android and security surface
 
-The release manifest explicitly disables Android application backup and cleartext traffic. The audit requires exactly one exported Android component, `MainActivity`, and rejects exported services, receivers, or providers. It also rejects release-debuggable, cleartext-enabled, backup-enabled, broad external-storage, and unstructured console-logging patterns in sensitive Matrix/auth/media/notification/diagnostic paths.
+The release manifest explicitly disables Android application backup and cleartext traffic and opts into Android's back-invoked callback path so current Android releases do not fall back to the legacy back dispatcher. The audit requires exactly one exported Android component, `MainActivity`, and rejects exported services, receivers, or providers. It also rejects release-debuggable, cleartext-enabled, backup-enabled, broad external-storage, and unstructured console-logging patterns in sensitive Matrix/auth/media/notification/diagnostic paths.
 
 The current Matrix SDK boundary requires both audited encryption and encrypted persistent storage before an engine can be constructed. Per-account store configuration rejects shared encryption-key identifiers. Crash reporting serializes the exception type plus typed diagnostic context, not exception text or decrypted content. Existing Matrix deep-link parsing is typed and the production Android manifest currently exposes no `ACTION_VIEW` intent filter, so there is no OS-exported Matrix deep-link entry point in this baseline.
 
