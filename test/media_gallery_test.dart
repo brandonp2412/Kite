@@ -89,6 +89,18 @@ void main() {
       find.byKey(const Key('room-content-media-video-message')),
       findsOneWidget,
     );
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('room-content-media-photo-message')))
+          .label,
+      contains('Image: harbour.jpg, open media'),
+    );
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('room-content-media-video-message')))
+          .label,
+      contains('Video: motion.mp4, open media'),
+    );
     expect(find.text('release-notes.pdf'), findsNothing);
 
     await tester.tap(find.byKey(const Key('room-content-media-video-message')));
