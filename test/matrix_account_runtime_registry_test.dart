@@ -310,6 +310,9 @@ void main() {
         encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
       );
       final boundaries = <_FakeAccountBoundary>[];
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
       final registry = MatrixAccountRuntimeRegistry(
         storeRegistry: stores,
         boundaryFactory: (accountId) {
@@ -319,6 +322,7 @@ void main() {
         },
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
+        presentationStore: presentationStore,
       );
       addTearDown(registry.dispose);
 
@@ -330,9 +334,20 @@ void main() {
         expect(stores.stores, hasLength(2));
 
         expect(await registry.removeAccount('@alice:example.org'), isTrue);
+        await registry.flushPresentationWrites('@bob:example.org');
+        expect(
+          presentationStore.snapshots.containsKey('@alice:example.org'),
+          isFalse,
+        );
+        expect(
+          presentationStore.snapshots.containsKey('@bob:example.org'),
+          isTrue,
+        );
+
         expect(await registry.removeAccount('@bob:example.org'), isTrue);
         expect(registry.loadedAccountIds, isEmpty);
         expect(stores.stores, isEmpty);
+        expect(presentationStore.snapshots, isEmpty);
         expect(registry.activeAccountId.value, isNull);
       }
 

@@ -146,6 +146,13 @@ final class MatrixAccountRuntimeRegistry {
       if (activeAccountId.value == normalizedAccountId) {
         activeAccountId.value = null;
       }
+
+      await flushPresentationWrites(normalizedAccountId);
+      final presentation = presentationStore;
+      if (presentation != null) {
+        await presentation.clear(normalizedAccountId);
+      }
+
       final removedStore = storeRegistry.removeAccount(normalizedAccountId);
       return runtime != null || removedStore;
     });
