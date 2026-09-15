@@ -8,5 +8,5 @@ publish = false
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-matrix-sdk = "0.18.0"
+matrix-sdk = { version = "0.18.0", features = ["bundled-sqlite"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
