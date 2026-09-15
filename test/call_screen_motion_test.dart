@@ -109,6 +109,18 @@ void main() {
       }
       expect(coordinator.spotlightParticipantId.value, 'alice');
 
+      await tester.tap(find.byKey(const Key('call-audio-route')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('call-audio-route-speaker')));
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, grid), gridRect);
+        expect(_rectOf(tester, controls), controlsRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(coordinator.selectedAudioRouteId.value, 'speaker');
+
       gateway.callSecurityState = const KiteCallSecurityState(
         e2eeEnabled: true,
         identityTrust: KiteCallIdentityTrust.warning,

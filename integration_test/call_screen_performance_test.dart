@@ -103,6 +103,10 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('call-participant-alice')));
         await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('call-audio-route')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('call-audio-route-speaker')));
+        await tester.pumpAndSettle();
         await tester.tap(_roundButton('call-hang-up'));
         await tester.pumpAndSettle();
       },
@@ -111,6 +115,7 @@ void main() {
 
     expect(fixture.coordinator.cameraFacing.value, KiteCameraFacing.rear);
     expect(fixture.coordinator.spotlightParticipantId.value, 'alice');
+    expect(fixture.coordinator.selectedAudioRouteId.value, 'speaker');
     expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['call_controls'] = <String, dynamic>{

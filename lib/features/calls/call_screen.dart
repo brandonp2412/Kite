@@ -631,8 +631,10 @@ class _CallControls extends StatelessWidget {
                         unawaited(onAudioRouteSelected(routeId)),
                     itemBuilder: (_) => <PopupMenuEntry<String>>[
                       for (final route in routes)
-                        PopupMenuItem<String>(
+                        CheckedPopupMenuItem<String>(
+                          key: Key('call-audio-route-${route.id}'),
                           value: route.id,
+                          checked: selectedRoute == route.id,
                           child: Text(route.label),
                         ),
                     ],
