@@ -175,6 +175,58 @@ void main() {
     );
   });
 
+  test('marking a room read clears every loaded thread unread state', () {
+    final controller = ThreadController();
+    final firstParent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'First parent',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final secondParent = TimelineMessage(
+      id: 'alice-81',
+      sender: 'Alice',
+      body: 'Second parent',
+      mine: false,
+      timeLabel: '09:55',
+    );
+    final firstReplies = controller
+        .repliesFor(roomId: 'alice', parent: firstParent)
+        .value;
+    final secondReplies = controller
+        .repliesFor(roomId: 'alice', parent: secondParent)
+        .value;
+    controller.updateRoomUnreadThreadCount(
+      roomId: 'alice',
+      unreadThreadCount: 4,
+    );
+
+    controller.markRoomThreadsRead('alice');
+
+    expect(
+      controller.unreadCountFor(roomId: 'alice', parent: firstParent).value,
+      0,
+    );
+    expect(
+      controller.unreadCountFor(roomId: 'alice', parent: secondParent).value,
+      0,
+    );
+    expect(controller.unreadThreadCountForRoom('alice').value, 0);
+    expect(
+      controller
+          .latestReadReplyIdFor(roomId: 'alice', parent: firstParent)
+          .value,
+      firstReplies.last.id,
+    );
+    expect(
+      controller
+          .latestReadReplyIdFor(roomId: 'alice', parent: secondParent)
+          .value,
+      secondReplies.last.id,
+    );
+  });
+
   test('thread snapshot replaces cached replies without broad state loss', () {
     final controller = ThreadController();
     final parent = TimelineMessage(

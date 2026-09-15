@@ -317,6 +317,19 @@ class ThreadController {
     unreadThreadCountForRoom(roomId).value = unreadThreadCount;
   }
 
+  void markRoomThreadsRead(String roomId) {
+    final prefix = '$roomId::';
+    for (final entry in _unreadCount.entries) {
+      if (!entry.key.startsWith(prefix)) continue;
+      entry.value.value = 0;
+      final replies = _threads[entry.key]?.peek() ?? const <ThreadReply>[];
+      _latestReadReplyId[entry.key]?.value = replies.isEmpty
+          ? null
+          : replies.last.id;
+    }
+    _roomUnreadThreadCount[roomId]?.value = 0;
+  }
+
   bool supportsComposerAction(ThreadComposerAction action) {
     return action != ThreadComposerAction.liveLocation;
   }

@@ -35,6 +35,7 @@ final class RoomListEntry {
     required this.latestEventBody,
     this.latestSender,
     this.unreadCount = 0,
+    this.unreadThreadCount = 0,
     this.hasMention = false,
     this.hasMutedActivity = false,
     this.hasActiveCall = false,
@@ -57,6 +58,7 @@ final class RoomListEntry {
   final String latestEventBody;
   final String? latestSender;
   final int unreadCount;
+  final int unreadThreadCount;
   final bool hasMention;
   final bool hasMutedActivity;
   final bool hasActiveCall;
@@ -67,7 +69,11 @@ final class RoomListEntry {
 
   bool matches(RoomListFilter filter) => switch (filter) {
     RoomListFilter.all => true,
-    RoomListFilter.unreads => unreadCount > 0 || hasMention || hasMutedActivity,
+    RoomListFilter.unreads =>
+      unreadCount > 0 ||
+          unreadThreadCount > 0 ||
+          hasMention ||
+          hasMutedActivity,
     RoomListFilter.people => isDirect,
     RoomListFilter.rooms => !isDirect,
     RoomListFilter.favourites => isFavourite,
@@ -77,6 +83,7 @@ final class RoomListEntry {
     String? latestEventBody,
     String? latestSender,
     int? unreadCount,
+    int? unreadThreadCount,
     bool? hasMention,
     bool? hasMutedActivity,
     bool? hasActiveCall,
@@ -91,6 +98,7 @@ final class RoomListEntry {
       latestEventBody: latestEventBody ?? this.latestEventBody,
       latestSender: latestSender ?? this.latestSender,
       unreadCount: unreadCount ?? this.unreadCount,
+      unreadThreadCount: unreadThreadCount ?? this.unreadThreadCount,
       hasMention: hasMention ?? this.hasMention,
       hasMutedActivity: hasMutedActivity ?? this.hasMutedActivity,
       hasActiveCall: hasActiveCall ?? this.hasActiveCall,
@@ -168,11 +176,15 @@ final class RoomListStateStore {
     for (final roomId in roomIds) {
       final target = _rooms[roomId]!;
       final room = target.value;
-      if (room.unreadCount == 0 && !room.hasMention && !room.hasMutedActivity) {
+      if (room.unreadCount == 0 &&
+          room.unreadThreadCount == 0 &&
+          !room.hasMention &&
+          !room.hasMutedActivity) {
         continue;
       }
       target.value = room.copyWith(
         unreadCount: 0,
+        unreadThreadCount: 0,
         hasMention: false,
         hasMutedActivity: false,
       );

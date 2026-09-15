@@ -115,6 +115,7 @@ class _HomeSidebar extends StatefulWidget {
 class _HomeSidebarState extends State<_HomeSidebar> {
   late RoomListStateStore _ownedStore;
   late RoomInviteStore _ownedInviteStore;
+  final List<void Function()> _disposeThreadUnreadEffects = <void Function()>[];
 
   RoomListStateStore get store => widget.store ?? _ownedStore;
   RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore;
@@ -124,6 +125,45 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     super.initState();
     _ownedStore = RoomListStateStore(widget.rooms);
     _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
+    _bindThreadUnreadState();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != widget.store) {
+      _clearThreadUnreadEffects();
+      _bindThreadUnreadState();
+    }
+  }
+
+  void _bindThreadUnreadState() {
+    for (final roomId in store.roomIds) {
+      _disposeThreadUnreadEffects.add(
+        effect(() {
+          final unreadThreadCount = threadController
+              .unreadThreadCountForRoom(roomId)
+              .value;
+          final roomSignal = store.roomSignal(roomId);
+          final room = roomSignal.peek();
+          if (room.unreadThreadCount == unreadThreadCount) return;
+          store.update(room.copyWith(unreadThreadCount: unreadThreadCount));
+        }),
+      );
+    }
+  }
+
+  void _clearThreadUnreadEffects() {
+    for (final dispose in _disposeThreadUnreadEffects) {
+      dispose();
+    }
+    _disposeThreadUnreadEffects.clear();
+  }
+
+  @override
+  void dispose() {
+    _clearThreadUnreadEffects();
+    super.dispose();
   }
 
   @override
@@ -198,7 +238,12 @@ class _HomeHeader extends StatelessWidget {
             IconButton(
               key: const Key('home-read-all'),
               tooltip: 'Mark all as read',
-              onPressed: store.markAllRead,
+              onPressed: () {
+                for (final roomId in store.roomIds) {
+                  threadController.markRoomThreadsRead(roomId);
+                }
+                store.markAllRead();
+              },
               icon: const Icon(Icons.done_all_rounded),
             ),
           ],
@@ -493,14 +538,11 @@ class _RoomList extends StatelessWidget {
                 builder: (context) {
                   final room = store.roomSignal(roomId).value;
                   final selected = selectedRoomId.value == room.id;
-                  final unreadThreadCount = threadController
-                      .unreadThreadCountForRoom(room.id)
-                      .value;
                   return _RoomListRow(
                     key: ValueKey<String>(room.id),
                     room: room,
                     selected: selected,
-                    unreadThreadCount: unreadThreadCount,
+                    unreadThreadCount: room.unreadThreadCount,
                     onTap: () {
                       final handler = onRoomTap;
                       if (handler != null) {
