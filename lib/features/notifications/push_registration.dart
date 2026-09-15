@@ -113,10 +113,16 @@ final class PushRegistrationController {
 
     errorMessage.value = null;
     try {
-      return await _gateway.processEncryptedPayload(
+      final decoded = await _gateway.processEncryptedPayload(
         accountId: normalizedAccountId,
         encryptedPayload: encryptedPayload,
       );
+      if (decoded == null) return null;
+      if (decoded.notification.destination.accountId != normalizedAccountId) {
+        errorMessage.value = 'Kite received an invalid notification.';
+        return null;
+      }
+      return decoded;
     } catch (_) {
       errorMessage.value = 'Kite could not process that notification securely.';
       return null;
