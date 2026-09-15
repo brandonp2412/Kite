@@ -406,21 +406,21 @@ This milestone is not optional cleanup; it is a product feature.
 
 - [ ] Expand the zero-jitter harness from `open_dm` to every primary navigation and mutation journey.
 - [x] Room-list scroll benchmark with thousands of rooms.
-- [x] Timeline scroll benchmark with mixed rich event types.
-- [x] Pagination benchmark.
-- [x] New-message insertion benchmark.
-- [x] Reaction/read-receipt/typing-update benchmark.
+- [ ] Timeline scroll benchmark with mixed rich event types.
+- [ ] Pagination benchmark.
+- [ ] New-message insertion benchmark.
+- [ ] Reaction/read-receipt/typing-update benchmark.
 - [x] Composer + keyboard benchmark.
-- [x] Search/filter benchmark.
-- [x] Spaces/Sections benchmark.
+- [ ] Search/filter benchmark.
+- [ ] Spaces/Sections benchmark.
 - [ ] Thread open/switch benchmark.
-- [x] Media viewer benchmark.
+- [ ] Media viewer benchmark.
 - [ ] Call-screen transition benchmark.
-- [x] App startup benchmark.
-- [x] Offline recovery benchmark.
-- [x] Memory-growth soak test while switching rooms and paginating.
-- [x] Image/media cache pressure test.
-- [x] Repeated login/logout/account-switch store-cleanup test.
+- [ ] App startup benchmark.
+- [ ] Offline recovery benchmark.
+- [ ] Memory-growth soak test while switching rooms and paginating.
+- [ ] Image/media cache pressure test.
+- [ ] Repeated login/logout/account-switch store-cleanup test.
 - [ ] Thermal/low-memory/background-kill testing on physical Android hardware.
 - [ ] Physical Android Macrobenchmark matrix on at least one 60 Hz and one 120 Hz device.
 - [ ] No accepted performance regression without before/after evidence and an explicit product decision.
