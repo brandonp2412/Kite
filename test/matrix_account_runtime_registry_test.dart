@@ -66,6 +66,40 @@ void main() {
   );
 
   test(
+    'invalid account stores fail before allocating an SDK boundary',
+    () async {
+      var boundaryFactoryCalls = 0;
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: MatrixAccountStoreRegistry(
+          rootPath: '/data/kite/matrix',
+          encryptionKeyIdForAccount: (_) => 'bad-key\u0000suffix',
+        ),
+        boundaryFactory: (accountId) {
+          boundaryFactoryCalls += 1;
+          return _FakeAccountBoundary(accountId: accountId);
+        },
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@alice:example.org'),
+        throwsStateError,
+      );
+      expect(boundaryFactoryCalls, 0);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(registry.activeAccountId.value, isNull);
+
+      expect(
+        () => registry.activate('@alice:example.org\u0000other'),
+        throwsArgumentError,
+      );
+      expect(boundaryFactoryCalls, 0);
+    },
+  );
+
+  test(
     'cached account and navigation restoration publish atomically',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};

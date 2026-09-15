@@ -4,7 +4,15 @@ final class MatrixAccountStoreRegistry {
   MatrixAccountStoreRegistry({
     required this.rootPath,
     required this.encryptionKeyIdForAccount,
-  });
+  }) {
+    if (rootPath.trim().isEmpty || rootPath.contains('\u0000')) {
+      throw ArgumentError.value(
+        rootPath,
+        'rootPath',
+        'must contain a non-empty store root without NUL bytes',
+      );
+    }
+  }
 
   final String rootPath;
   final String Function(String accountId) encryptionKeyIdForAccount;
@@ -15,8 +23,12 @@ final class MatrixAccountStoreRegistry {
 
   MatrixSdkStoreConfiguration forAccount(String accountId) {
     final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty) {
-      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    if (normalizedAccountId.isEmpty || normalizedAccountId.contains('\u0000')) {
+      throw ArgumentError.value(
+        accountId,
+        'accountId',
+        'must contain a non-empty account id without NUL bytes',
+      );
     }
 
     final existing = _stores[normalizedAccountId];
@@ -24,9 +36,9 @@ final class MatrixAccountStoreRegistry {
 
     final encryptionKeyId = encryptionKeyIdForAccount(normalizedAccountId)
         .trim();
-    if (encryptionKeyId.isEmpty) {
+    if (encryptionKeyId.isEmpty || encryptionKeyId.contains('\u0000')) {
       throw StateError(
-        'Matrix account store encryption key id must not be empty',
+        'Matrix account store encryption key id must be non-empty and contain no NUL bytes',
       );
     }
 
@@ -57,8 +69,12 @@ final class MatrixAccountStoreRegistry {
 
   bool removeAccount(String accountId) {
     final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty) {
-      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    if (normalizedAccountId.isEmpty || normalizedAccountId.contains('\u0000')) {
+      throw ArgumentError.value(
+        accountId,
+        'accountId',
+        'must contain a non-empty account id without NUL bytes',
+      );
     }
 
     final removed = _stores.remove(normalizedAccountId);

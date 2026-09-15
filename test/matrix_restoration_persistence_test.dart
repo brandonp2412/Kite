@@ -240,6 +240,37 @@ void main() {
       },
     );
 
+    test('rejects malformed encrypted-store identifiers before use', () {
+      expect(
+        () => MatrixAccountStoreRegistry(
+          rootPath: '/data/kite/matrix\u0000ignored',
+          encryptionKeyIdForAccount: (_) => 'unused',
+        ),
+        throwsArgumentError,
+      );
+
+      final invalidAccountRegistry = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'unused',
+      );
+      expect(
+        () =>
+            invalidAccountRegistry.forAccount('@alice:example.org\u0000other'),
+        throwsArgumentError,
+      );
+      expect(invalidAccountRegistry.stores, isEmpty);
+
+      final invalidKeyRegistry = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'key\u0000other',
+      );
+      expect(
+        () => invalidKeyRegistry.forAccount('@alice:example.org'),
+        throwsStateError,
+      );
+      expect(invalidKeyRegistry.stores, isEmpty);
+    });
+
     test('rejects encryption-key reuse between different accounts', () {
       final registry = MatrixAccountStoreRegistry(
         rootPath: '/data/kite/matrix',

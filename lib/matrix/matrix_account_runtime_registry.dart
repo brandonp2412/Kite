@@ -172,10 +172,7 @@ final class MatrixAccountRuntimeRegistry {
     String accountId, {
     FutureOr<void> Function()? onActiveRemoved,
   }) {
-    final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty) {
-      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
-    }
+    final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
 
     return _enqueue<bool>(() async {
@@ -301,9 +298,10 @@ final class MatrixAccountRuntimeRegistry {
     if (existing != null) return existing;
 
     final cache = MatrixPresentationCache();
+    final store = storeRegistry.forAccount(accountId);
     final engine = MatrixBoundaryEngine(
       boundary: boundaryFactory(accountId),
-      store: storeRegistry.forAccount(accountId),
+      store: store,
       syncConfigurationProvider: () =>
           MatrixSdkSyncConfiguration(resumeFromCursor: cache.lastSyncCursor),
     );
@@ -432,8 +430,12 @@ final class MatrixAccountRuntimeRegistry {
 
   static String _normalizeAccountId(String accountId) {
     final normalizedAccountId = accountId.trim();
-    if (normalizedAccountId.isEmpty) {
-      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    if (normalizedAccountId.isEmpty || normalizedAccountId.contains('\u0000')) {
+      throw ArgumentError.value(
+        accountId,
+        'accountId',
+        'must contain a non-empty account id without NUL bytes',
+      );
     }
     return normalizedAccountId;
   }
