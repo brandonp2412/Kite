@@ -13,6 +13,15 @@ abstract interface class MatrixEngine {
   Future<MatrixPaginationPage> paginateBackwards(String roomId);
 }
 
+final class MatrixNonRetryableSyncException implements Exception {
+  const MatrixNonRetryableSyncException(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => 'MatrixNonRetryableSyncException: $cause';
+}
+
 enum MatrixSyncPhase { idle, starting, running, failed }
 
 final class MatrixSyncState {
@@ -80,9 +89,14 @@ final class MatrixSyncCoordinator {
           }
         },
         onError: (Object error, StackTrace stackTrace) {
-          if (identical(_activeRun, run)) {
-            state.value = MatrixSyncState.failed(error, stackTrace);
+          if (!identical(_activeRun, run)) return;
+          if (error is MatrixNonRetryableSyncException) {
+            _activeRun = null;
+            _subscription = null;
+            _needsEngineReset = true;
+            unawaited(Future<void>.microtask(subscription.cancel));
           }
+          state.value = MatrixSyncState.failed(error, stackTrace);
         },
         onDone: () {
           if (identical(_activeRun, run)) {
@@ -145,17 +159,25 @@ final class MatrixSyncCoordinator {
     final subscription = _subscription;
     if (subscription == null) {
       if (state.value.phase != MatrixSyncPhase.idle || _needsEngineReset) {
-        await engine.stop();
-        _needsEngineReset = false;
-        state.value = const MatrixSyncState.idle();
+        await _stopEngine();
       }
       return;
     }
     _activeRun = null;
     _subscription = null;
     await subscription.cancel();
-    await engine.stop();
-    _needsEngineReset = false;
-    state.value = const MatrixSyncState.idle();
+    await _stopEngine();
+  }
+
+  Future<void> _stopEngine() async {
+    try {
+      await engine.stop();
+      _needsEngineReset = false;
+      state.value = const MatrixSyncState.idle();
+    } catch (error, stackTrace) {
+      _needsEngineReset = true;
+      state.value = MatrixSyncState.failed(error, stackTrace);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 }

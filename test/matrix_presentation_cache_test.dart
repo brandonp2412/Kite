@@ -291,6 +291,41 @@ void main() {
     expect(snapshot.syncCursor, 'cursor-1');
   });
 
+  test('timeline event content is deeply isolated from mutable inputs', () {
+    final metadata = <String, Object?>{'count': 1};
+    final tags = <Object?>['stable'];
+    final source = <String, Object?>{
+      'body': 'before',
+      'metadata': metadata,
+      'tags': tags,
+    };
+    final event = MatrixTimelineEvent(
+      eventId: r'$isolated',
+      roomId: '!alpha:kite.test',
+      senderId: '@alice:kite.test',
+      type: 'm.room.message',
+      originServerTimestamp: DateTime.utc(2026, 9, 15),
+      streamPosition: 1,
+      content: source,
+    );
+
+    source['body'] = 'after';
+    metadata['count'] = 2;
+    tags.add('mutated');
+
+    expect(event.content['body'], 'before');
+    expect(event.content['metadata'], <String, Object?>{'count': 1});
+    expect(event.content['tags'], <Object?>['stable']);
+    expect(
+      () => (event.content['metadata']! as Map<String, Object?>)['count'] = 3,
+      throwsUnsupportedError,
+    );
+    expect(
+      () => (event.content['tags']! as List<Object?>).add('blocked'),
+      throwsUnsupportedError,
+    );
+  });
+
   test('equivalent JSON content does not rewrite a timeline signal', () {
     final cache = MatrixPresentationCache();
     final first = MatrixTimelineEvent(

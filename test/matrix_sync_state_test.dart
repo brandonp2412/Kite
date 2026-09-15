@@ -297,6 +297,41 @@ void main() {
     },
   );
 
+  test(
+    'non-retryable sync errors end the run and reset the engine before restart',
+    () async {
+      final engine = _StateFakeMatrixEngine();
+      final coordinator = MatrixSyncCoordinator(
+        engine: engine,
+        applyBatch: (_) {},
+      );
+
+      await coordinator.start();
+      expect(coordinator.isRunning, isTrue);
+      expect(engine.startCalls, 1);
+
+      final terminal = MatrixNonRetryableSyncException(
+        const FormatException('malformed deterministic payload'),
+      );
+      engine.emitError(terminal);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(coordinator.isRunning, isFalse);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
+      expect(coordinator.state.value.error, same(terminal));
+
+      await coordinator.start();
+      expect(engine.stopCalls, 1);
+      expect(engine.startCalls, 2);
+      expect(coordinator.isRunning, isTrue);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+
+      await coordinator.stop();
+      await engine.close();
+    },
+  );
+
   test('unexpected sync stream closure clears running state', () async {
     final engine = _StateFakeMatrixEngine();
     final coordinator = MatrixSyncCoordinator(
@@ -348,6 +383,31 @@ void main() {
       await engine.close();
     },
   );
+
+  test('failed engine stop is observable and reset before restart', () async {
+    final engine = _StateFakeMatrixEngine(stopFailuresRemaining: 1);
+    final coordinator = MatrixSyncCoordinator(
+      engine: engine,
+      applyBatch: (_) {},
+    );
+
+    await coordinator.start();
+    await expectLater(coordinator.stop(), throwsA(isA<StateError>()));
+
+    expect(coordinator.isRunning, isFalse);
+    expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
+    expect(coordinator.state.value.error, isA<StateError>());
+    expect(engine.stopCalls, 1);
+
+    await coordinator.start();
+    expect(engine.stopCalls, 2);
+    expect(engine.startCalls, 2);
+    expect(coordinator.isRunning, isTrue);
+    expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+
+    await coordinator.stop();
+    await engine.close();
+  });
 
   test('failed engine start is observable and retryable', () async {
     final engine = _StateFakeMatrixEngine(startFailuresRemaining: 1);
@@ -452,12 +512,16 @@ final class _SynchronousOnListenMatrixEngine implements MatrixEngine {
 }
 
 final class _StateFakeMatrixEngine implements MatrixEngine {
-  _StateFakeMatrixEngine({this.startFailuresRemaining = 0});
+  _StateFakeMatrixEngine({
+    this.startFailuresRemaining = 0,
+    this.stopFailuresRemaining = 0,
+  });
 
   StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
   int startFailuresRemaining;
+  int stopFailuresRemaining;
   int startCalls = 0;
   int stopCalls = 0;
   bool _started = false;
@@ -491,6 +555,10 @@ final class _StateFakeMatrixEngine implements MatrixEngine {
   @override
   Future<void> stop() async {
     stopCalls += 1;
+    if (stopFailuresRemaining > 0) {
+      stopFailuresRemaining -= 1;
+      throw StateError('deterministic stop failure');
+    }
     _started = false;
   }
 

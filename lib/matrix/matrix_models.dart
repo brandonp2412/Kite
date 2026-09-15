@@ -9,7 +9,7 @@ final class MatrixTimelineEvent {
     required this.originServerTimestamp,
     required this.streamPosition,
     Map<String, Object?> content = const <String, Object?>{},
-  }) : content = UnmodifiableMapView<String, Object?>(content);
+  }) : content = freezeMatrixJsonMap(content);
 
   final String eventId;
   final String roomId;
@@ -18,6 +18,42 @@ final class MatrixTimelineEvent {
   final DateTime originServerTimestamp;
   final int streamPosition;
   final Map<String, Object?> content;
+}
+
+Map<String, Object?> freezeMatrixJsonMap(Map<String, Object?> value) {
+  return Map<String, Object?>.unmodifiable(<String, Object?>{
+    for (final entry in value.entries) entry.key: _freezeJsonValue(entry.value),
+  });
+}
+
+Object? _freezeJsonValue(Object? value) {
+  if (value is Map) {
+    final frozen = <String, Object?>{};
+    for (final entry in value.entries) {
+      final key = entry.key;
+      if (key is! String) {
+        throw ArgumentError.value(
+          value,
+          'content',
+          'Matrix JSON object keys must be strings',
+        );
+      }
+      frozen[key] = _freezeJsonValue(entry.value);
+    }
+    return Map<String, Object?>.unmodifiable(frozen);
+  }
+  if (value is List) {
+    return List<Object?>.unmodifiable(value.map(_freezeJsonValue));
+  }
+  if (value == null || value is String || value is bool || value is int) {
+    return value;
+  }
+  if (value is double && value.isFinite) return value;
+  throw ArgumentError.value(
+    value,
+    'content',
+    'Matrix content must contain only finite JSON values',
+  );
 }
 
 final class MatrixRoomSummary {

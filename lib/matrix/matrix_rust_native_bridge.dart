@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:ffi/ffi.dart';
 import 'package:kite/diagnostics/crash_reporting.dart';
 import 'package:kite/diagnostics/structured_logging.dart';
+import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -262,6 +263,20 @@ final class MatrixRustNativeBridge implements MatrixRustBridge {
         'must not be empty',
       );
     }
+    if (storePath.contains('\u0000')) {
+      throw ArgumentError.value(
+        storePath,
+        'storePath',
+        'must not contain NUL bytes',
+      );
+    }
+    if (storePassphrase.contains('\u0000')) {
+      throw ArgumentError.value(
+        '<redacted>',
+        'storePassphrase',
+        'must not contain NUL bytes',
+      );
+    }
 
     final path = libraryPath;
     final homeserverText = homeserver.toString();
@@ -344,9 +359,13 @@ final class MatrixRustNativeClient implements MatrixRustClient {
         ),
       );
     }
-    if (since != null && since.isEmpty) {
+    if (since != null && (since.isEmpty || since.contains('\u0000'))) {
       return Future<String>.error(
-        ArgumentError.value(since, 'since', 'must not be empty'),
+        ArgumentError.value(
+          since,
+          'since',
+          'must not be empty or contain NUL bytes',
+        ),
       );
     }
     return _enqueue<String>(() async {
@@ -367,9 +386,13 @@ final class MatrixRustNativeClient implements MatrixRustClient {
 
   @override
   Future<String> paginateBackwards({required String roomId}) {
-    if (roomId.trim().isEmpty) {
+    if (roomId.trim().isEmpty || roomId.contains('\u0000')) {
       return Future<String>.error(
-        ArgumentError.value(roomId, 'roomId', 'must not be empty'),
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
       );
     }
     return _enqueue<String>(() async {
@@ -489,6 +512,19 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   @override
   Future<void> startSync(MatrixSdkSyncConfiguration configuration) {
     return _enqueue(() async {
+      if (configuration.initialRoomListLimit <= 0 ||
+          configuration.initialTimelineEventLimit <= 0 ||
+          configuration.timelineEventLimit <= 0 ||
+          configuration.initialTimelineEventLimit >
+              configuration.timelineEventLimit ||
+          configuration.resumeFromCursor?.isEmpty == true ||
+          configuration.resumeFromCursor?.contains('\u0000') == true) {
+        throw ArgumentError.value(
+          configuration,
+          'configuration',
+          'contains invalid Matrix sync limits or resume cursor',
+        );
+      }
       if (_syncLoop != null) return;
       final client = _requireClient();
       _syncRequested = true;
@@ -609,6 +645,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       } catch (error, stackTrace) {
         if (!_syncRequested || !identical(_client, client)) return;
         failureAttempt += 1;
+        final isPermanentPayloadFailure = error is FormatException;
         trace?.log(
           LogLevel.error,
           DiagnosticEvent.failed,
@@ -622,9 +659,20 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
           trace,
           flow: DiagnosticFlow.sync,
           operation: DiagnosticOperation.syncCycle,
-          state: CrashState.retrying,
+          state: isPermanentPayloadFailure
+              ? CrashState.active
+              : CrashState.retrying,
         );
-        _syncBatches.addError(error, stackTrace);
+        _syncBatches.addError(
+          isPermanentPayloadFailure
+              ? MatrixNonRetryableSyncException(error)
+              : error,
+          stackTrace,
+        );
+        if (isPermanentPayloadFailure) {
+          _syncRequested = false;
+          return;
+        }
         await _waitForRetry(_matrixRustRetryDelayForAttempt(failureAttempt));
       }
     }

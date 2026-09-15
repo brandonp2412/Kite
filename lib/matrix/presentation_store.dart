@@ -36,6 +36,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
           if (snapshot != null) return snapshot;
         } on FormatException {
           continue;
+        } on RangeError {
+          continue;
         }
       }
       return null;
@@ -108,7 +110,12 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
   ) {
     if (document['version'] != _schemaVersion) return null;
     final syncCursor = document['syncCursor'];
-    if (syncCursor != null && syncCursor is! String) return null;
+    if (syncCursor != null &&
+        (syncCursor is! String ||
+            syncCursor.isEmpty ||
+            syncCursor.contains('\u0000'))) {
+      return null;
+    }
     final rawRooms = document['rooms'];
     final rawTimelines = document['timelines'];
     if (rawRooms is! List || rawTimelines is! Map) return null;
@@ -121,17 +128,20 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       rooms.add(room);
     }
 
+    final roomIds = rooms.map((room) => room.roomId).toSet();
     final timelines = <String, List<MatrixTimelineEvent>>{};
     for (final entry in rawTimelines.entries) {
       if (entry.key is! String || entry.value is! List) return null;
+      final roomId = entry.key as String;
+      if (roomId.isEmpty || !roomIds.contains(roomId)) return null;
       final events = <MatrixTimelineEvent>[];
       for (final rawEvent in entry.value as List) {
         if (rawEvent is! Map) return null;
         final event = _decodeEvent(Map<String, dynamic>.from(rawEvent));
-        if (event == null) return null;
+        if (event == null || event.roomId != roomId) return null;
         events.add(event);
       }
-      timelines[entry.key as String] = events;
+      timelines[roomId] = events;
     }
 
     return MatrixPresentationSnapshot(

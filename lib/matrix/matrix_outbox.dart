@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:collection';
 
+import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 
 enum MatrixOutboxState {
@@ -23,7 +23,20 @@ final class MatrixOutboxItem {
     this.nextRetryAt,
     this.failureCode,
     this.eventId,
-  }) : content = UnmodifiableMapView<String, Object?>(content);
+  }) : content = freezeMatrixJsonMap(content);
+
+  MatrixOutboxItem._frozen({
+    required this.localId,
+    required this.roomId,
+    required this.transactionId,
+    required this.eventType,
+    required this.content,
+    required this.state,
+    required this.attempt,
+    required this.nextRetryAt,
+    required this.failureCode,
+    required this.eventId,
+  });
 
   final String localId;
   final String roomId;
@@ -46,7 +59,7 @@ final class MatrixOutboxItem {
     String? eventId,
     bool clearEventId = false,
   }) {
-    return MatrixOutboxItem(
+    return MatrixOutboxItem._frozen(
       localId: localId,
       roomId: roomId,
       transactionId: transactionId,
@@ -137,8 +150,13 @@ final class MatrixOutbox {
                 : item,
           ),
         );
+      try {
+        await _persist();
+      } catch (error, stackTrace) {
+        _pending.clear();
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       _hydrated = true;
-      await _persist();
       if (_networkState == MatrixNetworkState.online) {
         await _flushEligible(now);
       }
@@ -167,7 +185,12 @@ final class MatrixOutbox {
         clearEventId: true,
       );
       _pending.add(queued);
-      await _persist();
+      try {
+        await _persist();
+      } catch (error, stackTrace) {
+        _pending.removeLast();
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       _transitions.add(queued);
       if (_networkState == MatrixNetworkState.online) {
         await _flushEligible(now);
@@ -215,7 +238,12 @@ final class MatrixOutbox {
         clearEventId: true,
       );
       _pending[index] = queued;
-      await _persist();
+      try {
+        await _persist();
+      } catch (error, stackTrace) {
+        _pending[index] = item;
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       _transitions.add(queued);
       if (_networkState == MatrixNetworkState.online) {
         await _flushEligible(now);
@@ -254,20 +282,17 @@ final class MatrixOutbox {
         clearFailureCode: true,
       );
       _pending[index] = sending;
-      await _persist();
+      try {
+        await _persist();
+      } catch (error, stackTrace) {
+        _pending[index] = item;
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       _transitions.add(sending);
 
+      MatrixSendReceipt receipt;
       try {
-        final receipt = await transport.send(sending);
-        final sent = sending.copyWith(
-          state: MatrixOutboxState.sent,
-          eventId: receipt.eventId,
-          clearFailureCode: true,
-          clearNextRetryAt: true,
-        );
-        _pending.removeAt(index);
-        await _persist();
-        _transitions.add(sent);
+        receipt = await transport.send(sending);
       } on MatrixSendFailure catch (failure) {
         if (!failure.retryable) {
           final failed = sending.copyWith(
@@ -283,10 +308,34 @@ final class MatrixOutbox {
 
         await _scheduleRetry(index, sending, now, failure.code);
         index += 1;
+        continue;
       } catch (_) {
         await _scheduleRetry(index, sending, now, 'transport_error');
         index += 1;
+        continue;
       }
+
+      final sent = sending.copyWith(
+        state: MatrixOutboxState.sent,
+        eventId: receipt.eventId,
+        clearFailureCode: true,
+        clearNextRetryAt: true,
+      );
+      _pending.removeAt(index);
+      try {
+        await _persist();
+      } catch (error, stackTrace) {
+        _pending.insert(
+          index,
+          sending.copyWith(
+            state: MatrixOutboxState.queuedOffline,
+            clearNextRetryAt: true,
+            clearFailureCode: true,
+          ),
+        );
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      _transitions.add(sent);
     }
   }
 

@@ -24,6 +24,9 @@ final class MatrixRustSyncCodec {
   MatrixRustSyncDecodeResult decodeSync(String payload) {
     final root = _asMap(jsonDecode(payload), 'sync payload');
     final cursor = _requiredString(root, 'cursor');
+    if (cursor.contains('\u0000')) {
+      throw const FormatException('cursor must not contain NUL bytes');
+    }
     final rooms = <MatrixRoomDelta>[];
 
     for (final rawRoom in _asList(root['rooms'], 'rooms')) {
@@ -41,9 +44,9 @@ final class MatrixRustSyncCodec {
           summary: MatrixRoomSummary(
             roomId: roomId,
             displayName: _optionalString(room['displayName']) ?? roomId,
-            lastActivity: DateTime.fromMillisecondsSinceEpoch(
+            lastActivity: _dateTimeFromMilliseconds(
               latestEventTimestamp,
-              isUtc: true,
+              'latestEventTimestamp',
             ),
             streamPosition: latestEventTimestamp,
             lastEventId:
@@ -70,7 +73,10 @@ final class MatrixRustSyncCodec {
     });
 
     return MatrixRustSyncDecodeResult(
-      batch: MatrixSyncBatch(cursor: cursor, rooms: rooms),
+      batch: MatrixSyncBatch(
+        cursor: cursor,
+        rooms: List<MatrixRoomDelta>.unmodifiable(rooms),
+      ),
     );
   }
 
@@ -113,9 +119,9 @@ final class MatrixRustSyncCodec {
       roomId: roomId,
       senderId: _requiredString(event, 'sender'),
       type: _requiredString(event, 'type'),
-      originServerTimestamp: DateTime.fromMillisecondsSinceEpoch(
+      originServerTimestamp: _dateTimeFromMilliseconds(
         timestamp,
-        isUtc: true,
+        'origin_server_ts',
       ),
       streamPosition: timestamp,
       content: Map<String, Object?>.unmodifiable(
@@ -159,6 +165,14 @@ final class MatrixRustSyncCodec {
       throw FormatException('$key must be a boolean');
     }
     return value;
+  }
+
+  static DateTime _dateTimeFromMilliseconds(int value, String name) {
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true);
+    } on RangeError {
+      throw FormatException('$name must be a supported epoch timestamp');
+    }
   }
 
   static int _requiredNonNegativeInt(Map<String, Object?> map, String key) {

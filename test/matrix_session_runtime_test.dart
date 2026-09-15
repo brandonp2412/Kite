@@ -395,6 +395,44 @@ void main() {
     },
   );
 
+  test('navigation persistence failure rolls back the visible target and can retry', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'kite-session-navigation-rollback-test-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+    final boundaries = <String, _FakeBoundary>{};
+    final registry = _registry(
+      boundaries,
+      FileMatrixPresentationStore(Directory('${directory.path}/presentation')),
+    );
+    addTearDown(registry.dispose);
+    final restorationStore = _ControllableRestorationStore();
+    final session = MatrixSessionRuntime(
+      accounts: registry,
+      restoration: MatrixRestorationCoordinator(restorationStore),
+      isAccountAvailable: (_) => true,
+    );
+    const initialTarget = MatrixNavigationTarget.room('!initial:example.org');
+    const failedTarget = MatrixNavigationTarget.room('!failed:example.org');
+    const recoveredTarget = MatrixNavigationTarget.room(
+      '!recovered:example.org',
+    );
+
+    await session.activateAccount('@alice:example.org', target: initialTarget);
+    restorationStore.failNextSave = true;
+
+    await expectLater(session.navigate(failedTarget), throwsStateError);
+
+    expect(session.navigationTarget.value, initialTarget);
+    expect(restorationStore.snapshot?.navigationTarget, initialTarget);
+
+    await session.navigate(recoveredTarget);
+    expect(session.navigationTarget.value, recoveredTarget);
+    expect(restorationStore.snapshot?.navigationTarget, recoveredTarget);
+  });
+
   test(
     'queued navigation after active account removal cannot persist stale state',
     () async {
@@ -505,6 +543,28 @@ MatrixAccountRuntimeRegistry _registry(
     initialNetworkState: MatrixNetworkState.online,
     presentationStore: presentationStore,
   );
+}
+
+final class _ControllableRestorationStore implements MatrixRestorationStore {
+  MatrixRestorationSnapshot? snapshot;
+  bool failNextSave = false;
+
+  @override
+  Future<MatrixRestorationSnapshot?> load() async => snapshot;
+
+  @override
+  Future<void> save(MatrixRestorationSnapshot snapshot) async {
+    if (failNextSave) {
+      failNextSave = false;
+      throw StateError('deterministic restoration save failure');
+    }
+    this.snapshot = snapshot;
+  }
+
+  @override
+  Future<void> clear() async {
+    snapshot = null;
+  }
 }
 
 final class _FakeBoundary implements MatrixSdkBoundary {

@@ -7,6 +7,201 @@ import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 
 void main() {
   group('MatrixOutbox', () {
+    test('queued message content is deeply isolated from mutable inputs', () {
+      final metadata = <String, Object?>{'count': 1};
+      final tags = <Object?>['stable'];
+      final content = <String, Object?>{
+        'body': 'before',
+        'metadata': metadata,
+        'tags': tags,
+      };
+      final item = MatrixOutboxItem(
+        localId: 'local-immutable',
+        roomId: '!room:example.org',
+        transactionId: 'txn-immutable',
+        eventType: 'm.room.message',
+        content: content,
+        state: MatrixOutboxState.queuedOffline,
+      );
+
+      content['body'] = 'after';
+      metadata['count'] = 2;
+      tags.add('mutated');
+
+      expect(item.content['body'], 'before');
+      expect(item.content['metadata'], <String, Object?>{'count': 1});
+      expect(item.content['tags'], <Object?>['stable']);
+      final sending = item.copyWith(state: MatrixOutboxState.sending);
+      expect(identical(sending.content, item.content), isTrue);
+      expect(
+        () => (item.content['metadata']! as Map<String, Object?>)['count'] = 3,
+        throwsUnsupportedError,
+      );
+      expect(
+        () => (item.content['tags']! as List<Object?>).add('blocked'),
+        throwsUnsupportedError,
+      );
+      expect(
+        () => MatrixOutboxItem(
+          localId: 'invalid-json',
+          roomId: '!room:example.org',
+          transactionId: 'txn-invalid-json',
+          eventType: 'm.room.message',
+          content: <String, Object?>{'when': DateTime.utc(2026, 9, 15)},
+          state: MatrixOutboxState.queuedOffline,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => MatrixOutboxItem(
+          localId: 'invalid-double',
+          roomId: '!room:example.org',
+          transactionId: 'txn-invalid-double',
+          eventType: 'm.room.message',
+          content: <String, Object?>{'value': double.nan},
+          state: MatrixOutboxState.queuedOffline,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test(
+      'failed hydration persistence can retry without poisoned state',
+      () async {
+        final store = _FakeEncryptedOutboxStore(failReplaceCallsRemaining: 1);
+        final outbox = MatrixOutbox(
+          store: store,
+          transport: _FakeSendTransport(),
+          initialNetworkState: MatrixNetworkState.offline,
+        );
+        final now = DateTime.utc(2026, 9, 15, 1);
+
+        await expectLater(outbox.hydrate(now: now), throwsStateError);
+        expect(outbox.pending, isEmpty);
+
+        await outbox.hydrate(now: now);
+        await outbox.enqueue(_message('local-1', 'txn-1'), now: now);
+        expect(outbox.pending.single.transactionId, 'txn-1');
+        await outbox.close();
+      },
+    );
+
+    test('failed enqueue persistence rolls back and permits retry', () async {
+      final store = _FakeEncryptedOutboxStore();
+      final outbox = MatrixOutbox(
+        store: store,
+        transport: _FakeSendTransport(),
+        initialNetworkState: MatrixNetworkState.offline,
+      );
+      final now = DateTime.utc(2026, 9, 15, 1);
+      final item = _message('local-1', 'txn-1');
+
+      await outbox.hydrate(now: now);
+      store.failReplaceCallsRemaining = 1;
+      await expectLater(outbox.enqueue(item, now: now), throwsStateError);
+      expect(outbox.pending, isEmpty);
+      expect(store.pending, isEmpty);
+
+      await outbox.enqueue(item, now: now);
+      expect(outbox.pending.single.transactionId, 'txn-1');
+      await outbox.close();
+    });
+
+    test(
+      'failed retry persistence restores the previous queue state',
+      () async {
+        final store = _FakeEncryptedOutboxStore(
+          initial: <MatrixOutboxItem>[
+            _message(
+              'local-1',
+              'txn-1',
+              state: MatrixOutboxState.failedPermanent,
+            ),
+          ],
+        );
+        final outbox = MatrixOutbox(
+          store: store,
+          transport: _FakeSendTransport(),
+          initialNetworkState: MatrixNetworkState.offline,
+        );
+        final now = DateTime.utc(2026, 9, 15, 1);
+
+        await outbox.hydrate(now: now);
+        store.failReplaceCallsRemaining = 1;
+        await expectLater(outbox.retry('local-1', now: now), throwsStateError);
+        expect(outbox.pending.single.state, MatrixOutboxState.failedPermanent);
+
+        await outbox.retry('local-1', now: now);
+        expect(outbox.pending.single.state, MatrixOutboxState.queuedOffline);
+        await outbox.close();
+      },
+    );
+
+    test(
+      'failed sending persistence restores queued state for recovery',
+      () async {
+        final store = _FakeEncryptedOutboxStore();
+        final transport = _FakeSendTransport();
+        final outbox = MatrixOutbox(
+          store: store,
+          transport: transport,
+          initialNetworkState: MatrixNetworkState.offline,
+        );
+        final now = DateTime.utc(2026, 9, 15, 1);
+
+        await outbox.hydrate(now: now);
+        await outbox.enqueue(_message('local-1', 'txn-1'), now: now);
+        store.failReplaceCallsRemaining = 1;
+        await expectLater(
+          outbox.updateNetworkState(MatrixNetworkState.online, now: now),
+          throwsStateError,
+        );
+        expect(outbox.pending.single.state, MatrixOutboxState.queuedOffline);
+        expect(store.pending.single.state, MatrixOutboxState.queuedOffline);
+        expect(transport.sentTransactionIds, isEmpty);
+
+        await outbox.updateNetworkState(MatrixNetworkState.online, now: now);
+        expect(transport.sentTransactionIds, <String>['txn-1']);
+        expect(outbox.pending, isEmpty);
+        await outbox.close();
+      },
+    );
+
+    test(
+      'post-send persistence failure keeps the same transaction recoverable',
+      () async {
+        final store = _FakeEncryptedOutboxStore(failOnReplaceCalls: <int>{4});
+        final transport = _FakeSendTransport();
+        final outbox = MatrixOutbox(
+          store: store,
+          transport: transport,
+          initialNetworkState: MatrixNetworkState.offline,
+        );
+        final now = DateTime.utc(2026, 9, 15, 1);
+
+        await outbox.hydrate(now: now);
+        await outbox.enqueue(_message('local-1', 'txn-stable'), now: now);
+        await expectLater(
+          outbox.updateNetworkState(MatrixNetworkState.online, now: now),
+          throwsStateError,
+        );
+
+        expect(transport.sentTransactionIds, <String>['txn-stable']);
+        expect(outbox.pending.single.state, MatrixOutboxState.queuedOffline);
+        expect(outbox.pending.single.transactionId, 'txn-stable');
+        expect(store.pending.single.state, MatrixOutboxState.sending);
+
+        await outbox.updateNetworkState(MatrixNetworkState.online, now: now);
+        expect(transport.sentTransactionIds, <String>[
+          'txn-stable',
+          'txn-stable',
+        ]);
+        expect(outbox.pending, isEmpty);
+        expect(store.pending, isEmpty);
+        await outbox.close();
+      },
+    );
+
     test(
       'keeps offline sends encrypted and flushes them on recovery',
       () async {
@@ -434,12 +629,18 @@ final class _FakeEncryptedOutboxStore implements MatrixEncryptedOutboxStore {
   _FakeEncryptedOutboxStore({
     this.isEncryptedAtRest = true,
     List<MatrixOutboxItem> initial = const <MatrixOutboxItem>[],
-  }) : pending = List<MatrixOutboxItem>.of(initial);
+    this.failReplaceCallsRemaining = 0,
+    Set<int> failOnReplaceCalls = const <int>{},
+  }) : pending = List<MatrixOutboxItem>.of(initial),
+       failOnReplaceCalls = Set<int>.of(failOnReplaceCalls);
 
   @override
   final bool isEncryptedAtRest;
 
   List<MatrixOutboxItem> pending;
+  int failReplaceCallsRemaining;
+  final Set<int> failOnReplaceCalls;
+  int replaceCalls = 0;
 
   @override
   Future<List<MatrixOutboxItem>> loadPending() async {
@@ -448,6 +649,12 @@ final class _FakeEncryptedOutboxStore implements MatrixEncryptedOutboxStore {
 
   @override
   Future<void> replacePending(List<MatrixOutboxItem> items) async {
+    replaceCalls += 1;
+    if (failReplaceCallsRemaining > 0 ||
+        failOnReplaceCalls.remove(replaceCalls)) {
+      if (failReplaceCallsRemaining > 0) failReplaceCallsRemaining -= 1;
+      throw StateError('deterministic outbox persistence failure');
+    }
     pending = List<MatrixOutboxItem>.of(items);
   }
 }

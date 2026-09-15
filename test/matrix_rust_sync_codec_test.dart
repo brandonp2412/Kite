@@ -48,6 +48,12 @@ void main() {
 
     expect(decoded.batch.cursor, 's42');
     expect(decoded.batch.rooms, hasLength(2));
+    expect(
+      () => decoded.batch.rooms.add(
+        const MatrixRoomDelta(roomId: '!mutated:kite.test'),
+      ),
+      throwsUnsupportedError,
+    );
 
     final alpha = decoded.batch.rooms.first;
     expect(alpha.summary!.displayName, 'Alpha');
@@ -222,6 +228,58 @@ void main() {
       expect(metadataSummary.lastEventId, r'$afterRestart');
     },
   );
+
+  test('rejects C-incompatible sync cursors as malformed native payloads', () {
+    final codec = MatrixRustSyncCodec();
+
+    expect(
+      () => codec.decodeSync(r'''
+        {
+          "cursor": "resume\u0000truncated",
+          "rooms": []
+        }
+      '''),
+      throwsFormatException,
+    );
+  });
+
+  test('rejects unsupported timestamp ranges as malformed native payloads', () {
+    final codec = MatrixRustSyncCodec();
+
+    expect(
+      () => codec.decodeSync(r'''
+        {
+          "cursor": "s1",
+          "rooms": [
+            {
+              "roomId": "!room:kite.test",
+              "latestEventTimestamp": 9223372036854775807,
+              "events": []
+            }
+          ]
+        }
+      '''),
+      throwsFormatException,
+    );
+    expect(
+      () => codec.decodePagination(r'''
+        {
+          "roomId": "!room:kite.test",
+          "reachedStart": false,
+          "events": [
+            {
+              "event_id": "$tooFar",
+              "sender": "@alice:kite.test",
+              "type": "m.room.message",
+              "origin_server_ts": 9223372036854775807,
+              "content": {}
+            }
+          ]
+        }
+      '''),
+      throwsFormatException,
+    );
+  });
 
   test(
     'rejects malformed native events before they reach presentation state',

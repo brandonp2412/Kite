@@ -113,6 +113,115 @@ void main() {
       expect((await store.load(accountId))?.syncCursor, 'backup-good');
     });
 
+    test('falls back when a syntactically valid primary has invalid date ranges', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-presentation-range-fallback-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final store = FileMatrixPresentationStore(directory);
+      const accountId = '@alice:example.org';
+      await store.save(accountId, _snapshot(cursor: 'range-backup'));
+
+      final file = File(
+        '${directory.path}/${Uri.encodeComponent(accountId)}/presentation.json',
+      );
+      await file.copy('${file.path}.bak');
+      await file.writeAsString(
+        jsonEncode(<String, Object?>{
+          'version': 1,
+          'syncCursor': 'invalid-primary',
+          'rooms': <Object?>[
+            <String, Object?>{
+              'roomId': '!room:example.org',
+              'displayName': 'Invalid timestamp',
+              'lastActivityMs': 9223372036854775807,
+              'streamPosition': 1,
+              'unreadCount': 0,
+            },
+          ],
+          'timelines': <String, Object?>{},
+        }),
+      );
+
+      expect((await store.load(accountId))?.syncCursor, 'range-backup');
+    });
+
+    test('rejects cross-room timeline data from persisted snapshots', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-presentation-cross-room-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      const accountId = '@alice:example.org';
+      final accountDirectory = Directory(
+        '${directory.path}/${Uri.encodeComponent(accountId)}',
+      );
+      await accountDirectory.create(recursive: true);
+      await File('${accountDirectory.path}/presentation.json').writeAsString(
+        jsonEncode(<String, Object?>{
+          'version': 1,
+          'syncCursor': 'must-not-resume',
+          'rooms': <Object?>[
+            <String, Object?>{
+              'roomId': '!alpha:example.org',
+              'displayName': 'Alpha',
+              'lastActivityMs': 1,
+              'streamPosition': 1,
+              'unreadCount': 0,
+            },
+          ],
+          'timelines': <String, Object?>{
+            '!alpha:example.org': <Object?>[
+              <String, Object?>{
+                'eventId': r'$wrong-room',
+                'roomId': '!beta:example.org',
+                'senderId': '@bob:example.org',
+                'type': 'm.room.message',
+                'originServerTimestampMs': 1,
+                'streamPosition': 1,
+                'content': <String, Object?>{'body': 'must not leak'},
+              },
+            ],
+          },
+        }),
+      );
+
+      expect(
+        await FileMatrixPresentationStore(directory).load(accountId),
+        isNull,
+      );
+    });
+
+    test('rejects an empty persisted sync cursor', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-presentation-empty-cursor-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      const accountId = '@alice:example.org';
+      final accountDirectory = Directory(
+        '${directory.path}/${Uri.encodeComponent(accountId)}',
+      );
+      await accountDirectory.create(recursive: true);
+      await File('${accountDirectory.path}/presentation.json').writeAsString(
+        jsonEncode(<String, Object?>{
+          'version': 1,
+          'syncCursor': '',
+          'rooms': <Object?>[],
+          'timelines': <String, Object?>{},
+        }),
+      );
+
+      expect(
+        await FileMatrixPresentationStore(directory).load(accountId),
+        isNull,
+      );
+    });
+
     test('ignores malformed persisted snapshots', () async {
       final directory = await Directory.systemTemp.createTemp(
         'kite-presentation-malformed-',

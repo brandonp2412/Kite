@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/diagnostics/crash_reporting.dart';
 import 'package:kite/diagnostics/structured_logging.dart';
+import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_native_bridge.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
@@ -48,6 +49,29 @@ void main() {
         homeserver: Uri.parse('https://matrix.example.org'),
         storePath: '/tmp/kite/alice',
         storePassphrase: '',
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('native bridge rejects NUL-truncated store inputs before FFI', () async {
+    final bridge = MatrixRustNativeBridge(
+      libraryPath: libraryPath ?? '/unused',
+    );
+
+    await expectLater(
+      bridge.openEncryptedClient(
+        homeserver: Uri.parse('https://matrix.example.org'),
+        storePath: '/tmp/kite/alice\u0000ignored',
+        storePassphrase: 'deterministic-secret',
+      ),
+      throwsArgumentError,
+    );
+    await expectLater(
+      bridge.openEncryptedClient(
+        homeserver: Uri.parse('https://matrix.example.org'),
+        storePath: '/tmp/kite/alice',
+        storePassphrase: 'secret\u0000ignored',
       ),
       throwsArgumentError,
     );
@@ -133,6 +157,38 @@ void main() {
     skip: libraryPath == null
         ? 'Set KITE_MATRIX_BRIDGE_LIBRARY after building the Rust bridge.'
         : false,
+  );
+
+  test(
+    'SDK boundary rejects C-incompatible resume cursors before sync starts',
+    () async {
+      final client = _FakeRustClient();
+      final boundary = MatrixRustSdkBoundary(
+        bridge: _FakeRustBridge(client),
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: _RecordingCodecExecutor(),
+      );
+      addTearDown(boundary.close);
+
+      await boundary.open(
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:example.org',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: 'alice-key',
+        ),
+      );
+
+      for (final cursor in <String>['', 'resume\u0000truncated']) {
+        await expectLater(
+          boundary.startSync(
+            MatrixSdkSyncConfiguration(resumeFromCursor: cursor),
+          ),
+          throwsArgumentError,
+        );
+      }
+      expect(client.syncTokens, isEmpty);
+    },
   );
 
   test(
@@ -406,6 +462,55 @@ void main() {
     },
   );
 
+  test(
+    'malformed decoded sync stops instead of retrying the same payload forever',
+    () async {
+      final client = _FakeRustClient();
+      final retryDelays = <Duration>[];
+      final errors = <Object>[];
+      final boundary = MatrixRustSdkBoundary(
+        bridge: _FakeRustBridge(client),
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: const _MalformedSyncCodecExecutor(),
+        syncRetryDelay: (duration) async {
+          retryDelays.add(duration);
+        },
+      );
+      final errorSeen = Completer<void>();
+      final subscription = boundary.syncBatches.listen(
+        (_) {},
+        onError: (Object error) {
+          errors.add(error);
+          if (!errorSeen.isCompleted) errorSeen.complete();
+        },
+      );
+      addTearDown(subscription.cancel);
+      addTearDown(boundary.close);
+
+      await boundary.open(
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:example.org',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: 'alice-key',
+        ),
+      );
+      await boundary.startSync(const MatrixSdkSyncConfiguration());
+      await errorSeen.future;
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(errors, hasLength(1));
+      expect(errors.single, isA<MatrixNonRetryableSyncException>());
+      expect(
+        (errors.single as MatrixNonRetryableSyncException).cause,
+        isA<FormatException>(),
+      );
+      expect(client.syncTokens, <String?>[null]);
+      expect(retryDelays, isEmpty);
+    },
+  );
+
   test('stopping sync interrupts a pending retry backoff', () async {
     final client = _RecoveringRustClient(failuresBeforeRecovery: 100);
     final retryStarted = Completer<Duration>();
@@ -488,6 +593,20 @@ final class _RecordingCodecExecutor implements MatrixRustCodecExecutor {
   ) async {
     paginationDecodeCalls += 1;
     return _codec.decodePagination(payload);
+  }
+}
+
+final class _MalformedSyncCodecExecutor implements MatrixRustCodecExecutor {
+  const _MalformedSyncCodecExecutor();
+
+  @override
+  Future<MatrixRustSyncDecodeResult> decodeSync(String payload) {
+    throw const FormatException('deterministic malformed sync payload');
+  }
+
+  @override
+  Future<MatrixRustPaginationDecodeResult> decodePagination(String payload) {
+    throw UnimplementedError();
   }
 }
 

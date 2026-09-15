@@ -150,8 +150,14 @@ final class MatrixSessionRuntime
     if (accountId == null) {
       throw StateError('Cannot persist navigation without an active account');
     }
+    final previousTarget = navigationTarget.value;
     navigationTarget.value = target;
-    await restoration.record(accountId: accountId, navigationTarget: target);
+    try {
+      await restoration.record(accountId: accountId, navigationTarget: target);
+    } catch (error, stackTrace) {
+      navigationTarget.value = previousTarget;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<T> _enqueue<T>(Future<T> Function() action) {
