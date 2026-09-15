@@ -102,10 +102,19 @@ void main() {
 
       expect(find.byKey(const Key('call-launch-sheet')), findsNothing);
       expect(find.byKey(const Key('call-controls')), findsOneWidget);
-      expect(fixture.gateway.invocations, hasLength(3));
       expect(
-        fixture.gateway.invocations.first.type,
-        MatrixRtcInvocationType.start,
+        fixture.gateway.invocations.where(
+          (entry) => entry.type == MatrixRtcInvocationType.start,
+        ),
+        hasLength(1),
+      );
+      expect(
+        fixture.gateway.invocations.map((entry) => entry.type),
+        containsAll(<MatrixRtcInvocationType>[
+          MatrixRtcInvocationType.securityState,
+          MatrixRtcInvocationType.participants,
+          MatrixRtcInvocationType.availableAudioRoutes,
+        ]),
       );
     },
   );

@@ -56,6 +56,10 @@ final class NotificationDispatchCoordinator {
   }
 
   KiteNotification _notificationFor(MatrixNotificationEvent event) {
+    _requireAccountId(event.accountId);
+    _requireRoomId(event.roomId);
+    _rejectUnexpectedTargetFields(event);
+
     final destination = switch (event.kind) {
       MatrixNotificationEventKind.message ||
       MatrixNotificationEventKind.mention => AppDestination.event(
@@ -91,13 +95,61 @@ final class NotificationDispatchCoordinator {
     return KiteNotification(id: event.id, kind: kind, destination: destination);
   }
 
+  void _requireAccountId(String accountId) {
+    if (accountId.trim().isEmpty || accountId != accountId.trim()) {
+      throw ArgumentError.value(
+        accountId,
+        'event.accountId',
+        'Notifications require an exact non-empty account id.',
+      );
+    }
+  }
+
+  void _requireRoomId(String roomId) {
+    if (!roomId.startsWith('!') ||
+        roomId.length <= 2 ||
+        !roomId.contains(':') ||
+        roomId.contains(RegExp(r'\s'))) {
+      throw ArgumentError.value(
+        roomId,
+        'event.roomId',
+        'Notifications require an exact Matrix room id.',
+      );
+    }
+  }
+
+  void _rejectUnexpectedTargetFields(MatrixNotificationEvent event) {
+    final hasUnexpectedField = switch (event.kind) {
+      MatrixNotificationEventKind.message ||
+      MatrixNotificationEventKind.mention =>
+        event.threadRootEventId != null || event.callId != null,
+      MatrixNotificationEventKind.invite =>
+        event.eventId != null ||
+            event.threadRootEventId != null ||
+            event.callId != null,
+      MatrixNotificationEventKind.thread => event.callId != null,
+      MatrixNotificationEventKind.call =>
+        event.eventId != null || event.threadRootEventId != null,
+    };
+    if (hasUnexpectedField) {
+      throw ArgumentError.value(
+        event.kind,
+        'event.kind',
+        'Notification target fields do not match the event kind.',
+      );
+    }
+  }
+
   String _requiredEventId(MatrixNotificationEvent event) {
     final eventId = event.eventId;
-    if (eventId == null || eventId.isEmpty) {
+    if (eventId == null ||
+        !eventId.startsWith(r'$') ||
+        eventId.length <= 1 ||
+        eventId.contains(RegExp(r'\s'))) {
       throw ArgumentError.value(
         event.eventId,
         'event.eventId',
-        'Message, mention, and thread notifications require an event id.',
+        'Message, mention, and thread notifications require an exact Matrix event id.',
       );
     }
     return eventId;
@@ -105,11 +157,14 @@ final class NotificationDispatchCoordinator {
 
   String _requiredThreadRootEventId(MatrixNotificationEvent event) {
     final rootId = event.threadRootEventId;
-    if (rootId == null || rootId.isEmpty) {
+    if (rootId == null ||
+        !rootId.startsWith(r'$') ||
+        rootId.length <= 1 ||
+        rootId.contains(RegExp(r'\s'))) {
       throw ArgumentError.value(
         event.threadRootEventId,
         'event.threadRootEventId',
-        'Thread notifications require a thread root event id.',
+        'Thread notifications require an exact Matrix thread root event id.',
       );
     }
     return rootId;
@@ -117,11 +172,14 @@ final class NotificationDispatchCoordinator {
 
   String _requiredCallId(MatrixNotificationEvent event) {
     final callId = event.callId;
-    if (callId == null || callId.isEmpty) {
+    if (callId == null ||
+        callId.isEmpty ||
+        callId != callId.trim() ||
+        callId.contains(RegExp(r'\s'))) {
       throw ArgumentError.value(
         event.callId,
         'event.callId',
-        'Call notifications require a MatrixRTC call id.',
+        'Call notifications require an exact MatrixRTC call id.',
       );
     }
     return callId;

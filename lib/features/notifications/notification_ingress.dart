@@ -9,9 +9,13 @@ enum NotificationIngressFailure {
   unsupportedKind,
   missingAccountId,
   missingRoomId,
+  invalidRoomId,
   missingEventId,
+  invalidEventId,
   missingThreadRootEventId,
+  invalidThreadRootEventId,
   missingCallId,
+  invalidCallId,
   unexpectedTargetField,
   unknownAccount,
 }
@@ -84,6 +88,13 @@ final class NotificationIngressParser {
       );
     }
 
+    if (!_isMatrixRoomId(roomId)) {
+      return NotificationIngressResult.rejected(
+        transport: transport,
+        failure: NotificationIngressFailure.invalidRoomId,
+      );
+    }
+
     final eventId = _value(data, 'event_id');
     final threadRootEventId = _value(data, 'thread_root_event_id');
     final callId = _value(data, 'call_id');
@@ -150,6 +161,25 @@ final class NotificationIngressParser {
       );
     }
 
+    if (eventId != null && !_isMatrixEventId(eventId)) {
+      return NotificationIngressResult.rejected(
+        transport: transport,
+        failure: NotificationIngressFailure.invalidEventId,
+      );
+    }
+    if (threadRootEventId != null && !_isMatrixEventId(threadRootEventId)) {
+      return NotificationIngressResult.rejected(
+        transport: transport,
+        failure: NotificationIngressFailure.invalidThreadRootEventId,
+      );
+    }
+    if (callId != null && !_isOpaqueTargetId(callId)) {
+      return NotificationIngressResult.rejected(
+        transport: transport,
+        failure: NotificationIngressFailure.invalidCallId,
+      );
+    }
+
     return NotificationIngressResult.accepted(
       transport: transport,
       notification: KiteNotification(
@@ -164,6 +194,20 @@ final class NotificationIngressParser {
     final value = data[key]?.trim();
     return value == null || value.isEmpty ? null : value;
   }
+
+  static bool _isMatrixRoomId(String value) =>
+      value.startsWith('!') &&
+      value.length > 2 &&
+      value.contains(':') &&
+      !value.contains(RegExp(r'\s'));
+
+  static bool _isMatrixEventId(String value) =>
+      value.startsWith(r'$') &&
+      value.length > 1 &&
+      !value.contains(RegExp(r'\s'));
+
+  static bool _isOpaqueTargetId(String value) =>
+      value.isNotEmpty && !value.contains(RegExp(r'\s'));
 }
 
 abstract interface class NotificationIngressAccountPort {
