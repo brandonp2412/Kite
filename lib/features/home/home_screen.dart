@@ -46,8 +46,9 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final isPhone = size.shortestSide < phoneBreakpoint;
-    final rooms = benchmarkRooms ?? BenchmarkFixture.rooms;
-    final roomEntries = deterministicRoomListEntries(rooms);
+    final roomEntries = roomListStore == null
+        ? deterministicRoomListEntries(benchmarkRooms ?? BenchmarkFixture.rooms)
+        : const <RoomListEntry>[];
 
     if (isPhone) {
       return Scaffold(
@@ -113,17 +114,21 @@ class _HomeSidebar extends StatefulWidget {
 }
 
 class _HomeSidebarState extends State<_HomeSidebar> {
-  late RoomListStateStore _ownedStore;
-  late RoomInviteStore _ownedInviteStore;
+  RoomListStateStore? _ownedStore;
+  RoomInviteStore? _ownedInviteStore;
 
-  RoomListStateStore get store => widget.store ?? _ownedStore;
-  RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore;
+  RoomListStateStore get store => widget.store ?? _ownedStore!;
+  RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore!;
 
   @override
   void initState() {
     super.initState();
-    _ownedStore = RoomListStateStore(widget.rooms);
-    _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
+    if (widget.store == null) {
+      _ownedStore = RoomListStateStore(widget.rooms);
+    }
+    if (widget.inviteStore == null) {
+      _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
+    }
   }
 
   @override

@@ -19,11 +19,13 @@ class KiteApp extends StatelessWidget {
     this.themeMode = ThemeMode.system,
     this.darkThemeVariant = KiteDarkThemeVariant.standard,
     this.locale,
+    this.home,
   });
 
   final ThemeMode themeMode;
   final KiteDarkThemeVariant darkThemeVariant;
   final Locale? locale;
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +57,7 @@ class KiteApp extends StatelessWidget {
           ),
         );
       },
-      home: const HomeScreen(),
+      home: home ?? const HomeScreen(),
     );
   }
 }

@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/design/kite_theme.dart';
+import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/home/room_invites.dart';
+import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
 
@@ -21,11 +26,24 @@ void main() {
   ) async {
     selectedRoomId.value = 'kite';
     KiteTheme.warmUp();
+    final roomListStore = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    final inviteStore = RoomInviteStore(deterministicRoomInvites);
+    timelineController.messagesFor('kite');
 
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+        await tester.pumpWidget(
+          KiteApp(
+            themeMode: ThemeMode.light,
+            home: HomeScreen(
+              roomListStore: roomListStore,
+              inviteStore: inviteStore,
+            ),
+          ),
+        );
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
@@ -37,7 +55,7 @@ void main() {
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['app_root_startup'] = <String, dynamic>{
       'journey': 'app_root_startup',
-      'fixture': 'deterministic_kite_app_v1',
+      'fixture': 'preloaded_deterministic_kite_app_v1',
       ...result,
       'result': 'PASS',
     };
