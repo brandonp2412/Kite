@@ -4,6 +4,7 @@ import 'package:kite/features/auth/authentication_gateway.dart';
 
 final class _AuthenticationGateway implements AuthenticationGateway {
   AuthenticatedSession? nextSession;
+  Object? failure;
 
   @override
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async {
@@ -36,7 +37,10 @@ final class _AuthenticationGateway implements AuthenticationGateway {
     required HomeserverAddress homeserver,
     required String username,
     required String password,
-  }) async => _session(homeserver);
+  }) async {
+    if (failure case final error?) throw error;
+    return _session(homeserver);
+  }
 
   @override
   Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) async {
@@ -69,6 +73,29 @@ void main() {
       expect(
         controller.errorMessage.value,
         'Kite received an invalid authentication session.',
+      );
+      expect(controller.errorMessage.value, isNot(contains('secret')));
+    },
+  );
+
+  test(
+    'failed reauthentication cannot reuse a previously successful session',
+    () async {
+      final gateway = _AuthenticationGateway();
+      final controller = AuthenticationController(gateway);
+      addTearDown(controller.dispose);
+      await controller.discover('matrix.example.org');
+
+      await controller.loginWithPassword(username: 'alice', password: 'first');
+      expect(controller.session.value, isNotNull);
+
+      gateway.failure = StateError('access_token=secret');
+      await controller.loginWithPassword(username: 'alice', password: 'second');
+
+      expect(controller.session.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Sign in failed. Check your details and try again.',
       );
       expect(controller.errorMessage.value, isNot(contains('secret')));
     },
