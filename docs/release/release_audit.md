@@ -18,6 +18,12 @@ The final Milestone 16 security-review checkbox remains open. Access-token persi
 
 This closes the clean-install test item only. The current Gradle release build still uses the debug signing configuration, so the separate reproducible signed Android release-build item remains open until the real release signing configuration and reproducibility evidence are in place.
 
+## Signed-build reproducibility investigation
+
+Two clean Android release builds were produced on Glass on 2026-09-15 with the same source tree, release key, build name (`1.0.0`) and build number (`424242`). Both APKs verify with Android APK Signature Scheme v2 and the same release certificate, but their whole-file SHA-256 digests differ. A complete entry-by-entry comparison found identical ZIP entry names and identical uncompressed payload hashes, so the remaining byte difference is outside the packaged entry payloads in signing/archive structure.
+
+`tool/compare_android_releases.sh` now makes this distinction explicit: it verifies the v2 signer certificate, entry list, each uncompressed entry payload and finally whole-file identity. The two clean builds intentionally fail the final byte-identity check. Therefore the Milestone 16 reproducible signed Android release-build item remains open; matching payloads and signer identity are useful evidence but are not being treated as bit-for-bit reproducibility.
+
 ## Dependency and license review
 
 The reviewed `pubspec.lock` SHA-256 is:
