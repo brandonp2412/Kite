@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
+import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:signals/signals.dart';
 
 enum TimelineSendState { sending, sent, failed }
@@ -245,13 +246,15 @@ class TimelineController {
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
+    TimelineLinkOpenPort? linkOpenPort,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
        _attachmentSendPort =
            attachmentSendPort ??
            const DeterministicTimelineAttachmentSendPort(),
        _moderationPort =
            moderationPort ?? DeterministicTimelineModerationPort(),
-       _sharePort = sharePort ?? DeterministicTimelineSharePort() {
+       _sharePort = sharePort ?? DeterministicTimelineSharePort(),
+       _linkOpenPort = linkOpenPort ?? DeterministicTimelineLinkOpenPort() {
     reset();
   }
 
@@ -259,6 +262,7 @@ class TimelineController {
   TimelineAttachmentSendPort _attachmentSendPort;
   TimelineModerationPort _moderationPort;
   TimelineSharePort _sharePort;
+  TimelineLinkOpenPort _linkOpenPort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
   final Map<String, Signal<List<String>>> _typingUsers =
@@ -468,6 +472,8 @@ class TimelineController {
     );
   }
 
+  Future<void> openLink(Uri uri) => _linkOpenPort.open(uri);
+
   void retry(String roomId, TimelineMessage message) {
     if (message.sendState.value != TimelineSendState.failed) return;
     message.sendState.value = TimelineSendState.sending;
@@ -483,11 +489,13 @@ class TimelineController {
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
+    TimelineLinkOpenPort? linkOpenPort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
     if (sharePort != null) _sharePort = sharePort;
+    if (linkOpenPort != null) _linkOpenPort = linkOpenPort;
     _transactionCounter = 0;
     _messages.clear();
     _typingUsers.clear();

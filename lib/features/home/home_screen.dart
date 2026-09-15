@@ -8,10 +8,12 @@ import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/home/spaces_screen.dart';
 import 'package:kite/features/media/media_viewer.dart';
+import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
@@ -930,6 +932,21 @@ class _ChatHeader extends StatelessWidget {
                     ],
                   ),
                 ),
+                IconButton(
+                  key: const Key('room-content-gallery-action'),
+                  tooltip: 'Shared content',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => RoomContentGallery(
+                          roomId: roomId,
+                          messages: timelineController.messagesFor(roomId),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.photo_library_outlined, size: 20),
+                ),
                 Icon(
                   Icons.lock_outline_rounded,
                   size: 18,
@@ -1205,6 +1222,7 @@ class _MessageRow extends StatelessWidget {
                     );
                   }
                   final attachment = message.attachment;
+                  final linkPreview = timelineLinkPreviewForText(message.body);
                   return Column(
                     key: Key('message-content-${message.id}'),
                     mainAxisSize: MainAxisSize.min,
@@ -1229,6 +1247,16 @@ class _MessageRow extends StatelessWidget {
                           key: Key('message-body-${message.id}'),
                           child: TimelineMessageBody(body: message.body),
                         ),
+                      if (linkPreview != null) ...<Widget>[
+                        const SizedBox(height: KiteSpacing.xs),
+                        TimelineLinkPreviewCard(
+                          key: Key('message-link-preview-${message.id}'),
+                          preview: linkPreview,
+                          onOpen: () async {
+                            await timelineController.openLink(linkPreview.uri);
+                          },
+                        ),
+                      ],
                     ],
                   );
                 },
