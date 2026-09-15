@@ -144,7 +144,7 @@ void main() {
         profile: profile,
       );
 
-      await scope.resetAndRefreshActiveAccount();
+      await scope.resetAndRefreshActiveAccount(currentDeviceId: 'DEVICE');
 
       expect(deviceGateway.loadCalls, 1);
       expect(verificationGateway.loadCalls, 1);

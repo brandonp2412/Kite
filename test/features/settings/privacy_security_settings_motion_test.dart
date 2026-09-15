@@ -106,6 +106,7 @@ void main() {
             verificationController: verification,
             recoveryController: recovery,
             sessionDeviceController: sessions,
+            currentDeviceId: 'CURRENT',
             onOpenVerification: () {},
             onOpenRecovery: () {},
             onOpenSessions: () {},
@@ -140,7 +141,13 @@ void main() {
           hasUnverifiedSessions: false,
         ),
       );
-      sessionGateway.devices.complete(const <SessionDevice>[]);
+      sessionGateway.devices.complete(const <SessionDevice>[
+        SessionDevice(
+          deviceId: 'CURRENT',
+          isCurrent: true,
+          verification: SessionDeviceVerification.verified,
+        ),
+      ]);
       await tester.pump();
 
       expect(_rectOf(tester, loading), initialLoading);

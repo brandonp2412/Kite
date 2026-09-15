@@ -98,12 +98,17 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
     final active = widget.accountController.activeAccount;
     final securityScope = widget.securityScopeController;
     if (securityScope != null) {
-      await securityScope.resetAndRefreshActiveAccount(
-        currentDeviceId: active?.session.deviceId,
-      );
-    } else if (widget.sessionDeviceController.resetForAccountChange()) {
+      if (active == null) {
+        securityScope.resetForAccountChange();
+      } else {
+        await securityScope.resetAndRefreshActiveAccount(
+          currentDeviceId: active.session.deviceId,
+        );
+      }
+    } else if (widget.sessionDeviceController.resetForAccountChange() &&
+        active != null) {
       await widget.sessionDeviceController.load(
-        expectedCurrentDeviceId: active?.session.deviceId,
+        expectedCurrentDeviceId: active.session.deviceId,
       );
     }
     if (!mounted) return;

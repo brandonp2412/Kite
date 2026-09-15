@@ -12,6 +12,7 @@ class PrivacySecuritySettingsScreen extends StatefulWidget {
     required this.verificationController,
     required this.recoveryController,
     required this.sessionDeviceController,
+    required this.currentDeviceId,
     required this.onOpenVerification,
     required this.onOpenRecovery,
     required this.onOpenSessions,
@@ -25,6 +26,7 @@ class PrivacySecuritySettingsScreen extends StatefulWidget {
   final DeviceVerificationController verificationController;
   final EncryptionRecoveryController recoveryController;
   final SessionDeviceController sessionDeviceController;
+  final String currentDeviceId;
   final VoidCallback onOpenVerification;
   final VoidCallback onOpenRecovery;
   final VoidCallback onOpenSessions;
@@ -46,7 +48,11 @@ class _PrivacySecuritySettingsScreenState
     if (widget.loadOnInit) {
       unawaited(widget.verificationController.loadTrust());
       unawaited(widget.recoveryController.refresh());
-      unawaited(widget.sessionDeviceController.load());
+      unawaited(
+        widget.sessionDeviceController.load(
+          expectedCurrentDeviceId: widget.currentDeviceId,
+        ),
+      );
     }
   }
 
