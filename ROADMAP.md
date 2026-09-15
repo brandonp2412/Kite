@@ -408,10 +408,10 @@ This milestone is not optional cleanup; it is a product feature.
 
 - [ ] Expand the zero-jitter harness from `open_dm` to every primary navigation and mutation journey.
 - [x] Room-list scroll benchmark with thousands of rooms.
-- [ ] Timeline scroll benchmark with mixed rich event types.
-- [ ] Pagination benchmark.
-- [ ] New-message insertion benchmark.
-- [ ] Reaction/read-receipt/typing-update benchmark.
+- [x] Timeline scroll benchmark with mixed rich event types.
+- [x] Pagination benchmark.
+- [x] New-message insertion benchmark.
+- [x] Reaction/read-receipt/typing-update benchmark.
 - [x] Composer + keyboard benchmark.
 - [ ] Search/filter benchmark.
 - [ ] Spaces/Sections benchmark.
