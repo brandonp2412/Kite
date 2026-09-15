@@ -8,6 +8,52 @@ enum TimelineSendState { sending, sent, failed }
 
 enum TimelineSendOutcome { sent, failed }
 
+enum TimelineAttachmentKind { image, video, file }
+
+@immutable
+final class TimelineAttachment {
+  const TimelineAttachment({
+    required this.id,
+    required this.kind,
+    required this.name,
+    required this.sizeLabel,
+  });
+
+  final String id;
+  final TimelineAttachmentKind kind;
+  final String name;
+  final String sizeLabel;
+}
+
+abstract interface class TimelineAttachmentSendPort {
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+  });
+}
+
+final class DeterministicTimelineAttachmentSendPort
+    implements TimelineAttachmentSendPort {
+  const DeterministicTimelineAttachmentSendPort({
+    this.latency = const Duration(milliseconds: 220),
+  });
+
+  final Duration latency;
+
+  @override
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+  }) async {
+    await Future<void>.delayed(latency);
+    return TimelineSendOutcome.sent;
+  }
+}
+
 @immutable
 final class TimelineReportRequest {
   const TimelineReportRequest({
@@ -108,6 +154,7 @@ class TimelineMessage {
     this.replyToMessageId,
     this.replyToSender,
     this.replyToBody,
+    this.attachment,
     TimelineSendState sendState = TimelineSendState.sent,
     bool edited = false,
     bool redacted = false,
@@ -143,6 +190,7 @@ class TimelineMessage {
   final String? replyToMessageId;
   final String? replyToSender;
   final String? replyToBody;
+  final TimelineAttachment? attachment;
   final Signal<bool> editedState;
   final Signal<bool> redactedState;
   final Signal<Map<String, TimelineReactionSummary>> reactionState;
@@ -160,14 +208,19 @@ class TimelineMessage {
 class TimelineController {
   TimelineController({
     TimelineSendPort? sendPort,
+    TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
+       _attachmentSendPort =
+           attachmentSendPort ??
+           const DeterministicTimelineAttachmentSendPort(),
        _moderationPort =
            moderationPort ?? DeterministicTimelineModerationPort() {
     reset();
   }
 
   TimelineSendPort _sendPort;
+  TimelineAttachmentSendPort _attachmentSendPort;
   TimelineModerationPort _moderationPort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
@@ -260,6 +313,35 @@ class TimelineController {
     return message;
   }
 
+  TimelineMessage sendAttachment(
+    String roomId,
+    TimelineAttachment attachment, {
+    String caption = '',
+    TimelineMessage? replyTo,
+  }) {
+    final body = caption.trim();
+    final transactionId = 'kite-local-${_transactionCounter++}';
+    final message = TimelineMessage(
+      id: transactionId,
+      sender: 'You',
+      body: body,
+      mine: true,
+      timeLabel: 'now',
+      replyToMessageId: replyTo?.id,
+      replyToSender: replyTo?.sender,
+      replyToBody: replyTo?.body,
+      attachment: attachment,
+      sendState: TimelineSendState.sending,
+    );
+    final roomMessages = messagesFor(roomId);
+    roomMessages.value = List<TimelineMessage>.unmodifiable(<TimelineMessage>[
+      ...roomMessages.value,
+      message,
+    ]);
+    unawaited(_settleAttachment(roomId, message));
+    return message;
+  }
+
   void editText(TimelineMessage message, String rawBody) {
     if (!message.mine || message.redacted) return;
     final body = rawBody.trim();
@@ -340,18 +422,39 @@ class TimelineController {
   void retry(String roomId, TimelineMessage message) {
     if (message.sendState.value != TimelineSendState.failed) return;
     message.sendState.value = TimelineSendState.sending;
-    unawaited(_settle(roomId, message));
+    if (message.attachment != null) {
+      unawaited(_settleAttachment(roomId, message));
+    } else {
+      unawaited(_settle(roomId, message));
+    }
   }
 
   void reset({
     TimelineSendPort? sendPort,
+    TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
+    if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
     _transactionCounter = 0;
     _messages.clear();
     _typingUsers.clear();
+  }
+
+  Future<void> _settleAttachment(String roomId, TimelineMessage message) async {
+    final attachment = message.attachment;
+    if (attachment == null) return;
+    final outcome = await _attachmentSendPort.sendAttachment(
+      roomId: roomId,
+      transactionId: message.id,
+      attachment: attachment,
+      caption: message.body,
+    );
+    message.sendState.value = switch (outcome) {
+      TimelineSendOutcome.sent => TimelineSendState.sent,
+      TimelineSendOutcome.failed => TimelineSendState.failed,
+    };
   }
 
   Future<void> _settle(String roomId, TimelineMessage message) async {
