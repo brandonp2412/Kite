@@ -121,4 +121,15 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String unreadThreadRepliesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ungelesene Thread-Antworten',
+      one: '1 ungelesene Thread-Antwort',
+    );
+    return '$_temp0';
+  }
 }

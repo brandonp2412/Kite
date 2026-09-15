@@ -75,6 +75,18 @@ void main() {
         reason: '${entry.key} selected-state content',
       );
       _expectContrast(
+        tokens.focus,
+        tokens.navigation,
+        3,
+        reason: '${entry.key} focus indicator against navigation',
+      );
+      _expectContrast(
+        tokens.focus,
+        tokens.selected,
+        3,
+        reason: '${entry.key} focus indicator against selected rows',
+      );
+      _expectContrast(
         tokens.unread,
         tokens.canvas,
         3,

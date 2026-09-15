@@ -177,6 +177,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
     required this.canvas,
     required this.navigation,
     required this.field,
+    required this.focus,
     required this.selected,
     required this.unread,
     required this.mention,
@@ -186,6 +187,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
   final Color canvas;
   final Color navigation;
   final Color field;
+  final Color focus;
   final Color selected;
   final Color unread;
   final Color mention;
@@ -213,6 +215,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
           : dark
           ? const Color(0xFF1B201E)
           : const Color(0xFFEEF1EF),
+      focus: scheme.primary,
       selected: scheme.primaryContainer,
       unread: scheme.primary,
       mention: scheme.tertiary,
@@ -225,6 +228,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
     Color? canvas,
     Color? navigation,
     Color? field,
+    Color? focus,
     Color? selected,
     Color? unread,
     Color? mention,
@@ -234,6 +238,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
       canvas: canvas ?? this.canvas,
       navigation: navigation ?? this.navigation,
       field: field ?? this.field,
+      focus: focus ?? this.focus,
       selected: selected ?? this.selected,
       unread: unread ?? this.unread,
       mention: mention ?? this.mention,
@@ -251,6 +256,7 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
       canvas: Color.lerp(canvas, other.canvas, t)!,
       navigation: Color.lerp(navigation, other.navigation, t)!,
       field: Color.lerp(field, other.field, t)!,
+      focus: Color.lerp(focus, other.focus, t)!,
       selected: Color.lerp(selected, other.selected, t)!,
       unread: Color.lerp(unread, other.unread, t)!,
       mention: Color.lerp(mention, other.mention, t)!,

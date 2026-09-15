@@ -50,5 +50,12 @@
     "placeholders": {
       "count": {"type": "int"}
     }
+  },
+  "unreadThreadRepliesLabel": "{count, plural, =1{1 unread thread reply} other{{count} unread thread replies}}",
+  "@unreadThreadRepliesLabel": {
+    "description": "Accessibility label for the number of unread replies across a room's threads.",
+    "placeholders": {
+      "count": {"type": "int"}
+    }
   }
 }

@@ -121,6 +121,17 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String unreadThreadRepliesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unread thread replies',
+      one: '1 unread thread reply',
+    );
+    return '$_temp0';
+  }
 }
 
 /// The translations for English, as used in New Zealand (`en_NZ`).

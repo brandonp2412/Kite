@@ -3,9 +3,11 @@ import 'dart:ui' show SemanticsAction, Tristate;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart'
     show CustomSemanticsAction, OrdinalSortKey;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/design/kite_theme.dart';
+import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -126,6 +128,83 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('room rows expose a visible keyboard focus ring and activate', (
+    tester,
+  ) async {
+    await setViewport(tester, const Size(1200, 800));
+    selectRoom('kite');
+
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final tile = tester.widget<ListTile>(find.byKey(const Key('room-alice')));
+    final focusNode = tile.focusNode!;
+    focusNode.requestFocus();
+    await tester.pumpAndSettle();
+
+    expect(focusNode.hasFocus, isTrue);
+    final frame = tester.widget<DecoratedBox>(
+      find.byKey(const Key('room-focus-alice')),
+    );
+    final decoration = frame.decoration as BoxDecoration;
+    final border = decoration.border! as Border;
+    final primary = Theme.of(
+      tester.element(find.byKey(const Key('room-alice'))),
+    ).colorScheme.primary;
+    expect(border.top.width, KiteStroke.emphasis);
+    expect(border.top.color, primary);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(selectedRoomId.value, 'alice');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    final nextTile = tester.widget<ListTile>(
+      find.byKey(const Key('room-bob')),
+    );
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'Room bob',
+      reason:
+          'Tab should keep desktop traversal inside adjacent room rows before entering the conversation pane.',
+    );
+    expect(nextTile.focusNode!.hasFocus, isTrue);
+  });
+
+  testWidgets('message actions open from keyboard focus', (tester) async {
+    await setViewport(tester, const Size(1200, 800));
+    selectRoom('alice');
+
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final focusable = tester.widget<FocusableActionDetector>(
+      find.byKey(const Key('message-focus-alice-98')),
+    );
+    final focusNode = focusable.focusNode!;
+    focusNode.requestFocus();
+    await tester.pumpAndSettle();
+
+    expect(focusNode.hasFocus, isTrue);
+    final frame = tester.widget<DecoratedBox>(
+      find.byKey(const Key('message-focus-frame-alice-98')),
+    );
+    final decoration = frame.decoration as BoxDecoration;
+    final border = decoration.border! as Border;
+    final primary = Theme.of(
+      tester.element(find.byKey(const Key('message-bubble-alice-98'))),
+    ).colorScheme.primary;
+    expect(border.top.width, KiteStroke.emphasis);
+    expect(border.top.color, primary);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('message-action-reply')), findsOneWidget);
+    expect(find.byKey(const Key('message-action-copy')), findsOneWidget);
+  });
 
   testWidgets('selection and unread state have non-colour visual cues', (
     tester,

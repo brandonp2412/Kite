@@ -278,6 +278,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =0{No rooms} =1{1 room} other{{count} rooms}}'**
   String roomCount(int count);
+
+  /// Accessibility label for the number of unread replies across a room's threads.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 unread thread reply} other{{count} unread thread replies}}'**
+  String unreadThreadRepliesLabel(int count);
 }
 
 class _AppLocalizationsDelegate
