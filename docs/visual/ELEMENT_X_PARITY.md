@@ -113,6 +113,79 @@ Observed comparison:
 
 The message action/reaction review is complete as an audit. It identifies concrete visual and state-coverage gaps; it does not close the underlying message-action or reaction feature boxes.
 
+### Settings / preferences
+
+Kite renders checked in this review:
+
+- `test/goldens/settings_general_light.png`
+- `test/goldens/settings_general_dark.png`
+- `test/goldens/settings_notifications_phone_light.png`
+- `test/goldens/settings_notifications_phone_dark.png`
+- `test/goldens/settings_support_light.png`
+- `test/goldens/settings_support_dark.png`
+
+Current Element X `develop` references at `3e861cc64645a286a5455e0b47032b1a25b2f49d`:
+
+- [`PreferencesRootViewLight_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/features.preferences.impl.root_PreferencesRootViewLight_0_en.png)
+- [`NotificationSettingsView_Day_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/features.preferences.impl.notifications_NotificationSettingsView_Day_0_en.png)
+- [`PreferencePage_Day_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/libraries.designsystem.components.preferences_PreferencePage_Day_0_en.png)
+
+Observed comparison:
+
+| Area | Element X reference | Current Kite render | Result |
+| --- | --- | --- | --- |
+| Root hierarchy | Compact edge-to-edge phone list starts with identity/account context, then account, app and general actions | Kite groups account, preferences, security and support into clear top-level destinations with subtitles, but currently has no matching root-screen golden | Partial |
+| Notification composition | Large page title, quiet explanatory metadata, edge-to-edge rows and switches, thin section dividers | The 390 px Kite notification golden uses the same restrained row/switch rhythm and clear sections, while adding room override and sound controls | Partial |
+| Wide layout | Upstream reference remains phone-first | Kite constrains desktop settings content instead of stretching controls across 1200 px and keeps phone notification rows edge-to-edge | Pass for current adaptive shell |
+| Advanced surface | Appearance, presence, upload/media policy, moderation/safety and live-location controls are exposed from Advanced settings as applicable | Appearance/language are implemented, but the broader current Advanced-settings inventory is not yet represented | Gap |
+| Support/about | About and report-a-problem are separate compact destinations | Kite combines cache/storage, sanitised problem reporting, version and licenses into one bounded support surface | Intentional composition difference; capability remains partial |
+
+Current root-entry audit against `PreferencesRootView.kt` and the current Advanced/Notification views:
+
+| Current Element X entry/capability | Kite mapping | Audit state |
+| --- | --- | --- |
+| User profile | `SettingsScreen` → Your profile | Present; broader profile parity remains tracked separately |
+| Multi-account switch/add account | Accounts & sessions | Conditional upstream feature remains unfinished/flagged; Kite roadmap keeps multi-account conditional |
+| User status | No equivalent settings entry | Gap; current upstream status remains tracked by the profile/parity audit |
+| Manage account & devices / link new device | Accounts & sessions covers sessions; no equivalent external account-management/link-device entry | Partial |
+| Blocked users | Privacy & security → Ignored & blocked users | Present |
+| Notifications | Notification settings with master/categories/per-room mode/message sound/call ringtone | Present; upstream system-settings warning, troubleshooting and distributor/provider paths remain gaps tied to push work |
+| Screen lock | Privacy & security → App lock | Present |
+| Encryption / secure backup | Privacy & security → verification/recovery | Present foundation; full secure-backup parity remains incomplete |
+| Advanced settings | General covers appearance/language only | Gap for presence, media upload/visibility and live-location controls |
+| Labs | No user-facing Labs page | Difference recorded while current Labs features remain disabled/experimental upstream |
+| About | Storage, support & about | Present |
+| Report a problem | Sanitised report-a-problem flow | Present |
+| Analytics | No analytics-preferences page | Gap |
+| Sign out | Accounts & sessions owns session sign-out | Present through account management rather than root settings |
+| Delete account | No equivalent settings action | Gap |
+| Developer options | Not exposed by default | Intentional roadmap difference: developer settings are only added when genuinely useful |
+
+This audit deliberately leaves the Milestone 14 settings-entry checkbox open: current generally exposed settings still contain capability gaps, and a visual settings/security review also needs matching Kite security goldens before it can close.
+
+### Media viewer
+
+Kite renders checked in this review:
+
+- `test/goldens/media_viewer_light.png`
+- `test/goldens/media_viewer_dark.png`
+
+Current Element X `develop` references at `3e861cc64645a286a5455e0b47032b1a25b2f49d`:
+
+- [`MediaViewerView_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/libraries.mediaviewer.impl.viewer_MediaViewerView_0_en.png)
+- [`MediaViewerView_12_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/libraries.mediaviewer.impl.viewer_MediaViewerView_12_en.png)
+
+Observed comparison:
+
+| Area | Element X reference | Current Kite render | Result |
+| --- | --- | --- | --- |
+| Viewing surface | Dark cinema surface, media centred without decorative chrome, sparse back/share/download/info actions | Full-screen deterministic media plane with close/share/save actions and page position; branded gradient fixture is visually busier than the neutral upstream viewer | Partial |
+| Action hierarchy | Small top-bar actions keep media dominant | Kite keeps actions compact and outside the primary content plane, but has no matching info/details action | Partial |
+| Destructive state | Current upstream snapshot uses a restrained rounded bottom sheet, explicit file identity and a prominent red remove action | No matching media-delete golden/state exists yet | Gap |
+| Image fidelity evidence | Upstream snapshot uses real photo content at display resolution | Kite golden uses a deterministic generated fixture, so the current visual review cannot close the high-quality-media parity requirement by itself | Gap |
+
+The media viewer review is complete for the currently rendered Kite states, but the combined Poll/location/media roadmap review stays open because poll/location and upstream media-details/delete states are not covered.
+
 ## Screen-by-screen parity matrix
 
 `Missing` means Kite has no corresponding screen yet. `Foundation` means only shared infrastructure or fixture UI exists. `Partial` means a user-visible slice exists but does not meet the full Element X behavior/visual contract. Tests listed are Kite tests that currently exercise the row.
@@ -137,9 +210,9 @@ The message action/reaction review is complete as an audit. It identifies concre
 | Login / FTUE | Homeserver/authentication and first-run flows | No authentication UI | None | Missing |
 | Verification / secure backup | Verification, recovery and backup flows | No security onboarding UI | None | Missing |
 | Lock screen | PIN/biometric lock state | No lock screen | None | Missing |
-| Preferences / appearance | User preferences including appearance/language/notifications | Theme can be forced by test/app constructor only | design-token tests | Foundation |
-| Security & privacy | Sessions, privacy, recovery and account security | No settings UI | None | Missing |
-| Licenses / about | App/legal information | No about/licenses UI | None | Missing |
+| Preferences / appearance | User preferences including appearance/language/notifications | General appearance/language settings, notification master/categories/per-room modes and custom message/call sounds are implemented; broader Advanced-settings inventory is incomplete | `test/features/settings/general_settings_screen_test.dart`, `test/features/settings/notification_settings_screen_test.dart`, `test/settings_golden_test.dart` | Partial |
+| Security & privacy | Sessions, privacy, recovery and account security | Privacy/security surface exposes verification, recovery, signed-in devices, user controls and app-lock entry points; full security/recovery parity remains incomplete | `test/features/settings/privacy_security_settings_screen_test.dart`, auth/security controller tests | Partial |
+| Licenses / about | App/legal information | Storage/support screen exposes version/build and open-source licenses alongside sanitised problem reporting | `test/features/settings/support_settings_screen_test.dart`, settings support goldens | Partial |
 | Error / offline states | Deliberate loading, empty, error and connectivity states | Deterministic adapters exist; user-visible states are not complete | deterministic adapter tests where applicable | Foundation |
 | Adaptive phone layout | Mobile composition appropriate to width/orientation | Explicit portrait/landscape compact layout | `test/adaptive_layout_test.dart`, gallery goldens | Partial |
 | Tablet / desktop layout | Wider composition without stretched phone UI | Two-pane layout with bounded 320-360 px sidebar | `test/adaptive_layout_test.dart`, gallery goldens | Partial |
@@ -174,7 +247,7 @@ For each review, record the exact upstream commit or public reference image and 
 
 Audit established from a clean shallow checkout on 2026-09-14 and rechecked against the current Element X Android `develop` head on 2026-09-16.
 
-- `develop` now points at `3e861cc64645a286a5455e0b47032b1a25b2f49d`, committed 2026-09-15. This is newer than the roadmap's original 2026-09-14 audit reference. This pass rechecked the current tree and refreshed the rendered Threads and message-action/reaction references; the commit itself is test-tooling-only (`Do not report detekt LargeClass issues on test classes (#7713)`), so it does not add a new user-facing parity requirement.
+- `develop` now points at `3e861cc64645a286a5455e0b47032b1a25b2f49d`, committed 2026-09-15. This is newer than the roadmap's original 2026-09-14 audit reference. This pass rechecked the current tree and refreshed the rendered Threads, message-action/reaction, settings and media-viewer references; the commit itself is test-tooling-only (`Do not report detekt LargeClass issues on test classes (#7713)`), so it does not add a new user-facing parity requirement.
 - The release-notes head in this tree is `v26.09.2`. Its parity-relevant changes include moving Knock and gallery-message sending into Labs; `v26.09.1` added multi-select poll creation/responses, and `v26.08.3` enabled user status. Those capabilities are tracked by the existing room/join, media/poll, and profile/parity rows rather than by adding duplicate roadmap criteria.
 - Current Labs flags are `Threads`, `SendGalleryMessages`, and `Knock`; all default to disabled and remain unfinished. Threads stays a Kite requirement because the roadmap explicitly targets Threads 2.x. Knock/gallery behaviour is compared against its current upstream exposure instead of being treated as generally available UI.
 - Other unfinished disabled flags include multi-account, QR login, black theme, jump-to-unread, room thread list, automatic back-pagination, selectable media quality, and message search. The current `FeatureFlags.MessageSearch` implementation remains disabled and unfinished; it is not treated as a generally available in-room-search parity blocker.
