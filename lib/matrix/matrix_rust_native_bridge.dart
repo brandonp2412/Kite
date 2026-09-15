@@ -434,7 +434,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         );
       } catch (error, stackTrace) {
         trace?.log(LogLevel.error, DiagnosticEvent.failed);
-        await _reportFailure(
+        _reportFailure(
           error,
           stackTrace,
           trace,
@@ -492,7 +492,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
             DiagnosticMetric.attempt: failureAttempt,
           },
         );
-        await _reportFailure(
+        _reportFailure(
           error,
           stackTrace,
           trace,
@@ -506,27 +506,30 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     }
   }
 
-  Future<void> _reportFailure(
+  void _reportFailure(
     Object error,
     StackTrace stackTrace,
     TraceLogger? trace, {
     required DiagnosticFlow flow,
     required DiagnosticOperation operation,
     required CrashState state,
-  }) async {
+  }) {
     final reporter = crashReporter;
     if (reporter == null || trace == null) return;
-    await reporter.report(
-      error,
-      stackTrace: stackTrace,
-      context: CrashDiagnosticContext(
-        flow: flow,
-        traceId: trace.traceId,
-        operation: operation,
-        component: CrashComponent.matrixSdk,
-        state: state,
-      ),
-    );
+    try {
+      final report = reporter.report(
+        error,
+        stackTrace: stackTrace,
+        context: CrashDiagnosticContext(
+          flow: flow,
+          traceId: trace.traceId,
+          operation: operation,
+          component: CrashComponent.matrixSdk,
+          state: state,
+        ),
+      );
+      unawaited(report.catchError((Object _, StackTrace _) {}));
+    } catch (_) {}
   }
 
   Future<void> _stopSync() async {

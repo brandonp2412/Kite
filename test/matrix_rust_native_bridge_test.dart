@@ -216,6 +216,9 @@ void main() {
       final batches = <MatrixSyncBatch>[];
       final logSink = MemoryStructuredLogSink();
       final crashSink = MemoryCrashReportSink();
+      final deferredCrashReporter = _DeferredCrashReporter(
+        SanitizingCrashReporter(crashSink),
+      );
       final boundary = MatrixRustSdkBoundary(
         bridge: _FakeRustBridge(client),
         homeserver: Uri.parse('https://matrix.example.org'),
@@ -227,7 +230,7 @@ void main() {
           sink: logSink,
           traceIds: SequenceTraceIdGenerator(seed: 200),
         ),
-        crashReporter: SanitizingCrashReporter(crashSink),
+        crashReporter: deferredCrashReporter,
       );
       final subscription = boundary.syncBatches.listen(
         batches.add,
@@ -268,6 +271,8 @@ void main() {
       expect(crashSink.reports.single.errorType, 'StateError');
       expect(crashSink.reports.single.flow, DiagnosticFlow.sync);
       expect(crashSink.reports.single.traceId, failedLogs.single.traceId);
+      expect(deferredCrashReporter.release.isCompleted, isFalse);
+      deferredCrashReporter.release.complete();
     },
   );
 
@@ -297,6 +302,23 @@ void main() {
         ? 'Set KITE_MATRIX_BRIDGE_LIBRARY after building the Rust bridge.'
         : false,
   );
+}
+
+final class _DeferredCrashReporter implements CrashReporter {
+  _DeferredCrashReporter(this.delegate);
+
+  final CrashReporter delegate;
+  final Completer<void> release = Completer<void>();
+
+  @override
+  Future<void> report(
+    Object error, {
+    StackTrace? stackTrace,
+    required CrashDiagnosticContext context,
+  }) async {
+    await delegate.report(error, stackTrace: stackTrace, context: context);
+    await release.future;
+  }
 }
 
 final class _FakeRustBridge implements MatrixRustBridge {
