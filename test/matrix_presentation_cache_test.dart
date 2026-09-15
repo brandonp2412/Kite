@@ -212,19 +212,19 @@ void main() {
                 ),
                 timelineEvents: <MatrixTimelineEvent>[
                   _event(
-                    eventId: '\$${position}-1',
+                    eventId: '\$$position-1',
                     roomId: roomId,
                     position: position * 10 + 1,
                     second: 1,
                   ),
                   _event(
-                    eventId: '\$${position}-2',
+                    eventId: '\$$position-2',
                     roomId: roomId,
                     position: position * 10 + 2,
                     second: 2,
                   ),
                   _event(
-                    eventId: '\$${position}-3',
+                    eventId: '\$$position-3',
                     roomId: roomId,
                     position: position * 10 + 3,
                     second: 3,
