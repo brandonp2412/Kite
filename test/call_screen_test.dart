@@ -91,6 +91,16 @@ void main() {
     );
     expect(fixture.coordinator.isCameraEnabled.value, isTrue);
 
+    await tester.tap(_roundButton('call-switch-camera'));
+    await tester.pump();
+    expect(fixture.coordinator.cameraFacing.value, KiteCameraFacing.rear);
+    expect(
+      fixture.gateway.invocations.where(
+        (entry) => entry.type == MatrixRtcInvocationType.switchCamera,
+      ),
+      hasLength(1),
+    );
+
     await tester.tap(find.byKey(const Key('call-participant-alice-device')));
     await tester.pump();
     expect(fixture.coordinator.spotlightParticipantId.value, 'alice-device');

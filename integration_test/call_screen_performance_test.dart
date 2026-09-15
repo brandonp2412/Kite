@@ -97,6 +97,8 @@ void main() {
       action: () async {
         await tester.tap(_roundButton('call-microphone'));
         await tester.pumpAndSettle();
+        await tester.tap(_roundButton('call-switch-camera'));
+        await tester.pumpAndSettle();
         await tester.tap(_roundButton('call-camera'));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('call-participant-alice')));
@@ -107,6 +109,8 @@ void main() {
       enforceTotalSpan: enforceTotalSpan,
     );
 
+    expect(fixture.coordinator.cameraFacing.value, KiteCameraFacing.rear);
+    expect(fixture.coordinator.spotlightParticipantId.value, 'alice');
     expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['call_controls'] = <String, dynamic>{

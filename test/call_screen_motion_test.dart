@@ -80,6 +80,16 @@ void main() {
         expect(tester.takeException(), isNull);
       }
 
+      await tester.tap(find.byKey(const Key('call-switch-camera')));
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, grid), gridRect);
+        expect(_rectOf(tester, controls), controlsRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(coordinator.cameraFacing.value, KiteCameraFacing.rear);
+
       await tester.tap(find.byKey(const Key('call-camera')));
       for (var i = 0; i < PerformanceContract.motionSamples; i++) {
         await tester.pump(PerformanceContract.motionFrame);
@@ -88,6 +98,16 @@ void main() {
         expect(_rectOf(tester, controls), controlsRect);
         expect(tester.takeException(), isNull);
       }
+
+      await tester.tap(find.byKey(const Key('call-participant-alice')));
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, grid), gridRect);
+        expect(_rectOf(tester, controls), controlsRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(coordinator.spotlightParticipantId.value, 'alice');
 
       gateway.callSecurityState = const KiteCallSecurityState(
         e2eeEnabled: true,
