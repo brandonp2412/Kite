@@ -15,12 +15,23 @@ final class RoomEncryptionTrust {
     required this.historySharingSupported,
     required this.historySharingEnabled,
   }) {
-    if (roomId.trim().isEmpty) {
-      throw ArgumentError.value(roomId, 'roomId');
+    final normalizedRoomId = roomId.trim();
+    final separator = normalizedRoomId.indexOf(':');
+    if (normalizedRoomId != roomId ||
+        !normalizedRoomId.startsWith('!') ||
+        separator <= 1 ||
+        separator == normalizedRoomId.length - 1 ||
+        normalizedRoomId.contains(RegExp(r'\s'))) {
+      throw ArgumentError('Matrix room ID is invalid.');
     }
     if (!isEncrypted && trustState != EncryptionTrustState.unknown) {
       throw ArgumentError(
         'Unencrypted rooms cannot expose encrypted trust state.',
+      );
+    }
+    if (!isEncrypted && historySharingSupported) {
+      throw ArgumentError(
+        'Unencrypted rooms cannot expose encrypted history sharing.',
       );
     }
     if (!historySharingSupported && historySharingEnabled) {
@@ -114,6 +125,7 @@ final class EncryptionTrustController {
           _gateway.setHistorySharing(roomId: current.roomId, enabled: enabled),
       expectedRoomId: current.roomId,
       expectedHistorySharingEnabled: enabled,
+      requireEncryptedHistorySharing: true,
       failureMessage: 'Kite could not update encrypted history sharing.',
     );
   }
@@ -122,6 +134,7 @@ final class EncryptionTrustController {
     Future<RoomEncryptionTrust> Function() action, {
     required String expectedRoomId,
     bool? expectedHistorySharingEnabled,
+    bool requireEncryptedHistorySharing = false,
     required String failureMessage,
   }) async {
     if (isBusy.value) return false;
@@ -132,7 +145,9 @@ final class EncryptionTrustController {
       final next = await action();
       if (next.roomId != expectedRoomId ||
           (expectedHistorySharingEnabled != null &&
-              next.historySharingEnabled != expectedHistorySharingEnabled)) {
+              next.historySharingEnabled != expectedHistorySharingEnabled) ||
+          (requireEncryptedHistorySharing &&
+              (!next.isEncrypted || !next.historySharingSupported))) {
         errorMessage.value = 'Kite received invalid encryption trust state.';
         return false;
       }
