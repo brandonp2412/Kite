@@ -7,7 +7,7 @@ use matrix_sdk::{Client, config::SyncSettings, ruma::RoomId};
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 3;
+const KITE_MATRIX_ABI_VERSION: u32 = 4;
 
 pub struct KiteMatrixClient {
     client: Option<Client>,
@@ -90,6 +90,7 @@ pub unsafe extern "C" fn kite_matrix_client_new(
 pub unsafe extern "C" fn kite_matrix_client_sync_once(
     client: *mut KiteMatrixClient,
     timeout_ms: u64,
+    since: *const c_char,
 ) -> *mut c_char {
     if client.is_null() {
         return ptr::null_mut();
@@ -99,7 +100,16 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         return ptr::null_mut();
     };
 
-    let settings = SyncSettings::default().timeout(Duration::from_millis(timeout_ms));
+    let mut settings = SyncSettings::default().timeout(Duration::from_millis(timeout_ms));
+    if !since.is_null() {
+        let Some(since) = (unsafe { required_utf8(since) }) else {
+            return ptr::null_mut();
+        };
+        if since.is_empty() {
+            return ptr::null_mut();
+        }
+        settings = settings.token(since);
+    }
     let Ok(response) = client.runtime.block_on(matrix_client.sync_once(settings)) else {
         return ptr::null_mut();
     };
@@ -222,7 +232,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 3);
+        assert_eq!(kite_matrix_abi_version(), 4);
     }
 
     #[test]
@@ -303,7 +313,7 @@ mod tests {
     #[test]
     fn sync_and_pagination_reject_missing_clients() {
         let room_id = CString::new("!room:kite.test").unwrap();
-        let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0) };
+        let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null()) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
         assert!(sync.is_null());

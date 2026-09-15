@@ -9,7 +9,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 3;
+const int kiteMatrixNativeAbiVersion = 4;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 
@@ -25,8 +25,16 @@ typedef _ClientNewDart = Pointer<Void> Function(
   Pointer<Char>,
   Pointer<Char>,
 );
-typedef _ClientSyncOnceNative = Pointer<Char> Function(Pointer<Void>, Uint64);
-typedef _ClientSyncOnceDart = Pointer<Char> Function(Pointer<Void>, int);
+typedef _ClientSyncOnceNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Uint64,
+  Pointer<Char>,
+);
+typedef _ClientSyncOnceDart = Pointer<Char> Function(
+  Pointer<Void>,
+  int,
+  Pointer<Char>,
+);
 typedef _ClientPaginateNative = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
@@ -48,11 +56,13 @@ final class _MatrixNativeSyncOperation {
     required this.libraryPath,
     required this.address,
     required this.timeoutMs,
+    required this.since,
   });
 
   final String libraryPath;
   final int address;
   final int timeoutMs;
+  final String? since;
 
   String call() {
     final library = DynamicLibrary.open(libraryPath);
@@ -64,14 +74,25 @@ final class _MatrixNativeSyncOperation {
         .lookupFunction<_StringFreeNative, _StringFreeDart>(
           'kite_matrix_string_free',
         );
-    final value = syncOnce(Pointer<Void>.fromAddress(address), timeoutMs);
-    if (value == nullptr) {
-      throw StateError('Matrix Rust SDK sync failed');
-    }
+    final sinceUtf8 = since?.toNativeUtf8(allocator: calloc);
     try {
-      return value.cast<Utf8>().toDartString();
+      final value = syncOnce(
+        Pointer<Void>.fromAddress(address),
+        timeoutMs,
+        sinceUtf8 == null
+            ? Pointer<Char>.fromAddress(0)
+            : sinceUtf8.cast<Char>(),
+      );
+      if (value == nullptr) {
+        throw StateError('Matrix Rust SDK sync failed');
+      }
+      try {
+        return value.cast<Utf8>().toDartString();
+      } finally {
+        freeString(value);
+      }
     } finally {
-      freeString(value);
+      if (sinceUtf8 != null) calloc.free(sinceUtf8);
     }
   }
 }
@@ -147,7 +168,7 @@ abstract interface class MatrixRustBridge {
 abstract interface class MatrixRustClient {
   bool get isClosed;
 
-  Future<String> syncOnce({required Duration timeout});
+  Future<String> syncOnce({required Duration timeout, String? since});
 
   Future<String> paginateBackwards({required String roomId});
 
@@ -238,10 +259,15 @@ final class MatrixRustNativeClient implements MatrixRustClient {
   bool get isClosed => _address == 0;
 
   @override
-  Future<String> syncOnce({required Duration timeout}) {
+  Future<String> syncOnce({required Duration timeout, String? since}) {
     if (timeout.isNegative) {
       return Future<String>.error(
         ArgumentError.value(timeout, 'timeout', 'must not be negative'),
+      );
+    }
+    if (since != null && since.isEmpty) {
+      return Future<String>.error(
+        ArgumentError.value(since, 'since', 'must not be empty'),
       );
     }
     return _enqueue<String>(() async {
@@ -253,6 +279,7 @@ final class MatrixRustNativeClient implements MatrixRustClient {
           libraryPath: path,
           address: address,
           timeoutMs: timeoutMs,
+          since: since,
         ).call,
       );
     });
@@ -379,13 +406,13 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   }
 
   @override
-  Future<void> startSync() {
+  Future<void> startSync(MatrixSdkSyncConfiguration configuration) {
     return _enqueue(() async {
       if (_syncLoop != null) return;
       final client = _requireClient();
       _syncRequested = true;
       late final Future<void> loop;
-      loop = _runSyncLoop(client).whenComplete(() {
+      loop = _runSyncLoop(client, configuration).whenComplete(() {
         if (identical(_syncLoop, loop)) {
           _syncLoop = null;
         }
@@ -457,9 +484,13 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     });
   }
 
-  Future<void> _runSyncLoop(MatrixRustClient client) async {
+  Future<void> _runSyncLoop(
+    MatrixRustClient client,
+    MatrixSdkSyncConfiguration configuration,
+  ) async {
     var firstRequest = true;
     var failureAttempt = 0;
+    var syncToken = configuration.resumeFromCursor;
     while (_syncRequested && identical(_client, client)) {
       final trace = logger?.trace(
         DiagnosticFlow.sync,
@@ -469,6 +500,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       try {
         final payload = await client.syncOnce(
           timeout: firstRequest ? Duration.zero : _matrixRustSyncPollTimeout,
+          since: syncToken,
         );
         if (!_syncRequested || !identical(_client, client)) return;
         final decoded = _codec.decodeSync(payload);
@@ -480,6 +512,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
           },
         );
         _syncBatches.add(decoded.batch);
+        syncToken = decoded.batch.cursor;
         firstRequest = false;
         failureAttempt = 0;
       } catch (error, stackTrace) {

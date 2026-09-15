@@ -160,7 +160,9 @@ void main() {
           encryptionKeyId: 'alice-key',
         ),
       );
-      await boundary.startSync();
+      await boundary.startSync(
+        const MatrixSdkSyncConfiguration(resumeFromCursor: 'resume-42'),
+      );
 
       await client.firstSyncReturned.future;
       while (batches.isEmpty) {
@@ -169,6 +171,7 @@ void main() {
       await boundary.stopSync();
 
       expect(client.syncTimeouts.first, Duration.zero);
+      expect(client.syncTokens.first, 'resume-42');
       expect(batches.first.cursor, 'sync-1');
       expect(batches.first.rooms.single.summary!.displayName, 'Native room');
       expect(
@@ -246,7 +249,7 @@ void main() {
           encryptionKeyId: 'alice-key',
         ),
       );
-      await boundary.startSync();
+      await boundary.startSync(const MatrixSdkSyncConfiguration());
       await client.recovered.future;
       while (batches.isEmpty) {
         await Future<void>.delayed(Duration.zero);
@@ -345,7 +348,7 @@ final class _RecoveringRustClient implements MatrixRustClient {
   bool get isClosed => _closed;
 
   @override
-  Future<String> syncOnce({required Duration timeout}) async {
+  Future<String> syncOnce({required Duration timeout, String? since}) async {
     syncCalls += 1;
     if (syncCalls == 1) {
       throw StateError('transient sync failure');
@@ -369,6 +372,7 @@ final class _RecoveringRustClient implements MatrixRustClient {
 final class _FakeRustClient implements MatrixRustClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
+  final List<String?> syncTokens = <String?>[];
   final List<String> paginationCalls = <String>[];
 
   bool _closed = false;
@@ -378,8 +382,9 @@ final class _FakeRustClient implements MatrixRustClient {
   bool get isClosed => _closed;
 
   @override
-  Future<String> syncOnce({required Duration timeout}) async {
+  Future<String> syncOnce({required Duration timeout, String? since}) async {
     syncTimeouts.add(timeout);
+    syncTokens.add(since);
     _syncCalls += 1;
     if (_syncCalls == 1) {
       if (!firstSyncReturned.isCompleted) firstSyncReturned.complete();
