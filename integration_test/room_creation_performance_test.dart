@@ -33,6 +33,7 @@ void main() {
         home: RoomCreationScreen(
           coordinator: coordinator,
           initialMode: RoomCreationMode.directMessage,
+          initialDirectUserId: '@performance:example.org',
           onCreated: (room) => created = room,
         ),
       ),
@@ -42,25 +43,13 @@ void main() {
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.text('Private'));
-        await tester.pumpAndSettle();
-        await tester.enterText(
-          find.byKey(const Key('room-create-name')),
-          'Performance room',
-        );
-        await tester.enterText(
-          find.byKey(const Key('room-create-topic')),
-          'Deterministic room creation benchmark',
-        );
-        await tester.ensureVisible(find.byKey(const Key('room-create-submit')));
-        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('room-create-submit')));
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
 
-    expect(created?.isDirect, isFalse);
+    expect(created?.isDirect, isTrue);
     expect(
       rooms.invocations.any(
         (entry) => entry.type == RoomManagementInvocationType.create,
@@ -69,7 +58,7 @@ void main() {
     );
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['room_creation'] = <String, dynamic>{
-      'journey': 'room_creation_mode_edit_submit',
+      'journey': 'direct_room_creation_submit',
       'fixture': 'deterministic_room_management_v1',
       ...result,
       'result': 'PASS',

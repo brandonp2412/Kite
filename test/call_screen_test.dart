@@ -150,10 +150,7 @@ void main() {
   });
 }
 
-Finder _roundButton(String key) => find.descendant(
-  of: find.byKey(Key(key)),
-  matching: find.byType(IconButton),
-);
+Finder _roundButton(String key) => find.byKey(Key(key));
 
 Widget _app(KiteCallCoordinator coordinator) => MaterialApp(
   theme: KiteTheme.light,
