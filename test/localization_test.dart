@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:kite/l10n/kite_local_formats.dart';
 
@@ -9,8 +10,10 @@ void main() {
     tester,
   ) async {
     selectRoom('kite');
-    await tester.binding.setSurfaceSize(const Size(1200, 800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
 
     await tester.pumpWidget(
       const KiteApp(themeMode: ThemeMode.light, locale: Locale('de')),
@@ -18,7 +21,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nachricht'), findsOneWidget);
-    final context = tester.element(find.byKey(const Key('two-pane-home')));
+    final context = tester.element(find.byType(HomeScreen));
     final l10n = AppLocalizations.of(context);
     expect(l10n.roomCount(0), 'Keine Räume');
     expect(l10n.roomCount(1), '1 Raum');

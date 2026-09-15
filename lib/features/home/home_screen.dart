@@ -7,6 +7,7 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -1122,7 +1123,11 @@ class _ComposerState extends State<_Composer> {
                             decoration: InputDecoration(
                               hintText: activeMode == _ComposerMode.edit
                                   ? 'Edit message…'
-                                  : 'Message…',
+                                  : Localizations.of<AppLocalizations>(
+                                          context,
+                                          AppLocalizations,
+                                        )?.messageHint ??
+                                        'Message…',
                               isDense: true,
                               filled: true,
                               fillColor: context.kiteColors.field,

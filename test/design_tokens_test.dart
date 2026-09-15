@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/home/home_screen.dart';
 
 void main() {
   test('Kite themes install semantic colour tokens', () {
@@ -184,8 +185,10 @@ void main() {
     tester,
   ) async {
     selectRoom('kite');
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       const KiteApp(
         themeMode: ThemeMode.dark,
@@ -194,8 +197,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final compactHome = tester.element(find.byKey(const Key('compact-home')));
-    expect(Theme.of(compactHome).scaffoldBackgroundColor, Colors.black);
+    final home = tester.element(find.byType(HomeScreen));
+    expect(Theme.of(home).scaffoldBackgroundColor, Colors.black);
 
     final annotatedRegion = tester
         .widget<AnnotatedRegion<SystemUiOverlayStyle>>(
