@@ -90,7 +90,12 @@ final class MatrixSyncCoordinator {
 
   Future<void> stop() async {
     final subscription = _subscription;
-    if (subscription == null) return;
+    if (subscription == null) {
+      if (state.value.phase != MatrixSyncPhase.idle) {
+        state.value = const MatrixSyncState.idle();
+      }
+      return;
+    }
     _subscription = null;
     await subscription.cancel();
     await engine.stop();

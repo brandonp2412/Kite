@@ -132,6 +132,9 @@ void main() {
     expect(coordinator.isRunning, isFalse);
     expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
     expect(coordinator.state.value.error, isA<StateError>());
+
+    await coordinator.stop();
+    expect(coordinator.state.value.phase, MatrixSyncPhase.idle);
   });
 
   test('failed engine start is observable and retryable', () async {
