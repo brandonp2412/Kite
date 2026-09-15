@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -172,61 +173,94 @@ class _MediaViewerState extends State<MediaViewer> {
     if (navigator?.canPop() ?? false) navigator!.pop();
   }
 
+  void _movePage(int delta) {
+    final target = (_currentIndex.peek() + delta).clamp(
+      0,
+      widget.items.length - 1,
+    );
+    if (target == _currentIndex.peek()) return;
+    final duration = KiteMotion.resolve(context, KiteMotion.standard);
+    if (duration == Duration.zero) {
+      _pageController.jumpToPage(target);
+      return;
+    }
+    _pageController.animateToPage(
+      target,
+      duration: duration,
+      curve: KiteMotion.standardCurve,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: const Key('media-viewer'),
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          GestureDetector(
-            key: const Key('media-gesture-surface'),
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggleControls,
-            onVerticalDragStart: _onVerticalDragStart,
-            onVerticalDragUpdate: _onVerticalDragUpdate,
-            onVerticalDragEnd: _onVerticalDragEnd,
-            child: SignalBuilder(
-              builder: (context) {
-                final offset = _dismissOffset.value;
-                final isDragging = _isDismissDragging.value;
-                return AnimatedSlide(
-                  key: const Key('media-dismiss-slide'),
-                  offset: Offset(0, offset / MediaQuery.sizeOf(context).height),
-                  duration: isDragging
-                      ? Duration.zero
-                      : KiteMotion.resolve(context, KiteMotion.standard),
-                  curve: KiteMotion.standardCurve,
-                  child: PageView.builder(
-                    key: const Key('media-page-view'),
-                    controller: _pageController,
-                    onPageChanged: _onPageChanged,
-                    itemCount: widget.items.length,
-                    itemBuilder: (context, index) => _MediaPage(
-                      item: widget.items[index],
-                      index: index,
-                      resolvedMedia: _resolvedMedia,
-                    ),
-                  ),
-                );
-              },
-            ),
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.escape): _dismiss,
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+            _movePage(-1),
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+            _movePage(1),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          key: const Key('media-viewer'),
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              GestureDetector(
+                key: const Key('media-gesture-surface'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleControls,
+                onVerticalDragStart: _onVerticalDragStart,
+                onVerticalDragUpdate: _onVerticalDragUpdate,
+                onVerticalDragEnd: _onVerticalDragEnd,
+                child: SignalBuilder(
+                  builder: (context) {
+                    final offset = _dismissOffset.value;
+                    final isDragging = _isDismissDragging.value;
+                    return AnimatedSlide(
+                      key: const Key('media-dismiss-slide'),
+                      offset: Offset(
+                        0,
+                        offset / MediaQuery.sizeOf(context).height,
+                      ),
+                      duration: isDragging
+                          ? Duration.zero
+                          : KiteMotion.resolve(context, KiteMotion.standard),
+                      curve: KiteMotion.standardCurve,
+                      child: PageView.builder(
+                        key: const Key('media-page-view'),
+                        controller: _pageController,
+                        onPageChanged: _onPageChanged,
+                        itemCount: widget.items.length,
+                        itemBuilder: (context, index) => _MediaPage(
+                          item: widget.items[index],
+                          index: index,
+                          resolvedMedia: _resolvedMedia,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              _MediaTopControls(
+                currentIndex: _currentIndex,
+                visible: _controlsVisible,
+                items: widget.items,
+                onDismiss: _dismiss,
+                onSave: widget.onSave,
+                onShare: widget.onShare,
+              ),
+              _MediaCaptionOverlay(
+                currentIndex: _currentIndex,
+                visible: _controlsVisible,
+                items: widget.items,
+              ),
+            ],
           ),
-          _MediaTopControls(
-            currentIndex: _currentIndex,
-            visible: _controlsVisible,
-            items: widget.items,
-            onDismiss: _dismiss,
-            onSave: widget.onSave,
-            onShare: widget.onShare,
-          ),
-          _MediaCaptionOverlay(
-            currentIndex: _currentIndex,
-            visible: _controlsVisible,
-            items: widget.items,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -412,16 +446,23 @@ class _MediaControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: 48,
-      child: IconButton(
-        tooltip: tooltip,
-        style: IconButton.styleFrom(
-          foregroundColor: Colors.white,
-          backgroundColor: Colors.black.withValues(alpha: 0.58),
+    return Semantics(
+      button: true,
+      label: tooltip,
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: SizedBox.square(
+          dimension: 48,
+          child: IconButton(
+            tooltip: tooltip,
+            style: IconButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Colors.black.withValues(alpha: 0.58),
+            ),
+            onPressed: onPressed,
+            icon: Icon(icon),
+          ),
         ),
-        onPressed: onPressed,
-        icon: Icon(icon),
       ),
     );
   }
