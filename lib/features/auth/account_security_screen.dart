@@ -10,12 +10,18 @@ class AccountSecurityScreen extends StatefulWidget {
   const AccountSecurityScreen({
     required this.accountController,
     required this.sessionDeviceController,
+    this.onAddAccount,
+    this.onActiveAccountChanged,
+    this.onActiveAccountSignedOut,
     this.loadOnInit = true,
     super.key,
   });
 
   final AccountManagementController accountController;
   final SessionDeviceController sessionDeviceController;
+  final VoidCallback? onAddAccount;
+  final ValueChanged<ManagedMatrixAccount>? onActiveAccountChanged;
+  final VoidCallback? onActiveAccountSignedOut;
   final bool loadOnInit;
 
   @override
@@ -58,6 +64,17 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
     return confirmed ?? false;
   }
 
+  Future<void> _activateAccount(ManagedMatrixAccount account) async {
+    final activated = await widget.accountController.activate(
+      account.accountId,
+    );
+    if (!activated) return;
+    final active = widget.accountController.activeAccount;
+    if (active != null) {
+      widget.onActiveAccountChanged?.call(active);
+    }
+  }
+
   Future<void> _signOutAccount(ManagedMatrixAccount account) async {
     final confirmed = await _confirm(
       title: 'Sign out ${_accountLabel(account)}?',
@@ -67,7 +84,10 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
       actionLabel: 'Sign out',
     );
     if (!confirmed) return;
-    await widget.accountController.signOut(account.accountId);
+    final signedOut = await widget.accountController.signOut(account.accountId);
+    if (signedOut && account.isActive) {
+      widget.onActiveAccountSignedOut?.call();
+    }
   }
 
   Future<void> _signOutDevice(SessionDevice device) async {
@@ -105,7 +125,19 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
               key: const Key('account-security-list'),
               padding: const EdgeInsets.only(bottom: KiteSpacing.xl),
               children: <Widget>[
-                const _SectionTitle(label: 'Accounts'),
+                _SectionTitle(
+                  label: 'Accounts',
+                  action: widget.onAddAccount == null
+                      ? null
+                      : TextButton.icon(
+                          key: const Key('add-account'),
+                          onPressed: accountOperationActive
+                              ? null
+                              : widget.onAddAccount,
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Add account'),
+                        ),
+                ),
                 SizedBox(
                   key: const Key('account-loading-slot'),
                   height: 4,
@@ -126,9 +158,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                       busy: accountOperationActive,
                       onActivate: account.isActive
                           ? null
-                          : () => widget.accountController.activate(
-                              account.accountId,
-                            ),
+                          : () => _activateAccount(account),
                       onSignOut: () => _signOutAccount(account),
                     ),
                 const Divider(height: 1),
@@ -313,9 +343,10 @@ class _StateBadge extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.label});
+  const _SectionTitle({required this.label, this.action});
 
   final String label;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +357,12 @@ class _SectionTitle extends StatelessWidget {
         KiteSpacing.md,
         KiteSpacing.sm,
       ),
-      child: Text(label, style: KiteTypography.title),
+      child: Row(
+        children: <Widget>[
+          Expanded(child: Text(label, style: KiteTypography.title)),
+          ?action,
+        ],
+      ),
     );
   }
 }

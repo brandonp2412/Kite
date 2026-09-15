@@ -71,11 +71,17 @@ const _remoteDevice = SessionDevice(
 Widget _app({
   required AccountManagementController accounts,
   required SessionDeviceController devices,
+  VoidCallback? onAddAccount,
+  ValueChanged<ManagedMatrixAccount>? onActiveAccountChanged,
+  VoidCallback? onActiveAccountSignedOut,
 }) {
   return MaterialApp(
     home: AccountSecurityScreen(
       accountController: accounts,
       sessionDeviceController: devices,
+      onAddAccount: onAddAccount,
+      onActiveAccountChanged: onActiveAccountChanged,
+      onActiveAccountSignedOut: onActiveAccountSignedOut,
       loadOnInit: false,
     ),
   );
@@ -107,7 +113,14 @@ void main() {
       await accounts.load();
       await devices.load();
 
-      await tester.pumpWidget(_app(accounts: accounts, devices: devices));
+      ManagedMatrixAccount? activatedAccount;
+      await tester.pumpWidget(
+        _app(
+          accounts: accounts,
+          devices: devices,
+          onActiveAccountChanged: (account) => activatedAccount = account,
+        ),
+      );
 
       expect(find.text('Accounts & sessions'), findsOneWidget);
       expect(find.byKey(const Key('active-account-badge')), findsOneWidget);
@@ -125,8 +138,49 @@ void main() {
 
       expect(accountGateway.activated, <String>['personal']);
       expect(accounts.activeAccount?.accountId, 'personal');
+      expect(activatedAccount?.accountId, 'personal');
     },
   );
+
+  testWidgets('exposes add-account and active sign-out lifecycle callbacks', (
+    tester,
+  ) async {
+    final accountGateway = _FakeAccountGateway()
+      ..loaded = <ManagedMatrixAccount>[
+        _account(id: 'work', userId: '@brandon:work.example.org', active: true),
+      ];
+    final accounts = AccountManagementController(accountGateway);
+    final devices = SessionDeviceController(_FakeSessionGateway());
+    addTearDown(accounts.dispose);
+    addTearDown(devices.dispose);
+    await accounts.load();
+    await devices.load();
+    var addAccountCalls = 0;
+    var activeSignOutCalls = 0;
+
+    await tester.pumpWidget(
+      _app(
+        accounts: accounts,
+        devices: devices,
+        onAddAccount: () => addAccountCalls += 1,
+        onActiveAccountSignedOut: () => activeSignOutCalls += 1,
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('add-account')));
+    expect(addAccountCalls, 1);
+
+    await tester.tap(find.byKey(const Key('sign-out-account-work')));
+    await tester.pumpAndSettle();
+    expect(activeSignOutCalls, 0);
+    await tester.tap(
+      find.byKey(const Key('account-security-confirm-Sign out')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(accountGateway.signedOut, <String>['work']);
+    expect(activeSignOutCalls, 1);
+  });
 
   testWidgets('confirms remote session and account sign-out before mutation', (
     tester,
