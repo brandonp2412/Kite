@@ -62,7 +62,7 @@ final class UserProfileController {
   bool isBlocked(String userId) => blockedUserIds.value.contains(userId);
 
   Future<void> loadOwnProfile() async {
-    if (isLoading.value) return;
+    if (isLoading.value || isSaving.value) return;
 
     isLoading.value = true;
     errorMessage.value = null;
@@ -88,7 +88,7 @@ final class UserProfileController {
   }
 
   Future<void> refreshPrivacyControls() async {
-    if (isLoading.value) return;
+    if (isLoading.value || isSaving.value) return;
 
     isLoading.value = true;
     errorMessage.value = null;
@@ -109,7 +109,7 @@ final class UserProfileController {
   }
 
   Future<void> loadUserProfile(String userId) async {
-    if (isLoading.value) return;
+    if (isLoading.value || isSaving.value) return;
     if (!_isValidUserId(userId)) {
       errorMessage.value = 'That Matrix user ID is not valid.';
       return;
@@ -140,7 +140,7 @@ final class UserProfileController {
 
   Future<bool> updateDisplayName(String displayName) async {
     final current = ownProfile.value;
-    if (current == null || isSaving.value) return false;
+    if (current == null || isSaving.value || isLoading.value) return false;
 
     final normalized = displayName.trim();
     if (normalized.isEmpty) {
@@ -164,7 +164,7 @@ final class UserProfileController {
 
   Future<bool> updateAvatar(Uri? avatarUri) async {
     final current = ownProfile.value;
-    if (current == null || isSaving.value) return false;
+    if (current == null || isSaving.value || isLoading.value) return false;
 
     isSaving.value = true;
     errorMessage.value = null;
@@ -184,7 +184,7 @@ final class UserProfileController {
   }
 
   Future<String?> openDirectMessage(String userId) async {
-    if (!_isValidUserId(userId) || isSaving.value) {
+    if (!_isValidUserId(userId) || isSaving.value || isLoading.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -209,7 +209,7 @@ final class UserProfileController {
   }
 
   Future<bool> setIgnored(String userId, bool ignored) async {
-    if (!_isValidUserId(userId) || isSaving.value) {
+    if (!_isValidUserId(userId) || isSaving.value || isLoading.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -239,7 +239,7 @@ final class UserProfileController {
   }
 
   Future<bool> setBlocked(String userId, bool blocked) async {
-    if (!_isValidUserId(userId) || isSaving.value) {
+    if (!_isValidUserId(userId) || isSaving.value || isLoading.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }

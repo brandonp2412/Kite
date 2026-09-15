@@ -48,21 +48,15 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
   }
 
   Future<void> _restoreWithRecoveryKey() async {
-    try {
-      await widget.controller.restoreWithRecoveryKey(
-        _recoveryKeyController.text,
-      );
-    } finally {
-      _recoveryKeyController.clear();
-    }
+    final recoveryKey = _recoveryKeyController.text;
+    _recoveryKeyController.clear();
+    await widget.controller.restoreWithRecoveryKey(recoveryKey);
   }
 
   Future<void> _restoreWithPassphrase() async {
-    try {
-      await widget.controller.restoreWithPassphrase(_passphraseController.text);
-    } finally {
-      _passphraseController.clear();
-    }
+    final passphrase = _passphraseController.text;
+    _passphraseController.clear();
+    await widget.controller.restoreWithPassphrase(passphrase);
   }
 
   @override

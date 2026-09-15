@@ -74,9 +74,11 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   }
 
   Future<void> _passwordLogin() async {
+    final password = _passwordController.text;
+    _passwordController.clear();
     await _controller.loginWithPassword(
       username: _usernameController.text,
-      password: _passwordController.text,
+      password: password,
     );
     _completeAuthenticationIfNeeded();
   }

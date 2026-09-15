@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 
@@ -25,6 +27,7 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   Uri? updatedAvatar;
   bool avatarWasCleared = false;
   String? openedDmUserId;
+  Completer<MatrixUserProfile>? deferredOwnProfile;
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignored};
@@ -35,6 +38,8 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   @override
   Future<MatrixUserProfile> loadOwnProfile() async {
     if (loadOwnError case final error?) throw error;
+    final deferred = deferredOwnProfile;
+    if (deferred != null) return deferred.future;
     return ownProfile;
   }
 
@@ -174,6 +179,25 @@ void main() {
 
     expect(controller.viewedProfile.value, isNull);
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
+  });
+
+  test('profile mutation cannot race an in-flight profile refresh', () async {
+    final gateway = _FakeUserProfileGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+    await controller.loadOwnProfile();
+
+    gateway.deferredOwnProfile = Completer<MatrixUserProfile>();
+    final refresh = controller.loadOwnProfile();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isLoading.value, isTrue);
+
+    expect(await controller.updateDisplayName('Racing update'), isFalse);
+    expect(gateway.updatedDisplayName, isNull);
+
+    gateway.deferredOwnProfile!.complete(gateway.ownProfile);
+    await refresh;
+    expect(controller.isLoading.value, isFalse);
   });
 
   test('updates display name and avatar only after gateway success', () async {
