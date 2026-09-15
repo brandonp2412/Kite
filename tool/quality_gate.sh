@@ -25,4 +25,7 @@ flutter test
 printf '%s\n' 'Kite quality gate: Waydroid jitter self-test'
 "$(dirname "$0")/verify_jitter_harness.sh" "${1:-}"
 
+printf '%s\n' 'Kite quality gate: back-navigation profile test'
+"$(dirname "$0")/verify_back_navigation_harness.sh" "${1:-}"
+
 printf '%s\n' 'Kite quality gate passed.'

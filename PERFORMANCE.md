@@ -9,6 +9,7 @@ The contract is pinned in `lib/benchmark/performance_contract.dart` and independ
 - Opening a user chat must produce zero Flutter build-frame budget violations.
 - Opening a user chat must produce zero Flutter raster-frame budget violations.
 - On physical Android hardware, opening a user chat must produce zero end-to-end frame-budget violations.
+- Returning from representative settings routes with back navigation must produce zero Flutter build-frame and raster-frame budget violations; physical Android also gates end-to-end frame timing.
 - On Waydroid, end-to-end `totalSpan` is recorded but is not a merge gate because host/compositor scheduling is outside Kite; build and raster budgets remain strict zero-violation gates.
 - The deterministic 120 Hz motion test must produce zero unintended geometry movement in the sidebar, chat panel, message list, and composer.
 - The canonical fixture stays at 200 rooms and 100 messages per room unless this contract and its pin test are deliberately revised.
@@ -27,7 +28,7 @@ The contract is pinned in `lib/benchmark/performance_contract.dart` and independ
 tool/quality_gate.sh
 ```
 
-The quality gate performs `flutter analyze`, the deterministic Flutter tests, and the Waydroid positive/negative/positive jitter sequence. All repository-driven Waydroid performance runs must use `tool/with_waydroid_lock.sh`, which holds an exclusive per-device `flock` for the full install/run cycle so concurrent workers cannot replace the benchmark package mid-run. `tool/verify_jitter_harness.sh` acquires that lock automatically.
+The quality gate performs `flutter analyze`, the deterministic Flutter tests, the Waydroid positive/negative/positive jitter sequence, and the settings back-navigation profile benchmark. All repository-driven Waydroid performance runs must use `tool/with_waydroid_lock.sh`, which holds an exclusive per-device `flock` for the full install/run cycle so concurrent workers cannot replace the benchmark package mid-run. `tool/verify_jitter_harness.sh` and `tool/verify_back_navigation_harness.sh` acquire that lock automatically.
 
 The expected jitter-harness sequence is:
 
