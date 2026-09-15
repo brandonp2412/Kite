@@ -91,6 +91,16 @@ void main() {
     );
     expect(fixture.coordinator.isCameraEnabled.value, isTrue);
 
+    await tester.tap(_roundButton('call-switch-camera'));
+    await tester.pump();
+    expect(fixture.coordinator.cameraFacing.value, KiteCameraFacing.rear);
+    expect(
+      fixture.gateway.invocations.where(
+        (entry) => entry.type == MatrixRtcInvocationType.switchCamera,
+      ),
+      hasLength(1),
+    );
+
     await tester.tap(find.byKey(const Key('call-participant-alice-device')));
     await tester.pump();
     expect(fixture.coordinator.spotlightParticipantId.value, 'alice-device');
@@ -183,6 +193,32 @@ void main() {
     expect(find.byKey(const Key('call-camera')), findsNothing);
     expect(find.byKey(const Key('call-audio-route')), findsOneWidget);
     expect(find.byKey(const Key('call-pip')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('call-audio-route')));
+    await tester.pumpAndSettle();
+    final routeItems = tester.widgetList<CheckedPopupMenuItem<dynamic>>(
+      find.byWidgetPredicate((widget) => widget is CheckedPopupMenuItem),
+    );
+    expect(routeItems.map((item) => item.value), <Object?>[
+      'system',
+      'speaker',
+    ]);
+    expect(routeItems.map((item) => item.checked), <bool>[false, false]);
+
+    await tester.tap(find.byKey(const Key('call-audio-route-speaker')));
+    await tester.pumpAndSettle();
+    expect(fixture.coordinator.selectedAudioRouteId.value, 'speaker');
+
+    await tester.tap(find.byKey(const Key('call-audio-route')));
+    await tester.pumpAndSettle();
+    final selectedItems = tester.widgetList<CheckedPopupMenuItem<dynamic>>(
+      find.byWidgetPredicate((widget) => widget is CheckedPopupMenuItem),
+    );
+    expect(selectedItems.map((item) => item.checked), <bool>[false, true]);
+    Navigator.of(
+      tester.element(find.byKey(const Key('call-audio-route-speaker'))),
+    ).pop();
+    await tester.pumpAndSettle();
     expect(
       fixture.gateway.invocations.where(
         (entry) => entry.type == MatrixRtcInvocationType.securityState,

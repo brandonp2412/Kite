@@ -10,7 +10,10 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
+import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/home/spaces_screen.dart';
@@ -37,11 +40,17 @@ class HomeScreen extends StatelessWidget {
     this.benchmarkRooms,
     this.roomListStore,
     this.inviteStore,
+    this.roomManagement,
+    this.memberManagement,
+    this.calls,
   });
 
   final List<BenchmarkRoom>? benchmarkRooms;
   final RoomListStateStore? roomListStore;
   final RoomInviteStore? inviteStore;
+  final RoomManagementCoordinator? roomManagement;
+  final managed.RoomMemberManagementCoordinator? memberManagement;
+  final KiteCallCoordinator? calls;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -67,7 +76,11 @@ class HomeScreen extends StatelessWidget {
                 selectRoom(roomId);
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const _CompactChatScreen(),
+                    builder: (_) => _CompactChatScreen(
+                      roomManagement: roomManagement,
+                      memberManagement: memberManagement,
+                      calls: calls,
+                    ),
                   ),
                 );
               },
@@ -93,7 +106,15 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const VerticalDivider(width: 1),
-          const Expanded(child: RepaintBoundary(child: _ChatPanel())),
+          Expanded(
+            child: RepaintBoundary(
+              child: _ChatPanel(
+                roomManagement: roomManagement,
+                memberManagement: memberManagement,
+                calls: calls,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -502,7 +523,15 @@ class _InviteCard extends StatelessWidget {
 }
 
 class _CompactChatScreen extends StatelessWidget {
-  const _CompactChatScreen();
+  const _CompactChatScreen({
+    this.roomManagement,
+    this.memberManagement,
+    this.calls,
+  });
+
+  final RoomManagementCoordinator? roomManagement;
+  final managed.RoomMemberManagementCoordinator? memberManagement;
+  final KiteCallCoordinator? calls;
 
   @override
   Widget build(BuildContext context) {
@@ -526,7 +555,12 @@ class _CompactChatScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: const _ChatPanel(showHeader: false),
+      body: _ChatPanel(
+        showHeader: false,
+        roomManagement: roomManagement,
+        memberManagement: memberManagement,
+        calls: calls,
+      ),
     );
   }
 }
@@ -1123,9 +1157,17 @@ enum _ComposerFormatAction {
 }
 
 class _ChatPanel extends StatefulWidget {
-  const _ChatPanel({this.showHeader = true});
+  const _ChatPanel({
+    this.showHeader = true,
+    this.roomManagement,
+    this.memberManagement,
+    this.calls,
+  });
 
   final bool showHeader;
+  final RoomManagementCoordinator? roomManagement;
+  final managed.RoomMemberManagementCoordinator? memberManagement;
+  final KiteCallCoordinator? calls;
 
   @override
   State<_ChatPanel> createState() => _ChatPanelState();
@@ -1148,7 +1190,11 @@ class _ChatPanelState extends State<_ChatPanel> {
       key: const Key('chat-panel'),
       children: <Widget>[
         if (widget.showHeader) ...<Widget>[
-          const _ChatHeader(),
+          _ChatHeader(
+            roomManagement: widget.roomManagement,
+            memberManagement: widget.memberManagement,
+            calls: widget.calls,
+          ),
           const Divider(height: 1),
         ],
         Expanded(
@@ -1208,7 +1254,11 @@ class _TypingIndicator extends StatelessWidget {
 }
 
 class _ChatHeader extends StatelessWidget {
-  const _ChatHeader();
+  const _ChatHeader({this.roomManagement, this.memberManagement, this.calls});
+
+  final RoomManagementCoordinator? roomManagement;
+  final managed.RoomMemberManagementCoordinator? memberManagement;
+  final KiteCallCoordinator? calls;
 
   @override
   Widget build(BuildContext context) {
@@ -1294,6 +1344,10 @@ class _ChatHeader extends StatelessWidget {
                         builder: (_) => RoomDetailsScreen(
                           roomId: room.id,
                           roomName: room.name,
+                          management: roomManagement,
+                          memberManagement: memberManagement,
+                          calls: calls,
+                          isDirect: room.isDirect,
                         ),
                       ),
                     );

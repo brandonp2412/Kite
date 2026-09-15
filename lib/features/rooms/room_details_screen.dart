@@ -3,6 +3,7 @@ import 'package:kite/features/calls/call_launcher.dart';
 import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
+import 'package:kite/features/rooms/room_member_room_management_adapter.dart';
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/rooms/room_members_screen.dart';
 import 'package:kite/features/rooms/room_settings_screen.dart';
@@ -141,12 +142,21 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
   }
 
   Future<void> _openManagedMembers() async {
-    final management = widget.memberManagement;
+    var management = widget.memberManagement;
     if (management == null) return;
+    final roomManagement = widget.management;
+    if (roomManagement != null) {
+      management = management.decorateMutations(
+        (inner) => LifecycleAwareRoomMemberMutationPort(
+          memberMutations: inner,
+          roomManagement: roomManagement,
+        ),
+      );
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) =>
-            RoomMembersScreen(roomId: widget.roomId, coordinator: management),
+            RoomMembersScreen(roomId: widget.roomId, coordinator: management!),
       ),
     );
   }

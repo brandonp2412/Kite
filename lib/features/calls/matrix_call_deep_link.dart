@@ -10,7 +10,12 @@ abstract interface class MatrixCallDeepLinkResolverPort {
   });
 }
 
-enum MatrixCallDeepLinkResult { notCallTarget, noActiveCall, opened }
+enum MatrixCallDeepLinkResult {
+  notCallTarget,
+  noActiveCall,
+  superseded,
+  opened,
+}
 
 final class MatrixCallDeepLinkCoordinator {
   factory MatrixCallDeepLinkCoordinator({
@@ -19,17 +24,15 @@ final class MatrixCallDeepLinkCoordinator {
     required CallDeepLinkCoordinator calls,
   }) => MatrixCallDeepLinkCoordinator._(accounts, resolver, calls);
 
-  const MatrixCallDeepLinkCoordinator._(
-    this._accounts,
-    this._resolver,
-    this._calls,
-  );
+  MatrixCallDeepLinkCoordinator._(this._accounts, this._resolver, this._calls);
 
   final AccountActivationPort _accounts;
   final MatrixCallDeepLinkResolverPort _resolver;
   final CallDeepLinkCoordinator _calls;
+  int _openGeneration = 0;
 
   Future<MatrixCallDeepLinkResult> open(MatrixNavigationTarget target) async {
+    final generation = ++_openGeneration;
     if (target.kind != MatrixNavigationKind.call) {
       return MatrixCallDeepLinkResult.notCallTarget;
     }
@@ -46,6 +49,10 @@ final class MatrixCallDeepLinkCoordinator {
       accountId: accountId,
       roomIdOrAlias: roomIdOrAlias,
     );
+    if (generation != _openGeneration ||
+        _accounts.activeAccountId != accountId) {
+      return MatrixCallDeepLinkResult.superseded;
+    }
     if (descriptor == null) return MatrixCallDeepLinkResult.noActiveCall;
     if (roomIdOrAlias.startsWith('!') && descriptor.roomId != roomIdOrAlias) {
       throw StateError(

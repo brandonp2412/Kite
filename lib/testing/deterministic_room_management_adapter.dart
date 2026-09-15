@@ -12,6 +12,10 @@ enum RoomManagementInvocationType {
   enableEncryption,
   setHistoryVisibility,
   setNotificationMode,
+  reportRoom,
+  reportUser,
+  leaveRoom,
+  forgetRoom,
 }
 
 final class RoomManagementInvocation {
@@ -24,6 +28,8 @@ final class RoomManagementInvocation {
     this.joinRule,
     this.historyVisibility,
     this.notificationMode,
+    this.userId,
+    this.reason,
   });
 
   final RoomManagementInvocationType type;
@@ -34,6 +40,8 @@ final class RoomManagementInvocation {
   final KiteRoomJoinRule? joinRule;
   final KiteRoomHistoryVisibility? historyVisibility;
   final KiteRoomNotificationMode? notificationMode;
+  final String? userId;
+  final String? reason;
 }
 
 final class DeterministicRoomManagementPort implements RoomManagementPort {
@@ -220,6 +228,58 @@ final class DeterministicRoomManagementPort implements RoomManagementPort {
       ),
     );
     _throwIfRequested();
+  }
+
+  @override
+  Future<void> reportRoom({required String roomId, String? reason}) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.reportRoom,
+        roomId: roomId,
+        reason: reason,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<void> reportUser({
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.reportUser,
+        roomId: roomId,
+        userId: userId,
+        reason: reason,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<void> leaveRoom(String roomId) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.leaveRoom,
+        roomId: roomId,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<void> forgetRoom(String roomId) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.forgetRoom,
+        roomId: roomId,
+      ),
+    );
+    _throwIfRequested();
+    detailsByRoomId.remove(roomId);
   }
 
   void _throwIfRequested() {

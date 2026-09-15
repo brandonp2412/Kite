@@ -536,6 +536,7 @@ final class KiteCallCoordinator {
     if (isMicrophoneMuted.value == muted) return;
 
     await _gateway.setMicrophoneMuted(callId: current.callId, muted: muted);
+    if (!_isCurrentCall(current.callId)) return;
     isMicrophoneMuted.value = muted;
   }
 
@@ -544,6 +545,7 @@ final class KiteCallCoordinator {
     if (isCameraEnabled.value == enabled) return;
 
     await _gateway.setCameraEnabled(callId: current.callId, enabled: enabled);
+    if (!_isCurrentCall(current.callId)) return;
     isCameraEnabled.value = enabled;
   }
 
@@ -553,7 +555,9 @@ final class KiteCallCoordinator {
       throw StateError('Camera must be enabled before switching cameras.');
     }
 
-    cameraFacing.value = await _gateway.switchCamera(current.callId);
+    final facing = await _gateway.switchCamera(current.callId);
+    if (!_isCurrentCall(current.callId)) return;
+    cameraFacing.value = facing;
   }
 
   Future<List<KiteAudioRoute>> refreshAudioRoutes() async {
@@ -561,6 +565,7 @@ final class KiteCallCoordinator {
     final routes = List<KiteAudioRoute>.unmodifiable(
       await _gateway.availableAudioRoutes(current.callId),
     );
+    if (!_isCurrentCall(current.callId)) return routes;
     audioRoutes.value = routes;
     if (selectedAudioRouteId.value != null &&
         !routes.any((route) => route.id == selectedAudioRouteId.value)) {
@@ -578,6 +583,7 @@ final class KiteCallCoordinator {
     if (selectedAudioRouteId.value == routeId) return;
 
     await _gateway.selectAudioRoute(callId: current.callId, routeId: routeId);
+    if (!_isCurrentCall(current.callId)) return;
     selectedAudioRouteId.value = routeId;
   }
 
@@ -589,6 +595,7 @@ final class KiteCallCoordinator {
       callId: current.callId,
       interrupted: interrupted,
     );
+    if (!_isCurrentCall(current.callId)) return;
     isMediaInterrupted.value = interrupted;
   }
 
@@ -610,6 +617,7 @@ final class KiteCallCoordinator {
     }
 
     await _gateway.setAppState(callId: current.callId, state: state);
+    if (!_isCurrentCall(current.callId)) return;
     appState.value = state;
   }
 
@@ -628,11 +636,14 @@ final class KiteCallCoordinator {
 
     try {
       await _gateway.reconnect(current.callId);
+      if (!_isCurrentCall(current.callId)) return;
       phase.value = KiteCallPhase.active;
       _publishActivity();
     } catch (_) {
-      phase.value = KiteCallPhase.reconnecting;
-      _publishActivity();
+      if (_isCurrentCall(current.callId)) {
+        phase.value = KiteCallPhase.reconnecting;
+        _publishActivity();
+      }
       rethrow;
     }
   }
@@ -649,6 +660,7 @@ final class KiteCallCoordinator {
     final nextParticipants = List<KiteCallParticipant>.unmodifiable(
       await _gateway.participants(current.callId),
     );
+    if (!_isCurrentCall(current.callId)) return nextParticipants;
     participants.value = nextParticipants;
     final spotlight = spotlightParticipantId.value;
     if (spotlight != null &&
@@ -672,8 +684,9 @@ final class KiteCallCoordinator {
   }
 
   Future<bool> refreshPictureInPictureSupport() async {
-    _requireActiveSession();
+    final current = _requireActiveSession();
     final supported = await _pictureInPicture.isSupported();
+    if (!_isCurrentCall(current.callId)) return supported;
     isPictureInPictureSupported.value = supported;
     if (!supported) {
       isInPictureInPicture.value = false;
@@ -689,6 +702,7 @@ final class KiteCallCoordinator {
     if (isInPictureInPicture.value) return;
 
     await _pictureInPicture.enter(current.callId);
+    if (!_isCurrentCall(current.callId)) return;
     isInPictureInPicture.value = true;
   }
 
@@ -697,6 +711,7 @@ final class KiteCallCoordinator {
     if (!isInPictureInPicture.value) return;
 
     await _pictureInPicture.exit(current.callId);
+    if (!_isCurrentCall(current.callId)) return;
     isInPictureInPicture.value = false;
   }
 
@@ -848,6 +863,8 @@ final class KiteCallCoordinator {
     phase.value = KiteCallPhase.idle;
     activity.value = null;
   }
+
+  bool _isCurrentCall(String callId) => session.value?.callId == callId;
 
   void _publishActivity() {
     final current = session.value;

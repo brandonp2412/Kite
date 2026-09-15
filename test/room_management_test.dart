@@ -296,6 +296,71 @@ void main() {
     },
   );
 
+  test(
+    'room and user reports preserve Matrix identity and optional reasons',
+    () async {
+      final fixture = _fixture();
+
+      await fixture.coordinator.reportRoom(
+        roomId: ' !room:example.org ',
+        reason: '  abusive room  ',
+      );
+      await fixture.coordinator.reportUser(
+        roomId: '!room:example.org',
+        userId: ' @alice:example.org ',
+        reason: '   ',
+      );
+      await fixture.coordinator.reportRoom(roomId: '!room:example.org');
+
+      expect(
+        fixture.rooms.invocations.map((entry) => entry.type),
+        <RoomManagementInvocationType>[
+          RoomManagementInvocationType.reportRoom,
+          RoomManagementInvocationType.reportUser,
+          RoomManagementInvocationType.reportRoom,
+        ],
+      );
+      expect(fixture.rooms.invocations[0].roomId, '!room:example.org');
+      expect(fixture.rooms.invocations[0].reason, 'abusive room');
+      expect(fixture.rooms.invocations[1].userId, '@alice:example.org');
+      expect(fixture.rooms.invocations[1].reason, isNull);
+      expect(fixture.rooms.invocations[2].reason, isNull);
+    },
+  );
+
+  test(
+    'leave and forget clear stale direct-room metadata only after SDK success',
+    () async {
+      final fixture = _fixture();
+
+      await fixture.coordinator.leaveRoom(' !dm:example.org ');
+      await fixture.coordinator.forgetRoom('!dm:example.org');
+
+      expect(
+        fixture.rooms.invocations.map((entry) => entry.type),
+        <RoomManagementInvocationType>[
+          RoomManagementInvocationType.leaveRoom,
+          RoomManagementInvocationType.forgetRoom,
+        ],
+      );
+      expect(fixture.directMetadata.invocations, hasLength(2));
+      expect(
+        fixture.directMetadata.invocations.first.roomId,
+        '!dm:example.org',
+      );
+      expect(fixture.directMetadata.invocations.first.userIds, isEmpty);
+      expect(fixture.directMetadata.invocations.last.userIds, isEmpty);
+
+      final failed = _fixture();
+      failed.rooms.failNextWith = StateError('leave failed');
+      await expectLater(
+        failed.coordinator.leaveRoom('!dm:example.org'),
+        throwsStateError,
+      );
+      expect(failed.directMetadata.invocations, isEmpty);
+    },
+  );
+
   test('boundary failures never mutate direct metadata prematurely', () async {
     final fixture = _fixture();
     fixture.rooms.failNextWith = StateError('server failed');
