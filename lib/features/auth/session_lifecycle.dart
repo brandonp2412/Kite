@@ -141,9 +141,11 @@ final class SessionLifecycleController {
   bool _isValidSession(AuthenticatedSession session) {
     final userId = session.userId.trim();
     final deviceId = session.deviceId.trim();
+    final separator = userId.indexOf(':');
     return userId == session.userId &&
         userId.startsWith('@') &&
-        userId.contains(':') &&
+        separator > 1 &&
+        separator < userId.length - 1 &&
         !userId.contains(RegExp(r'\s')) &&
         deviceId.isNotEmpty &&
         deviceId == session.deviceId;

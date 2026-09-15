@@ -147,8 +147,10 @@ final class EncryptionTrustController {
   }
 
   bool _isValidRoomId(String roomId) {
+    final separator = roomId.indexOf(':');
     return roomId.startsWith('!') &&
-        roomId.contains(':') &&
+        separator > 1 &&
+        separator < roomId.length - 1 &&
         !roomId.contains(RegExp(r'\s'));
   }
 

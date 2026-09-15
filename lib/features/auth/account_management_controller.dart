@@ -190,9 +190,11 @@ final class AccountManagementController {
 
   bool _isValidUserId(String userId) {
     final trimmed = userId.trim();
+    final separator = trimmed.indexOf(':');
     return trimmed == userId &&
         trimmed.startsWith('@') &&
-        trimmed.contains(':') &&
+        separator > 1 &&
+        separator < trimmed.length - 1 &&
         !trimmed.contains(RegExp(r'\s'));
   }
 

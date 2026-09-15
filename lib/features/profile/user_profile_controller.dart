@@ -270,9 +270,11 @@ final class UserProfileController {
 
   bool _isValidRoomId(String roomId) {
     final trimmed = roomId.trim();
+    final separator = trimmed.indexOf(':');
     return trimmed == roomId &&
         trimmed.startsWith('!') &&
-        trimmed.contains(':') &&
+        separator > 1 &&
+        separator < trimmed.length - 1 &&
         !trimmed.contains(RegExp(r'\s'));
   }
 
@@ -285,9 +287,11 @@ final class UserProfileController {
 
   bool _isValidUserId(String userId) {
     final trimmed = userId.trim();
+    final separator = trimmed.indexOf(':');
     return trimmed == userId &&
         trimmed.startsWith('@') &&
-        trimmed.contains(':') &&
+        separator > 1 &&
+        separator < trimmed.length - 1 &&
         !trimmed.contains(RegExp(r'\s'));
   }
 

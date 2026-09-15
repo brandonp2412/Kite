@@ -104,8 +104,8 @@ void main() {
   test('authentication rejects malformed Matrix identity metadata', () async {
     final gateway = _AuthenticationGateway()
       ..nextSession = AuthenticatedSession(
-        userId: 'alice matrix.example.org',
-        deviceId: '  ',
+        userId: '@:',
+        deviceId: 'DEVICE',
         homeserver: HomeserverAddress.parse('matrix.example.org'),
       );
     final controller = AuthenticationController(gateway);

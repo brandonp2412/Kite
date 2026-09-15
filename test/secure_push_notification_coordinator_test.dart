@@ -130,8 +130,7 @@ void main() {
   });
 
   test('malformed decoded Matrix destinations never reach delivery', () async {
-    final pushGateway = _PushGateway()
-      ..decoded = _decoded(roomId: 'room-without-sigil');
+    final pushGateway = _PushGateway()..decoded = _decoded(roomId: '!:');
     final push = PushRegistrationController(pushGateway);
     addTearDown(push.dispose);
     final repository = FakeNotificationRepository();
