@@ -97,7 +97,7 @@ This completes the current-upstream room-list action inventory; it intentionally
 | Retry sending | Failed local sends expose a dedicated retry affordance rather than the action sheet. | Present, intentional placement difference — M4 |
 | Toggle reaction | Reaction mutation benchmark foundations exist, but no production reaction picker/summary action is rendered. | Gap — M4 |
 | User/profile click | Member/profile foundations exist; current timeline sender chrome is not actionable. | Gap — M4/M10 |
-| Show/stop live-location share | No production live-location flow. | Gap — M5 |
+| Show/stop live-location share | The composer now exposes fixed and live location actions with stable preview/loading/permission states, starts live sharing through an SDK-ready location port, and gives own active live-location cards a fixed-geometry Stop action with in-place progress/ended state. Real platform geolocation/permission adapters and Matrix transport are still required. | Present foundation — M5 |
 | Mark fully read and exit | No equivalent room/timeline action. | Gap — M3/M4 |
 
 This completes the current-upstream message-action inventory while retaining every unimplemented action as a visible parity gap.
@@ -113,7 +113,7 @@ The sealed `TimelineItemEventContent` family, its concrete model files, the virt
 | Gallery / multi-attachment | No production timeline event model. | Gap — M5/M7 |
 | Sticker | No production timeline event model. | Gap — M5 |
 | Poll | Benchmark fixtures model a synthetic poll shape only; no production poll timeline UI. | Gap — M4/M5 |
-| Static / live location | Production timeline messages now carry an SDK-ready location payload and render a fixed-geometry map/location card with explicit static/live/ended state. Live updates mutate only the message location signal; location picking/sharing and Matrix SDK event mapping remain unfinished. | Present foundation — M4/M5 |
+| Static / live location | Production timeline messages carry an SDK-ready location payload and render a fixed-geometry map/location card with explicit static/live/ending/ended state. The composer has deterministic fixed/live location preparation, permission-denied/permanently-denied recovery, send, and stop workflows; live state changes mutate only the message location signal. Real platform geolocation/permission adapters and Matrix SDK event mapping/interoperability remain unfinished. | Present foundation — M4/M5 |
 | Encrypted / undecryptable event | Encryption foundations exist, but there is no dedicated production timeline event state. | Gap — M2/M4 |
 | Redacted event | Implemented for current text messages. | Present — M4 |
 | Room-membership state event | Room membership foundations exist; no production timeline state-event renderer. | Gap — M4/M9 |

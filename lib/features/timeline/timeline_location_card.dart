@@ -9,19 +9,26 @@ class TimelineLocationCard extends StatelessWidget {
     super.key,
     required this.messageId,
     required this.location,
+    this.onStopLiveLocation,
   });
 
   final String messageId;
   final TimelineLocation location;
+  final VoidCallback? onStopLiveLocation;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isLive = location.kind == TimelineLocationKind.liveLocation;
-    final statusLabel = switch ((isLive, location.isLiveActive)) {
-      (false, _) => 'Location',
-      (true, true) => 'Live location',
-      (true, false) => 'Live location ended',
+    final statusLabel = switch ((
+      isLive,
+      location.isLiveActive,
+      location.isLiveStopping,
+    )) {
+      (false, _, _) => 'Location',
+      (true, true, true) => 'Ending live location',
+      (true, true, false) => 'Live location',
+      (true, false, _) => 'Live location ended',
     };
     final coordinateLabel =
         '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
@@ -81,6 +88,12 @@ class TimelineLocationCard extends StatelessWidget {
                 Positioned(
                   left: KiteSpacing.sm,
                   top: KiteSpacing.sm,
+                  right:
+                      isLive &&
+                          location.isLiveActive &&
+                          onStopLiveLocation != null
+                      ? 76
+                      : null,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: colors.surface.withValues(alpha: 0.92),
@@ -102,12 +115,16 @@ class TimelineLocationCard extends StatelessWidget {
                             color: colors.onSurfaceVariant,
                           ),
                           const SizedBox(width: KiteSpacing.xxs),
-                          Text(
-                            statusLabel,
-                            key: Key('message-location-status-$messageId'),
-                            style: KiteTypography.metadata.copyWith(
-                              color: colors.onSurface,
-                              fontWeight: FontWeight.w700,
+                          Flexible(
+                            child: Text(
+                              statusLabel,
+                              key: Key('message-location-status-$messageId'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KiteTypography.metadata.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
@@ -115,6 +132,39 @@ class TimelineLocationCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (isLive &&
+                    location.isLiveActive &&
+                    onStopLiveLocation != null)
+                  Positioned(
+                    key: Key('message-location-stop-slot-$messageId'),
+                    top: 4,
+                    right: 4,
+                    child: SizedBox(
+                      width: 72,
+                      height: 44,
+                      child: TextButton(
+                        key: Key('message-location-stop-$messageId'),
+                        onPressed: location.isLiveStopping
+                            ? null
+                            : onStopLiveLocation,
+                        style: TextButton.styleFrom(
+                          foregroundColor: colors.error,
+                          backgroundColor: colors.surface.withValues(
+                            alpha: 0.92,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: KiteSpacing.sm,
+                          ),
+                        ),
+                        child: Text(
+                          location.isLiveStopping ? 'Ending…' : 'Stop',
+                          style: KiteTypography.metadata.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: DecoratedBox(

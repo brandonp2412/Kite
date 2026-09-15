@@ -13,6 +13,98 @@ enum TimelineAttachmentKind { image, video, file }
 
 enum TimelineLocationKind { staticLocation, liveLocation }
 
+enum TimelineLocationPermission { granted, denied, permanentlyDenied }
+
+@immutable
+final class TimelineLocationPreparation {
+  const TimelineLocationPreparation({required this.permission, this.location});
+
+  final TimelineLocationPermission permission;
+  final TimelineLocation? location;
+
+  bool get isReady =>
+      permission == TimelineLocationPermission.granted && location != null;
+}
+
+abstract interface class TimelineLocationPort {
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind);
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String transactionId,
+    required TimelineLocation location,
+  });
+  Future<TimelineSendOutcome> stopLiveLocation({
+    required String roomId,
+    required String eventId,
+  });
+  Future<void> openAppSettings();
+}
+
+final class DeterministicTimelineLocationPort implements TimelineLocationPort {
+  DeterministicTimelineLocationPort({
+    this.permission = TimelineLocationPermission.granted,
+    this.latency = const Duration(milliseconds: 120),
+    this.label = 'Britomart',
+    this.latitude = -36.8468,
+    this.longitude = 174.7682,
+  });
+
+  TimelineLocationPermission permission;
+  final Duration latency;
+  final String label;
+  final double latitude;
+  final double longitude;
+  int prepareRequests = 0;
+  int settingsRequests = 0;
+  final List<TimelineLocation> sentLocations = <TimelineLocation>[];
+  final List<String> stoppedEventIds = <String>[];
+
+  @override
+  Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind) async {
+    prepareRequests++;
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    if (permission != TimelineLocationPermission.granted) {
+      return TimelineLocationPreparation(permission: permission);
+    }
+    return TimelineLocationPreparation(
+      permission: permission,
+      location: TimelineLocation(
+        kind: kind,
+        latitude: latitude,
+        longitude: longitude,
+        label: label,
+        isLiveActive: kind == TimelineLocationKind.liveLocation,
+      ),
+    );
+  }
+
+  @override
+  Future<TimelineSendOutcome> sendLocation({
+    required String roomId,
+    required String transactionId,
+    required TimelineLocation location,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    sentLocations.add(location);
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<TimelineSendOutcome> stopLiveLocation({
+    required String roomId,
+    required String eventId,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    stoppedEventIds.add(eventId);
+    return TimelineSendOutcome.sent;
+  }
+
+  @override
+  Future<void> openAppSettings() async {
+    settingsRequests++;
+  }
+}
+
 @immutable
 final class TimelineLocation {
   const TimelineLocation({
@@ -21,6 +113,7 @@ final class TimelineLocation {
     required this.longitude,
     required this.label,
     this.isLiveActive = false,
+    this.isLiveStopping = false,
   });
 
   final TimelineLocationKind kind;
@@ -28,14 +121,22 @@ final class TimelineLocation {
   final double longitude;
   final String label;
   final bool isLiveActive;
+  final bool isLiveStopping;
 
-  TimelineLocation copyWith({String? label, bool? isLiveActive}) {
+  TimelineLocation copyWith({
+    double? latitude,
+    double? longitude,
+    String? label,
+    bool? isLiveActive,
+    bool? isLiveStopping,
+  }) {
     return TimelineLocation(
       kind: kind,
-      latitude: latitude,
-      longitude: longitude,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       label: label ?? this.label,
       isLiveActive: isLiveActive ?? this.isLiveActive,
+      isLiveStopping: isLiveStopping ?? this.isLiveStopping,
     );
   }
 }
@@ -286,6 +387,7 @@ class TimelineController {
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
     TimelineLinkOpenPort? linkOpenPort,
+    TimelineLocationPort? locationPort,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
        _attachmentSendPort =
            attachmentSendPort ??
@@ -293,7 +395,8 @@ class TimelineController {
        _moderationPort =
            moderationPort ?? DeterministicTimelineModerationPort(),
        _sharePort = sharePort ?? DeterministicTimelineSharePort(),
-       _linkOpenPort = linkOpenPort ?? DeterministicTimelineLinkOpenPort() {
+       _linkOpenPort = linkOpenPort ?? DeterministicTimelineLinkOpenPort(),
+       _locationPort = locationPort ?? DeterministicTimelineLocationPort() {
     reset();
   }
 
@@ -302,6 +405,7 @@ class TimelineController {
   TimelineModerationPort _moderationPort;
   TimelineSharePort _sharePort;
   TimelineLinkOpenPort _linkOpenPort;
+  TimelineLocationPort _locationPort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
   final Map<String, Signal<List<String>>> _typingUsers =
@@ -456,6 +560,61 @@ class TimelineController {
     return message;
   }
 
+  Future<TimelineLocationPreparation> prepareLocation(
+    TimelineLocationKind kind,
+  ) => _locationPort.prepare(kind);
+
+  Future<void> openLocationSettings() => _locationPort.openAppSettings();
+
+  TimelineMessage sendLocation(String roomId, TimelineLocation location) {
+    final transactionId = 'kite-local-${_transactionCounter++}';
+    final message = TimelineMessage(
+      id: transactionId,
+      sender: 'You',
+      body: '',
+      mine: true,
+      timeLabel: 'now',
+      location: location,
+      sendState: TimelineSendState.sending,
+    );
+    final roomMessages = messagesFor(roomId);
+    roomMessages.value = List<TimelineMessage>.unmodifiable(<TimelineMessage>[
+      ...roomMessages.value,
+      message,
+    ]);
+    unawaited(_settleLocation(roomId, message));
+    return message;
+  }
+
+  Future<bool> stopLiveLocation(String roomId, TimelineMessage message) async {
+    final current = message.locationState.peek();
+    if (!message.mine ||
+        current == null ||
+        current.kind != TimelineLocationKind.liveLocation ||
+        !current.isLiveActive ||
+        current.isLiveStopping) {
+      return false;
+    }
+    message.locationState.value = current.copyWith(isLiveStopping: true);
+    final outcome = await _locationPort.stopLiveLocation(
+      roomId: roomId,
+      eventId: message.id,
+    );
+    final latest = message.locationState.peek();
+    if (latest == null || latest.kind != TimelineLocationKind.liveLocation) {
+      return false;
+    }
+    if (outcome == TimelineSendOutcome.sent) {
+      message.locationState.value = latest.copyWith(
+        isLiveActive: false,
+        isLiveStopping: false,
+      );
+      return true;
+    }
+    message.locationState.value = latest.copyWith(isLiveStopping: false);
+    return false;
+  }
+
   void editText(TimelineMessage message, String rawBody) {
     if (!message.mine || message.redacted) return;
     final body = rawBody.trim();
@@ -557,7 +716,9 @@ class TimelineController {
   void retry(String roomId, TimelineMessage message) {
     if (message.sendState.value != TimelineSendState.failed) return;
     message.sendState.value = TimelineSendState.sending;
-    if (message.attachment != null) {
+    if (message.location != null) {
+      unawaited(_settleLocation(roomId, message));
+    } else if (message.attachment != null) {
       unawaited(_settleAttachment(roomId, message));
     } else {
       unawaited(_settle(roomId, message));
@@ -570,16 +731,32 @@ class TimelineController {
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
     TimelineLinkOpenPort? linkOpenPort,
+    TimelineLocationPort? locationPort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
     if (sharePort != null) _sharePort = sharePort;
     if (linkOpenPort != null) _linkOpenPort = linkOpenPort;
+    if (locationPort != null) _locationPort = locationPort;
     _transactionCounter = 0;
     _messages.clear();
     _typingUsers.clear();
     _unreadMarkerEventIds.clear();
+  }
+
+  Future<void> _settleLocation(String roomId, TimelineMessage message) async {
+    final location = message.locationState.peek();
+    if (location == null) return;
+    final outcome = await _locationPort.sendLocation(
+      roomId: roomId,
+      transactionId: message.id,
+      location: location,
+    );
+    message.sendState.value = switch (outcome) {
+      TimelineSendOutcome.sent => TimelineSendState.sent,
+      TimelineSendOutcome.failed => TimelineSendState.failed,
+    };
   }
 
   Future<void> _settleAttachment(String roomId, TimelineMessage message) async {

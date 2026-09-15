@@ -30,19 +30,25 @@ const deterministicComposerAttachments = <TimelineAttachment>[
   ),
 ];
 
-Future<TimelineAttachment?> showComposerAttachmentPicker(BuildContext context) {
+Future<TimelineAttachment?> showComposerAttachmentPicker(
+  BuildContext context, {
+  ValueChanged<TimelineLocationKind>? onLocationSelected,
+}) {
   return showModalBottomSheet<TimelineAttachment>(
     context: context,
     useSafeArea: true,
     showDragHandle: true,
     backgroundColor: context.kiteColors.canvas,
     constraints: const BoxConstraints(maxWidth: 440),
-    builder: (_) => const ComposerAttachmentPickerSheet(),
+    builder: (_) =>
+        ComposerAttachmentPickerSheet(onLocationSelected: onLocationSelected),
   );
 }
 
 class ComposerAttachmentPickerSheet extends StatelessWidget {
-  const ComposerAttachmentPickerSheet({super.key});
+  const ComposerAttachmentPickerSheet({super.key, this.onLocationSelected});
+
+  final ValueChanged<TimelineLocationKind>? onLocationSelected;
 
   static const _labels = <String>['Photos', 'Videos', 'Camera', 'Files'];
 
@@ -55,6 +61,44 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final actions = <Widget>[
+      for (
+        var index = 0;
+        index < deterministicComposerAttachments.length;
+        index++
+      )
+        _ComposerAttachmentActionTile(
+          key: Key(
+            'attachment-option-${deterministicComposerAttachments[index].id}',
+          ),
+          icon: _icons[index],
+          label: _labels[index],
+          onTap: () =>
+              Navigator.of(context)
+                  .pop(deterministicComposerAttachments[index]),
+        ),
+      if (onLocationSelected != null)
+        _ComposerAttachmentActionTile(
+          key: const Key('attachment-option-location'),
+          icon: Icons.location_on_outlined,
+          label: 'Location',
+          onTap: () {
+            Navigator.of(context).pop();
+            onLocationSelected!(TimelineLocationKind.staticLocation);
+          },
+        ),
+      if (onLocationSelected != null)
+        _ComposerAttachmentActionTile(
+          key: const Key('attachment-option-live-location'),
+          icon: Icons.my_location_rounded,
+          label: 'Live location',
+          onTap: () {
+            Navigator.of(context).pop();
+            onLocationSelected!(TimelineLocationKind.liveLocation);
+          },
+        ),
+    ];
+
     return Padding(
       key: const Key('attachment-picker-sheet'),
       padding: const EdgeInsets.fromLTRB(
@@ -72,27 +116,80 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: KiteSpacing.sm),
-          for (
-            var index = 0;
-            index < deterministicComposerAttachments.length;
-            index++
-          )
-            ListTile(
-              key: Key(
-                'attachment-option-${deterministicComposerAttachments[index].id}',
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: KiteSpacing.xs,
-              ),
-              leading: Icon(_icons[index]),
-              title: Text(_labels[index]),
-              subtitle: Text(deterministicComposerAttachments[index].name),
-              onTap: () =>
-                  Navigator.of(context)
-                      .pop(deterministicComposerAttachments[index]),
-            ),
+          const SizedBox(height: KiteSpacing.md),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3,
+            mainAxisSpacing: KiteSpacing.sm,
+            crossAxisSpacing: KiteSpacing.sm,
+            childAspectRatio: 1.2,
+            children: actions,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _ComposerAttachmentActionTile extends StatelessWidget {
+  const _ComposerAttachmentActionTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(KiteRadii.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(KiteRadii.md),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(KiteSpacing.sm),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.secondaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: SizedBox.square(
+                    dimension: 42,
+                    child: Icon(
+                      icon,
+                      size: 21,
+                      color: colors.onSecondaryContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: KiteSpacing.xs),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: KiteTypography.metadata.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

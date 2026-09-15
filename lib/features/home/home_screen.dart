@@ -23,6 +23,7 @@ import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/features/timeline/timeline_location_card.dart';
+import 'package:kite/features/timeline/timeline_location_share_sheet.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/l10n/kite_localizations.dart';
@@ -1701,6 +1702,18 @@ class _MessageRow extends StatelessWidget {
                             TimelineLocationCard(
                               messageId: message.id,
                               location: location,
+                              onStopLiveLocation:
+                                  mine &&
+                                      location.kind ==
+                                          TimelineLocationKind.liveLocation &&
+                                      location.isLiveActive
+                                  ? () => unawaited(
+                                      timelineController.stopLiveLocation(
+                                        roomId,
+                                        message,
+                                      ),
+                                    )
+                                  : null,
                             ),
                           if (location != null && message.body.isNotEmpty)
                             const SizedBox(height: KiteSpacing.xs),
@@ -3153,7 +3166,23 @@ class _ComposerState extends State<_Composer> {
   }
 
   Future<void> _pickAttachment(String roomId) async {
-    final attachment = await showComposerAttachmentPicker(context);
+    final attachment = await showComposerAttachmentPicker(
+      context,
+      onLocationSelected: (kind) {
+        if (!mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(
+            showComposerLocationShareSheet(
+              context,
+              roomId: roomId,
+              kind: kind,
+              controller: timelineController,
+            ),
+          );
+        });
+      },
+    );
     if (!mounted || attachment == null) return;
     setState(() {
       _pendingAttachment = attachment;
