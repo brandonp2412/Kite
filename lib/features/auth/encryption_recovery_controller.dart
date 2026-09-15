@@ -69,6 +69,7 @@ final class EncryptionRecoveryController {
   Future<bool> createEncryptedBackup() {
     return _run(
       _gateway.createEncryptedBackup,
+      validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
       failureMessage: 'Kite could not enable encrypted backup.',
     );
   }
@@ -81,6 +82,7 @@ final class EncryptionRecoveryController {
     }
     return _run(
       () => _gateway.restoreWithRecoveryKey(secret),
+      validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
       failureMessage: 'Kite could not restore encrypted backup.',
     );
   }
@@ -92,6 +94,7 @@ final class EncryptionRecoveryController {
     }
     return _run(
       () => _gateway.restoreWithPassphrase(passphrase),
+      validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
       failureMessage: 'Kite could not restore encrypted backup.',
     );
   }
@@ -104,12 +107,16 @@ final class EncryptionRecoveryController {
     }
     return _run(
       _gateway.recoverHistoricalMessages,
+      validateStatus: (next) =>
+          next.historicalRecoveryState == HistoricalRecoveryState.recovering ||
+          next.historicalRecoveryState == HistoricalRecoveryState.complete,
       failureMessage: 'Kite could not recover encrypted message history.',
     );
   }
 
   Future<bool> _run(
     Future<EncryptionRecoveryStatus> Function() action, {
+    bool Function(EncryptionRecoveryStatus status)? validateStatus,
     required String failureMessage,
   }) async {
     if (isBusy.value) return false;
@@ -117,7 +124,12 @@ final class EncryptionRecoveryController {
     isBusy.value = true;
     errorMessage.value = null;
     try {
-      status.value = await action();
+      final next = await action();
+      if (validateStatus != null && !validateStatus(next)) {
+        errorMessage.value = 'Kite received invalid encryption recovery state.';
+        return false;
+      }
+      status.value = next;
       return true;
     } catch (_) {
       errorMessage.value = failureMessage;

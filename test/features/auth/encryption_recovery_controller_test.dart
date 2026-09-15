@@ -9,6 +9,7 @@ final class _FakeEncryptionRecoveryGateway
     hasUnverifiedSessions: true,
   );
   Object? failure;
+  EncryptionRecoveryStatus? overrideResult;
   String? recoveryKey;
   String? passphrase;
   int createCalls = 0;
@@ -23,13 +24,13 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
     );
-    return current;
+    return overrideResult ?? current;
   }
 
   @override
   Future<EncryptionRecoveryStatus> loadRecoveryStatus() async {
     if (failure case final error?) throw error;
-    return current;
+    return overrideResult ?? current;
   }
 
   @override
@@ -41,7 +42,7 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.complete,
       hasUnverifiedSessions: current.hasUnverifiedSessions,
     );
-    return current;
+    return overrideResult ?? current;
   }
 
   @override
@@ -55,7 +56,7 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
     );
-    return current;
+    return overrideResult ?? current;
   }
 
   @override
@@ -69,7 +70,7 @@ final class _FakeEncryptionRecoveryGateway
       historicalRecoveryState: HistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
     );
-    return current;
+    return overrideResult ?? current;
   }
 }
 
@@ -171,6 +172,37 @@ void main() {
       'Encrypted history recovery is not available.',
     );
   });
+
+  test(
+    'successful operations reject contradictory SDK recovery state',
+    () async {
+      final gateway = _FakeEncryptionRecoveryGateway();
+      final controller = EncryptionRecoveryController(gateway);
+      addTearDown(controller.dispose);
+      expect(await controller.refresh(), isTrue);
+      final previous = controller.status.value;
+
+      gateway.overrideResult = const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.needsRecovery,
+        historicalRecoveryState: HistoricalRecoveryState.available,
+        hasUnverifiedSessions: false,
+      );
+      expect(await controller.createEncryptedBackup(), isFalse);
+      expect(controller.status.value, same(previous));
+      expect(
+        controller.errorMessage.value,
+        'Kite received invalid encryption recovery state.',
+      );
+
+      gateway.overrideResult = const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.ready,
+        historicalRecoveryState: HistoricalRecoveryState.available,
+        hasUnverifiedSessions: false,
+      );
+      expect(await controller.recoverHistoricalMessages(), isFalse);
+      expect(controller.status.value, same(previous));
+    },
+  );
 
   test('gateway failures expose only fixed public errors', () async {
     final gateway = _FakeEncryptionRecoveryGateway()
