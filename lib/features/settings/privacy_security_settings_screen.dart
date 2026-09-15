@@ -86,6 +86,16 @@ class _PrivacySecuritySettingsScreenState
                   height: 4,
                   child: loading ? const LinearProgressIndicator() : null,
                 ),
+                _SecurityStatusCard(
+                  loading: loading,
+                  verificationNeedsAttention:
+                      trust == CrossSigningTrustState.unverified ||
+                      unverifiedDevices > 0,
+                  recoveryNeedsAttention:
+                      recovery?.needsRecoveryAttention ?? false,
+                  onOpenVerification: widget.onOpenVerification,
+                  onOpenRecovery: widget.onOpenRecovery,
+                ),
                 const _SectionTitle(label: 'Encryption'),
                 ListTile(
                   key: const Key('privacy-security-verification'),
@@ -177,6 +187,113 @@ class _PrivacySecuritySettingsScreenState
         ),
       ),
     );
+  }
+}
+
+class _SecurityStatusCard extends StatelessWidget {
+  const _SecurityStatusCard({
+    required this.loading,
+    required this.verificationNeedsAttention,
+    required this.recoveryNeedsAttention,
+    required this.onOpenVerification,
+    required this.onOpenRecovery,
+  });
+
+  final bool loading;
+  final bool verificationNeedsAttention;
+  final bool recoveryNeedsAttention;
+  final VoidCallback onOpenVerification;
+  final VoidCallback onOpenRecovery;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final needsAttention = verificationNeedsAttention || recoveryNeedsAttention;
+    final title = loading
+        ? 'Checking account security…'
+        : needsAttention
+        ? 'Security action recommended'
+        : 'Security looks good';
+    final detail = loading
+        ? 'Verifying cross-signing, recovery, and signed-in devices.'
+        : _detail();
+
+    return SizedBox(
+      key: const Key('privacy-security-alert-slot'),
+      height: 132,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.md,
+          KiteSpacing.md,
+          KiteSpacing.md,
+          0,
+        ),
+        child: Material(
+          color: needsAttention
+              ? colors.tertiaryContainer
+              : colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(KiteRadii.md),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              KiteSpacing.md,
+              KiteSpacing.sm,
+              KiteSpacing.sm,
+              KiteSpacing.xs,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, style: KiteTypography.title),
+                const SizedBox(height: KiteSpacing.xs),
+                Expanded(
+                  child: Text(
+                    detail,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: KiteTypography.metadata.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                if (!loading && needsAttention)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      if (verificationNeedsAttention)
+                        TextButton(
+                          key: const Key('security-review-verification'),
+                          onPressed: onOpenVerification,
+                          child: const Text('Verify devices'),
+                        ),
+                      if (recoveryNeedsAttention)
+                        TextButton(
+                          key: const Key('security-review-recovery'),
+                          onPressed: onOpenRecovery,
+                          child: const Text('Review recovery'),
+                        ),
+                    ],
+                  )
+                else
+                  const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _detail() {
+    if (verificationNeedsAttention && recoveryNeedsAttention) {
+      return 'Verify untrusted sessions and review encrypted-backup recovery.';
+    }
+    if (verificationNeedsAttention) {
+      return 'One or more sessions still need Matrix cross-signing verification.';
+    }
+    if (recoveryNeedsAttention) {
+      return 'Encrypted-backup recovery needs attention before history is fully recoverable.';
+    }
+    return 'No verification or encrypted-backup recovery action is currently required.';
   }
 }
 
