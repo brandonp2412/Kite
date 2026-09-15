@@ -71,7 +71,7 @@ final class AccountManagementController {
       accounts.value.isNotEmpty && activeAccount == null;
 
   Future<bool> load() async {
-    if (isLoading.value) return false;
+    if (isLoading.value || busyAccountIds.value.isNotEmpty) return false;
 
     isLoading.value = true;
     errorMessage.value = null;

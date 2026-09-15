@@ -10,6 +10,7 @@ final class _FakeAccountManagementGateway implements AccountManagementGateway {
   Object? activateError;
   Object? signOutError;
   Completer<void>? activateCompleter;
+  int loadCalls = 0;
   final activatedAccountIds = <String>[];
   final signedOutAccountIds = <String>[];
 
@@ -23,6 +24,7 @@ final class _FakeAccountManagementGateway implements AccountManagementGateway {
 
   @override
   Future<List<ManagedMatrixAccount>> loadAccounts() async {
+    loadCalls += 1;
     if (loadError case final error?) throw error;
     return loaded;
   }
@@ -159,6 +161,52 @@ void main() {
     expect(await controller.signOut('work'), isFalse);
     expect(gateway.signedOutAccountIds, isEmpty);
     expect(controller.activeAccount?.accountId, 'work');
+
+    activation.complete();
+    expect(await switching, isTrue);
+    expect(controller.activeAccount?.accountId, 'personal');
+  });
+
+  test('account refresh cannot race an in-flight account switch', () async {
+    final activation = Completer<void>();
+    final gateway = _FakeAccountManagementGateway()
+      ..loaded = <ManagedMatrixAccount>[
+        _account(
+          accountId: 'work',
+          userId: '@alice:work.example.org',
+          deviceId: 'WORK_DEVICE',
+          homeserver: 'work.example.org',
+          isActive: true,
+        ),
+        _account(
+          accountId: 'personal',
+          userId: '@alice:example.org',
+          deviceId: 'PERSONAL_DEVICE',
+          homeserver: 'example.org',
+        ),
+      ]
+      ..activateCompleter = activation;
+    final controller = AccountManagementController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+    expect(gateway.loadCalls, 1);
+
+    final switching = controller.activate('personal');
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.busyAccountIds.value, <String>{'personal'});
+
+    gateway.loaded = <ManagedMatrixAccount>[
+      _account(
+        accountId: 'work',
+        userId: '@alice:work.example.org',
+        deviceId: 'WORK_DEVICE',
+        homeserver: 'work.example.org',
+        isActive: true,
+      ),
+    ];
+    expect(await controller.load(), isFalse);
+    expect(gateway.loadCalls, 1);
+    expect(controller.accounts.value, hasLength(2));
 
     activation.complete();
     expect(await switching, isTrue);
