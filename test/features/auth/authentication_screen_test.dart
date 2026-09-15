@@ -6,6 +6,7 @@ import 'package:kite/features/auth/authentication_screen.dart';
 
 final class _FakeAuthenticationGateway implements AuthenticationGateway {
   HomeserverLoginMethods? discoveryResult;
+  AuthenticatedSession? nextSession;
   Object? discoveryError;
   Object? passwordError;
   Object? oidcError;
@@ -19,11 +20,12 @@ final class _FakeAuthenticationGateway implements AuthenticationGateway {
   int ssoCalls = 0;
 
   AuthenticatedSession _session(HomeserverAddress homeserver) {
-    return AuthenticatedSession(
-      userId: '@alice:${homeserver.uri.host}',
-      deviceId: 'DEVICE',
-      homeserver: homeserver,
-    );
+    return nextSession ??
+        AuthenticatedSession(
+          userId: '@alice:${homeserver.uri.host}',
+          deviceId: 'DEVICE',
+          homeserver: homeserver,
+        );
   }
 
   @override
@@ -299,6 +301,56 @@ void main() {
       expect(username.enabled, isFalse);
       expect(find.byKey(const Key('qr-device-login')), findsNothing);
       expect(find.byKey(const Key('registration-available')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'soft logout refuses a successful session for a different Matrix account',
+    (tester) async {
+      final gateway = _FakeAuthenticationGateway();
+      final homeserver = HomeserverAddress.parse('matrix.example.org');
+      gateway.discoveryResult = HomeserverLoginMethods(
+        homeserver: homeserver,
+        methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+      );
+      gateway.nextSession = AuthenticatedSession(
+        userId: '@mallory:matrix.example.org',
+        deviceId: 'OTHER_DEVICE',
+        homeserver: homeserver,
+      );
+      AuthenticatedSession? authenticated;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(
+            gateway: gateway,
+            initialHomeserver: homeserver,
+            expectedUserId: '@alice:matrix.example.org',
+            lockHomeserver: true,
+            onAuthenticated: (session) => authenticated = session,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('password-field')),
+        'credential-that-must-not-switch-accounts',
+      );
+      await tester.tap(find.byKey(const Key('password-login')));
+      await tester.pumpAndSettle();
+
+      expect(authenticated, isNull);
+      expect(
+        find.text('Sign in as @alice:matrix.example.org to continue.'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('password-field')))
+            .controller
+            ?.text,
+        isEmpty,
+      );
     },
   );
 

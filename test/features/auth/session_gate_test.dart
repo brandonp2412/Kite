@@ -28,9 +28,13 @@ final class _SessionGateway implements SessionLifecycleGateway {
 }
 
 final class _AuthenticationGateway implements AuthenticationGateway {
-  _AuthenticationGateway({this.registrationAvailable = false});
+  _AuthenticationGateway({
+    this.registrationAvailable = false,
+    this.returnedUserId,
+  });
 
   final bool registrationAvailable;
+  final String? returnedUserId;
 
   @override
   Future<HomeserverLoginMethods> discover(HomeserverAddress homeserver) async =>
@@ -42,7 +46,7 @@ final class _AuthenticationGateway implements AuthenticationGateway {
 
   AuthenticatedSession _session(HomeserverAddress homeserver) =>
       AuthenticatedSession(
-        userId: '@alice:${homeserver.uri.host}',
+        userId: returnedUserId ?? '@alice:${homeserver.uri.host}',
         deviceId: 'DEVICE',
         homeserver: homeserver,
       );
@@ -294,6 +298,50 @@ void main() {
     expect(sessionGateway.persisted?.userId, '@alice:matrix.example.org');
     expect(sessionGateway.persisted?.deviceId, 'REGISTERED_DEVICE');
     expect(verification.trustState.value, CrossSigningTrustState.verified);
+  });
+
+  testWidgets('soft logout never resumes into a different Matrix account', (
+    tester,
+  ) async {
+    final sessionGateway = _SessionGateway(_session());
+    final lifecycle = SessionLifecycleController(sessionGateway);
+    final verification = DeviceVerificationController(
+      _VerificationGateway(CrossSigningTrustState.verified),
+    );
+    addTearDown(lifecycle.dispose);
+    addTearDown(verification.dispose);
+    await lifecycle.restore();
+    lifecycle.markSoftLoggedOut();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SessionGate(
+          lifecycleController: lifecycle,
+          authenticationGateway: _AuthenticationGateway(
+            returnedUserId: '@mallory:matrix.example.org',
+          ),
+          verificationController: verification,
+          restoreOnInit: false,
+          authenticatedBuilder: (context) =>
+              const Scaffold(body: Text('Authenticated content')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'correct-password-for-wrong-account',
+    );
+    await tester.tap(find.byKey(const Key('password-login')));
+    await tester.pumpAndSettle();
+
+    expect(lifecycle.state.value, isA<SessionSoftLoggedOut>());
+    expect(sessionGateway.persisted, isNull);
+    expect(find.text('Authenticated content'), findsNothing);
+    expect(
+      find.text('Sign in as @alice:matrix.example.org to continue.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('soft logout returns to authentication with explicit notice', (

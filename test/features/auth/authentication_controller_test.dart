@@ -128,6 +128,63 @@ void main() {
     },
   );
 
+  test('soft logout rejects password reauthentication for a different Matrix account', () async {
+    final gateway = _AuthenticationGateway();
+    final controller = AuthenticationController(gateway);
+    addTearDown(controller.dispose);
+    await controller.discover('matrix.example.org');
+    gateway.nextSession = AuthenticatedSession(
+      userId: '@mallory:matrix.example.org',
+      deviceId: 'OTHER_DEVICE',
+      homeserver: HomeserverAddress.parse('matrix.example.org'),
+    );
+
+    await controller.loginWithPassword(
+      username: '@alice:matrix.example.org',
+      password: 'secret',
+      expectedUserId: '@alice:matrix.example.org',
+    );
+
+    expect(controller.session.value, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Sign in as @alice:matrix.example.org to continue.',
+    );
+  });
+
+  test(
+    'soft logout binds OIDC and SSO to the expected Matrix account',
+    () async {
+      final gateway = _AuthenticationGateway();
+      final controller = AuthenticationController(gateway);
+      addTearDown(controller.dispose);
+      await controller.discover('matrix.example.org');
+      gateway.nextSession = AuthenticatedSession(
+        userId: '@mallory:matrix.example.org',
+        deviceId: 'OTHER_DEVICE',
+        homeserver: HomeserverAddress.parse('matrix.example.org'),
+      );
+
+      await controller.loginWithOidc(
+        expectedUserId: '@alice:matrix.example.org',
+      );
+      expect(controller.session.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Sign in as @alice:matrix.example.org to continue.',
+      );
+
+      await controller.loginWithSso(
+        expectedUserId: '@alice:matrix.example.org',
+      );
+      expect(controller.session.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Sign in as @alice:matrix.example.org to continue.',
+      );
+    },
+  );
+
   test(
     'failed reauthentication cannot reuse a previously successful session',
     () async {

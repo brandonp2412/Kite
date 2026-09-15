@@ -45,6 +45,7 @@ final class AuthenticationController {
   Future<void> loginWithPassword({
     required String username,
     required String password,
+    String? expectedUserId,
   }) async {
     final methods = loginMethods.value;
     if (isBusy || methods == null) return;
@@ -64,10 +65,11 @@ final class AuthenticationController {
         password: password,
       ),
       expectedHomeserver: methods.homeserver,
+      expectedUserId: expectedUserId,
     );
   }
 
-  Future<void> loginWithOidc() async {
+  Future<void> loginWithOidc({String? expectedUserId}) async {
     final methods = loginMethods.value;
     if (isBusy || methods == null) return;
     if (!methods.supports(AuthenticationMethod.oidc)) {
@@ -77,10 +79,11 @@ final class AuthenticationController {
     await _runSignIn(
       () => _gateway.loginWithOidc(homeserver: methods.homeserver),
       expectedHomeserver: methods.homeserver,
+      expectedUserId: expectedUserId,
     );
   }
 
-  Future<void> loginWithSso() async {
+  Future<void> loginWithSso({String? expectedUserId}) async {
     final methods = loginMethods.value;
     if (isBusy || methods == null) return;
     if (!methods.supports(AuthenticationMethod.sso)) {
@@ -90,6 +93,7 @@ final class AuthenticationController {
     await _runSignIn(
       () => _gateway.loginWithSso(homeserver: methods.homeserver),
       expectedHomeserver: methods.homeserver,
+      expectedUserId: expectedUserId,
     );
   }
 
@@ -105,6 +109,7 @@ final class AuthenticationController {
   Future<void> _runSignIn(
     Future<AuthenticatedSession> Function() action, {
     HomeserverAddress? expectedHomeserver,
+    String? expectedUserId,
   }) async {
     errorMessage.value = null;
     session.value = null;
@@ -114,9 +119,13 @@ final class AuthenticationController {
       if (!_isValidSession(
         authenticated,
         expectedHomeserver: expectedHomeserver,
+        expectedUserId: expectedUserId,
       )) {
         session.value = null;
-        errorMessage.value = 'Kite received an invalid authentication session.';
+        errorMessage.value =
+            expectedUserId != null && authenticated.userId != expectedUserId
+            ? 'Sign in as $expectedUserId to continue.'
+            : 'Kite received an invalid authentication session.';
         return;
       }
       session.value = authenticated;
@@ -132,6 +141,7 @@ final class AuthenticationController {
   bool _isValidSession(
     AuthenticatedSession candidate, {
     HomeserverAddress? expectedHomeserver,
+    String? expectedUserId,
   }) {
     final userId = candidate.userId.trim();
     final deviceId = candidate.deviceId.trim();
@@ -145,8 +155,11 @@ final class AuthenticationController {
         deviceId != candidate.deviceId) {
       return false;
     }
-    return expectedHomeserver == null ||
-        candidate.homeserver.uri == expectedHomeserver.uri;
+    if (expectedHomeserver != null &&
+        candidate.homeserver.uri != expectedHomeserver.uri) {
+      return false;
+    }
+    return expectedUserId == null || candidate.userId == expectedUserId;
   }
 
   void changeHomeserver() {
