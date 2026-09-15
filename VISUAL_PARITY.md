@@ -65,11 +65,20 @@ The current Element X direct-room timeline and composer LFS snapshots were loade
 
 The current Element X `HomeTopBar`, `RoomSummaryRow`, and direct-room timeline day/night snapshots at `ba80abcbf0f5` were visually compared with Kite's freshly generated light/dark phone and desktop gallery renders. This closes the review work only; it does not claim that the gaps below are implemented.
 
-- Theme surfaces: Kite has coherent light/dark semantic surfaces and preserves row geometry between themes. Element X has a more deliberate dark top-region treatment and contextual bloom. Kite still has no true-black theme, so the visual-quality true-black implementation contract remains open.
+- Theme surfaces: Kite has coherent light/dark semantic surfaces and preserves row geometry between themes. Element X has a more deliberate dark top-region treatment and contextual bloom. Kite now also has an explicit true-black theme with black canvas/navigation surfaces and matching light system-bar icons; the black gallery preserves the same geometry as light/dark. Current Element X `Night` references remain charcoal rather than pure black, and upstream's separate black-theme feature flag is still unfinished, so Kite's true-black treatment is an intentional Kite visual contract rather than copied upstream artwork.
 - Spacing and radii: Kite repeats a consistent row/avatar rhythm and rounded message/composer geometry, but its wide timeline uses looser vertical spacing and broader bubbles than the Element X direct-room reference. Element X's home header also composes title, actions, and filters more tightly without reducing touch-target size.
 - Icon sizing: the current Kite gallery has very little top-level icon chrome; this avoids inconsistency but also exposes the missing search/filter/profile affordances already recorded by the home parity gap. Existing composer/action icons are visually stable across light/dark renders.
 - Avatar/image treatment: Kite's deterministic room list currently renders circular initial placeholders at stable resolution. Element X demonstrates contextual avatar colour and production image treatment; Kite does not yet exercise high-resolution photo avatars in this gallery, so the visual-quality avatar/bloom and no-upscale implementation contracts remain open.
 - Typography: not closed by this review. Flutter goldens use the deterministic test font, so final hierarchy still requires a real-target render with production typography.
+
+### True-black rendered comparison, 2026-09-15
+
+The current Element X `HomeTopBar_Night_0_en.png`, `RoomListContentView_Night_0_en.png`, direct-room timeline Night snapshot, and composer Night snapshot were fetched again from the audited `develop` SHA and compared with Kite's generated `home_phone_portrait_black.png` and `home_desktop_black.png`.
+
+- Surface hierarchy: Element X Night uses a near-black content canvas with a dark charcoal timeline/row vocabulary and a green contextual header bloom. Kite true-black deliberately uses a pure-black canvas/navigation surface while retaining separate dark fields and message surfaces, so controls remain grouped without lifting the entire page off black.
+- Contrast and system chrome: Kite's true-black semantic surfaces retain high-contrast foregrounds and the app explicitly selects light status/navigation-bar icons with a black navigation-bar surface. This closes Kite's light/dark/true-black system-bar implementation contract, while minimum-contrast auditing for every state remains open.
+- Home gaps remain unchanged by theming: Element X still has profile/search/filter actions, filter chips, timestamps, invite actions, unread affordances and geometry-reserving skeletons that Kite's current home fixture does not yet contain.
+- Timeline/composer gaps remain unchanged by theming: Kite's black desktop render keeps incoming/own-message distinction and composer geometry legible, but Element X's current Night reference remains tighter and richer in reactions, receipts, media/event variants and composer states.
 
 ## Side-by-side review checklist
 
@@ -109,7 +118,7 @@ For each major screen, compare matching light/dark states at representative phon
 | Poll / location / media | Element X renders dedicated event, picker/viewer and permission/error states for these content types. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Calls | Element X has incoming, outgoing and in-call states integrated with MatrixRTC/Element Call. | Not yet present in current Kite top-level UI. | None yet. | Not audited |
 | Empty / loading / error / offline | Element X reserves geometry with explicit empty/loading/error/offline states. | Current benchmark home state does not yet expose representative variants. | Home reference comparison only. | Gap |
-| Theme variants | Element X references cover day/night; black theme remains behind an unfinished feature flag in current `develop`. | Kite gallery covers light/dark with stable geometry; true-black is not implemented. | Home light/dark gallery. | Reviewed; true-black gap remains |
+| Theme variants | Element X references cover day/night; black theme remains behind an unfinished feature flag in current `develop`. | Kite gallery covers light/dark/true-black with stable geometry and explicit light/dark system-bar icon treatment. | Home light/dark/black gallery. | Implemented/reviewed; broader contrast audit remains |
 
 ## Current conclusion
 

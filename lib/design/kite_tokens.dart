@@ -111,13 +111,26 @@ class KiteSemanticColors extends ThemeExtension<KiteSemanticColors> {
 
   factory KiteSemanticColors.forBrightness(
     Brightness brightness,
-    ColorScheme scheme,
-  ) {
+    ColorScheme scheme, {
+    bool trueBlack = false,
+  }) {
     final dark = brightness == Brightness.dark;
     return KiteSemanticColors(
-      canvas: dark ? const Color(0xFF111513) : const Color(0xFFF7F8F7),
-      navigation: dark ? const Color(0xFF0D100F) : const Color(0xFFF1F3F2),
-      field: dark ? const Color(0xFF1B201E) : const Color(0xFFEEF1EF),
+      canvas: trueBlack
+          ? Colors.black
+          : dark
+          ? const Color(0xFF111513)
+          : const Color(0xFFF7F8F7),
+      navigation: trueBlack
+          ? Colors.black
+          : dark
+          ? const Color(0xFF0D100F)
+          : const Color(0xFFF1F3F2),
+      field: trueBlack
+          ? const Color(0xFF111513)
+          : dark
+          ? const Color(0xFF1B201E)
+          : const Color(0xFFEEF1EF),
       selected: scheme.primaryContainer,
       unread: scheme.primary,
       mention: scheme.tertiary,

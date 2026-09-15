@@ -6,13 +6,18 @@ abstract final class KiteTheme {
 
   static ThemeData get light => _build(Brightness.light);
   static ThemeData get dark => _build(Brightness.dark);
+  static ThemeData get black => _build(Brightness.dark, trueBlack: true);
 
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(Brightness brightness, {bool trueBlack = false}) {
     final scheme = ColorScheme.fromSeed(
       seedColor: _seed,
       brightness: brightness,
     );
-    final tokens = KiteSemanticColors.forBrightness(brightness, scheme);
+    final tokens = KiteSemanticColors.forBrightness(
+      brightness,
+      scheme,
+      trueBlack: trueBlack,
+    );
 
     return ThemeData(
       useMaterial3: true,
