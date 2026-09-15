@@ -46,7 +46,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Reproduce the polished avatar treatment and contextual colour/bloom concept without copying Element trademarks/assets.
 - [ ] Use high-quality avatars and media at their actual rendered resolution; never upscale tiny thumbnails into visible blur.
 - [ ] Keep touch targets at least platform-accessible size while preserving compact visual rhythm.
-- [ ] Light, dark, and true-black themes with correct system-bar treatment.
+- [x] Light, dark, and true-black themes with correct system-bar treatment.
 - [ ] Consistent sheets, dialogs, menus, snackbars, tooltips, empty states, error states, and destructive confirmations.
 - [ ] Deliberate motion system: room changes, new messages, reactions, sheets, navigation, image viewer, composer expansion, and call transitions use consistent curves and durations.
 - [x] Respect reduced-motion accessibility settings.

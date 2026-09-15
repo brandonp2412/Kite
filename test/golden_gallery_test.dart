@@ -63,5 +63,27 @@ void main() {
         );
       });
     }
+
+    testWidgets('gallery home ${viewport.key} black', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = viewport.value;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      selectRoom('kite');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: KiteTheme.black,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(HomeScreen),
+        matchesGoldenFile('goldens/gallery/home_${viewport.key}_black.png'),
+      );
+    });
   }
 }
