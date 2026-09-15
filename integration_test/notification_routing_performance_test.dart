@@ -58,7 +58,12 @@ void main() {
         accounts: accounts,
         navigation: navigation,
       );
+      final ingressAccounts = FakeNotificationIngressAccountPort(<String>[
+        'work',
+        'personal',
+      ]);
       final ingress = NotificationIngressCoordinator(
+        accounts: ingressAccounts,
         onAccepted: (result) async {
           final notification = result.notification!;
           notifications.upsertNotification(notification);
@@ -258,6 +263,7 @@ void main() {
           roomId: '!invite:example.org',
         ),
       );
+      expect(ingressAccounts.queries, <String>['work', 'personal']);
 
       binding.reportData ??= <String, dynamic>{};
       binding.reportData!['notification_routing_reconciliation'] =

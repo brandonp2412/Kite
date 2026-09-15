@@ -13,6 +13,7 @@ enum NotificationIngressFailure {
   missingThreadRootEventId,
   missingCallId,
   unexpectedTargetField,
+  unknownAccount,
 }
 
 final class NotificationIngressResult {
@@ -165,6 +166,10 @@ final class NotificationIngressParser {
   }
 }
 
+abstract interface class NotificationIngressAccountPort {
+  Future<bool> containsAccount(String accountId);
+}
+
 typedef NotificationIngressHandler = Future<void> Function(
   NotificationIngressResult result,
 );
@@ -172,10 +177,12 @@ typedef NotificationIngressHandler = Future<void> Function(
 final class NotificationIngressCoordinator {
   const NotificationIngressCoordinator({
     required this.onAccepted,
+    this.accounts,
     this.parser = const NotificationIngressParser(),
   });
 
   final NotificationIngressHandler onAccepted;
+  final NotificationIngressAccountPort? accounts;
   final NotificationIngressParser parser;
 
   Future<NotificationIngressResult> receive({
@@ -183,9 +190,18 @@ final class NotificationIngressCoordinator {
     required Map<String, String?> data,
   }) async {
     final result = parser.parse(transport: transport, data: data);
-    if (result.accepted) {
-      await onAccepted(result);
+    if (!result.accepted) return result;
+
+    final account = result.notification!.destination.accountId;
+    final accountPort = accounts;
+    if (accountPort != null && !await accountPort.containsAccount(account)) {
+      return NotificationIngressResult.rejected(
+        transport: transport,
+        failure: NotificationIngressFailure.unknownAccount,
+      );
     }
+
+    await onAccepted(result);
     return result;
   }
 }
