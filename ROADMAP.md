@@ -328,11 +328,11 @@ Kite should not merely contain the same controls. It must have the same level of
 
 ## Milestone 11 — Notifications and deep-link correctness
 
-- [ ] FCM-compatible push path where applicable.
-- [ ] Non-Google/background sync notification path where required for distribution targets.
-- [ ] Message notifications.
-- [ ] Mention notifications.
-- [ ] Invite notifications.
+- [x] FCM-compatible push path where applicable.
+- [x] Non-Google/background sync notification path where required for distribution targets.
+- [x] Message notifications.
+- [x] Mention notifications.
+- [x] Invite notifications.
 - [ ] Thread notifications.
 - [ ] Call notifications with full-screen/incoming-call semantics where platform allows.
 - [x] Grouping and summary notifications.
