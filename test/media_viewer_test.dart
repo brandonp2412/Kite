@@ -44,7 +44,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fixture.loadCounts, <int>[1, 1, 0]);
-    expect(find.text('2 of 3'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byKey(const Key('media-page-fixture-1'))).label,
+      contains('2 of 3'),
+    );
     expect(find.byKey(const Key('media-full-fixture-1')), findsOneWidget);
     expect(find.byKey(const Key('media-full-fixture-0')), findsNothing);
   });
@@ -142,16 +145,16 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();
-    expect(find.text('2 of 3'), findsOneWidget);
+    expect(find.byKey(const Key('media-full-fixture-1')), findsOneWidget);
     expect(fixture.loadCounts, <int>[1, 1, 0]);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pumpAndSettle();
-    expect(find.text('1 of 3'), findsOneWidget);
+    expect(find.byKey(const Key('media-full-fixture-0')), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pumpAndSettle();
-    expect(find.text('1 of 3'), findsOneWidget);
+    expect(find.byKey(const Key('media-full-fixture-0')), findsOneWidget);
   });
 
   testWidgets('media controls expose labelled 48dp accessibility targets', (

@@ -143,6 +143,6 @@ void main() {
     }
 
     await tester.pumpAndSettle();
-    expect(find.text('2 of 3'), findsOneWidget);
+    expect(find.byKey(const Key('media-full-fixture-1')), findsOneWidget);
   });
 }
