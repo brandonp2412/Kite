@@ -105,7 +105,11 @@ final class MatrixRuntimeCoordinator
 
   Future<void> stop() {
     return _enqueueTransition(() async {
-      if (!_started && !_sync.isRunning) return;
+      if (!_started &&
+          !_sync.isRunning &&
+          _sync.state.value.phase == MatrixSyncPhase.idle) {
+        return;
+      }
       _started = false;
       await _reconcile();
     });

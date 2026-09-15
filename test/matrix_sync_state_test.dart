@@ -200,6 +200,30 @@ void main() {
     },
   );
 
+  test('runtime stop retries transient engine cleanup failure', () async {
+    final engine = _StateFakeMatrixEngine(stopFailuresRemaining: 1);
+    final runtime = MatrixRuntimeCoordinator(
+      engine: engine,
+      applyBatch: (_) {},
+      applyPagination: (_) {},
+      initialActivity: MatrixAppActivity.foreground,
+      initialNetworkState: MatrixNetworkState.online,
+    );
+
+    await runtime.start();
+    await expectLater(runtime.stop(), throwsStateError);
+
+    expect(runtime.isSyncing, isFalse);
+    expect(runtime.syncState.value.phase, MatrixSyncPhase.failed);
+    expect(engine.stopCalls, 1);
+
+    await runtime.stop();
+
+    expect(engine.stopCalls, 2);
+    expect(runtime.syncState.value.phase, MatrixSyncPhase.idle);
+    await engine.close();
+  });
+
   test(
     'going offline invalidates in-flight pagination before it can apply',
     () async {

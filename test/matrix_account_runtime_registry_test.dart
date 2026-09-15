@@ -1092,6 +1092,72 @@ void main() {
   );
 
   test(
+    'active account removal stop failure restores sync and remains retryable',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      final cache = await registry.activate('@alice:example.org');
+      final boundary = boundaries['@alice:example.org']!;
+      boundary.stopFailuresRemaining = 1;
+
+      await expectLater(
+        registry.removeAccount('@alice:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.activeCache, same(cache));
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.running);
+      expect(boundary.startCalls, 2);
+      expect(boundary.stopCalls, 2);
+      expect(boundary.closeCalls, 0);
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+
+      expect(await registry.removeAccount('@alice:example.org'), isTrue);
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(boundary.closeCalls, 1);
+    },
+  );
+
+  test(
+    'active account removal close failure restores sync and remains retryable',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      final cache = await registry.activate('@alice:example.org');
+      final boundary = boundaries['@alice:example.org']!;
+      boundary.closeFailuresRemaining = 1;
+
+      await expectLater(
+        registry.removeAccount('@alice:example.org'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.activeCache, same(cache));
+      expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.running);
+      expect(boundary.startCalls, 2);
+      expect(boundary.stopCalls, 1);
+      expect(boundary.closeCalls, 1);
+
+      expect(await registry.removeAccount('@alice:example.org'), isTrue);
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.loadedAccountIds, isEmpty);
+      expect(boundary.closeCalls, 2);
+    },
+  );
+
+  test(
     'account removal clears abandoned presentation dirty state before re-add',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};

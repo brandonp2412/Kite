@@ -192,8 +192,17 @@ final class MatrixAccountRuntimeRegistry {
     return _enqueue<bool>(() async {
       final runtime = _runtimes[normalizedAccountId];
       if (runtime != null) {
-        await runtime.runtime.stop();
-        await runtime.engine.close();
+        try {
+          await runtime.runtime.stop();
+          await runtime.engine.close();
+        } catch (error, stackTrace) {
+          if (activeAccountId.value == normalizedAccountId) {
+            try {
+              await runtime.runtime.start();
+            } catch (_) {}
+          }
+          Error.throwWithStackTrace(error, stackTrace);
+        }
         _runtimes.remove(normalizedAccountId);
       }
       FutureOr<void>? activeRemoval;
