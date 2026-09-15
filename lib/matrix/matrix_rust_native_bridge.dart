@@ -41,6 +41,99 @@ typedef _ClientFreeDart = void Function(Pointer<Void> client);
 typedef MatrixSdkStoreSecretResolver = Future<String> Function(String keyId);
 typedef MatrixRustSyncDelay = Future<void> Function(Duration duration);
 
+final class _MatrixNativeSyncOperation {
+  const _MatrixNativeSyncOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.timeoutMs,
+  });
+
+  final String libraryPath;
+  final int address;
+  final int timeoutMs;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final syncOnce = library
+        .lookupFunction<_ClientSyncOnceNative, _ClientSyncOnceDart>(
+          'kite_matrix_client_sync_once',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final value = syncOnce(Pointer<Void>.fromAddress(address), timeoutMs);
+    if (value == nullptr) {
+      throw StateError('Matrix Rust SDK sync failed');
+    }
+    try {
+      return value.cast<Utf8>().toDartString();
+    } finally {
+      freeString(value);
+    }
+  }
+}
+
+final class _MatrixNativePaginateOperation {
+  const _MatrixNativePaginateOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final paginate = library
+        .lookupFunction<_ClientPaginateNative, _ClientPaginateDart>(
+          'kite_matrix_client_paginate_backwards',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    try {
+      final value = paginate(
+        Pointer<Void>.fromAddress(address),
+        roomIdUtf8.cast<Char>(),
+      );
+      if (value == nullptr) {
+        throw StateError('Matrix Rust SDK back-pagination failed');
+      }
+      try {
+        return value.cast<Utf8>().toDartString();
+      } finally {
+        freeString(value);
+      }
+    } finally {
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeFreeOperation {
+  const _MatrixNativeFreeOperation({
+    required this.libraryPath,
+    required this.address,
+  });
+
+  final String libraryPath;
+  final int address;
+
+  void call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final clientFree = library
+        .lookupFunction<_ClientFreeNative, _ClientFreeDart>(
+          'kite_matrix_client_free',
+        );
+    clientFree(Pointer<Void>.fromAddress(address));
+  }
+}
+
 abstract interface class MatrixRustBridge {
   Future<MatrixRustClient> openEncryptedClient({
     required Uri homeserver,
@@ -153,26 +246,13 @@ final class MatrixRustNativeClient implements MatrixRustClient {
       final address = _requireAddress();
       final path = libraryPath;
       final timeoutMs = timeout.inMilliseconds;
-      return Isolate.run<String>(() {
-        final library = DynamicLibrary.open(path);
-        final syncOnce = library
-            .lookupFunction<_ClientSyncOnceNative, _ClientSyncOnceDart>(
-              'kite_matrix_client_sync_once',
-            );
-        final freeString = library
-            .lookupFunction<_StringFreeNative, _StringFreeDart>(
-              'kite_matrix_string_free',
-            );
-        final value = syncOnce(Pointer<Void>.fromAddress(address), timeoutMs);
-        if (value == nullptr) {
-          throw StateError('Matrix Rust SDK sync failed');
-        }
-        try {
-          return value.cast<Utf8>().toDartString();
-        } finally {
-          freeString(value);
-        }
-      });
+      return Isolate.run<String>(
+        _MatrixNativeSyncOperation(
+          libraryPath: path,
+          address: address,
+          timeoutMs: timeoutMs,
+        ).call,
+      );
     });
   }
 
@@ -186,34 +266,13 @@ final class MatrixRustNativeClient implements MatrixRustClient {
     return _enqueue<String>(() async {
       final address = _requireAddress();
       final path = libraryPath;
-      return Isolate.run<String>(() {
-        final library = DynamicLibrary.open(path);
-        final paginate = library
-            .lookupFunction<_ClientPaginateNative, _ClientPaginateDart>(
-              'kite_matrix_client_paginate_backwards',
-            );
-        final freeString = library
-            .lookupFunction<_StringFreeNative, _StringFreeDart>(
-              'kite_matrix_string_free',
-            );
-        final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
-        try {
-          final value = paginate(
-            Pointer<Void>.fromAddress(address),
-            roomIdUtf8.cast<Char>(),
-          );
-          if (value == nullptr) {
-            throw StateError('Matrix Rust SDK back-pagination failed');
-          }
-          try {
-            return value.cast<Utf8>().toDartString();
-          } finally {
-            freeString(value);
-          }
-        } finally {
-          calloc.free(roomIdUtf8);
-        }
-      });
+      return Isolate.run<String>(
+        _MatrixNativePaginateOperation(
+          libraryPath: path,
+          address: address,
+          roomId: roomId,
+        ).call,
+      );
     });
   }
 
@@ -223,14 +282,9 @@ final class MatrixRustNativeClient implements MatrixRustClient {
       if (_address == 0) return;
       final address = _address;
       final path = libraryPath;
-      await Isolate.run<void>(() {
-        final library = DynamicLibrary.open(path);
-        final clientFree = library
-            .lookupFunction<_ClientFreeNative, _ClientFreeDart>(
-              'kite_matrix_client_free',
-            );
-        clientFree(Pointer<Void>.fromAddress(address));
-      });
+      await Isolate.run<void>(
+        _MatrixNativeFreeOperation(libraryPath: path, address: address).call,
+      );
       _address = 0;
     });
   }
