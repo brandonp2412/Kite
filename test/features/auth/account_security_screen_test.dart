@@ -196,6 +196,7 @@ void main() {
 
     expect(accountGateway.signedOut, <String>['work']);
     expect(activeSignOutCalls, 1);
+    expect(devices.devices.value, isEmpty);
   });
 
   testWidgets('confirms remote session and account sign-out before mutation', (
@@ -241,5 +242,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(accountGateway.signedOut, <String>['work']);
     expect(find.byKey(const Key('account-work')), findsNothing);
+    expect(devices.devices.value, isEmpty);
+    expect(find.byKey(const Key('device-CURRENT')), findsNothing);
   });
 }

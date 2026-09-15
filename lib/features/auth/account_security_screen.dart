@@ -92,6 +92,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
     if (!confirmed) return;
     final signedOut = await widget.accountController.signOut(account.accountId);
     if (signedOut && account.isActive) {
+      widget.sessionDeviceController.resetForAccountChange();
       widget.onActiveAccountSignedOut?.call();
     }
   }
