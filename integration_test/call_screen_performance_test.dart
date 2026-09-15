@@ -19,83 +19,127 @@ void main() {
       ? PerformanceContract.gateVirtualizedTotalSpan
       : PerformanceContract.gatePhysicalTotalSpan;
 
-  testWidgets(
-    'incoming call accept and in-call controls have zero late Flutter frames',
-    (tester) async {
-      final gateway = DeterministicMatrixRtcGateway()
-        ..callParticipants = const <KiteCallParticipant>[
-          KiteCallParticipant(
-            participantId: 'alice',
-            userId: '@alice:example.org',
-            displayName: 'Alice',
-            isLocal: false,
-            isMicrophoneMuted: false,
-            isCameraEnabled: true,
-            isSpeaking: true,
-          ),
-          KiteCallParticipant(
-            participantId: 'local',
-            userId: '@me:example.org',
-            displayName: 'Me',
-            isLocal: true,
-            isMicrophoneMuted: false,
-            isCameraEnabled: true,
-            isSpeaking: false,
-          ),
-        ];
-      final coordinator = KiteCallCoordinator(
-        gateway: gateway,
-        pictureInPicture: DeterministicPictureInPicturePort(),
-        logger: StructuredLogger(
-          sink: MemoryStructuredLogSink(),
-          traceIds: SequenceTraceIdGenerator(seed: 1),
-        ),
-      );
-      coordinator.registerIncomingCall(
-        const MatrixRtcSessionDescriptor(
-          callId: 'benchmark-call',
-          roomId: '!dm:example.org',
-          kind: KiteCallKind.video,
-          scope: KiteCallScope.direct,
-        ),
-      );
+  testWidgets('incoming call accept has zero late Flutter frames', (
+    tester,
+  ) async {
+    final fixture = _fixture();
+    fixture.coordinator.registerIncomingCall(
+      const MatrixRtcSessionDescriptor(
+        callId: 'benchmark-call',
+        roomId: '!dm:example.org',
+        kind: KiteCallKind.video,
+        scope: KiteCallScope.direct,
+      ),
+    );
+    await _pumpCall(tester, fixture.coordinator);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: KiteTheme.light,
-          home: KiteCallScreen(coordinator: coordinator, roomName: 'Alice'),
-        ),
-      );
-      await tester.pumpAndSettle();
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('call-accept')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('call-controls')), findsOneWidget);
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
 
-      final result = await measureFrames(
-        binding: binding,
-        action: () async {
-          await tester.tap(find.byKey(const Key('call-accept')));
-          await tester.pump();
-          await tester.pump();
-          expect(find.byKey(const Key('call-controls')), findsOneWidget);
+    expect(fixture.coordinator.phase.value, KiteCallPhase.active);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['incoming_call_accept'] = <String, dynamic>{
+      'journey': 'incoming_call_accept',
+      'fixture': 'deterministic_matrixrtc_call_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
 
-          await tester.tap(find.byKey(const Key('call-microphone')));
-          await tester.pump();
-          await tester.tap(find.byKey(const Key('call-camera')));
-          await tester.pump();
-          await tester.tap(find.byKey(const Key('call-participant-alice')));
-          await tester.pump();
-          await tester.tap(find.byKey(const Key('call-hang-up')));
-          await tester.pump();
-        },
-        enforceTotalSpan: enforceTotalSpan,
-      );
+  testWidgets('active call controls have zero late Flutter frames', (
+    tester,
+  ) async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+    await fixture.coordinator.refreshParticipants();
+    await fixture.coordinator.refreshAudioRoutes();
+    await fixture.coordinator.refreshPictureInPictureSupport();
+    await _pumpCall(tester, fixture.coordinator);
 
-      expect(coordinator.phase.value, KiteCallPhase.ended);
-      binding.reportData ??= <String, dynamic>{};
-      binding.reportData!['call_screen_controls'] = <String, dynamic>{
-        'journey': 'incoming_accept_controls_hangup',
-        'fixture': 'deterministic_matrixrtc_call_v1',
-        ...result,
-        'result': 'PASS',
-      };
-    },
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(_roundButton('call-microphone'));
+        await tester.pumpAndSettle();
+        await tester.tap(_roundButton('call-camera'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('call-participant-alice')));
+        await tester.pumpAndSettle();
+        await tester.tap(_roundButton('call-hang-up'));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['call_controls'] = <String, dynamic>{
+      'journey': 'active_call_controls_hangup',
+      'fixture': 'deterministic_matrixrtc_call_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+}
+
+_CallFixture _fixture() {
+  final gateway = DeterministicMatrixRtcGateway()
+    ..callParticipants = const <KiteCallParticipant>[
+      KiteCallParticipant(
+        participantId: 'alice',
+        userId: '@alice:example.org',
+        displayName: 'Alice',
+        isLocal: false,
+        isMicrophoneMuted: false,
+        isCameraEnabled: true,
+        isSpeaking: true,
+      ),
+      KiteCallParticipant(
+        participantId: 'local',
+        userId: '@me:example.org',
+        displayName: 'Me',
+        isLocal: true,
+        isMicrophoneMuted: false,
+        isCameraEnabled: true,
+        isSpeaking: false,
+      ),
+    ];
+  final coordinator = KiteCallCoordinator(
+    gateway: gateway,
+    pictureInPicture: DeterministicPictureInPicturePort(),
+    logger: StructuredLogger(
+      sink: MemoryStructuredLogSink(),
+      traceIds: SequenceTraceIdGenerator(seed: 1),
+    ),
   );
+  return _CallFixture(gateway: gateway, coordinator: coordinator);
+}
+
+Future<void> _pumpCall(
+  WidgetTester tester,
+  KiteCallCoordinator coordinator,
+) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: KiteTheme.light,
+      home: KiteCallScreen(coordinator: coordinator, roomName: 'Alice'),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Finder _roundButton(String key) => find.byKey(Key(key));
+
+final class _CallFixture {
+  const _CallFixture({required this.gateway, required this.coordinator});
+
+  final DeterministicMatrixRtcGateway gateway;
+  final KiteCallCoordinator coordinator;
 }

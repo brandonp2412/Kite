@@ -10,6 +10,7 @@ class RoomCreationScreen extends StatefulWidget {
   const RoomCreationScreen({
     required this.coordinator,
     this.initialMode = RoomCreationMode.privateRoom,
+    this.initialDirectUserId,
     this.parentSpaceId,
     this.onCreated,
     super.key,
@@ -17,6 +18,7 @@ class RoomCreationScreen extends StatefulWidget {
 
   final RoomManagementCoordinator coordinator;
   final RoomCreationMode initialMode;
+  final String? initialDirectUserId;
   final String? parentSpaceId;
   final ValueChanged<KiteCreatedRoom>? onCreated;
 
@@ -27,7 +29,7 @@ class RoomCreationScreen extends StatefulWidget {
 class _RoomCreationScreenState extends State<RoomCreationScreen> {
   final _name = TextEditingController();
   final _topic = TextEditingController();
-  final _userId = TextEditingController();
+  late final TextEditingController _userId;
   final _alias = TextEditingController();
   late RoomCreationMode _mode;
   KiteRoomCapabilities? _capabilities;
@@ -40,6 +42,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
   void initState() {
     super.initState();
     _mode = widget.initialMode;
+    _userId = TextEditingController(text: widget.initialDirectUserId);
     _encrypt = _mode != RoomCreationMode.publicRoom;
     unawaited(_loadCapabilities());
   }

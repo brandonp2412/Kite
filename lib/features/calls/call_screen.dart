@@ -125,68 +125,76 @@ class _KiteCallScreenState extends State<KiteCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.kiteColors.canvas,
-      body: SafeArea(
-        child: SignalBuilder(
-          builder: (context) {
-            final phase = widget.coordinator.phase.value;
-            final session = widget.coordinator.session.value;
-            return Column(
-              children: <Widget>[
-                _CallHeader(
-                  roomName: widget.roomName,
-                  phase: phase,
-                  onClose: widget.onClose,
-                ),
-                Expanded(
-                  child: switch (phase) {
-                    KiteCallPhase.ringing => _IncomingCallBody(
-                      roomName: widget.roomName,
-                      video: session?.kind == KiteCallKind.video,
-                      onAccept: _accept,
-                      onDecline: _decline,
-                    ),
-                    KiteCallPhase.connecting => const _CallStatusBody(
-                      key: Key('call-connecting'),
-                      icon: Icons.call_outlined,
-                      title: 'Connecting…',
-                      detail: 'Setting up a secure Matrix call',
-                    ),
-                    KiteCallPhase.reconnecting => const _CallStatusBody(
-                      key: Key('call-reconnecting'),
-                      icon: Icons.sync_rounded,
-                      title: 'Reconnecting…',
-                      detail:
-                          'Keeping the call open while the network recovers',
-                    ),
-                    KiteCallPhase.active => _ActiveCallBody(
-                      coordinator: widget.coordinator,
-                    ),
-                    KiteCallPhase.ended => _EndedCallBody(
-                      roomName: widget.roomName,
-                      reason: session?.endReason,
-                      onClose: widget.onClose,
-                    ),
-                    KiteCallPhase.idle => _EndedCallBody(
-                      roomName: widget.roomName,
-                      onClose: widget.onClose,
-                    ),
-                  },
-                ),
-                if (phase == KiteCallPhase.active)
-                  _CallControls(
-                    coordinator: widget.coordinator,
-                    onMicrophoneChanged: _toggleMicrophone,
-                    onCameraChanged: _toggleCamera,
-                    onSwitchCamera: _switchCamera,
-                    onAudioRouteSelected: _selectAudioRoute,
-                    onPictureInPicture: _enterPictureInPicture,
-                    onHangUp: _hangUp,
+    final callTheme = Theme.of(context).copyWith(
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+    );
+    return Theme(
+      data: callTheme,
+      child: Scaffold(
+        backgroundColor: context.kiteColors.canvas,
+        body: SafeArea(
+          child: SignalBuilder(
+            builder: (context) {
+              final phase = widget.coordinator.phase.value;
+              final session = widget.coordinator.session.value;
+              return Column(
+                children: <Widget>[
+                  _CallHeader(
+                    roomName: widget.roomName,
+                    phase: phase,
+                    onClose: widget.onClose,
                   ),
-              ],
-            );
-          },
+                  Expanded(
+                    child: switch (phase) {
+                      KiteCallPhase.ringing => _IncomingCallBody(
+                        roomName: widget.roomName,
+                        video: session?.kind == KiteCallKind.video,
+                        onAccept: _accept,
+                        onDecline: _decline,
+                      ),
+                      KiteCallPhase.connecting => const _CallStatusBody(
+                        key: Key('call-connecting'),
+                        icon: Icons.call_outlined,
+                        title: 'Connecting…',
+                        detail: 'Setting up a secure Matrix call',
+                      ),
+                      KiteCallPhase.reconnecting => const _CallStatusBody(
+                        key: Key('call-reconnecting'),
+                        icon: Icons.sync_rounded,
+                        title: 'Reconnecting…',
+                        detail:
+                            'Keeping the call open while the network recovers',
+                      ),
+                      KiteCallPhase.active => _ActiveCallBody(
+                        coordinator: widget.coordinator,
+                      ),
+                      KiteCallPhase.ended => _EndedCallBody(
+                        roomName: widget.roomName,
+                        reason: session?.endReason,
+                        onClose: widget.onClose,
+                      ),
+                      KiteCallPhase.idle => _EndedCallBody(
+                        roomName: widget.roomName,
+                        onClose: widget.onClose,
+                      ),
+                    },
+                  ),
+                  if (phase == KiteCallPhase.active)
+                    _CallControls(
+                      coordinator: widget.coordinator,
+                      onMicrophoneChanged: _toggleMicrophone,
+                      onCameraChanged: _toggleCamera,
+                      onSwitchCamera: _switchCamera,
+                      onAudioRouteSelected: _selectAudioRoute,
+                      onPictureInPicture: _enterPictureInPicture,
+                      onHangUp: _hangUp,
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -412,15 +420,17 @@ class _ParticipantTile extends StatelessWidget {
       selected: spotlighted,
       label:
           '${participant.displayName}, ${participant.isMicrophoneMuted ? 'microphone muted' : 'microphone on'}',
-      child: Material(
+      child: GestureDetector(
         key: Key('call-participant-${participant.participantId}'),
-        color: participant.isCameraEnabled
-            ? colors.surfaceContainerHighest
-            : context.kiteColors.field,
-        borderRadius: BorderRadius.circular(KiteRadii.lg),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: participant.isCameraEnabled
+                ? colors.surfaceContainerHighest
+                : context.kiteColors.field,
+            borderRadius: BorderRadius.circular(KiteRadii.lg),
+          ),
           child: Stack(
             fit: StackFit.expand,
             children: <Widget>[
@@ -630,35 +640,40 @@ class _RoundCallButton extends StatelessWidget {
         : selected
         ? colors.onPrimary
         : colors.onSurface;
+    final enabled = onPressed != null;
     return Semantics(
       button: true,
       label: label,
-      enabled: onPressed != null,
-      child: SizedBox(
-        width: 68,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            IconButton.filled(
-              onPressed: onPressed,
-              style: IconButton.styleFrom(
-                fixedSize: const Size.square(52),
-                backgroundColor: background,
-                foregroundColor: foreground,
-                disabledBackgroundColor: background.withValues(
-                  alpha: KiteOpacity.disabled,
+      enabled: enabled,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 68,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: enabled
+                      ? background
+                      : background.withValues(alpha: KiteOpacity.disabled),
+                  shape: BoxShape.circle,
+                ),
+                child: SizedBox.square(
+                  dimension: 52,
+                  child: Icon(icon, color: foreground),
                 ),
               ),
-              icon: Icon(icon),
-            ),
-            const SizedBox(height: KiteSpacing.xxs),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: KiteTypography.metadata,
-            ),
-          ],
+              const SizedBox(height: KiteSpacing.xxs),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: KiteTypography.metadata,
+              ),
+            ],
+          ),
         ),
       ),
     );
