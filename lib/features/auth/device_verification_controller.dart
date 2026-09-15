@@ -131,15 +131,21 @@ final class DeviceVerificationController {
   }
 
   Future<bool> startQrVerification() {
+    if (!_canStartVerification()) return Future<bool>.value(false);
     return _runSessionAction(
       _gateway.startQrVerification,
       expectedMethod: DeviceVerificationMethod.qr,
+      allowedStages: const <DeviceVerificationStage>{
+        DeviceVerificationStage.ready,
+        DeviceVerificationStage.waitingForPeer,
+      },
       failureMessage: 'Kite could not start QR verification.',
     );
   }
 
   Future<bool> submitScannedQrCode(String qrCodeData) async {
     if (isBusy.value) return false;
+    if (!_canStartVerification()) return false;
     if (qrCodeData.trim().isEmpty) {
       errorMessage.value = 'Scan a valid verification QR code.';
       return false;
@@ -148,6 +154,10 @@ final class DeviceVerificationController {
     return _runSessionAction(
       () => _gateway.submitScannedQrCode(qrCodeData),
       expectedMethod: DeviceVerificationMethod.qr,
+      allowedStages: const <DeviceVerificationStage>{
+        DeviceVerificationStage.ready,
+        DeviceVerificationStage.waitingForPeer,
+      },
       failureMessage: 'Kite could not verify that QR code.',
     );
   }
@@ -164,14 +174,22 @@ final class DeviceVerificationController {
       () => _gateway.confirmQrVerification(current.transactionId),
       expectedMethod: DeviceVerificationMethod.qr,
       expectedTransactionId: current.transactionId,
+      allowedStages: const <DeviceVerificationStage>{
+        DeviceVerificationStage.verified,
+      },
       failureMessage: 'Kite could not confirm QR verification.',
     );
   }
 
   Future<bool> startSasVerification() {
+    if (!_canStartVerification()) return Future<bool>.value(false);
     return _runSessionAction(
       _gateway.startSasVerification,
       expectedMethod: DeviceVerificationMethod.sas,
+      allowedStages: const <DeviceVerificationStage>{
+        DeviceVerificationStage.ready,
+        DeviceVerificationStage.waitingForPeer,
+      },
       failureMessage: 'Kite could not start emoji verification.',
     );
   }
@@ -192,6 +210,9 @@ final class DeviceVerificationController {
       () => _gateway.confirmSasVerification(current.transactionId),
       expectedMethod: DeviceVerificationMethod.sas,
       expectedTransactionId: current.transactionId,
+      allowedStages: const <DeviceVerificationStage>{
+        DeviceVerificationStage.verified,
+      },
       failureMessage: 'Kite could not confirm emoji verification.',
     );
   }
@@ -224,9 +245,17 @@ final class DeviceVerificationController {
     }
   }
 
+  bool _canStartVerification() {
+    final current = session.value;
+    if (current == null || current.isTerminal) return true;
+    errorMessage.value = 'Finish or cancel the current verification first.';
+    return false;
+  }
+
   Future<bool> _runSessionAction(
     Future<DeviceVerificationSession> Function() action, {
     required DeviceVerificationMethod expectedMethod,
+    required Set<DeviceVerificationStage> allowedStages,
     String? expectedTransactionId,
     required String failureMessage,
   }) async {
@@ -239,6 +268,7 @@ final class DeviceVerificationController {
       final next = await action();
       if (generation != _accountGeneration) return false;
       if (next.method != expectedMethod ||
+          !allowedStages.contains(next.stage) ||
           (expectedTransactionId != null &&
               next.transactionId != expectedTransactionId)) {
         errorMessage.value = 'Kite received an invalid verification state.';

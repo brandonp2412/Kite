@@ -14,6 +14,10 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
   String? cancelledTransactionId;
   int trustReads = 0;
   bool confirmationUpdatesTrust = true;
+  DeviceVerificationStage qrConfirmationStage =
+      DeviceVerificationStage.verified;
+  DeviceVerificationStage sasConfirmationStage =
+      DeviceVerificationStage.verified;
   Completer<CrossSigningTrustState>? deferredTrust;
 
   @override
@@ -34,8 +38,10 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
     return DeviceVerificationSession(
       transactionId: returnedQrTransactionId ?? transactionId,
       method: DeviceVerificationMethod.qr,
-      stage: DeviceVerificationStage.verified,
-      qrCodeData: 'POST-CONFIRM-QR-SECRET',
+      stage: qrConfirmationStage,
+      qrCodeData: qrConfirmationStage == DeviceVerificationStage.verified
+          ? 'POST-CONFIRM-QR-SECRET'
+          : null,
     );
   }
 
@@ -51,8 +57,10 @@ final class _FakeVerificationGateway implements DeviceVerificationGateway {
     return DeviceVerificationSession(
       transactionId: returnedSasTransactionId ?? transactionId,
       method: DeviceVerificationMethod.sas,
-      stage: DeviceVerificationStage.verified,
-      sasEmoji: const <String>['🐶', '🌳', '🚲'],
+      stage: sasConfirmationStage,
+      sasEmoji: sasConfirmationStage == DeviceVerificationStage.verified
+          ? const <String>['🐶', '🌳', '🚲']
+          : const <String>[],
     );
   }
 
@@ -227,6 +235,8 @@ void main() {
       expect(started.toString(), isNot(contains('MATRIX-VERIFICATION-SECRET')));
       expect(started.toString(), contains('<redacted>'));
 
+      expect(await controller.cancelVerification(), isTrue);
+      controller.clearCompletedSession();
       expect(
         await controller.submitScannedQrCode('SCANNED-OPAQUE-PAYLOAD'),
         isTrue,
@@ -247,6 +257,27 @@ void main() {
       expect(gateway.trustReads, 1);
     },
   );
+
+  test('active verification cannot be silently replaced', () async {
+    final gateway = _FakeVerificationGateway();
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.startQrVerification(), isTrue);
+    final active = controller.session.value;
+
+    expect(await controller.startSasVerification(), isFalse);
+    expect(
+      await controller.submitScannedQrCode('SCANNED-OPAQUE-PAYLOAD'),
+      isFalse,
+    );
+    expect(controller.session.value, same(active));
+    expect(gateway.scannedQrCode, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Finish or cancel the current verification first.',
+    );
+  });
 
   test(
     'SAS flow exposes only SDK-provided emoji and confirms by transaction',
@@ -270,6 +301,25 @@ void main() {
       expect(controller.trustState.value, CrossSigningTrustState.verified);
     },
   );
+
+  test('confirmation must return a terminal verified SDK state', () async {
+    final gateway = _FakeVerificationGateway()
+      ..qrConfirmationStage = DeviceVerificationStage.waitingForPeer;
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.startQrVerification(), isTrue);
+    final original = controller.session.value;
+    expect(await controller.confirmQrVerification(), isFalse);
+
+    expect(controller.session.value, same(original));
+    expect(controller.trustState.value, CrossSigningTrustState.unknown);
+    expect(gateway.trustReads, 0);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid verification state.',
+    );
+  });
 
   test('confirmation cannot switch verification transactions', () async {
     final gateway = _FakeVerificationGateway()
