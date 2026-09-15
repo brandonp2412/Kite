@@ -98,6 +98,8 @@ Kite should not merely contain the same controls. It must have the same level of
 
 **Benchmarks:** cold app open, warm app open, account switch, sync update into room list, room pagination, offline-to-online recovery.
 
+**Latest lane-1 verification (2026-09-16):** encrypted-store key lifecycle hardening passes 53 focused tests with clean scoped analysis, and the full Flutter suite exits successfully. No runtime-backed checkbox is newly complete; the locked Waydroid raster blocker below still applies.
+
 ## Milestone 2 — Authentication, session verification, encryption, and app lock
 
 - [ ] Homeserver selection and discovery UI.
