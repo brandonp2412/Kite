@@ -53,6 +53,35 @@ void main() {
     };
   });
 
+  testWidgets('remote active-call end has zero late Flutter frames', (
+    tester,
+  ) async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+    final callId = fixture.coordinator.session.value!.callId;
+    await _pumpCall(tester, fixture.coordinator);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        expect(fixture.coordinator.endCallFromSync(callId), isTrue);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('call-ended')), findsOneWidget);
+        expect(find.text('Call ended'), findsOneWidget);
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['remote_call_end'] = <String, dynamic>{
+      'journey': 'remote_active_call_end',
+      'fixture': 'deterministic_matrixrtc_call_v2_sync_lifetime',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('active call controls have zero late Flutter frames', (
     tester,
   ) async {

@@ -114,4 +114,49 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'remote call end settles without late geometry movement at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(900, 1200);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      final coordinator = KiteCallCoordinator(
+        gateway: DeterministicMatrixRtcGateway(seed: 42),
+        pictureInPicture: DeterministicPictureInPicturePort(),
+        logger: StructuredLogger(
+          sink: MemoryStructuredLogSink(),
+          traceIds: SequenceTraceIdGenerator(seed: 42),
+        ),
+      );
+      await coordinator.startDirectVideoCall('!dm:example.org');
+      final callId = coordinator.session.value!.callId;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: KiteCallScreen(coordinator: coordinator, roomName: 'Alice'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(coordinator.endCallFromSync(callId), isTrue);
+      await tester.pump();
+      final ended = find.byKey(const Key('call-ended'));
+      expect(ended, findsOneWidget);
+      expect(find.text('Call ended'), findsOneWidget);
+      expect(find.byKey(const Key('call-controls')), findsNothing);
+      final endedRect = _rectOf(tester, ended);
+
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, ended), endedRect);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 }

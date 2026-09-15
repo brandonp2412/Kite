@@ -143,56 +143,61 @@ class _KiteCallScreenState extends State<KiteCallScreen> {
               final securityState = widget.coordinator.securityState.value;
               return Column(
                 children: <Widget>[
-                  _CallHeader(
-                    roomName: widget.roomName,
-                    phase: phase,
-                    securityState: securityState,
-                    onClose: widget.onClose,
+                  RepaintBoundary(
+                    child: _CallHeader(
+                      roomName: widget.roomName,
+                      phase: phase,
+                      securityState: securityState,
+                      onClose: widget.onClose,
+                    ),
                   ),
                   Expanded(
-                    child: switch (phase) {
-                      KiteCallPhase.ringing => _IncomingCallBody(
-                        roomName: widget.roomName,
-                        video: session?.kind == KiteCallKind.video,
-                        onAccept: _accept,
-                        onDecline: _decline,
-                      ),
-                      KiteCallPhase.connecting => const _CallStatusBody(
-                        key: Key('call-connecting'),
-                        icon: Icons.call_outlined,
-                        title: 'Connecting…',
-                        detail: 'Setting up a secure Matrix call',
-                      ),
-                      KiteCallPhase.reconnecting => const _CallStatusBody(
-                        key: Key('call-reconnecting'),
-                        icon: Icons.sync_rounded,
-                        title: 'Reconnecting…',
-                        detail:
-                            'Keeping the call open while the network recovers',
-                      ),
-                      KiteCallPhase.active => _ActiveCallBody(
-                        coordinator: widget.coordinator,
-                      ),
-                      KiteCallPhase.ended => _EndedCallBody(
-                        roomName: widget.roomName,
-                        reason: session?.endReason,
-                        onClose: widget.onClose,
-                      ),
-                      KiteCallPhase.idle => _EndedCallBody(
-                        roomName: widget.roomName,
-                        onClose: widget.onClose,
-                      ),
-                    },
+                    child: RepaintBoundary(
+                      child: switch (phase) {
+                        KiteCallPhase.ringing => _IncomingCallBody(
+                          roomName: widget.roomName,
+                          video: session?.kind == KiteCallKind.video,
+                          onAccept: _accept,
+                          onDecline: _decline,
+                        ),
+                        KiteCallPhase.connecting => const _CallStatusBody(
+                          key: Key('call-connecting'),
+                          icon: Icons.call_outlined,
+                          title: 'Connecting…',
+                          detail: 'Setting up a secure Matrix call',
+                        ),
+                        KiteCallPhase.reconnecting => const _CallStatusBody(
+                          key: Key('call-reconnecting'),
+                          icon: Icons.sync_rounded,
+                          title: 'Reconnecting…',
+                          detail: 'Keeping the call open while the network recovers',
+                        ),
+                        KiteCallPhase.active => _ActiveCallBody(
+                          coordinator: widget.coordinator,
+                        ),
+                        KiteCallPhase.ended => _EndedCallBody(
+                          roomName: widget.roomName,
+                          reason: session?.endReason,
+                          onClose: widget.onClose,
+                        ),
+                        KiteCallPhase.idle => _EndedCallBody(
+                          roomName: widget.roomName,
+                          onClose: widget.onClose,
+                        ),
+                      },
+                    ),
                   ),
                   if (phase == KiteCallPhase.active)
-                    _CallControls(
-                      coordinator: widget.coordinator,
-                      onMicrophoneChanged: _toggleMicrophone,
-                      onCameraChanged: _toggleCamera,
-                      onSwitchCamera: _switchCamera,
-                      onAudioRouteSelected: _selectAudioRoute,
-                      onPictureInPicture: _enterPictureInPicture,
-                      onHangUp: _hangUp,
+                    RepaintBoundary(
+                      child: _CallControls(
+                        coordinator: widget.coordinator,
+                        onMicrophoneChanged: _toggleMicrophone,
+                        onCameraChanged: _toggleCamera,
+                        onSwitchCamera: _switchCamera,
+                        onAudioRouteSelected: _selectAudioRoute,
+                        onPictureInPicture: _enterPictureInPicture,
+                        onHangUp: _hangUp,
+                      ),
                     ),
                 ],
               );
@@ -431,16 +436,18 @@ class _ActiveCallBody extends StatelessWidget {
               itemCount: ordered.length,
               itemBuilder: (context, index) {
                 final participant = ordered[index];
-                return _ParticipantTile(
-                  participant: participant,
-                  spotlighted: participant.participantId == spotlightId,
-                  onPressed: participant.isLocal
-                      ? null
-                      : () => coordinator.spotlightParticipant(
-                          participant.participantId == spotlightId
-                              ? null
-                              : participant.participantId,
-                        ),
+                return RepaintBoundary(
+                  child: _ParticipantTile(
+                    participant: participant,
+                    spotlighted: participant.participantId == spotlightId,
+                    onPressed: participant.isLocal
+                        ? null
+                        : () => coordinator.spotlightParticipant(
+                            participant.participantId == spotlightId
+                                ? null
+                                : participant.participantId,
+                          ),
+                  ),
                 );
               },
             );
