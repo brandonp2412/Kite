@@ -26,6 +26,8 @@ final class MatrixPresentationCache {
         ? roomOrder.value
         : roomOrder.value.take(roomLimit);
     final persistedRoomIds = orderedRoomIds.toSet();
+    final preservesCompleteRoomSet =
+        roomLimit == null || roomOrder.value.length <= roomLimit;
 
     return MatrixPresentationSnapshot(
       rooms: <MatrixRoomSummary>[
@@ -39,7 +41,7 @@ final class MatrixPresentationCache {
               timelineEventLimitPerRoom,
             ),
       },
-      syncCursor: lastSyncCursor,
+      syncCursor: preservesCompleteRoomSet ? lastSyncCursor : null,
     );
   }
 

@@ -255,11 +255,41 @@ void main() {
         <String>[r'$3-2', r'$3-3'],
       );
       expect(snapshot.timelines.containsKey('!gamma:kite.test'), isFalse);
-      expect(snapshot.syncCursor, 'cursor-1');
+      expect(snapshot.syncCursor, isNull);
       expect(cache.roomOrder.value, hasLength(3));
       expect(cache.timelineSignal('!alpha:kite.test').value, hasLength(3));
     },
   );
+
+  test('bounded snapshots retain the cursor when no rooms are omitted', () {
+    final cache = MatrixPresentationCache();
+    for (final entry in <(String, int)>[
+      ('!alpha:kite.test', 2),
+      ('!beta:kite.test', 1),
+    ]) {
+      cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'cursor-${entry.$2}',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: entry.$1,
+              summary: _summary(
+                roomId: entry.$1,
+                displayName: entry.$1,
+                position: entry.$2,
+                second: entry.$2,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final snapshot = cache.snapshot(roomLimit: 2);
+
+    expect(snapshot.rooms, hasLength(2));
+    expect(snapshot.syncCursor, 'cursor-1');
+  });
 
   test('equivalent JSON content does not rewrite a timeline signal', () {
     final cache = MatrixPresentationCache();
