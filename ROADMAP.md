@@ -413,8 +413,8 @@ This milestone is not optional cleanup; it is a product feature.
 - [x] New-message insertion benchmark.
 - [x] Reaction/read-receipt/typing-update benchmark.
 - [x] Composer + keyboard benchmark.
-- [ ] Search/filter benchmark.
-- [ ] Spaces/Sections benchmark.
+- [x] Search/filter benchmark.
+- [x] Spaces/Sections benchmark.
 - [ ] Thread open/switch benchmark.
 - [ ] Media viewer benchmark.
 - [ ] Call-screen transition benchmark.
