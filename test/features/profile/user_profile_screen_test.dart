@@ -116,6 +116,19 @@ void main() {
     expect(controller.ownProfile.value?.displayName, 'Brandon Dick');
     expect(find.text('Brandon Dick'), findsWidgets);
 
+    await tester.tap(find.byKey(const Key('edit-display-name')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('profile-display-name-field')),
+      '   ',
+    );
+    await tester.tap(find.byKey(const Key('profile-save-display-name')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.displayName, '');
+    expect(controller.ownProfile.value?.displayName, '');
+    expect(find.text('@brandon:example.org'), findsWidgets);
+
     await tester.tap(find.byKey(const Key('change-profile-avatar')));
     await tester.pump();
     expect(gateway.avatar, selectedAvatar);

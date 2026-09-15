@@ -70,6 +70,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final textController = TextEditingController(
       text: profile.displayName ?? '',
     );
+    final focusNode = FocusNode();
     final route = DialogRoute<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -77,7 +78,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         content: TextField(
           key: const Key('profile-display-name-field'),
           controller: textController,
-          autofocus: true,
+          focusNode: focusNode,
           textInputAction: TextInputAction.done,
           decoration: const InputDecoration(labelText: 'Display name'),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
@@ -96,12 +97,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ],
       ),
     );
-    final next = await Navigator.of(context, rootNavigator: true).push(route);
-    await route.completed;
-    textController.dispose();
+    final routeFuture = Navigator.of(context, rootNavigator: true).push(route);
+    await Future<void>.delayed(route.transitionDuration);
+    if (mounted && route.isActive) {
+      focusNode.requestFocus();
+    }
+    final next = await routeFuture;
     if (next != null && mounted) {
       await widget.controller.updateDisplayName(next);
     }
+    await route.completed;
+    focusNode.dispose();
+    textController.dispose();
   }
 
   Future<void> _changeAvatar() async {

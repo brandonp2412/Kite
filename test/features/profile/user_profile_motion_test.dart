@@ -54,6 +54,51 @@ Rect _rectOf(WidgetTester tester, Finder finder) {
 }
 
 void main() {
+  testWidgets('display-name editor keeps profile geometry stable at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final gateway = _DeferredProfileGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+    await controller.loadOwnProfile();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserProfileScreen.own(controller: controller, loadOnInit: false),
+      ),
+    );
+
+    final list = find.byKey(const Key('user-profile-list'));
+    final header = find.byKey(const Key('profile-header'));
+    final initialList = _rectOf(tester, list);
+    final initialHeader = _rectOf(tester, header);
+
+    await tester.tap(find.byKey(const Key('edit-display-name')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, list), initialList);
+      expect(_rectOf(tester, header), initialHeader);
+      expect(tester.takeException(), isNull);
+    }
+
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('profile-display-name-field')),
+    );
+    expect(field.focusNode?.hasFocus, isTrue);
+    expect(_rectOf(tester, list), initialList);
+    expect(_rectOf(tester, header), initialHeader);
+  });
+
   testWidgets('privacy mutation keeps profile geometry stable at 120 Hz', (
     tester,
   ) async {

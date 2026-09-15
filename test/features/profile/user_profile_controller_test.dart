@@ -22,6 +22,8 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   Object? dmError;
   Object? ignoreError;
   Object? blockError;
+  Object? loadIgnoredError;
+  Object? loadBlockedError;
   String dmRoomId = '!dm:example.org';
   String? updatedDisplayName;
   Uri? updatedAvatar;
@@ -31,10 +33,16 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   Completer<MatrixUserProfile>? deferredViewedProfile;
 
   @override
-  Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignored};
+  Future<Set<String>> loadIgnoredUserIds() async {
+    if (loadIgnoredError case final error?) throw error;
+    return <String>{...ignored};
+  }
 
   @override
-  Future<Set<String>> loadBlockedUserIds() async => <String>{...blocked};
+  Future<Set<String>> loadBlockedUserIds() async {
+    if (loadBlockedError case final error?) throw error;
+    return <String>{...blocked};
+  }
 
   @override
   Future<MatrixUserProfile> loadOwnProfile() async {
@@ -314,11 +322,11 @@ void main() {
       gateway.ignored = {' invalid-user '};
       await controller.loadOwnProfile();
 
-      expect(controller.ownProfile.value, isNull);
+      expect(controller.ownProfile.value?.userId, '@brandon:example.org');
       expect(controller.ignoredUserIds.value, isEmpty);
       expect(
         controller.errorMessage.value,
-        'Kite received invalid profile data.',
+        'Kite received invalid privacy settings.',
       );
     },
   );
@@ -332,6 +340,33 @@ void main() {
 
     expect(controller.viewedProfile.value, isNull);
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
+  });
+
+  test('privacy refresh failure does not blank a valid profile', () async {
+    final gateway = _FakeUserProfileGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+
+    gateway.loadIgnoredError = StateError('access_token=secret');
+    await controller.loadOwnProfile();
+
+    expect(controller.ownProfile.value?.displayName, 'Brandon');
+    expect(
+      controller.errorMessage.value,
+      'Kite could not load your privacy settings.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+
+    gateway.loadIgnoredError = null;
+    gateway.loadBlockedError = StateError('recovery_key=secret');
+    await controller.loadUserProfile('@alice:example.org');
+
+    expect(controller.viewedProfile.value?.displayName, 'Alice');
+    expect(
+      controller.errorMessage.value,
+      'Kite could not load your privacy settings.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
   });
 
   test('profile mutation cannot race an in-flight profile refresh', () async {
@@ -391,6 +426,10 @@ void main() {
     expect(await controller.updateDisplayName('  Brandon Dick  '), isTrue);
     expect(gateway.updatedDisplayName, 'Brandon Dick');
     expect(controller.ownProfile.value?.displayName, 'Brandon Dick');
+
+    expect(await controller.updateDisplayName('   '), isTrue);
+    expect(gateway.updatedDisplayName, '');
+    expect(controller.ownProfile.value?.displayName, '');
 
     final avatar = Uri.parse('mxc://example.org/avatar');
     expect(await controller.updateAvatar(avatar), isTrue);

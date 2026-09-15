@@ -73,21 +73,15 @@ final class UserProfileController {
     try {
       final profile = await _gateway.loadOwnProfile();
       if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final ignored = await _gateway.loadIgnoredUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final blocked = await _gateway.loadBlockedUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      if (!_isValidUserId(profile.userId) ||
-          profile.userId != profile.userId.trim() ||
-          !_isValidAvatarUri(profile.avatarUri) ||
-          !_areValidUserIds(ignored) ||
-          !_areValidUserIds(blocked)) {
+      if (!_isValidProfile(profile)) {
         errorMessage.value = 'Kite received invalid profile data.';
         return;
       }
       ownProfile.value = profile;
-      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
-      blockedUserIds.value = Set<String>.unmodifiable(blocked);
+      await _loadPrivacyControls(
+        generation: generation,
+        requestGeneration: requestGeneration,
+      );
     } catch (_) {
       if (_isCurrentRequest(generation, requestGeneration)) {
         errorMessage.value = 'Kite could not load your profile.';
@@ -107,16 +101,10 @@ final class UserProfileController {
     isLoading.value = true;
     errorMessage.value = null;
     try {
-      final ignored = await _gateway.loadIgnoredUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final blocked = await _gateway.loadBlockedUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      if (!_areValidUserIds(ignored) || !_areValidUserIds(blocked)) {
-        errorMessage.value = 'Kite received invalid privacy settings.';
-        return;
-      }
-      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
-      blockedUserIds.value = Set<String>.unmodifiable(blocked);
+      await _loadPrivacyControls(
+        generation: generation,
+        requestGeneration: requestGeneration,
+      );
     } catch (_) {
       if (_isCurrentRequest(generation, requestGeneration)) {
         errorMessage.value = 'Kite could not load your privacy settings.';
@@ -160,21 +148,15 @@ final class UserProfileController {
     try {
       final profile = await _gateway.loadProfile(userId);
       if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final ignored = await _gateway.loadIgnoredUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      final blocked = await _gateway.loadBlockedUserIds();
-      if (!_isCurrentRequest(generation, requestGeneration)) return;
-      if (profile.userId != userId ||
-          !_isValidUserId(profile.userId) ||
-          !_isValidAvatarUri(profile.avatarUri) ||
-          !_areValidUserIds(ignored) ||
-          !_areValidUserIds(blocked)) {
+      if (profile.userId != userId || !_isValidProfile(profile)) {
         errorMessage.value = 'Kite received invalid profile data.';
         return;
       }
       viewedProfile.value = profile;
-      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
-      blockedUserIds.value = Set<String>.unmodifiable(blocked);
+      await _loadPrivacyControls(
+        generation: generation,
+        requestGeneration: requestGeneration,
+      );
     } catch (_) {
       if (_isCurrentRequest(generation, requestGeneration)) {
         errorMessage.value = 'Kite could not load that profile.';
@@ -191,11 +173,6 @@ final class UserProfileController {
     if (current == null || isSaving.value || isLoading.value) return false;
 
     final normalized = displayName.trim();
-    if (normalized.isEmpty) {
-      errorMessage.value = 'Display name cannot be empty.';
-      return false;
-    }
-
     final generation = _accountGeneration;
     isSaving.value = true;
     errorMessage.value = null;
@@ -350,9 +327,37 @@ final class UserProfileController {
     }
   }
 
+  Future<void> _loadPrivacyControls({
+    required int generation,
+    required int requestGeneration,
+  }) async {
+    try {
+      final ignored = await _gateway.loadIgnoredUserIds();
+      if (!_isCurrentRequest(generation, requestGeneration)) return;
+      final blocked = await _gateway.loadBlockedUserIds();
+      if (!_isCurrentRequest(generation, requestGeneration)) return;
+      if (!_areValidUserIds(ignored) || !_areValidUserIds(blocked)) {
+        errorMessage.value = 'Kite received invalid privacy settings.';
+        return;
+      }
+      ignoredUserIds.value = Set<String>.unmodifiable(ignored);
+      blockedUserIds.value = Set<String>.unmodifiable(blocked);
+    } catch (_) {
+      if (_isCurrentRequest(generation, requestGeneration)) {
+        errorMessage.value = 'Kite could not load your privacy settings.';
+      }
+    }
+  }
+
   bool _isCurrentRequest(int accountGeneration, int requestGeneration) {
     return accountGeneration == _accountGeneration &&
         requestGeneration == _profileRequestGeneration;
+  }
+
+  bool _isValidProfile(MatrixUserProfile profile) {
+    return _isValidUserId(profile.userId) &&
+        profile.userId == profile.userId.trim() &&
+        _isValidAvatarUri(profile.avatarUri);
   }
 
   bool _isValidAvatarUri(Uri? avatarUri) {
