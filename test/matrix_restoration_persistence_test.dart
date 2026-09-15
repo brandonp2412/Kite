@@ -183,6 +183,23 @@ void main() {
 
       expect(() => registry.forAccount('@bob:example.org'), throwsStateError);
     });
+
+    test('removed accounts do not release encryption-key ownership', () {
+      final registry = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'shared-key',
+      );
+
+      registry.forAccount('@alice:example.org');
+      expect(registry.removeAccount('@alice:example.org'), isTrue);
+      expect(registry.stores, isEmpty);
+
+      expect(() => registry.forAccount('@bob:example.org'), throwsStateError);
+      expect(
+        registry.forAccount('@alice:example.org').encryptionKeyId,
+        'shared-key',
+      );
+    });
   });
 }
 

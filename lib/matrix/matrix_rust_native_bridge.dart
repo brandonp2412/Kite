@@ -454,6 +454,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
   MatrixRustClient? _client;
   Future<void> _transition = Future<void>.value();
   Future<void>? _syncLoop;
+  Completer<void>? _retryWakeup;
   bool _syncRequested = false;
 
   @override
@@ -615,7 +616,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
           state: CrashState.retrying,
         );
         _syncBatches.addError(error, stackTrace);
-        await _syncRetryDelay(_matrixRustRetryDelayForAttempt(failureAttempt));
+        await _waitForRetry(_matrixRustRetryDelayForAttempt(failureAttempt));
       }
     }
   }
@@ -646,8 +647,27 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     } catch (_) {}
   }
 
+  Future<void> _waitForRetry(Duration duration) async {
+    final wakeup = Completer<void>();
+    _retryWakeup = wakeup;
+    try {
+      await Future.any<void>(<Future<void>>[
+        _syncRetryDelay(duration),
+        wakeup.future,
+      ]);
+    } finally {
+      if (identical(_retryWakeup, wakeup)) {
+        _retryWakeup = null;
+      }
+    }
+  }
+
   Future<void> _stopSync() async {
     _syncRequested = false;
+    final wakeup = _retryWakeup;
+    if (wakeup != null && !wakeup.isCompleted) {
+      wakeup.complete();
+    }
     final loop = _syncLoop;
     if (loop != null) {
       await loop;

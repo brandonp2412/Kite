@@ -298,6 +298,43 @@ void main() {
     },
   );
 
+  test('stopping sync interrupts a pending retry backoff', () async {
+    final client = _RecoveringRustClient(failuresBeforeRecovery: 100);
+    final retryStarted = Completer<Duration>();
+    final blockedDelay = Completer<void>();
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+      syncRetryDelay: (duration) {
+        if (!retryStarted.isCompleted) retryStarted.complete(duration);
+        return blockedDelay.future;
+      },
+    );
+    final subscription = boundary.syncBatches.listen(
+      (_) {},
+      onError: (Object _) {},
+    );
+    addTearDown(subscription.cancel);
+    addTearDown(boundary.close);
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      ),
+    );
+    await boundary.startSync(const MatrixSdkSyncConfiguration());
+
+    expect(await retryStarted.future, const Duration(seconds: 1));
+    await boundary.stopSync().timeout(const Duration(seconds: 1));
+
+    expect(blockedDelay.isCompleted, isFalse);
+    expect(client.syncCalls, 1);
+    blockedDelay.complete();
+  });
+
   test(
     'Dart opens and closes a passphrase-encrypted Matrix Rust SDK store off-isolate',
     () async {

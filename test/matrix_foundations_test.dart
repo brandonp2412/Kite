@@ -28,7 +28,7 @@ void main() {
       expect(boundary.openCalls, 0);
     });
 
-    test('rejects SDK boundaries without Sliding Sync support', () {
+    test('rejects SDK boundaries without incremental sync support', () {
       final boundary = _FakeSdkBoundary(
         capabilities: const <MatrixSdkCapability>{
           MatrixSdkCapability.auditedEncryption,
@@ -90,7 +90,7 @@ void main() {
     });
 
     test(
-      'Sliding Sync populates the initial room list then updates leaf state',
+      'initial SDK sync populates the room list then updates leaf state',
       () async {
         final initialRooms = List<MatrixRoomDelta>.generate(200, (index) {
           final roomId = '!room$index:kite.test';
