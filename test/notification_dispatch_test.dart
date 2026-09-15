@@ -145,7 +145,10 @@ void main() {
         privacy: FakeNotificationPrivacyPort(),
         delivery: platform,
       ),
-      onCallNotification: (notification) async => handedOff.add(notification),
+      onCallNotification: (notification) async {
+        handedOff.add(notification);
+        return true;
+      },
     );
 
     final presentation = await dispatcher.dispatch(
@@ -177,7 +180,7 @@ void main() {
   });
 
   test(
-    'call runtime failure cannot suppress an already delivered call',
+    'call runtime failure suppresses an unverified incoming-call surface',
     () async {
       final repository = FakeNotificationRepository();
       final platform = FakeNotificationDeliveryPort();
@@ -204,12 +207,41 @@ void main() {
         ),
       );
 
-      expect(presentation, isNotNull);
-      expect(platform.shown, hasLength(1));
-      expect(repository.notification(routingId('call-fallback')), isNotNull);
+      expect(presentation, isNull);
+      expect(platform.shown, isEmpty);
+      expect(repository.notification(routingId('call-fallback')), isNull);
       expect(errors, hasLength(1));
     },
   );
+
+  test('rejected call admission is not delivered or registered', () async {
+    final repository = FakeNotificationRepository();
+    final platform = FakeNotificationDeliveryPort();
+    final dispatcher = NotificationDispatchCoordinator(
+      notifications: repository,
+      delivery: NotificationDeliveryCoordinator(
+        privacy: FakeNotificationPrivacyPort(),
+        delivery: platform,
+      ),
+      onCallNotification: (_) async => false,
+    );
+
+    final presentation = await dispatcher.dispatch(
+      const MatrixNotificationEvent(
+        id: 'stale-call',
+        kind: MatrixNotificationEventKind.call,
+        accountId: 'work',
+        roomId: '!calls:example.org',
+        callId: 'rtc-stale',
+        title: 'Incoming call',
+        body: 'Old call',
+      ),
+    );
+
+    expect(presentation, isNull);
+    expect(platform.shown, isEmpty);
+    expect(repository.notification(routingId('stale-call')), isNull);
+  });
 
   test('non-call dispatch never enters the call runtime handoff', () async {
     final handedOff = <KiteNotification>[];
@@ -219,7 +251,10 @@ void main() {
         privacy: FakeNotificationPrivacyPort(),
         delivery: FakeNotificationDeliveryPort(),
       ),
-      onCallNotification: (notification) async => handedOff.add(notification),
+      onCallNotification: (notification) async {
+        handedOff.add(notification);
+        return true;
+      },
     );
 
     await dispatcher.dispatch(

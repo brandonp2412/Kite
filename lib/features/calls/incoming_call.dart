@@ -7,7 +7,15 @@ enum IncomingCallNotificationResult {
   unavailable,
   busy,
   alreadyRinging,
-  ringing,
+  ringing;
+
+  bool get admitsIncomingCallSurface => switch (this) {
+    IncomingCallNotificationResult.alreadyRinging ||
+    IncomingCallNotificationResult.ringing => true,
+    IncomingCallNotificationResult.ignored ||
+    IncomingCallNotificationResult.unavailable ||
+    IncomingCallNotificationResult.busy => false,
+  };
 }
 
 abstract interface class IncomingCallResolverPort {
@@ -48,6 +56,10 @@ final class IncomingCallCoordinator {
   final IncomingCallResolverPort _resolver;
   final IncomingCallRingtonePort _ringtone;
   final IncomingCallRingtoneErrorHandler? _onRingtoneError;
+
+  Future<bool> admitNotification(KiteNotification notification) async {
+    return (await handleNotification(notification)).admitsIncomingCallSurface;
+  }
 
   Future<IncomingCallNotificationResult> handleNotification(
     KiteNotification notification,

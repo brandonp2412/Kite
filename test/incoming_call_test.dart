@@ -62,6 +62,33 @@ void main() {
   });
 
   test(
+    'incoming-call surface admission requires validated RTC state',
+    () async {
+      final fixture = _fixture();
+
+      expect(
+        await fixture.incoming.admitNotification(_callNotification()),
+        isFalse,
+      );
+      expect(fixture.calls.phase.value, KiteCallPhase.idle);
+
+      fixture.resolver.descriptor = const MatrixRtcSessionDescriptor(
+        callId: 'rtc-42',
+        roomId: '!calls:example.org',
+        kind: KiteCallKind.voice,
+        scope: KiteCallScope.direct,
+      );
+
+      expect(
+        await fixture.incoming.admitNotification(_callNotification()),
+        isTrue,
+      );
+      expect(fixture.calls.phase.value, KiteCallPhase.ringing);
+      expect(fixture.ringtone.startedCallIds, <String>['rtc-42']);
+    },
+  );
+
+  test(
     'rejects resolved MatrixRTC identity that differs from push target',
     () async {
       final fixture = _fixture();

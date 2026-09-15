@@ -14,6 +14,68 @@ Rect _rectOf(WidgetTester tester, Finder finder) {
 
 void main() {
   testWidgets(
+    'incoming call accept settles without late geometry movement at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(900, 1200);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      final coordinator = KiteCallCoordinator(
+        gateway: DeterministicMatrixRtcGateway(seed: 7),
+        pictureInPicture: DeterministicPictureInPicturePort(),
+        logger: StructuredLogger(
+          sink: MemoryStructuredLogSink(),
+          traceIds: SequenceTraceIdGenerator(seed: 7),
+        ),
+      );
+      coordinator.registerIncomingCall(
+        const MatrixRtcSessionDescriptor(
+          callId: 'incoming-motion',
+          roomId: '!dm:example.org',
+          kind: KiteCallKind.video,
+          scope: KiteCallScope.direct,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: KiteCallScreen(coordinator: coordinator, roomName: 'Alice'),
+        ),
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('incoming-call')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('call-accept')));
+      await tester.pump();
+      await tester.pump();
+
+      final header = find.byKey(const Key('call-header'));
+      final empty = find.byKey(const Key('call-active-empty'));
+      final controls = find.byKey(const Key('call-controls'));
+      expect(header, findsOneWidget);
+      expect(empty, findsOneWidget);
+      expect(controls, findsOneWidget);
+      final headerRect = _rectOf(tester, header);
+      final emptyRect = _rectOf(tester, empty);
+      final controlsRect = _rectOf(tester, controls);
+
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, empty), emptyRect);
+        expect(_rectOf(tester, controls), controlsRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(coordinator.phase.value, KiteCallPhase.active);
+    },
+  );
+
+  testWidgets(
     'in-call control mutations preserve call shell geometry at 120 Hz',
     (tester) async {
       tester.view.devicePixelRatio = 1;

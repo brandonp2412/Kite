@@ -32,7 +32,7 @@ abstract interface class NotificationRegistrationPort {
   void upsertNotification(KiteNotification notification);
 }
 
-typedef CallNotificationHandler = Future<void> Function(
+typedef CallNotificationHandler = Future<bool> Function(
   KiteNotification notification,
 );
 
@@ -94,24 +94,26 @@ final class NotificationDispatchCoordinator {
   ) async {
     final notification = _notificationFor(event);
     if (!_policy.allows(event: event, notification: notification)) return null;
+    if (notification.kind == KiteNotificationKind.call &&
+        !await _admitCallNotification(notification)) {
+      return null;
+    }
     final presentation = await _delivery.upsert(
       notification: notification,
       content: KiteNotificationContent(title: event.title, body: event.body),
     );
     _notifications.upsertNotification(notification);
-    if (notification.kind == KiteNotificationKind.call) {
-      await _handoffCallNotification(notification);
-    }
     return presentation;
   }
 
-  Future<void> _handoffCallNotification(KiteNotification notification) async {
+  Future<bool> _admitCallNotification(KiteNotification notification) async {
     final handler = _onCallNotification;
-    if (handler == null) return;
+    if (handler == null) return true;
     try {
-      await handler(notification);
+      return await handler(notification);
     } catch (error, stackTrace) {
       _onCallNotificationError?.call(error, stackTrace);
+      return false;
     }
   }
 
