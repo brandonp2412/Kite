@@ -91,6 +91,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
             final accounts = widget.accountController.accounts.value;
             final accountLoading = widget.accountController.isLoading.value;
             final busyAccounts = widget.accountController.busyAccountIds.value;
+            final accountOperationActive = busyAccounts.isNotEmpty;
             final accountError = widget.accountController.errorMessage.value;
             final devices = widget.sessionDeviceController.devices.value;
             final deviceLoading =
@@ -122,7 +123,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                   for (final account in accounts)
                     _AccountTile(
                       account: account,
-                      busy: busyAccounts.contains(account.accountId),
+                      busy: accountOperationActive,
                       onActivate: account.isActive
                           ? null
                           : () => widget.accountController.activate(
