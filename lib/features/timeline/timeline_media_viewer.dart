@@ -82,7 +82,7 @@ final class TimelineMediaViewerModel {
           (message) =>
               !message.redacted &&
               message.attachment != null &&
-              message.attachment!.kind != TimelineAttachmentKind.file,
+              message.attachment!.kind.isVisualMedia,
         )
         .toList(growable: false);
     final initialIndex = mediaMessages.indexWhere(
@@ -134,6 +134,8 @@ String timelineMediaSemanticLabel(TimelineMessage message) {
     TimelineAttachmentKind.image => 'Image',
     TimelineAttachmentKind.video => 'Video',
     TimelineAttachmentKind.file => 'File',
+    TimelineAttachmentKind.audio => 'Audio',
+    TimelineAttachmentKind.voice => 'Voice message',
   };
   return '$type: ${attachment.name}';
 }
@@ -174,9 +176,13 @@ class TimelineMediaVisual extends StatelessWidget {
         children: <Widget>[
           Center(
             child: Icon(
-              attachment.kind == TimelineAttachmentKind.video
-                  ? Icons.play_circle_fill_rounded
-                  : Icons.image_rounded,
+              switch (attachment.kind) {
+                TimelineAttachmentKind.video => Icons.play_circle_fill_rounded,
+                TimelineAttachmentKind.image => Icons.image_rounded,
+                TimelineAttachmentKind.file => Icons.insert_drive_file_rounded,
+                TimelineAttachmentKind.audio => Icons.graphic_eq_rounded,
+                TimelineAttachmentKind.voice => Icons.mic_rounded,
+              },
               size: detailed ? 88 : 42,
               color: colors.onPrimary.withValues(alpha: detailed ? 0.64 : 0.78),
             ),

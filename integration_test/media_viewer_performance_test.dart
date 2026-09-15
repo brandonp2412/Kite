@@ -215,6 +215,62 @@ void main() {
     };
   });
 
+  testWidgets('audio playback toggle stays within the frame contract', (
+    tester,
+  ) async {
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      attachmentSendPort: const DeterministicTimelineAttachmentSendPort(
+        latency: Duration.zero,
+      ),
+    );
+    addTearDown(() {
+      timelineController.reset(
+        sendPort: DeterministicTimelineSendPort(),
+        attachmentSendPort: const DeterministicTimelineAttachmentSendPort(),
+      );
+      selectRoom('kite');
+    });
+    selectRoom('alice');
+    final message = timelineController.sendAttachment(
+      'alice',
+      const TimelineAttachment(
+        id: 'benchmark-audio',
+        kind: TimelineAttachmentKind.audio,
+        name: 'benchmark.m4a',
+        sizeLabel: '2.8 MB · Audio',
+        durationLabel: '02:08',
+      ),
+    );
+
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(Key('audio-toggle-${message.id}')));
+        await tester.pump();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(
+      message.audioPlaybackState.value,
+      TimelineAudioPlaybackState.playing,
+    );
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['timeline_audio_toggle'] = <String, dynamic>{
+      'journey': 'timeline_audio_playback_toggle',
+      'fixture': 'deterministic_timeline_audio_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('timeline media open stays within the frame contract', (
     tester,
   ) async {

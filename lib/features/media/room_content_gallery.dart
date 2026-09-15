@@ -94,14 +94,15 @@ class RoomContentGallery extends StatelessWidget {
                   (message) =>
                       !message.redacted &&
                       message.attachment != null &&
-                      message.attachment!.kind != TimelineAttachmentKind.file,
+                      message.attachment!.kind.isVisualMedia,
                 )
                 .toList(growable: false);
             final fileMessages = current
                 .where(
                   (message) =>
                       !message.redacted &&
-                      message.attachment?.kind == TimelineAttachmentKind.file,
+                      message.attachment != null &&
+                      !message.attachment!.kind.isVisualMedia,
                 )
                 .toList(growable: false)
                 .reversed
@@ -253,9 +254,13 @@ class _FileList extends StatelessWidget {
               color: Theme.of(context).colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(KiteRadii.sm),
             ),
-            child: const SizedBox.square(
+            child: SizedBox.square(
               dimension: 48,
-              child: Icon(Icons.insert_drive_file_outlined),
+              child: Icon(switch (attachment.kind) {
+                TimelineAttachmentKind.audio => Icons.graphic_eq_rounded,
+                TimelineAttachmentKind.voice => Icons.mic_none_rounded,
+                _ => Icons.insert_drive_file_outlined,
+              }),
             ),
           ),
           title: Text(

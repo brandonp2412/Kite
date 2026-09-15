@@ -990,14 +990,18 @@ class _ThreadReplyRow extends StatelessWidget {
                             TimelineAttachmentCard(
                               messageId: 'thread-${reply.id}',
                               attachment: attachment,
-                              heroTag:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : threadMediaHeroTag(parent, reply),
-                              onTap:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : () => _openMedia(context),
+                              audioPlaybackState: reply.audioPlaybackState,
+                              heroTag: attachment.kind.isVisualMedia
+                                  ? threadMediaHeroTag(parent, reply)
+                                  : null,
+                              onTap: attachment.kind.isVisualMedia
+                                  ? () => _openMedia(context)
+                                  : null,
+                              onToggleAudio: attachment.kind.isAudio
+                                  ? () => threadController.toggleAudioPlayback(
+                                      reply,
+                                    )
+                                  : null,
                             ),
                             if (reply.body.isNotEmpty)
                               const SizedBox(height: KiteSpacing.xs),

@@ -109,7 +109,7 @@ The sealed `TimelineItemEventContent` family, its concrete model files, the virt
 | Element X timeline type | Current Kite capability | Status / owner |
 | --- | --- | --- |
 | Text / formatted text / emote / notice | Plain text is rendered; production formatted/emote/notice variants are not distinct. | Partial — M4 |
-| Image / video / audio / voice / file | Media viewer and media workflow foundations exist, but the production Home timeline model does not render these event types. | Gap — M5/M7 |
+| Image / video / audio / voice / file | Production timeline attachments render image/video/file cards plus fixed-geometry audio and voice-message playback cards. Audio/voice playback state is leaf-level and stays out of the image/video viewer; deterministic 120 Hz geometry and light/dark references cover the shared card. Real Matrix audio/voice event mapping, audio-engine playback and voice-message recording/upload transport remain open. | Partial — M4/M5/M7 |
 | Gallery / multi-attachment | No production timeline event model. | Gap — M5/M7 |
 | Sticker | No production timeline event model. | Gap — M5 |
 | Poll | Production timeline messages now carry an SDK-ready poll payload and render fixed-height choice/result rows with explicit selected, ending and ended states. The composer creates 2–6 choice polls, vote changes mutate only the poll leaf signal, and own active polls can be ended. Deterministic light/dark goldens and 120 Hz geometry tests pass; real Matrix poll event mapping/interoperability and locked profile evidence remain unfinished. | Present foundation — M4/M5 |

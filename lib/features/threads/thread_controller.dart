@@ -227,7 +227,8 @@ class ThreadReply {
     TimelineSendState sendState = TimelineSendState.sent,
     Iterable<String> readBy = const <String>[],
   }) : sendState = signal(sendState),
-       readByState = signal(List<String>.unmodifiable(readBy));
+       readByState = signal(List<String>.unmodifiable(readBy)),
+       audioPlaybackState = signal(TimelineAudioPlaybackState.paused);
 
   final String id;
   final String sender;
@@ -238,6 +239,7 @@ class ThreadReply {
   final TimelineLocation? location;
   final Signal<TimelineSendState> sendState;
   final Signal<List<String>> readByState;
+  final Signal<TimelineAudioPlaybackState> audioPlaybackState;
 
   List<String> get readBy => readByState.value;
 }
@@ -730,6 +732,15 @@ class ThreadController {
     _runtimeThreadParentIds.add(parent.id);
     unawaited(_settleAttachment(roomId: roomId, parent: parent, reply: reply));
     return reply;
+  }
+
+  void toggleAudioPlayback(ThreadReply reply) {
+    final kind = reply.attachment?.kind;
+    if (kind == null || !kind.isAudio) return;
+    reply.audioPlaybackState.value =
+        reply.audioPlaybackState.peek() == TimelineAudioPlaybackState.playing
+        ? TimelineAudioPlaybackState.paused
+        : TimelineAudioPlaybackState.playing;
   }
 
   void retryReply({

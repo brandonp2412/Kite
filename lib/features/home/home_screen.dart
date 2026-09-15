@@ -1706,14 +1706,17 @@ class _MessageRow extends StatelessWidget {
                             TimelineAttachmentCard(
                               messageId: message.id,
                               attachment: attachment,
-                              heroTag:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : timelineMediaHeroTag(message),
-                              onTap:
-                                  attachment.kind == TimelineAttachmentKind.file
-                                  ? null
-                                  : () => _openMedia(context),
+                              audioPlaybackState: message.audioPlaybackState,
+                              heroTag: attachment.kind.isVisualMedia
+                                  ? timelineMediaHeroTag(message)
+                                  : null,
+                              onTap: attachment.kind.isVisualMedia
+                                  ? () => _openMedia(context)
+                                  : null,
+                              onToggleAudio: attachment.kind.isAudio
+                                  ? () => timelineController
+                                        .toggleAudioPlayback(message)
+                                  : null,
                             ),
                           if (attachment != null &&
                               (location != null ||

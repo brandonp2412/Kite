@@ -9,7 +9,19 @@ enum TimelineSendState { sending, sent, failed }
 
 enum TimelineSendOutcome { sent, failed }
 
-enum TimelineAttachmentKind { image, video, file }
+enum TimelineAttachmentKind { image, video, file, audio, voice }
+
+extension TimelineAttachmentKindProperties on TimelineAttachmentKind {
+  bool get isVisualMedia =>
+      this == TimelineAttachmentKind.image ||
+      this == TimelineAttachmentKind.video;
+
+  bool get isAudio =>
+      this == TimelineAttachmentKind.audio ||
+      this == TimelineAttachmentKind.voice;
+}
+
+enum TimelineAudioPlaybackState { paused, playing }
 
 enum TimelineLocationKind { staticLocation, liveLocation }
 
@@ -285,12 +297,14 @@ final class TimelineAttachment {
     required this.kind,
     required this.name,
     required this.sizeLabel,
+    this.durationLabel,
   });
 
   final String id;
   final TimelineAttachmentKind kind;
   final String name;
   final String sizeLabel;
+  final String? durationLabel;
 }
 
 abstract interface class TimelineAttachmentSendPort {
@@ -477,6 +491,7 @@ class TimelineMessage {
        readByState = signal<List<String>>(List<String>.unmodifiable(readBy)),
        locationState = signal<TimelineLocation?>(location),
        pollState = signal<TimelinePoll?>(poll),
+       audioPlaybackState = signal(TimelineAudioPlaybackState.paused),
        sendState = signal(sendState);
 
   factory TimelineMessage.fromFixture(BenchmarkMessage message, int index) {
@@ -503,6 +518,7 @@ class TimelineMessage {
   final TimelineAttachment? attachment;
   final Signal<TimelineLocation?> locationState;
   final Signal<TimelinePoll?> pollState;
+  final Signal<TimelineAudioPlaybackState> audioPlaybackState;
   final Signal<bool> editedState;
   final Signal<bool> redactedState;
   final Signal<List<String>> editHistoryState;
@@ -911,6 +927,15 @@ class TimelineController implements TimelineLocationShareDelegate {
       message.readByState.value = const <String>[];
       message.redactedState.value = true;
     });
+  }
+
+  void toggleAudioPlayback(TimelineMessage message) {
+    final kind = message.attachment?.kind;
+    if (message.redacted || kind == null || !kind.isAudio) return;
+    message.audioPlaybackState.value =
+        message.audioPlaybackState.peek() == TimelineAudioPlaybackState.playing
+        ? TimelineAudioPlaybackState.paused
+        : TimelineAudioPlaybackState.playing;
   }
 
   void toggleReaction(TimelineMessage message, String emoji) {
