@@ -33,7 +33,7 @@ enum KiteCallDirection { outgoing, incoming }
 
 enum KiteCallPhase { idle, ringing, connecting, active, reconnecting, ended }
 
-enum KiteCallEndReason { declined, hungUp }
+enum KiteCallEndReason { declined, hungUp, missed }
 
 enum KiteCallIdentityTrust { unknown, trusted, warning }
 
@@ -496,6 +496,21 @@ final class KiteCallCoordinator {
       trace.log(LogLevel.error, DiagnosticEvent.failed);
       rethrow;
     }
+  }
+
+  bool endIncomingCallFromSync(String callId) {
+    final current = session.value;
+    if (current == null ||
+        current.direction != KiteCallDirection.incoming ||
+        phase.value != KiteCallPhase.ringing ||
+        current.callId != callId) {
+      return false;
+    }
+
+    session.value = current.copyWith(endReason: KiteCallEndReason.missed);
+    phase.value = KiteCallPhase.ended;
+    _publishActivity();
+    return true;
   }
 
   Future<void> setMicrophoneMuted(bool muted) async {

@@ -148,6 +148,41 @@ void main() {
     },
   );
 
+  test('sync-ended ringing call becomes missed and stops ringtone', () async {
+    final fixture = _fixture();
+    fixture.resolver.descriptor = const MatrixRtcSessionDescriptor(
+      callId: 'rtc-42',
+      roomId: '!calls:example.org',
+      kind: KiteCallKind.video,
+      scope: KiteCallScope.direct,
+    );
+    await fixture.incoming.handleNotification(_callNotification());
+
+    expect(await fixture.incoming.endFromSync('rtc-42'), isTrue);
+
+    expect(fixture.calls.phase.value, KiteCallPhase.ended);
+    expect(fixture.calls.session.value?.endReason, KiteCallEndReason.missed);
+    expect(fixture.ringtone.stoppedCallIds, <String>['rtc-42']);
+    expect(await fixture.incoming.endFromSync('rtc-42'), isFalse);
+  });
+
+  test('sync end ignores a different ringing call identity', () async {
+    final fixture = _fixture();
+    fixture.resolver.descriptor = const MatrixRtcSessionDescriptor(
+      callId: 'rtc-42',
+      roomId: '!calls:example.org',
+      kind: KiteCallKind.voice,
+      scope: KiteCallScope.direct,
+    );
+    await fixture.incoming.handleNotification(_callNotification());
+
+    expect(await fixture.incoming.endFromSync('rtc-other'), isFalse);
+
+    expect(fixture.calls.phase.value, KiteCallPhase.ringing);
+    expect(fixture.calls.session.value?.endReason, isNull);
+    expect(fixture.ringtone.stoppedCallIds, isEmpty);
+  });
+
   test(
     'ringtone failures never hide an otherwise valid incoming call',
     () async {

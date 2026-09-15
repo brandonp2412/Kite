@@ -122,6 +122,33 @@ void main() {
     );
   });
 
+  test('sync can end only the matching ringing incoming call as missed', () {
+    final fixture = _fixture();
+    fixture.coordinator.registerIncomingCall(
+      const MatrixRtcSessionDescriptor(
+        callId: 'incoming-missed',
+        roomId: '!dm:example.org',
+        kind: KiteCallKind.voice,
+        scope: KiteCallScope.direct,
+      ),
+    );
+
+    expect(fixture.coordinator.endIncomingCallFromSync('other-call'), isFalse);
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ringing);
+
+    expect(
+      fixture.coordinator.endIncomingCallFromSync('incoming-missed'),
+      isTrue,
+    );
+    expect(fixture.coordinator.phase.value, KiteCallPhase.ended);
+    expect(
+      fixture.coordinator.session.value?.endReason,
+      KiteCallEndReason.missed,
+    );
+    expect(fixture.coordinator.activity.value?.isActive, isFalse);
+    expect(fixture.gateway.invocations, isEmpty);
+  });
+
   test('declines an incoming call and can clear the ended state', () async {
     final fixture = _fixture();
     fixture.coordinator.registerIncomingCall(
