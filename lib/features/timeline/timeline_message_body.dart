@@ -125,20 +125,12 @@ class _TimelineBodyBlockView extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return switch (block.type) {
-      TimelineBodyBlockType.paragraph =>
-        block.text.contains('`')
-            ? Text.rich(
-                TextSpan(children: _inlineSpans(block.text, context)),
-                key: const Key('timeline-body-paragraph'),
-                style: KiteTypography.body.copyWith(color: colors.onSurface),
-                textDirection: _directionFor(block.text),
-              )
-            : Text(
-                block.text,
-                key: const Key('timeline-body-paragraph'),
-                style: KiteTypography.body.copyWith(color: colors.onSurface),
-                textDirection: _directionFor(block.text),
-              ),
+      TimelineBodyBlockType.paragraph => Text.rich(
+        TextSpan(children: _inlineSpans(block.text, context)),
+        key: const Key('timeline-body-paragraph'),
+        style: KiteTypography.body.copyWith(color: colors.onSurface),
+        textDirection: _directionFor(block.text),
+      ),
       TimelineBodyBlockType.quote => Container(
         key: const Key('timeline-body-quote'),
         padding: const EdgeInsets.fromLTRB(
@@ -215,34 +207,106 @@ class _TimelineBodyBlockView extends StatelessWidget {
     var cursor = 0;
 
     while (cursor < text.length) {
-      final open = text.indexOf('`', cursor);
-      if (open < 0) {
-        spans.add(TextSpan(text: text.substring(cursor)));
+      final token = _nextInlineToken(text, cursor);
+      if (token == null) {
+        _appendPlainSpans(spans, text.substring(cursor), colors);
         break;
       }
-      final close = text.indexOf('`', open + 1);
+      if (token.open > cursor) {
+        _appendPlainSpans(spans, text.substring(cursor, token.open), colors);
+      }
+      final contentStart = token.open + token.marker.length;
+      final close = text.indexOf(token.marker, contentStart);
       if (close < 0) {
-        spans.add(TextSpan(text: text.substring(cursor)));
+        _appendPlainSpans(spans, text.substring(token.open), colors);
         break;
-      }
-      if (open > cursor) {
-        spans.add(TextSpan(text: text.substring(cursor, open)));
       }
       spans.add(
         TextSpan(
-          text: text.substring(open + 1, close),
-          style: KiteTypography.body.copyWith(
-            color: colors.onSurface,
-            fontFamily: 'monospace',
-            fontSize: 14,
-            backgroundColor: colors.surfaceContainerLow,
-          ),
+          text: text.substring(contentStart, close),
+          style: switch (token.marker) {
+            '`' => KiteTypography.body.copyWith(
+              color: colors.onSurface,
+              fontFamily: 'monospace',
+              fontSize: 14,
+              backgroundColor: colors.surfaceContainerLow,
+            ),
+            '**' => KiteTypography.body.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+            '*' => KiteTypography.body.copyWith(
+              color: colors.onSurface,
+              fontStyle: FontStyle.italic,
+            ),
+            '~~' => KiteTypography.body.copyWith(
+              color: colors.onSurface,
+              decoration: TextDecoration.lineThrough,
+            ),
+            _ => KiteTypography.body.copyWith(color: colors.onSurface),
+          },
         ),
       );
-      cursor = close + 1;
+      cursor = close + token.marker.length;
     }
 
     return spans;
+  }
+
+  static void _appendPlainSpans(
+    List<InlineSpan> spans,
+    String text,
+    ColorScheme colors,
+  ) {
+    if (text.isEmpty) return;
+    final pattern = RegExp(r'(^|\s)([@#][A-Za-z0-9_-]+)');
+    var cursor = 0;
+    for (final match in pattern.allMatches(text)) {
+      final leading = match.group(1)!;
+      final token = match.group(2)!;
+      final tokenStart = match.start + leading.length;
+      if (tokenStart > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, tokenStart)));
+      }
+      spans.add(
+        TextSpan(
+          text: token,
+          style: KiteTypography.body.copyWith(
+            color: colors.primary,
+            fontWeight: FontWeight.w700,
+            backgroundColor: colors.primaryContainer.withValues(alpha: 0.42),
+          ),
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+  }
+
+  static ({int open, String marker})? _nextInlineToken(
+    String text,
+    int cursor,
+  ) {
+    ({int open, String marker})? next;
+    for (final marker in const <String>['`', '**', '~~', '*']) {
+      var open = text.indexOf(marker, cursor);
+      if (marker == '*') {
+        while (open >= 0 && text.startsWith('**', open)) {
+          open = text.indexOf(marker, open + 2);
+        }
+      }
+      if (open < 0) continue;
+      final candidate = (open: open, marker: marker);
+      if (next == null ||
+          candidate.open < next.open ||
+          (candidate.open == next.open &&
+              candidate.marker.length > next.marker.length)) {
+        next = candidate;
+      }
+    }
+    return next;
   }
 
   static TextDirection? _directionFor(String text) {

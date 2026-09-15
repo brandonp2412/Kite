@@ -87,6 +87,40 @@ final class DeterministicTimelineModerationPort
   }
 }
 
+@immutable
+final class TimelineShareRequest {
+  const TimelineShareRequest({
+    required this.roomId,
+    required this.eventId,
+    required this.body,
+    this.attachment,
+  });
+
+  final String roomId;
+  final String eventId;
+  final String body;
+  final TimelineAttachment? attachment;
+}
+
+abstract interface class TimelineSharePort {
+  Future<void> shareMessage(TimelineShareRequest request);
+}
+
+final class DeterministicTimelineSharePort implements TimelineSharePort {
+  DeterministicTimelineSharePort({
+    this.latency = const Duration(milliseconds: 80),
+  });
+
+  final Duration latency;
+  final List<TimelineShareRequest> shares = <TimelineShareRequest>[];
+
+  @override
+  Future<void> shareMessage(TimelineShareRequest request) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    shares.add(request);
+  }
+}
+
 abstract interface class TimelineSendPort {
   Future<TimelineSendOutcome> sendText({
     required String roomId,
@@ -210,18 +244,21 @@ class TimelineController {
     TimelineSendPort? sendPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
+    TimelineSharePort? sharePort,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
        _attachmentSendPort =
            attachmentSendPort ??
            const DeterministicTimelineAttachmentSendPort(),
        _moderationPort =
-           moderationPort ?? DeterministicTimelineModerationPort() {
+           moderationPort ?? DeterministicTimelineModerationPort(),
+       _sharePort = sharePort ?? DeterministicTimelineSharePort() {
     reset();
   }
 
   TimelineSendPort _sendPort;
   TimelineAttachmentSendPort _attachmentSendPort;
   TimelineModerationPort _moderationPort;
+  TimelineSharePort _sharePort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
   final Map<String, Signal<List<String>>> _typingUsers =
@@ -402,6 +439,18 @@ class TimelineController {
     ]);
   }
 
+  Future<void> shareMessage(String roomId, TimelineMessage message) {
+    if (message.redacted) return Future<void>.value();
+    return _sharePort.shareMessage(
+      TimelineShareRequest(
+        roomId: roomId,
+        eventId: message.id,
+        body: message.body,
+        attachment: message.attachment,
+      ),
+    );
+  }
+
   Future<void> reportMessage(
     String roomId,
     TimelineMessage message,
@@ -433,10 +482,12 @@ class TimelineController {
     TimelineSendPort? sendPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
+    TimelineSharePort? sharePort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
+    if (sharePort != null) _sharePort = sharePort;
     _transactionCounter = 0;
     _messages.clear();
     _typingUsers.clear();

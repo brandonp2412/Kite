@@ -170,6 +170,51 @@ void main() {
     };
   });
 
+  testWidgets('media save feedback stays within the frame contract', (
+    tester,
+  ) async {
+    final fixture = MediaViewerFixture();
+    var saveCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.dark,
+        home: MediaViewer(
+          items: fixture.items,
+          onSave: (item) async {
+            saveCalls++;
+            await Future<void>.delayed(const Duration(milliseconds: 32));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('media-save')));
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(find.byKey(const Key('media-action-progress')), findsOneWidget);
+        await tester.pump(const Duration(milliseconds: 32));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(saveCalls, 1);
+    expect(find.text('Media saved'), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['media_viewer_save'] = <String, dynamic>{
+      'journey': 'save_media',
+      'fixture': 'deterministic_media_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('timeline media open stays within the frame contract', (
     tester,
   ) async {

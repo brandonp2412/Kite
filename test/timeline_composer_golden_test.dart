@@ -200,6 +200,71 @@ void main() {
       );
     });
 
+    testWidgets('mention autocomplete ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-autocomplete-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('composer-field')), '@a');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('composer-autocomplete')), findsOneWidget);
+      await expectLater(
+        find.byKey(const Key('timeline-autocomplete-golden')),
+        matchesGoldenFile('goldens/timeline_autocomplete_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('formatting toolbar ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-formatting-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('composer-format-toggle')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('composer-formatting-toolbar')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byKey(const Key('timeline-formatting-golden')),
+        matchesGoldenFile('goldens/timeline_formatting_${variant.name}.png'),
+      );
+    });
+
     testWidgets('formatted message ${variant.name} reference render', (
       tester,
     ) async {

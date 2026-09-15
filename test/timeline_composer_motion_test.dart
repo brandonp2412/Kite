@@ -16,6 +16,15 @@ class _RecordingModerationPort implements TimelineModerationPort {
   }
 }
 
+class _RecordingSharePort implements TimelineSharePort {
+  final List<TimelineShareRequest> requests = <TimelineShareRequest>[];
+
+  @override
+  Future<void> shareMessage(TimelineShareRequest request) async {
+    requests.add(request);
+  }
+}
+
 class _ControlledSendPort implements TimelineSendPort {
   final List<Completer<TimelineSendOutcome>> attempts =
       <Completer<TimelineSendOutcome>>[];
@@ -580,6 +589,36 @@ void main() {
       expect(find.byKey(const Key('message-action-sheet')), findsNothing);
     },
   );
+
+  testWidgets('share action routes the exact message through the share port', (
+    tester,
+  ) async {
+    final sharePort = _RecordingSharePort();
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      sharePort: sharePort,
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final target = find.byKey(const Key('message-bubble-alice-99'));
+    final targetRect = _rectOf(tester, target);
+    await tester.longPress(target);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-action-share')));
+    await tester.pumpAndSettle();
+
+    expect(sharePort.requests, hasLength(1));
+    expect(sharePort.requests.single.roomId, 'alice');
+    expect(sharePort.requests.single.eventId, 'alice-99');
+    expect(
+      sharePort.requests.single.body,
+      'Deterministic message 100 in Alice',
+    );
+    expect(find.text('Share sheet opened'), findsOneWidget);
+    _expectSameRect(targetRect, _rectOf(tester, target), 'shared message');
+  });
 
   testWidgets(
     'delete confirmation redacts only the target message leaf state',

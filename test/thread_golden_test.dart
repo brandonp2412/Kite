@@ -129,6 +129,49 @@ void main() {
       );
     });
 
+    testWidgets('thread attachment preview ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        attachmentSendPort: const DeterministicThreadAttachmentSendPort(),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-composer-attach')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('attachment-option-photo-library')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('thread-attachment-preview')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile(
+          'goldens/thread_attachment_preview_${variant.name}.png',
+        ),
+      );
+    });
+
     testWidgets('thread following ${variant.name} reference render', (
       tester,
     ) async {

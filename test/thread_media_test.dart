@@ -49,6 +49,13 @@ Rect _rectOf(WidgetTester tester, Finder finder) {
   return renderObject.localToGlobal(Offset.zero) & renderObject.size;
 }
 
+void _expectRectClose(Rect actual, Rect expected) {
+  expect(actual.left, moreOrLessEquals(expected.left, epsilon: 0.01));
+  expect(actual.top, moreOrLessEquals(expected.top, epsilon: 0.01));
+  expect(actual.width, moreOrLessEquals(expected.width, epsilon: 0.01));
+  expect(actual.height, moreOrLessEquals(expected.height, epsilon: 0.01));
+}
+
 void main() {
   tearDown(() {
     threadController.reset(
@@ -146,6 +153,116 @@ void main() {
           replyId: 'video-reply',
         ),
       ]);
+    },
+  );
+
+  testWidgets('thread composer previews and sends scoped media', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+      attachmentSendPort: const DeterministicThreadAttachmentSendPort(
+        latency: Duration.zero,
+      ),
+    );
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('thread-composer-attach')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('attachment-picker-sheet')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('attachment-option-photo-library')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('thread-attachment-preview')), findsOneWidget);
+    expect(find.text('IMG_2048.jpg'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('thread-composer-field')),
+      'Thread photo caption',
+    );
+    await tester.tap(find.byKey(const Key('thread-composer-send')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('thread-attachment-preview')), findsNothing);
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .last;
+    expect(reply.attachment?.id, 'photo-library');
+    expect(reply.body, 'Thread photo caption');
+    expect(reply.sendState.value, TimelineSendState.sent);
+    expect(
+      find.byKey(Key('message-attachment-thread-${reply.id}')),
+      findsOneWidget,
+    );
+    expect(find.text('Thread photo caption'), findsOneWidget);
+  });
+
+  testWidgets(
+    'thread attachment preview expands at 120 Hz without moving composer',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+        attachmentSendPort: const DeterministicThreadAttachmentSendPort(
+          latency: Duration.zero,
+        ),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+
+      final composer = find.byKey(const Key('thread-composer'));
+      final header = find.byKey(const Key('thread-header'));
+      final initialComposer = _rectOf(tester, composer);
+      final initialHeader = _rectOf(tester, header);
+      await tester.tap(find.byKey(const Key('thread-composer-attach')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('attachment-option-photo-library')),
+      );
+
+      var previousHeight = 0.0;
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        final slot = _rectOf(
+          tester,
+          find.byKey(const Key('thread-attachment-preview-slot')),
+        );
+        expect(slot.height + 0.01, greaterThanOrEqualTo(previousHeight));
+        previousHeight = slot.height;
+        _expectRectClose(_rectOf(tester, composer), initialComposer);
+        _expectRectClose(_rectOf(tester, header), initialHeader);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(previousHeight, greaterThan(0));
+      _expectRectClose(_rectOf(tester, composer), initialComposer);
     },
   );
 
