@@ -245,6 +245,58 @@ void main() {
     expect(presentationStore.loadCalls, 1);
   });
 
+  test('malformed cached presentation falls through to SDK sync', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final presentationStore = _MemoryPresentationStore(
+      <String, MatrixPresentationSnapshot>{
+        '@alice:example.org': MatrixPresentationSnapshot(
+          syncCursor: 'rejected-cache-cursor',
+          rooms: <MatrixRoomSummary>[
+            MatrixRoomSummary(
+              roomId: '!alice:example.org',
+              displayName: 'Malformed cached room',
+              lastActivity: DateTime.utc(2026, 9, 15, 2),
+              streamPosition: 2,
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!alice:example.org': <MatrixTimelineEvent>[
+              MatrixTimelineEvent(
+                eventId: r'$wrong-room:example.org',
+                roomId: '!other:example.org',
+                senderId: '@alice:example.org',
+                type: 'm.room.message',
+                originServerTimestamp: DateTime.utc(2026, 9, 15, 2),
+                streamPosition: 2,
+              ),
+            ],
+          },
+        ),
+      },
+    );
+    final registry = _registry(
+      boundaries,
+      presentationStore: presentationStore,
+    );
+    addTearDown(registry.dispose);
+
+    final cache = await registry.activate('@alice:example.org');
+
+    expect(presentationStore.loadCalls, 1);
+    expect(registry.activeAccountId.value, '@alice:example.org');
+    expect(boundaries['@alice:example.org']?.startCalls, 1);
+    expect(cache.lastSyncCursor, 'alice-start-1');
+    expect(
+      cache.roomSummarySignal('!alice:example.org').value?.displayName,
+      'Alice room',
+    );
+    expect(cache.timelineSignal('!other:example.org').value, isEmpty);
+
+    await registry.deactivate();
+    await registry.activate('@alice:example.org');
+    expect(presentationStore.loadCalls, 1);
+  });
+
   test(
     'cached timeline paginates while initial sync is still starting',
     () async {

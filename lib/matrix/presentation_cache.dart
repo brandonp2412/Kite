@@ -60,6 +60,7 @@ final class MatrixPresentationCache {
   }
 
   void restore(MatrixPresentationSnapshot snapshot) {
+    _validateSnapshot(snapshot);
     batch(() {
       lastSyncCursor = snapshot.syncCursor;
 
@@ -100,6 +101,7 @@ final class MatrixPresentationCache {
   }
 
   void applyPagination(MatrixPaginationPage page) {
+    _validatePaginationPage(page);
     if (page.events.isEmpty) return;
     final timeline = timelineSignal(page.roomId);
     final merged = _mergeEvents(timeline.value, page.events);
@@ -109,6 +111,7 @@ final class MatrixPresentationCache {
   }
 
   void applySync(MatrixSyncBatch syncBatch) {
+    _validateSyncBatch(syncBatch);
     batch(() {
       var roomOrderDirty = false;
       for (final room in syncBatch.rooms) {
@@ -162,6 +165,92 @@ final class MatrixPresentationCache {
     final ids = List<String>.unmodifiable(next.map((room) => room.roomId));
     if (!_sameStrings(roomOrder.value, ids)) {
       roomOrder.value = ids;
+    }
+  }
+
+  static void _validateSnapshot(MatrixPresentationSnapshot snapshot) {
+    final cursor = snapshot.syncCursor;
+    if (cursor != null) {
+      _requireSafeIdentifier(cursor, 'snapshot sync cursor');
+    }
+    final roomIds = <String>{};
+    for (final summary in snapshot.rooms) {
+      _requireSafeIdentifier(summary.roomId, 'snapshot room id');
+      if (!roomIds.add(summary.roomId)) {
+        throw ArgumentError(
+          'snapshot must not contain duplicate room summaries',
+        );
+      }
+    }
+    for (final entry in snapshot.timelines.entries) {
+      _requireSafeIdentifier(entry.key, 'snapshot timeline room id');
+      if (!roomIds.contains(entry.key)) {
+        throw ArgumentError(
+          'snapshot timeline must belong to a persisted room',
+        );
+      }
+      _validateRoomScopedEvents(
+        ownerRoomId: entry.key,
+        events: entry.value,
+        argument: snapshot,
+        argumentName: 'snapshot',
+      );
+    }
+  }
+
+  static void _validateSyncBatch(MatrixSyncBatch syncBatch) {
+    _requireSafeIdentifier(syncBatch.cursor, 'sync cursor');
+    for (final room in syncBatch.rooms) {
+      _requireSafeIdentifier(room.roomId, 'sync room id');
+      final summary = room.summary;
+      if (summary != null && summary.roomId != room.roomId) {
+        throw ArgumentError.value(
+          syncBatch,
+          'syncBatch',
+          'room summary must match its owning sync room',
+        );
+      }
+      _validateRoomScopedEvents(
+        ownerRoomId: room.roomId,
+        events: room.timelineEvents,
+        argument: syncBatch,
+        argumentName: 'syncBatch',
+      );
+    }
+  }
+
+  static void _validatePaginationPage(MatrixPaginationPage page) {
+    _requireSafeIdentifier(page.roomId, 'pagination room id');
+    _validateRoomScopedEvents(
+      ownerRoomId: page.roomId,
+      events: page.events,
+      argument: page,
+      argumentName: 'page',
+    );
+  }
+
+  static void _validateRoomScopedEvents({
+    required String ownerRoomId,
+    required List<MatrixTimelineEvent> events,
+    required Object argument,
+    required String argumentName,
+  }) {
+    for (final event in events) {
+      _requireSafeIdentifier(event.eventId, 'event id');
+      _requireSafeIdentifier(event.roomId, 'event room id');
+      if (event.roomId != ownerRoomId) {
+        throw ArgumentError.value(
+          argument,
+          argumentName,
+          'timeline event must match its owning room',
+        );
+      }
+    }
+  }
+
+  static void _requireSafeIdentifier(String value, String name) {
+    if (value.isEmpty || value.contains('\u0000')) {
+      throw ArgumentError('$name must be non-empty without NUL bytes');
     }
   }
 

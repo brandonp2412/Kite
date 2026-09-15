@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_engine.dart';
-import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -390,15 +389,14 @@ final class MatrixAccountRuntimeRegistry {
     _MatrixAccountRuntime runtime,
   ) async {
     if (runtime.hydrated) return;
-    MatrixPresentationSnapshot? snapshot;
     try {
-      snapshot = await presentationStore?.load(accountId);
+      final snapshot = await presentationStore?.load(accountId);
+      if (snapshot != null) {
+        runtime.cache.restore(snapshot);
+      }
     } catch (_) {
       runtime.hydrated = true;
       return;
-    }
-    if (snapshot != null) {
-      runtime.cache.restore(snapshot);
     }
     runtime.hydrated = true;
   }

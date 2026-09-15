@@ -188,6 +188,138 @@ void main() {
     );
   });
 
+  test('malformed sync room data is rejected before any cache mutation', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          _summary(
+            roomId: '!alpha:kite.test',
+            displayName: 'Alpha',
+            position: 5,
+            second: 5,
+          ),
+        ],
+        syncCursor: 'stable',
+      ),
+    );
+    final alphaBefore = cache.roomSummarySignal('!alpha:kite.test').value;
+    final orderBefore = cache.roomOrder.value;
+
+    expect(
+      () => cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'rejected',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!beta:kite.test',
+              summary: _summary(
+                roomId: '!beta:kite.test',
+                displayName: 'Beta',
+                position: 6,
+                second: 6,
+              ),
+            ),
+            MatrixRoomDelta(
+              roomId: '!gamma:kite.test',
+              summary: _summary(
+                roomId: '!other:kite.test',
+                displayName: 'Wrong owner',
+                position: 7,
+                second: 7,
+              ),
+            ),
+          ],
+        ),
+      ),
+      throwsArgumentError,
+    );
+
+    expect(cache.lastSyncCursor, 'stable');
+    expect(cache.roomSummarySignal('!beta:kite.test').value, isNull);
+    expect(cache.roomSummarySignal('!gamma:kite.test').value, isNull);
+    expect(
+      identical(alphaBefore, cache.roomSummarySignal('!alpha:kite.test').value),
+      isTrue,
+    );
+    expect(identical(orderBefore, cache.roomOrder.value), isTrue);
+  });
+
+  test('cross-room timeline events cannot contaminate sync or pagination', () {
+    final cache = MatrixPresentationCache();
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 'stable',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:kite.test',
+            timelineEvents: <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$alpha-stable',
+                roomId: '!alpha:kite.test',
+                position: 1,
+                second: 1,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    final timelineBefore = cache.timelineSignal('!alpha:kite.test').value;
+
+    expect(
+      () => cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'bad-sync',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!alpha:kite.test',
+              timelineEvents: <MatrixTimelineEvent>[
+                _event(
+                  eventId: r'$wrong-sync-room',
+                  roomId: '!beta:kite.test',
+                  position: 2,
+                  second: 2,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => cache.applyPagination(
+        MatrixPaginationPage(
+          roomId: '!alpha:kite.test',
+          events: <MatrixTimelineEvent>[
+            _event(
+              eventId: r'$wrong-page-room',
+              roomId: '!beta:kite.test',
+              position: 0,
+              second: 0,
+            ),
+          ],
+          reachedStart: false,
+        ),
+      ),
+      throwsArgumentError,
+    );
+
+    expect(cache.lastSyncCursor, 'stable');
+    expect(
+      identical(timelineBefore, cache.timelineSignal('!alpha:kite.test').value),
+      isTrue,
+    );
+    expect(
+      cache
+          .timelineSignal('!alpha:kite.test')
+          .value
+          .map((event) => event.eventId),
+      <String>[r'$alpha-stable'],
+    );
+    expect(cache.timelineSignal('!beta:kite.test').value, isEmpty);
+  });
+
   test(
     'persisted snapshots bound rooms and retain only recent timeline events',
     () {
@@ -383,6 +515,83 @@ void main() {
     );
     expect(cache.lastSyncCursor, 'second');
   });
+
+  test(
+    'malformed restored snapshots are rejected before replacing cached state',
+    () {
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            _summary(
+              roomId: '!alpha:kite.test',
+              displayName: 'Alpha',
+              position: 5,
+              second: 5,
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!alpha:kite.test': <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$alpha-stable',
+                roomId: '!alpha:kite.test',
+                position: 5,
+                second: 5,
+              ),
+            ],
+          },
+          syncCursor: 'stable',
+        ),
+      );
+      final alphaBefore = cache.roomSummarySignal('!alpha:kite.test').value;
+      final timelineBefore = cache.timelineSignal('!alpha:kite.test').value;
+      final orderBefore = cache.roomOrder.value;
+
+      expect(
+        () => cache.restore(
+          MatrixPresentationSnapshot(
+            rooms: <MatrixRoomSummary>[
+              _summary(
+                roomId: '!beta:kite.test',
+                displayName: 'Beta',
+                position: 6,
+                second: 6,
+              ),
+            ],
+            timelines: <String, List<MatrixTimelineEvent>>{
+              '!beta:kite.test': <MatrixTimelineEvent>[
+                _event(
+                  eventId: r'$wrong-restored-room',
+                  roomId: '!gamma:kite.test',
+                  position: 6,
+                  second: 6,
+                ),
+              ],
+            },
+            syncCursor: 'rejected',
+          ),
+        ),
+        throwsArgumentError,
+      );
+
+      expect(cache.lastSyncCursor, 'stable');
+      expect(cache.roomSummarySignal('!beta:kite.test').value, isNull);
+      expect(
+        identical(
+          alphaBefore,
+          cache.roomSummarySignal('!alpha:kite.test').value,
+        ),
+        isTrue,
+      );
+      expect(
+        identical(
+          timelineBefore,
+          cache.timelineSignal('!alpha:kite.test').value,
+        ),
+        isTrue,
+      );
+      expect(identical(orderBefore, cache.roomOrder.value), isTrue);
+    },
+  );
 
   test('restoration publishes cached presentation signals atomically', () {
     final cache = MatrixPresentationCache();
