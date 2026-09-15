@@ -131,6 +131,15 @@ void main() {
               title: 'Invite',
               body: 'Deterministic invite notification',
             ),
+            const MatrixNotificationEvent(
+              id: 'call',
+              kind: MatrixNotificationEventKind.call,
+              accountId: 'work',
+              roomId: '!calls:example.org',
+              callId: 'matrix-rtc-dispatch',
+              title: 'Incoming call',
+              body: 'Deterministic call notification',
+            ),
           ]) {
             await dispatcher.dispatch(event);
           }
@@ -199,7 +208,7 @@ void main() {
           }
           notificationPrivacy.hideNotificationContents = true;
           await deliveryCoordinator.refreshPrivacy();
-          expect(deliveryCoordinator.activePresentations, hasLength(51));
+          expect(deliveryCoordinator.activePresentations, hasLength(52));
           expect(
             deliveryCoordinator.activePresentations.every(
               (presentation) => presentation.contentsHidden,
@@ -221,6 +230,14 @@ void main() {
       expect(notifications.notification('message'), isNull);
       expect(notifications.notification('remote-read'), isNull);
       expect(notifications.notification('invite'), isNotNull);
+      expect(
+        notifications.notification('call')?.destination,
+        const AppDestination.call(
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          callId: 'matrix-rtc-dispatch',
+        ),
+      );
       expect(notificationDelivery.cancelledIds.take(3), <String>[
         'thread',
         'message',

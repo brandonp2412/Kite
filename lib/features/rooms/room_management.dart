@@ -247,8 +247,11 @@ final class RoomManagementCoordinator {
     );
   }
 
-  Future<KiteRoomDetails> roomDetails(String rawRoomId) =>
-      _rooms.roomDetails(_roomId(rawRoomId));
+  Future<KiteRoomDetails> roomDetails(String rawRoomId) async {
+    final details = await _rooms.roomDetails(_roomId(rawRoomId));
+    await reconcileDirectMetadata(details);
+    return details;
+  }
 
   Future<void> setName({required String roomId, required String? name}) =>
       _rooms.setName(

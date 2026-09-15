@@ -211,6 +211,47 @@ void main() {
     );
   });
 
+  test('reading SDK room details reconciles current direct-message metadata automatically', () async {
+    final fixture = _fixture();
+    fixture.rooms.detailsByRoomId['!dm:example.org'] = KiteRoomDetails(
+      roomId: '!dm:example.org',
+      name: null,
+      topic: null,
+      avatarUrl: null,
+      canonicalAlias: null,
+      joinRule: KiteRoomJoinRule.invite,
+      encryptionEnabled: true,
+      historyVisibility: KiteRoomHistoryVisibility.joined,
+      notificationMode: KiteRoomNotificationMode.allMessages,
+      isDirect: true,
+      directUserIds: const <String>{'@alice:example.org'},
+    );
+
+    final direct = await fixture.coordinator.roomDetails('!dm:example.org');
+    expect(direct.isDirect, isTrue);
+    expect(fixture.directMetadata.invocations.single.userIds, <String>{
+      '@alice:example.org',
+    });
+
+    fixture.rooms.detailsByRoomId['!dm:example.org'] = KiteRoomDetails(
+      roomId: '!dm:example.org',
+      name: 'Now a room',
+      topic: null,
+      avatarUrl: null,
+      canonicalAlias: null,
+      joinRule: KiteRoomJoinRule.invite,
+      encryptionEnabled: true,
+      historyVisibility: KiteRoomHistoryVisibility.joined,
+      notificationMode: KiteRoomNotificationMode.allMessages,
+      isDirect: false,
+      directUserIds: const <String>{},
+    );
+
+    final room = await fixture.coordinator.roomDetails('!dm:example.org');
+    expect(room.isDirect, isFalse);
+    expect(fixture.directMetadata.invocations.last.userIds, isEmpty);
+  });
+
   test(
     'SDK room metadata reconciles DM mappings when semantics change',
     () async {

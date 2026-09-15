@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:kite/features/calls/call_launcher.dart';
 import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
+import 'package:kite/features/rooms/room_members_screen.dart';
 import 'package:kite/features/rooms/room_settings_screen.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -12,6 +14,7 @@ class RoomDetailsScreen extends StatefulWidget {
     required this.roomName,
     this.store,
     this.management,
+    this.memberManagement,
     this.calls,
     this.isDirect = false,
     this.activeGroupCallId,
@@ -23,6 +26,7 @@ class RoomDetailsScreen extends StatefulWidget {
   final String roomName;
   final RoomMembersStore? store;
   final RoomManagementCoordinator? management;
+  final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final bool isDirect;
   final String? activeGroupCallId;
@@ -55,7 +59,10 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
       key: const Key('room-details-screen'),
       appBar: AppBar(
         title: Text(widget.roomName),
-        actions: widget.management == null && widget.calls == null
+        actions:
+            widget.management == null &&
+                widget.memberManagement == null &&
+                widget.calls == null
             ? null
             : <Widget>[
                 if (widget.calls case final calls?)
@@ -66,6 +73,13 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
                     isDirect: widget.isDirect,
                     activeGroupCallId: widget.activeGroupCallId,
                     activeGroupCallKind: widget.activeGroupCallKind,
+                  ),
+                if (widget.memberManagement != null)
+                  IconButton(
+                    key: const Key('room-members-management-button'),
+                    tooltip: 'Members and room safety',
+                    onPressed: _openManagedMembers,
+                    icon: const Icon(Icons.group_outlined),
                   ),
                 if (widget.management != null)
                   IconButton(
@@ -122,6 +136,17 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openManagedMembers() async {
+    final management = widget.memberManagement;
+    if (management == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            RoomMembersScreen(roomId: widget.roomId, coordinator: management),
       ),
     );
   }

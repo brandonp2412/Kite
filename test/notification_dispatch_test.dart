@@ -7,7 +7,7 @@ import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 void main() {
   test(
-    'dispatch maps message, mention, invite, and thread to exact targets',
+    'dispatch maps message, mention, invite, thread, and call to exact targets',
     () async {
       final repository = FakeNotificationRepository();
       final platform = FakeNotificationDeliveryPort();
@@ -56,6 +56,15 @@ void main() {
           title: 'Thread reply',
           body: 'Dave replied',
         ),
+        const MatrixNotificationEvent(
+          id: 'call',
+          kind: MatrixNotificationEventKind.call,
+          accountId: 'personal',
+          roomId: '!calls:example.org',
+          callId: 'matrix-rtc-42',
+          title: 'Incoming call',
+          body: 'Erin is calling',
+        ),
       ];
 
       for (final event in events) {
@@ -91,12 +100,21 @@ void main() {
         ),
       );
       expect(
+        repository.notification('call')!.destination,
+        const AppDestination.call(
+          accountId: 'personal',
+          roomId: '!calls:example.org',
+          callId: 'matrix-rtc-42',
+        ),
+      );
+      expect(
         platform.shown.map((item) => item.notification.kind),
         <KiteNotificationKind>[
           KiteNotificationKind.message,
           KiteNotificationKind.mention,
           KiteNotificationKind.invite,
           KiteNotificationKind.thread,
+          KiteNotificationKind.call,
         ],
       );
       expect(platform.shown.map((item) => item.body), <String>[
@@ -104,6 +122,7 @@ void main() {
         'Mentioned you',
         'Invited by Carol',
         'Dave replied',
+        'Erin is calling',
       ]);
     },
   );
@@ -134,6 +153,22 @@ void main() {
       throwsArgumentError,
     );
     expect(repository.notification('bad-thread'), isNull);
+
+    await expectLater(
+      dispatcher.dispatch(
+        const MatrixNotificationEvent(
+          id: 'bad-call',
+          kind: MatrixNotificationEventKind.call,
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          title: 'Incoming call',
+          body: 'Missing MatrixRTC identity',
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(repository.notification('bad-call'), isNull);
+    expect(platform.shown, isEmpty);
 
     platform.failNextWith = StateError('platform unavailable');
     await expectLater(

@@ -2,7 +2,7 @@ import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 
-enum MatrixNotificationEventKind { message, mention, invite, thread }
+enum MatrixNotificationEventKind { message, mention, invite, thread, call }
 
 final class MatrixNotificationEvent {
   const MatrixNotificationEvent({
@@ -14,6 +14,7 @@ final class MatrixNotificationEvent {
     required this.body,
     this.eventId,
     this.threadRootEventId,
+    this.callId,
   });
 
   final String id;
@@ -24,6 +25,7 @@ final class MatrixNotificationEvent {
   final String body;
   final String? eventId;
   final String? threadRootEventId;
+  final String? callId;
 }
 
 abstract interface class NotificationRegistrationPort {
@@ -71,6 +73,11 @@ final class NotificationDispatchCoordinator {
         eventId: _requiredEventId(event),
         threadRootEventId: _requiredThreadRootEventId(event),
       ),
+      MatrixNotificationEventKind.call => AppDestination.call(
+        accountId: event.accountId,
+        roomId: event.roomId,
+        callId: _requiredCallId(event),
+      ),
     };
 
     final kind = switch (event.kind) {
@@ -78,6 +85,7 @@ final class NotificationDispatchCoordinator {
       MatrixNotificationEventKind.mention => KiteNotificationKind.mention,
       MatrixNotificationEventKind.invite => KiteNotificationKind.invite,
       MatrixNotificationEventKind.thread => KiteNotificationKind.thread,
+      MatrixNotificationEventKind.call => KiteNotificationKind.call,
     };
 
     return KiteNotification(id: event.id, kind: kind, destination: destination);
@@ -105,5 +113,17 @@ final class NotificationDispatchCoordinator {
       );
     }
     return rootId;
+  }
+
+  String _requiredCallId(MatrixNotificationEvent event) {
+    final callId = event.callId;
+    if (callId == null || callId.isEmpty) {
+      throw ArgumentError.value(
+        event.callId,
+        'event.callId',
+        'Call notifications require a MatrixRTC call id.',
+      );
+    }
+    return callId;
   }
 }

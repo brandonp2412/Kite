@@ -88,6 +88,30 @@ void main() {
         expect(_rectOf(tester, controls), controlsRect);
         expect(tester.takeException(), isNull);
       }
+
+      gateway.callSecurityState = const KiteCallSecurityState(
+        e2eeEnabled: true,
+        identityTrust: KiteCallIdentityTrust.warning,
+      );
+      await coordinator.refreshSecurityState();
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(_rectOf(tester, grid), gridRect);
+        expect(_rectOf(tester, controls), controlsRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(
+        tester
+            .widget<Tooltip>(
+              find.descendant(
+                of: find.byKey(const Key('call-security')),
+                matching: find.byType(Tooltip),
+              ),
+            )
+            .message,
+        'Call security needs attention',
+      );
     },
   );
 }

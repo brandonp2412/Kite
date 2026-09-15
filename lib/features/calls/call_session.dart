@@ -35,6 +35,21 @@ enum KiteCallPhase { idle, ringing, connecting, active, reconnecting, ended }
 
 enum KiteCallEndReason { declined, hungUp }
 
+enum KiteCallIdentityTrust { unknown, trusted, warning }
+
+final class KiteCallSecurityState {
+  const KiteCallSecurityState({
+    required this.e2eeEnabled,
+    required this.identityTrust,
+  });
+
+  final bool e2eeEnabled;
+  final KiteCallIdentityTrust identityTrust;
+
+  bool get hasTrustWarning =>
+      !e2eeEnabled || identityTrust == KiteCallIdentityTrust.warning;
+}
+
 enum KiteCallAppState { foreground, background, locked }
 
 enum KiteCameraFacing { front, rear }
@@ -312,6 +327,8 @@ abstract interface class MatrixRtcGateway {
 
   Future<void> reconnect(String callId);
 
+  Future<KiteCallSecurityState> securityState(String callId);
+
   Future<List<KiteCallParticipant>> participants(String callId);
 }
 
@@ -360,6 +377,8 @@ final class KiteCallCoordinator {
     KiteCallAppState.foreground,
   );
   final Signal<KiteCallActivity?> activity = signal<KiteCallActivity?>(null);
+  final Signal<KiteCallSecurityState?> securityState =
+      signal<KiteCallSecurityState?>(null);
   final Signal<List<KiteCallParticipant>> participants =
       signal<List<KiteCallParticipant>>(const <KiteCallParticipant>[]);
   final Signal<String?> spotlightParticipantId = signal<String?>(null);
@@ -585,6 +604,13 @@ final class KiteCallCoordinator {
     }
   }
 
+  Future<KiteCallSecurityState> refreshSecurityState() async {
+    final current = _requireActiveSession();
+    final state = await _gateway.securityState(current.callId);
+    securityState.value = state;
+    return state;
+  }
+
   Future<List<KiteCallParticipant>> refreshParticipants() async {
     final current = _requireActiveSession();
     final nextParticipants = List<KiteCallParticipant>.unmodifiable(
@@ -806,6 +832,7 @@ final class KiteCallCoordinator {
     isMediaInterrupted.value = false;
     continuationCapabilities.value = KiteCallContinuationCapabilities.none;
     appState.value = KiteCallAppState.foreground;
+    securityState.value = null;
     participants.value = const <KiteCallParticipant>[];
     spotlightParticipantId.value = null;
     isPictureInPictureSupported.value = false;

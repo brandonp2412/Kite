@@ -17,6 +17,7 @@ enum MatrixRtcInvocationType {
   continuationCapabilities,
   setAppState,
   reconnect,
+  securityState,
   participants,
 }
 
@@ -69,6 +70,10 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       kind: KiteAudioRouteKind.speaker,
     ),
   ];
+  KiteCallSecurityState callSecurityState = const KiteCallSecurityState(
+    e2eeEnabled: true,
+    identityTrust: KiteCallIdentityTrust.trusted,
+  );
   List<KiteCallParticipant> callParticipants = const <KiteCallParticipant>[];
 
   @override
@@ -283,6 +288,18 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+  }
+
+  @override
+  Future<KiteCallSecurityState> securityState(String callId) async {
+    invocations.add(
+      MatrixRtcInvocation(
+        type: MatrixRtcInvocationType.securityState,
+        callId: callId,
+      ),
+    );
+    _throwIfRequested();
+    return callSecurityState;
   }
 
   @override
