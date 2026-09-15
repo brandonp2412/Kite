@@ -27,10 +27,10 @@ final class AccountSecurityScopeController {
     profile.resetForAccountChange();
   }
 
-  Future<void> resetAndRefreshActiveAccount() async {
+  Future<void> resetAndRefreshActiveAccount({String? currentDeviceId}) async {
     resetForAccountChange();
     await Future.wait<void>(<Future<void>>[
-      sessionDevices.load(),
+      sessionDevices.load(expectedCurrentDeviceId: currentDeviceId),
       verification.loadTrust(),
       recovery.refresh().then<void>((_) {}),
       profile.loadOwnProfile(),

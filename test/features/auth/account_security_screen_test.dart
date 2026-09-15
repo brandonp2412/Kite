@@ -73,7 +73,7 @@ const _remoteDevice = SessionDevice(
 );
 
 const _personalCurrentDevice = SessionDevice(
-  deviceId: 'PERSONAL_CURRENT',
+  deviceId: 'PERSONAL_DEVICE',
   displayName: 'Personal phone',
   isCurrent: true,
   verification: SessionDeviceVerification.verified,
@@ -154,7 +154,7 @@ void main() {
       expect(sessionGateway.loadCalls, 2);
       expect(find.byKey(const Key('device-CURRENT')), findsNothing);
       expect(find.byKey(const Key('device-PHONE')), findsNothing);
-      expect(find.byKey(const Key('device-PERSONAL_CURRENT')), findsOneWidget);
+      expect(find.byKey(const Key('device-PERSONAL_DEVICE')), findsOneWidget);
     },
   );
 

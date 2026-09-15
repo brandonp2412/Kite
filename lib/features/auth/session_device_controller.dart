@@ -42,8 +42,16 @@ final class SessionDeviceController {
     return null;
   }
 
-  Future<void> load() async {
+  Future<void> load({String? expectedCurrentDeviceId}) async {
     if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return;
+    final expectedDeviceId = expectedCurrentDeviceId?.trim();
+    if (expectedCurrentDeviceId != null &&
+        (expectedDeviceId!.isEmpty ||
+            expectedDeviceId != expectedCurrentDeviceId)) {
+      devices.value = const <SessionDevice>[];
+      errorMessage.value = 'Kite received an invalid current device identity.';
+      return;
+    }
 
     final generation = _accountGeneration;
     isLoading.value = true;
@@ -51,8 +59,15 @@ final class SessionDeviceController {
     try {
       final loaded = await _gateway.loadDevices();
       if (generation != _accountGeneration) return;
-      if (_isValidDeviceList(loaded) == false) {
-        errorMessage.value = 'Kite received an invalid device list.';
+      if (_isValidDeviceList(
+            loaded,
+            expectedCurrentDeviceId: expectedDeviceId,
+          ) ==
+          false) {
+        devices.value = const <SessionDevice>[];
+        errorMessage.value = expectedDeviceId == null
+            ? 'Kite received an invalid device list.'
+            : 'Kite could not confirm the current Matrix device.';
         return;
       }
       devices.value = List<SessionDevice>.unmodifiable(loaded);
@@ -124,17 +139,25 @@ final class SessionDeviceController {
     return null;
   }
 
-  bool _isValidDeviceList(List<SessionDevice> loaded) {
+  bool _isValidDeviceList(
+    List<SessionDevice> loaded, {
+    String? expectedCurrentDeviceId,
+  }) {
     final ids = <String>{};
-    var currentCount = 0;
+    SessionDevice? currentDevice;
     for (final device in loaded) {
       final deviceId = device.deviceId.trim();
       if (deviceId.isEmpty || deviceId != device.deviceId) return false;
       if (ids.add(device.deviceId) == false) return false;
-      if (device.isCurrent) currentCount += 1;
-      if (currentCount > 1) return false;
+      if (device.isCurrent) {
+        if (currentDevice != null) return false;
+        currentDevice = device;
+      }
     }
-    return loaded.isEmpty || currentCount == 1;
+    if (loaded.isEmpty) return expectedCurrentDeviceId == null;
+    if (currentDevice == null) return false;
+    return expectedCurrentDeviceId == null ||
+        currentDevice.deviceId == expectedCurrentDeviceId;
   }
 
   void dispose() {

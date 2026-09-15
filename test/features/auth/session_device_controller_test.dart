@@ -190,6 +190,28 @@ void main() {
     },
   );
 
+  test(
+    'confirms the SDK current device matches the authenticated session',
+    () async {
+      final gateway = _FakeSessionDeviceGateway()
+        ..loaded = const <SessionDevice>[_current, _remote];
+      final controller = SessionDeviceController(gateway);
+      addTearDown(controller.dispose);
+
+      await controller.load(expectedCurrentDeviceId: 'OTHER_DEVICE');
+
+      expect(controller.devices.value, isEmpty);
+      expect(
+        controller.errorMessage.value,
+        'Kite could not confirm the current Matrix device.',
+      );
+
+      await controller.load(expectedCurrentDeviceId: 'CURRENT');
+      expect(controller.currentDevice?.deviceId, 'CURRENT');
+      expect(controller.errorMessage.value, isNull);
+    },
+  );
+
   test('rejects whitespace-bearing device identifiers', () async {
     final gateway = _FakeSessionDeviceGateway()
       ..loaded = const <SessionDevice>[
