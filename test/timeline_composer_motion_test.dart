@@ -7,6 +7,15 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
+class _RecordingModerationPort implements TimelineModerationPort {
+  final List<TimelineReportRequest> requests = <TimelineReportRequest>[];
+
+  @override
+  Future<void> reportMessage(TimelineReportRequest request) async {
+    requests.add(request);
+  }
+}
+
 class _ControlledSendPort implements TimelineSendPort {
   final List<Completer<TimelineSendOutcome>> attempts =
       <Completer<TimelineSendOutcome>>[];
@@ -232,6 +241,274 @@ void main() {
       expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
     },
   );
+
+  testWidgets(
+    'quick reaction updates only target leaf geometry and exposes reactor detail',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final targetMessage = timelineController.messagesFor('alice').value.last;
+      final target = find.byKey(const Key('message-bubble-alice-99'));
+      final adjacentRow = find.byKey(const Key('message-row-alice-98'));
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final initialTarget = _rectOf(tester, target);
+      final initialAdjacent = _rectOf(tester, adjacentRow);
+      final initialChatPanel = _rectOf(tester, chatPanel);
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('quick-reaction-row')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('quick-reaction-0')));
+
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        _expectSameRect(
+          initialAdjacent,
+          _rectOf(tester, adjacentRow),
+          'adjacent message row',
+        );
+        _expectSameRect(
+          initialChatPanel,
+          _rectOf(tester, chatPanel),
+          'chat panel',
+        );
+        expect(tester.takeException(), isNull);
+      }
+
+      expect(_rectOf(tester, target).height, initialTarget.height);
+      expect(targetMessage.reactions['👍']?.count, 1);
+      expect(targetMessage.reactions['👍']?.reactedByMe, isTrue);
+      final summary = find.byKey(const Key('message-reactions-alice-99'));
+      expect(summary, findsOneWidget);
+
+      await tester.tap(summary);
+      await tester.pumpAndSettle();
+      final details = find.byKey(const Key('reaction-details'));
+      expect(details, findsOneWidget);
+      expect(
+        find.descendant(of: details, matching: find.text('👍 1')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: details, matching: find.text('You')),
+        findsOneWidget,
+      );
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pumpAndSettle();
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('quick-reaction-0')));
+      await tester.pumpAndSettle();
+      expect(targetMessage.reactions, isEmpty);
+      expect(summary, findsNothing);
+      _expectSameRect(
+        initialAdjacent,
+        _rectOf(tester, adjacentRow),
+        'adjacent message row after toggle removal',
+      );
+    },
+  );
+
+  testWidgets(
+    'full reaction picker transition is deterministic and preserves timeline width',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final initialPanel = _rectOf(tester, chatPanel);
+      final target = find.byKey(const Key('message-bubble-alice-99'));
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-more-reactions')));
+      await tester.pump();
+
+      final picker = find.byKey(const Key('reaction-picker-sheet'));
+      expect(picker, findsOneWidget);
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, chatPanel).width, initialPanel.width);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('reaction-picker-4')));
+      await tester.pumpAndSettle();
+      final message = timelineController.messagesFor('alice').value.last;
+      expect(message.reactions['🔥']?.count, 1);
+      expect(
+        find.byKey(const Key('message-reactions-alice-99')),
+        findsOneWidget,
+      );
+      expect(_rectOf(tester, chatPanel).width, initialPanel.width);
+    },
+  );
+
+  testWidgets(
+    'forward action keeps the source timeline anchored while sending to rooms',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpAndSettle();
+
+      final target = find.byKey(const Key('message-bubble-alice-98'));
+      final anchoredLatest = find.byKey(const Key('message-row-alice-99'));
+      final messageList = find.byKey(const Key('message-list'));
+      final chatPanel = find.byKey(const Key('chat-panel'));
+      final initialLatest = _rectOf(tester, anchoredLatest);
+      final initialList = _rectOf(tester, messageList);
+      final initialPanel = _rectOf(tester, chatPanel);
+
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('message-action-forward')));
+
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        _expectSameRect(
+          initialLatest,
+          _rectOf(tester, anchoredLatest),
+          'latest row',
+        );
+        _expectSameRect(
+          initialList,
+          _rectOf(tester, messageList),
+          'message list',
+        );
+        _expectSameRect(initialPanel, _rectOf(tester, chatPanel), 'chat panel');
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('forward-message-sheet')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('forward-room-bob')));
+      await tester.tap(find.byKey(const Key('forward-room-kite')));
+      await tester.pump();
+      expect(find.text('Forward to 2'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('forward-message-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(
+        timelineController.messagesFor('bob').value.last.body,
+        'Deterministic message 99 in Alice',
+      );
+      expect(
+        timelineController.messagesFor('kite').value.last.body,
+        'Deterministic message 99 in Alice',
+      );
+      expect(find.text('Forwarded to 2 rooms'), findsOneWidget);
+      _expectSameRect(
+        initialLatest,
+        _rectOf(tester, anchoredLatest),
+        'latest row',
+      );
+      _expectSameRect(
+        initialList,
+        _rectOf(tester, messageList),
+        'message list',
+      );
+      _expectSameRect(initialPanel, _rectOf(tester, chatPanel), 'chat panel');
+    },
+  );
+
+  testWidgets('report action submits reason without moving the timeline', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final moderationPort = _RecordingModerationPort();
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      moderationPort: moderationPort,
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final target = find.byKey(const Key('message-bubble-alice-98'));
+    final anchoredLatest = find.byKey(const Key('message-row-alice-99'));
+    final messageList = find.byKey(const Key('message-list'));
+    final initialLatest = _rectOf(tester, anchoredLatest);
+    final initialList = _rectOf(tester, messageList);
+
+    await tester.longPress(target);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-action-report')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      _expectSameRect(
+        initialLatest,
+        _rectOf(tester, anchoredLatest),
+        'latest row',
+      );
+      _expectSameRect(
+        initialList,
+        _rectOf(tester, messageList),
+        'message list',
+      );
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('report-message-sheet')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('report-reason-1')));
+    await tester.pumpAndSettle();
+
+    expect(moderationPort.requests, hasLength(1));
+    final request = moderationPort.requests.single;
+    expect(request.roomId, 'alice');
+    expect(request.eventId, 'alice-98');
+    expect(request.reason, 'Harassment or abuse');
+    expect(find.text('Report sent'), findsOneWidget);
+    _expectSameRect(
+      initialLatest,
+      _rectOf(tester, anchoredLatest),
+      'latest row',
+    );
+    _expectSameRect(initialList, _rectOf(tester, messageList), 'message list');
+  });
 
   testWidgets(
     'copy action preserves timeline geometry and confirms completion',

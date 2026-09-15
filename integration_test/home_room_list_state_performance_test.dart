@@ -18,6 +18,74 @@ void main() {
       ? PerformanceContract.gateVirtualizedTotalSpan
       : PerformanceContract.gatePhysicalTotalSpan;
 
+  testWidgets('room filter change has zero late Flutter frames', (
+    tester,
+  ) async {
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(390, 844)),
+          child: HomeScreen(roomListStore: store),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('room-filter-people')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_list_filter_change'] = <String, dynamic>{
+      'journey': 'room_list_filter_change',
+      'fixture': 'deterministic_200_rooms_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('read-all mutation has zero late Flutter frames', (tester) async {
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(390, 844)),
+          child: HomeScreen(roomListStore: store),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('home-read-all')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_list_read_all'] = <String, dynamic>{
+      'journey': 'room_list_read_all',
+      'fixture': 'deterministic_200_rooms_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('visible room state mutation has zero late Flutter frames', (
     tester,
   ) async {

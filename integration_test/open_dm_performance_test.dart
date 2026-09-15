@@ -123,6 +123,48 @@ void main() {
     };
   });
 
+  testWidgets('formatted send has zero late Flutter frames', (tester) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    final editable = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('composer-field')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    editable.controller.text = 'Profile `inline` text.\n\n> Stable quote.\n\n```dart\nfinal stable = true;\n```';
+    await tester.pump();
+    final sendButton = tester.widget<IconButton>(
+      find.byKey(const Key('composer-send')),
+    );
+    expect(sendButton.onPressed, isNotNull);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        sendButton.onPressed!();
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('timeline-body-quote')), findsOneWidget);
+    expect(find.byKey(const Key('timeline-body-code')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['send_formatted_message'] = <String, dynamic>{
+      'journey': 'send_formatted_text_message',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('reply composer transition has zero late Flutter frames', (
     tester,
   ) async {
@@ -151,6 +193,166 @@ void main() {
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['reply_composer'] = <String, dynamic>{
       'journey': 'open_reply_composer',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('quick reaction has zero late Flutter frames', (tester) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('quick-reaction-0')), findsOneWidget);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('quick-reaction-0')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final message = timelineController.messagesFor('alice').value.last;
+    expect(message.reactions['👍']?.count, 1);
+    expect(find.byKey(const Key('message-reactions-alice-99')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['quick_reaction'] = <String, dynamic>{
+      'journey': 'quick_reaction',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('reaction picker open has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('message-action-more-reactions')),
+      findsOneWidget,
+    );
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(
+          find.byKey(const Key('message-action-more-reactions')),
+        );
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(const Key('reaction-picker-sheet')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['reaction_picker_open'] = <String, dynamic>{
+      'journey': 'open_reaction_picker',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('forward message flow has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-forward')), findsOneWidget);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('message-action-forward')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('forward-room-bob')));
+        await tester.tap(find.byKey(const Key('forward-room-kite')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('forward-message-confirm')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(
+      timelineController.messagesFor('bob').value.last.body,
+      'Deterministic message 99 in Alice',
+    );
+    expect(
+      timelineController.messagesFor('kite').value.last.body,
+      'Deterministic message 99 in Alice',
+    );
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['forward_message'] = <String, dynamic>{
+      'journey': 'forward_message_to_rooms',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('report message flow has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      moderationPort: DeterministicTimelineModerationPort(
+        latency: Duration.zero,
+      ),
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-report')), findsOneWidget);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('message-action-report')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('report-reason-1')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.text('Report sent'), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['report_message'] = <String, dynamic>{
+      'journey': 'report_message_reason',
       'fixture': 'deterministic_v1',
       'iterations': 1,
       ...result,

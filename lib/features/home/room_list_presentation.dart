@@ -2,6 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:signals/signals.dart';
 
+enum RoomListFilter { all, unreads, people, rooms, favourites }
+
+extension RoomListFilterPresentation on RoomListFilter {
+  String get label => switch (this) {
+    RoomListFilter.all => 'All',
+    RoomListFilter.unreads => 'Unreads',
+    RoomListFilter.people => 'People',
+    RoomListFilter.rooms => 'Rooms',
+    RoomListFilter.favourites => 'Favourites',
+  };
+}
+
 @immutable
 final class RoomListEntry {
   const RoomListEntry({
@@ -15,6 +27,7 @@ final class RoomListEntry {
     this.hasActiveCall = false,
     this.isMuted = false,
     this.isFavourite = false,
+    this.isDirect = false,
   });
 
   factory RoomListEntry.fromBenchmark(BenchmarkRoom room) {
@@ -35,6 +48,15 @@ final class RoomListEntry {
   final bool hasActiveCall;
   final bool isMuted;
   final bool isFavourite;
+  final bool isDirect;
+
+  bool matches(RoomListFilter filter) => switch (filter) {
+    RoomListFilter.all => true,
+    RoomListFilter.unreads => unreadCount > 0 || hasMention || hasMutedActivity,
+    RoomListFilter.people => isDirect,
+    RoomListFilter.rooms => !isDirect,
+    RoomListFilter.favourites => isFavourite,
+  };
 
   RoomListEntry copyWith({
     String? latestEventBody,
@@ -45,6 +67,7 @@ final class RoomListEntry {
     bool? hasActiveCall,
     bool? isMuted,
     bool? isFavourite,
+    bool? isDirect,
   }) {
     return RoomListEntry(
       id: id,
@@ -57,6 +80,7 @@ final class RoomListEntry {
       hasActiveCall: hasActiveCall ?? this.hasActiveCall,
       isMuted: isMuted ?? this.isMuted,
       isFavourite: isFavourite ?? this.isFavourite,
+      isDirect: isDirect ?? this.isDirect,
     );
   }
 }
@@ -66,7 +90,11 @@ final class RoomListStateStore {
     : roomIds = List<String>.unmodifiable(rooms.map((room) => room.id)),
       _rooms = <String, Signal<RoomListEntry>>{
         for (final room in rooms) room.id: signal(room),
-      } {
+      },
+      selectedFilter = signal(RoomListFilter.all),
+      visibleRoomIds = signal<List<String>>(
+        List<String>.unmodifiable(rooms.map((room) => room.id)),
+      ) {
     if (_rooms.length != rooms.length) {
       throw ArgumentError.value(rooms, 'rooms', 'Room IDs must be unique.');
     }
@@ -74,6 +102,8 @@ final class RoomListStateStore {
 
   final List<String> roomIds;
   final Map<String, Signal<RoomListEntry>> _rooms;
+  final Signal<RoomListFilter> selectedFilter;
+  final Signal<List<String>> visibleRoomIds;
 
   Signal<RoomListEntry> roomSignal(String roomId) {
     final room = _rooms[roomId];
@@ -88,7 +118,45 @@ final class RoomListStateStore {
     if (target == null) {
       throw ArgumentError.value(room.id, 'room.id', 'Unknown room.');
     }
+    final filter = selectedFilter.value;
+    final membershipChanged =
+        target.value.matches(filter) != room.matches(filter);
     target.value = room;
+    if (membershipChanged) {
+      _refreshVisibleRoomIds(filter);
+    }
+  }
+
+  void selectFilter(RoomListFilter filter) {
+    if (selectedFilter.value == filter) {
+      return;
+    }
+    selectedFilter.value = filter;
+    _refreshVisibleRoomIds(filter);
+  }
+
+  void markAllRead() {
+    for (final roomId in roomIds) {
+      final target = _rooms[roomId]!;
+      final room = target.value;
+      if (room.unreadCount == 0 && !room.hasMention && !room.hasMutedActivity) {
+        continue;
+      }
+      target.value = room.copyWith(
+        unreadCount: 0,
+        hasMention: false,
+        hasMutedActivity: false,
+      );
+    }
+    if (selectedFilter.value == RoomListFilter.unreads) {
+      _refreshVisibleRoomIds(RoomListFilter.unreads);
+    }
+  }
+
+  void _refreshVisibleRoomIds(RoomListFilter filter) {
+    visibleRoomIds.value = List<String>.unmodifiable(
+      roomIds.where((roomId) => _rooms[roomId]!.value.matches(filter)),
+    );
   }
 }
 
@@ -108,11 +176,13 @@ List<RoomListEntry> deterministicRoomListEntries(List<BenchmarkRoom> rooms) {
           latestEventBody: 'Muted room activity stays quiet.',
           hasMutedActivity: true,
           isMuted: true,
+          isDirect: true,
         ),
         'bob' => base.copyWith(
           latestSender: 'Bob',
           latestEventBody: 'Call is active now',
           hasActiveCall: true,
+          isDirect: true,
         ),
         'room-3' => base.copyWith(
           latestSender: 'Sam',
