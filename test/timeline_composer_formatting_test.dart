@@ -112,6 +112,29 @@ void main() {
     expect(editable.controller.text, 'See #Design-Lab ');
   });
 
+  testWidgets('autocomplete survives transient invalid Android selection', (
+    tester,
+  ) async {
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final field = find.byKey(const Key('composer-field'));
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: field, matching: find.byType(EditableText)),
+    );
+    editable.controller.value = const TextEditingValue(
+      text: '@a',
+      selection: TextSelection.collapsed(offset: -1),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('composer-autocomplete-Alice')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('autocomplete expansion is anchored at 120 Hz', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 800);

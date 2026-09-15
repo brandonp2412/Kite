@@ -739,9 +739,32 @@ void main() {
     expect(target.id, 'alice-99');
     expect(target.body, 'Edited message 100 in Alice');
     expect(target.edited, isTrue);
+    expect(target.editHistory, <String>['Deterministic message 100 in Alice']);
     expect(timelineController.messagesFor('alice').value.length, beforeCount);
     expect(find.byKey(const Key('edited-alice-99')), findsOneWidget);
     expect(find.byKey(const Key('composer-context')), findsNothing);
+    expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
+
+    await tester.tap(find.byKey(const Key('edited-alice-99')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('edit-history-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('edit-history-current')), findsOneWidget);
+    expect(find.byKey(const Key('edit-history-0')), findsOneWidget);
+    final history = find.byKey(const Key('edit-history-sheet'));
+    expect(
+      find.descendant(
+        of: history,
+        matching: find.text('Edited message 100 in Alice'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: history,
+        matching: find.text('Deterministic message 100 in Alice'),
+      ),
+      findsOneWidget,
+    );
     expect(_rectOf(tester, chatPanel).width, initialChatPanel.width);
     expect(tester.takeException(), isNull);
   });

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show RenderAbstractViewport, ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
@@ -863,20 +865,18 @@ class _TypingIndicator extends StatelessWidget {
                 _ =>
                   '${users.first} and ${users.length - 1} others are typing…',
               };
-              return AnimatedOpacity(
+              return KeyedSubtree(
                 key: const Key('typing-indicator'),
-                opacity: users.isEmpty ? 0 : 1,
-                duration: KiteMotion.resolve(context, KiteMotion.fast),
-                curve: KiteMotion.standardCurve,
-                child: Text(
-                  text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: KiteTypography.metadata.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+                child: users.isEmpty
+                    ? const SizedBox.shrink()
+                    : Text(
+                        text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KiteTypography.metadata.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
               );
             },
           ),
@@ -961,11 +961,80 @@ class _ChatHeader extends StatelessWidget {
   }
 }
 
-class _Timeline extends StatelessWidget {
+class _Timeline extends StatefulWidget {
   const _Timeline({required this.onReply, required this.onEdit});
 
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
+
+  @override
+  State<_Timeline> createState() => _TimelineState();
+}
+
+class _TimelineState extends State<_Timeline> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _unreadMarkerKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _jumpToUnread(String roomId) async {
+    final eventId = timelineController.unreadMarkerFor(roomId).peek();
+    if (eventId == null || !_scrollController.hasClients) return;
+
+    final retainedMarkerContext = _unreadMarkerKey.currentContext;
+    final retainedMarker = retainedMarkerContext?.findRenderObject();
+    if (retainedMarker != null && retainedMarker.attached) {
+      final position = _scrollController.position;
+      final viewport = RenderAbstractViewport.maybeOf(retainedMarker);
+      if (viewport != null) {
+        final target = viewport
+            .getOffsetToReveal(retainedMarker, 0.22)
+            .offset
+            .clamp(position.minScrollExtent, position.maxScrollExtent);
+        final distance = (target - position.pixels).abs();
+        final duration = distance > position.viewportDimension
+            ? Duration.zero
+            : KiteMotion.resolve(context, KiteMotion.standard);
+        await position.ensureVisible(
+          retainedMarker,
+          alignment: 0.22,
+          duration: duration,
+          curve: KiteMotion.standardCurve,
+        );
+        return;
+      }
+    }
+
+    final messages = timelineController.messagesFor(roomId).peek();
+    final targetIndex = messages.indexWhere((message) => message.id == eventId);
+    if (targetIndex < 0) return;
+    final reverseIndex = messages.length - 1 - targetIndex;
+    final denominator = messages.length <= 1 ? 1 : messages.length - 1;
+    final targetOffset =
+        _scrollController.position.maxScrollExtent * reverseIndex / denominator;
+    await _scrollController.animateTo(
+      targetOffset.clamp(
+        _scrollController.position.minScrollExtent,
+        _scrollController.position.maxScrollExtent,
+      ),
+      duration: KiteMotion.resolve(context, KiteMotion.deliberate),
+      curve: KiteMotion.standardCurve,
+    );
+    if (!mounted) return;
+    final markerContext = _unreadMarkerKey.currentContext;
+    if (markerContext != null && markerContext.mounted) {
+      await Scrollable.ensureVisible(
+        markerContext,
+        alignment: 0.22,
+        duration: KiteMotion.resolve(context, KiteMotion.standard),
+        curve: KiteMotion.standardCurve,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -973,23 +1042,141 @@ class _Timeline extends StatelessWidget {
       builder: (context) {
         final roomId = selectedRoomId.value;
         final messages = timelineController.messagesFor(roomId).value;
-        return ListView.builder(
-          key: const Key('message-list'),
-          reverse: true,
-          padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
-          itemCount: messages.length,
-          itemBuilder: (context, index) {
-            final message = messages[messages.length - 1 - index];
-            return _MessageRow(
-              key: ValueKey<String>(message.id),
-              roomId: roomId,
-              message: message,
-              onReply: onReply,
-              onEdit: onEdit,
-            );
-          },
+        final unreadMarkerEventId = timelineController
+            .unreadMarkerFor(roomId)
+            .value;
+        return Stack(
+          key: const Key('timeline-stack'),
+          children: <Widget>[
+            ListView.builder(
+              key: const Key('message-list'),
+              controller: _scrollController,
+              reverse: true,
+              scrollCacheExtent: unreadMarkerEventId == null
+                  ? null
+                  : const ScrollCacheExtent.viewport(1.8),
+              padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
+              itemCount: messages.length,
+              itemBuilder: (context, index) {
+                final message = messages[messages.length - 1 - index];
+                final row = _MessageRow(
+                  key: ValueKey<String>(message.id),
+                  roomId: roomId,
+                  message: message,
+                  onReply: widget.onReply,
+                  onEdit: widget.onEdit,
+                );
+                if (message.id != unreadMarkerEventId) return row;
+                return _UnreadMarkerOverlay(
+                  markerKey: _unreadMarkerKey,
+                  child: row,
+                );
+              },
+            ),
+            Positioned(
+              right: KiteSpacing.md,
+              bottom: KiteSpacing.md,
+              child: SignalBuilder(
+                builder: (context) {
+                  final eventId = timelineController
+                      .unreadMarkerFor(roomId)
+                      .value;
+                  return KeyedSubtree(
+                    key: const Key('jump-to-unread-slot'),
+                    child: eventId == null
+                        ? const SizedBox.shrink()
+                        : _UnreadJumpButton(onTap: () => _jumpToUnread(roomId)),
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+}
+
+class _UnreadJumpButton extends StatelessWidget {
+  const _UnreadJumpButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return RepaintBoundary(
+      child: Semantics(
+        button: true,
+        label: 'Jump to unread messages',
+        child: GestureDetector(
+          key: const Key('jump-to-unread'),
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Icon(
+                      Icons.arrow_downward_rounded,
+                      size: 18,
+                      color: colors.onSecondaryContainer,
+                    ),
+                    const SizedBox(width: KiteSpacing.xs),
+                    Text(
+                      'Unread',
+                      style: KiteTypography.metadata.copyWith(
+                        color: colors.onSecondaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadMarkerOverlay extends StatelessWidget {
+  const _UnreadMarkerOverlay({required this.markerKey, required this.child});
+
+  final GlobalKey markerKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        child,
+        Positioned(
+          key: markerKey,
+          left: KiteSpacing.md,
+          right: KiteSpacing.md,
+          top: 0,
+          child: IgnorePointer(
+            child: SizedBox(
+              key: const Key('timeline-unread-marker'),
+              height: 1,
+              child: ColoredBox(color: colors.primary.withValues(alpha: 0.72)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1021,6 +1208,19 @@ class _MessageRow extends StatelessWidget {
         onSave: model.onSave,
         onShare: model.onShare,
       ),
+    );
+  }
+
+  Future<void> _showEditHistory(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (_) => _EditHistorySheet(message: message),
     );
   }
 
@@ -1274,12 +1474,22 @@ class _MessageRow extends StatelessWidget {
                   ),
                   SignalBuilder(
                     builder: (context) => message.edited
-                        ? Text(
-                            ' · edited',
-                            key: Key('edited-${message.id}'),
-                            style: KiteTypography.metadata.copyWith(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 11,
+                        ? Semantics(
+                            button: true,
+                            label: 'View edit history',
+                            child: GestureDetector(
+                              key: Key('edited-${message.id}'),
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _showEditHistory(context),
+                              child: Text(
+                                ' · edited',
+                                style: KiteTypography.metadata.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 11,
+                                  decoration: TextDecoration.underline,
+                                  decorationStyle: TextDecorationStyle.dotted,
+                                ),
+                              ),
                             ),
                           )
                         : const SizedBox.shrink(),
@@ -2351,6 +2561,98 @@ class _ReadReceiptAvatars extends StatelessWidget {
   }
 }
 
+class _EditHistorySheet extends StatelessWidget {
+  const _EditHistorySheet({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('edit-history-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.md,
+        KiteSpacing.lg,
+        KiteSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Edit history',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          _EditHistoryEntry(
+            key: const Key('edit-history-current'),
+            label: 'Current',
+            body: message.body,
+            emphasized: true,
+          ),
+          for (var index = message.editHistory.length - 1; index >= 0; index--)
+            _EditHistoryEntry(
+              key: Key('edit-history-$index'),
+              label: index == 0 ? 'Original' : 'Earlier edit',
+              body: message.editHistory[index],
+            ),
+          if (message.editHistory.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: KiteSpacing.sm),
+              child: Text(
+                'Earlier versions are unavailable.',
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditHistoryEntry extends StatelessWidget {
+  const _EditHistoryEntry({
+    super.key,
+    required this.label,
+    required this.body,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String body;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: KiteSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: KiteTypography.metadata.copyWith(
+              color: emphasized ? colors.primary : colors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.xxs),
+          Text(
+            body,
+            style: KiteTypography.body.copyWith(color: colors.onSurface),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ReadReceiptDetailsSheet extends StatelessWidget {
   const _ReadReceiptDetailsSheet({required this.readers});
 
@@ -2518,8 +2820,11 @@ class _ComposerState extends State<_Composer> {
     TextEditingValue value,
   ) {
     final selection = value.selection;
-    if (!selection.isValid || !selection.isCollapsed) return null;
-    final beforeCursor = value.text.substring(0, selection.extentOffset);
+    if (selection.isValid && !selection.isCollapsed) return null;
+    final cursorOffset = selection.isValid
+        ? selection.extentOffset
+        : value.text.length;
+    final beforeCursor = value.text.substring(0, cursorOffset);
     final match = RegExp(r'([@#])([^\s@#]*)$').firstMatch(beforeCursor);
     if (match == null) return null;
     final start = match.start;

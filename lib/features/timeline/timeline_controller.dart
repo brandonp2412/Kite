@@ -193,11 +193,15 @@ class TimelineMessage {
     TimelineSendState sendState = TimelineSendState.sent,
     bool edited = false,
     bool redacted = false,
+    List<String> editHistory = const <String>[],
     Map<String, TimelineReactionSummary> reactions = const {},
     List<String> readBy = const <String>[],
   }) : bodyText = signal(body),
        editedState = signal(edited),
        redactedState = signal(redacted),
+       editHistoryState = signal<List<String>>(
+         List<String>.unmodifiable(editHistory),
+       ),
        reactionState = signal<Map<String, TimelineReactionSummary>>(
          Map<String, TimelineReactionSummary>.unmodifiable(reactions),
        ),
@@ -228,6 +232,7 @@ class TimelineMessage {
   final TimelineAttachment? attachment;
   final Signal<bool> editedState;
   final Signal<bool> redactedState;
+  final Signal<List<String>> editHistoryState;
   final Signal<Map<String, TimelineReactionSummary>> reactionState;
   final Signal<List<String>> readByState;
   final Signal<TimelineSendState> sendState;
@@ -235,6 +240,7 @@ class TimelineMessage {
   String get body => bodyText.value;
   bool get edited => editedState.value;
   bool get redacted => redactedState.value;
+  List<String> get editHistory => editHistoryState.value;
   bool get isReply => replyToMessageId != null;
   Map<String, TimelineReactionSummary> get reactions => reactionState.value;
   List<String> get readBy => readByState.value;
@@ -267,7 +273,26 @@ class TimelineController {
       <String, Signal<List<TimelineMessage>>>{};
   final Map<String, Signal<List<String>>> _typingUsers =
       <String, Signal<List<String>>>{};
+  final Map<String, Signal<String?>> _unreadMarkerEventIds =
+      <String, Signal<String?>>{};
   int _transactionCounter = 0;
+
+  Signal<String?> unreadMarkerFor(String roomId) {
+    return _unreadMarkerEventIds.putIfAbsent(
+      roomId,
+      () => signal<String?>(null),
+    );
+  }
+
+  void setUnreadMarker(String roomId, String? eventId) {
+    if (eventId != null &&
+        !messagesFor(roomId).peek().any((message) => message.id == eventId)) {
+      throw ArgumentError.value(eventId, 'eventId', 'Unknown timeline event.');
+    }
+    final marker = unreadMarkerFor(roomId);
+    if (marker.peek() == eventId) return;
+    marker.value = eventId;
+  }
 
   Signal<List<String>> typingUsersFor(String roomId) {
     return _typingUsers.putIfAbsent(
@@ -387,8 +412,14 @@ class TimelineController {
     if (!message.mine || message.redacted) return;
     final body = rawBody.trim();
     if (body.isEmpty || body == message.body) return;
-    message.bodyText.value = body;
-    message.editedState.value = true;
+    batch(() {
+      message.editHistoryState.value = List<String>.unmodifiable(<String>[
+        ...message.editHistoryState.peek(),
+        message.body,
+      ]);
+      message.bodyText.value = body;
+      message.editedState.value = true;
+    });
   }
 
   void redactText(TimelineMessage message) {
@@ -396,6 +427,7 @@ class TimelineController {
     batch(() {
       message.bodyText.value = '';
       message.editedState.value = false;
+      message.editHistoryState.value = const <String>[];
       message.reactionState.value = const <String, TimelineReactionSummary>{};
       message.readByState.value = const <String>[];
       message.redactedState.value = true;
@@ -499,6 +531,7 @@ class TimelineController {
     _transactionCounter = 0;
     _messages.clear();
     _typingUsers.clear();
+    _unreadMarkerEventIds.clear();
   }
 
   Future<void> _settleAttachment(String roomId, TimelineMessage message) async {

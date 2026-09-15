@@ -79,4 +79,40 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets('jump to unread stays within the frame contract', (tester) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    final target = timelineController.messagesFor('alice').value.last;
+    timelineController.setUnreadMarker('alice', target.id);
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+
+    final list = find.byKey(const Key('message-list'));
+    await tester.drag(list, const Offset(0, 1100));
+    await tester.pumpAndSettle();
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(of: list, matching: find.byType(Scrollable)).first,
+    );
+    expect(scrollable.position.pixels, greaterThan(0));
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('jump-to-unread')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(find.byKey(Key('message-row-${target.id}')), findsOneWidget);
+    expect(find.byKey(const Key('timeline-unread-marker')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['timeline_jump_to_unread'] = <String, dynamic>{
+      'journey': 'timeline_jump_to_unread',
+      'fixture': 'deterministic_timeline_unread_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
 }

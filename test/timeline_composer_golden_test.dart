@@ -392,5 +392,70 @@ void main() {
         matchesGoldenFile('goldens/timeline_report_${variant.name}.png'),
       );
     });
+
+    testWidgets('unread marker ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      final messages = timelineController.messagesFor('alice').value;
+      timelineController.setUnreadMarker(
+        'alice',
+        messages[messages.length - 3].id,
+      );
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-unread-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('timeline-unread-marker')), findsOneWidget);
+      expect(find.byKey(const Key('jump-to-unread')), findsOneWidget);
+      await expectLater(
+        find.byKey(const Key('timeline-unread-golden')),
+        matchesGoldenFile('goldens/timeline_unread_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('edit history ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      final target = timelineController.messagesFor('alice').value.last;
+      timelineController.editText(target, 'Edited message 100 in Alice');
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('edited-alice-99')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('edit-history-sheet')), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile('goldens/timeline_edit_history_${variant.name}.png'),
+      );
+    });
   }
 }
