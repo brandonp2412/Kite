@@ -89,8 +89,14 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
   int _counter = 0;
   Completer<MatrixRtcSessionDescriptor>? _heldStart;
   MatrixRtcSessionDescriptor? _heldStartDescriptor;
+  Completer<void>? _heldMediaInterruption;
+  Completer<void>? _heldAppState;
+  Completer<void>? _heldReconnect;
   Object? failNextWith;
   bool holdNextStart = false;
+  bool holdNextMediaInterruption = false;
+  bool holdNextAppState = false;
+  bool holdNextReconnect = false;
   KiteCameraFacing cameraFacing = KiteCameraFacing.front;
   KiteCallContinuationCapabilities callContinuationCapabilities =
       const KiteCallContinuationCapabilities(background: true, locked: true);
@@ -284,6 +290,11 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+    if (!holdNextMediaInterruption) return;
+    holdNextMediaInterruption = false;
+    final completer = Completer<void>();
+    _heldMediaInterruption = completer;
+    await completer.future;
   }
 
   @override
@@ -313,6 +324,11 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+    if (!holdNextAppState) return;
+    holdNextAppState = false;
+    final completer = Completer<void>();
+    _heldAppState = completer;
+    await completer.future;
   }
 
   @override
@@ -324,6 +340,11 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
       ),
     );
     _throwIfRequested();
+    if (!holdNextReconnect) return;
+    holdNextReconnect = false;
+    final completer = Completer<void>();
+    _heldReconnect = completer;
+    await completer.future;
   }
 
   @override
@@ -351,6 +372,9 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
   }
 
   bool get hasHeldStart => _heldStart != null;
+  bool get hasHeldMediaInterruption => _heldMediaInterruption != null;
+  bool get hasHeldAppState => _heldAppState != null;
+  bool get hasHeldReconnect => _heldReconnect != null;
 
   void completeHeldStart() {
     final completer = _heldStart;
@@ -361,6 +385,33 @@ final class DeterministicMatrixRtcGateway implements MatrixRtcGateway {
     _heldStart = null;
     _heldStartDescriptor = null;
     completer.complete(descriptor);
+  }
+
+  void completeHeldMediaInterruption() {
+    final completer = _heldMediaInterruption;
+    if (completer == null) {
+      throw StateError('No held media interruption is available.');
+    }
+    _heldMediaInterruption = null;
+    completer.complete();
+  }
+
+  void completeHeldAppState() {
+    final completer = _heldAppState;
+    if (completer == null) {
+      throw StateError('No held app state is available.');
+    }
+    _heldAppState = null;
+    completer.complete();
+  }
+
+  void completeHeldReconnect() {
+    final completer = _heldReconnect;
+    if (completer == null) {
+      throw StateError('No held reconnect is available.');
+    }
+    _heldReconnect = null;
+    completer.complete();
   }
 
   void _throwIfRequested() {

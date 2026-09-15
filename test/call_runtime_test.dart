@@ -102,6 +102,105 @@ void main() {
     expect(fixture.coordinator.isMediaInterrupted.value, isFalse);
   });
 
+  test(
+    'stale background completion cannot leak into a replacement call',
+    () async {
+      final fixture = _fixture();
+      final runtime = KiteCallRuntimeCoordinator(fixture.coordinator);
+      await fixture.coordinator.startDirectVoiceCall('!one:example.org');
+      fixture.gateway.holdNextAppState = true;
+
+      final pendingBackground = runtime.handleAppState(
+        KiteCallAppState.background,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(fixture.gateway.hasHeldAppState, isTrue);
+
+      await fixture.coordinator.hangUp();
+      fixture.coordinator.clearEndedCall();
+      fixture.gateway.holdNextStart = true;
+      final replacement = fixture.coordinator.startDirectVideoCall(
+        '!two:example.org',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(fixture.gateway.hasHeldStart, isTrue);
+
+      fixture.gateway.completeHeldAppState();
+      expect(await pendingBackground, isTrue);
+      expect(fixture.coordinator.phase.value, KiteCallPhase.connecting);
+      expect(fixture.coordinator.appState.value, KiteCallAppState.foreground);
+
+      fixture.gateway.completeHeldStart();
+      await replacement;
+      expect(fixture.coordinator.appState.value, KiteCallAppState.foreground);
+    },
+  );
+
+  test(
+    'stale audio interruption cannot leak into a replacement call',
+    () async {
+      final fixture = _fixture();
+      final runtime = KiteCallRuntimeCoordinator(fixture.coordinator);
+      await fixture.coordinator.startDirectVoiceCall('!one:example.org');
+      fixture.gateway.holdNextMediaInterruption = true;
+
+      final pendingInterruption = runtime.handleAudioInterruption(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(fixture.gateway.hasHeldMediaInterruption, isTrue);
+
+      await fixture.coordinator.hangUp();
+      fixture.coordinator.clearEndedCall();
+      fixture.gateway.holdNextStart = true;
+      final replacement = fixture.coordinator.startDirectVideoCall(
+        '!two:example.org',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      fixture.gateway.completeHeldMediaInterruption();
+      expect(await pendingInterruption, isTrue);
+      expect(fixture.coordinator.phase.value, KiteCallPhase.connecting);
+      expect(fixture.coordinator.isMediaInterrupted.value, isFalse);
+
+      fixture.gateway.completeHeldStart();
+      await replacement;
+      expect(fixture.coordinator.isMediaInterrupted.value, isFalse);
+    },
+  );
+
+  test(
+    'stale reconnect completion cannot activate a replacement call',
+    () async {
+      final fixture = _fixture();
+      final runtime = KiteCallRuntimeCoordinator(fixture.coordinator);
+      await fixture.coordinator.startDirectVoiceCall('!one:example.org');
+      await runtime.handleConnectivity(false);
+      fixture.gateway.holdNextReconnect = true;
+
+      final pendingReconnect = runtime.handleConnectivity(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(fixture.gateway.hasHeldReconnect, isTrue);
+
+      await fixture.coordinator.hangUp();
+      fixture.coordinator.clearEndedCall();
+      fixture.gateway.holdNextStart = true;
+      final replacement = fixture.coordinator.startDirectVideoCall(
+        '!two:example.org',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(fixture.coordinator.phase.value, KiteCallPhase.connecting);
+
+      fixture.gateway.completeHeldReconnect();
+      expect(await pendingReconnect, isTrue);
+      expect(fixture.coordinator.phase.value, KiteCallPhase.connecting);
+      expect(fixture.coordinator.activity.value, isNull);
+
+      fixture.gateway.completeHeldStart();
+      await replacement;
+      expect(fixture.coordinator.phase.value, KiteCallPhase.active);
+      expect(fixture.coordinator.session.value?.roomId, '!two:example.org');
+    },
+  );
+
   test('runtime events are ignored when there is no running call', () async {
     final fixture = _fixture();
     final runtime = KiteCallRuntimeCoordinator(fixture.coordinator);

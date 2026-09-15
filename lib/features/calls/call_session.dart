@@ -589,6 +589,7 @@ final class KiteCallCoordinator {
       callId: current.callId,
       interrupted: interrupted,
     );
+    if (!_isCurrentCall(current.callId)) return;
     isMediaInterrupted.value = interrupted;
   }
 
@@ -610,6 +611,7 @@ final class KiteCallCoordinator {
     }
 
     await _gateway.setAppState(callId: current.callId, state: state);
+    if (!_isCurrentCall(current.callId)) return;
     appState.value = state;
   }
 
@@ -628,11 +630,14 @@ final class KiteCallCoordinator {
 
     try {
       await _gateway.reconnect(current.callId);
+      if (!_isCurrentCall(current.callId)) return;
       phase.value = KiteCallPhase.active;
       _publishActivity();
     } catch (_) {
-      phase.value = KiteCallPhase.reconnecting;
-      _publishActivity();
+      if (_isCurrentCall(current.callId)) {
+        phase.value = KiteCallPhase.reconnecting;
+        _publishActivity();
+      }
       rethrow;
     }
   }
@@ -848,6 +853,8 @@ final class KiteCallCoordinator {
     phase.value = KiteCallPhase.idle;
     activity.value = null;
   }
+
+  bool _isCurrentCall(String callId) => session.value?.callId == callId;
 
   void _publishActivity() {
     final current = session.value;
