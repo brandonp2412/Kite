@@ -42,12 +42,14 @@ final class _FakeRegistrationGateway implements AccountRegistrationGateway {
   }
 }
 
-AuthenticatedSession _session(HomeserverAddress homeserver) =>
-    AuthenticatedSession(
-      userId: '@alice:${homeserver.uri.host}',
-      deviceId: 'DEVICE',
-      homeserver: homeserver,
-    );
+AuthenticatedSession _session(
+  HomeserverAddress homeserver, {
+  String deviceId = 'DEVICE',
+}) => AuthenticatedSession(
+  userId: '@alice:${homeserver.uri.host}',
+  deviceId: deviceId,
+  homeserver: homeserver,
+);
 
 void main() {
   test(
@@ -98,6 +100,16 @@ void main() {
       );
       addTearDown(controller.dispose);
 
+      expect(await controller.begin(), isFalse);
+      expect(controller.step.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Kite received an invalid registration state.',
+      );
+
+      gateway.beginStep = RegistrationCompleteStep(
+        _session(homeserver, deviceId: ' DEVICE '),
+      );
       expect(await controller.begin(), isFalse);
       expect(controller.step.value, isNull);
       expect(

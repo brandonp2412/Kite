@@ -140,6 +140,7 @@ final class AccountRegistrationController {
           userId.contains(':') &&
           !userId.contains(RegExp(r'\s')) &&
           session.deviceId.trim().isNotEmpty &&
+          session.deviceId == session.deviceId.trim() &&
           session.homeserver.uri == _homeserver.uri;
     }
     return true;
