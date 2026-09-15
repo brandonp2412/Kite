@@ -109,6 +109,13 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     widget.onAuthenticated?.call(authenticatedSession);
   }
 
+  void _changeHomeserver() {
+    if (_controller.isBusy) return;
+    _usernameController.clear();
+    _passwordController.clear();
+    _controller.changeHomeserver();
+  }
+
   Future<void> _requestRegistration(HomeserverAddress homeserver) async {
     final handoff = widget.onRegistrationRequested;
     if (handoff != null) {
@@ -227,9 +234,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                             if (!widget.lockHomeserver)
                               TextButton.icon(
                                 key: const Key('change-homeserver'),
-                                onPressed: busy
-                                    ? null
-                                    : _controller.changeHomeserver,
+                                onPressed: busy ? null : _changeHomeserver,
                                 icon: const Icon(Icons.arrow_back),
                                 label: const Text('Use a different homeserver'),
                               ),

@@ -212,6 +212,52 @@ void main() {
     expect(find.text('Incorrect username or password.'), findsOneWidget);
   });
 
+  testWidgets('changing homeserver clears entered account credentials', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway();
+    await tester.pumpWidget(
+      MaterialApp(home: AuthenticationScreen(gateway: gateway)),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'must-not-cross-homeservers',
+    );
+
+    await tester.tap(find.byKey(const Key('change-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'other.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('username-field')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('password-field')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(find.textContaining('must-not-cross-homeservers'), findsNothing);
+  });
+
   testWidgets(
     'soft-logout context rediscovers and locks the expected account',
     (tester) async {
