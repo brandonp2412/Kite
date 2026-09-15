@@ -124,6 +124,32 @@ class _ThrowingSubscriptionPort implements ThreadSubscriptionPort {
   }
 }
 
+class _FailOncePaginationPort implements ThreadPaginationPort {
+  var calls = 0;
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    calls += 1;
+    if (calls == 1) throw StateError('thread pagination failed');
+    return ThreadPage(
+      replies: <ThreadReply>[
+        ThreadReply(
+          id: '$parentEventId-recovered-older',
+          sender: 'Alice',
+          body: 'Recovered older context',
+          mine: false,
+          timeLabel: '09:30',
+        ),
+      ],
+      hasMore: false,
+    );
+  }
+}
+
 void main() {
   test('deterministic thread summary seeds only supported parent events', () {
     final controller = ThreadController();
@@ -353,6 +379,54 @@ void main() {
     await controller.loadOlder(roomId: 'alice', parent: parent);
     expect(replies.value, hasLength(initialIds.length + 2));
   });
+
+  test(
+    'thread pagination failure remains retryable and clears on success',
+    () async {
+      final port = _FailOncePaginationPort();
+      final controller = ThreadController(paginationPort: port);
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+      final replies = controller.repliesFor(roomId: 'alice', parent: parent);
+      final initialCount = replies.value.length;
+
+      await controller.loadOlder(roomId: 'alice', parent: parent);
+
+      expect(port.calls, 1);
+      expect(replies.value, hasLength(initialCount));
+      expect(
+        controller.paginationFailedFor(roomId: 'alice', parent: parent).value,
+        isTrue,
+      );
+      expect(
+        controller.isLoadingOlderFor(roomId: 'alice', parent: parent).value,
+        isFalse,
+      );
+      expect(
+        controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+        isTrue,
+      );
+
+      await controller.loadOlder(roomId: 'alice', parent: parent);
+
+      expect(port.calls, 2);
+      expect(replies.value, hasLength(initialCount + 1));
+      expect(replies.value.first.id, 'alice-98-recovered-older');
+      expect(
+        controller.paginationFailedFor(roomId: 'alice', parent: parent).value,
+        isFalse,
+      );
+      expect(
+        controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+        isFalse,
+      );
+    },
+  );
 
   test(
     'focused reply lookup paginates older thread pages with a hard bound',

@@ -25,6 +25,32 @@ class _FailOnceThreadPort implements ThreadSendPort {
   }
 }
 
+class _FailOncePaginationPort implements ThreadPaginationPort {
+  var calls = 0;
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    calls += 1;
+    if (calls == 1) throw StateError('thread pagination failed');
+    return ThreadPage(
+      replies: <ThreadReply>[
+        ThreadReply(
+          id: '$parentEventId-recovered-older',
+          sender: 'Alice',
+          body: 'Recovered older context',
+          mine: false,
+          timeLabel: '09:30',
+        ),
+      ],
+      hasMore: false,
+    );
+  }
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const virtualizedBenchmark = bool.fromEnvironment(
@@ -120,6 +146,56 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets(
+    'retrying failed thread pagination stays within the frame contract',
+    (tester) async {
+      final port = _FailOncePaginationPort();
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: port,
+      );
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      final parent = timelineController
+          .messagesFor('alice')
+          .value
+          .firstWhere((message) => message.id == 'alice-98');
+
+      await tester.tap(find.byKey(const Key('thread-load-older')));
+      await tester.pumpAndSettle();
+      expect(port.calls, 1);
+      expect(find.byKey(const Key('thread-pagination-error')), findsOneWidget);
+
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          await tester.tap(find.byKey(const Key('thread-load-older')));
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: virtualizedBenchmark
+            ? PerformanceContract.gateVirtualizedTotalSpan
+            : PerformanceContract.gatePhysicalTotalSpan,
+      );
+
+      expect(port.calls, 2);
+      expect(
+        threadController.repliesFor(roomId: 'alice', parent: parent).value,
+        hasLength(4),
+      );
+      expect(find.text('Start of thread'), findsOneWidget);
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['thread_pagination_retry'] = <String, dynamic>{
+        'journey': 'retry_thread_pagination',
+        'fixture': 'deterministic_thread_v1',
+        'iterations': 1,
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
 
   testWidgets(
     'retrying a failed thread reply stays within the frame contract',

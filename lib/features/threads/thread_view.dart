@@ -357,6 +357,12 @@ class _ThreadViewState extends State<ThreadView> {
                         parent: widget.parent,
                       )
                       .value;
+                  final paginationFailed = threadController
+                      .paginationFailedFor(
+                        roomId: widget.roomId,
+                        parent: widget.parent,
+                      )
+                      .value;
                   final focusSignal = threadController.focusedReplyIdFor(
                     roomId: widget.roomId,
                     parent: widget.parent,
@@ -406,6 +412,11 @@ class _ThreadViewState extends State<ThreadView> {
                             child: hasMore
                                 ? TextButton.icon(
                                     key: const Key('thread-load-older'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: paginationFailed
+                                          ? colors.error
+                                          : null,
+                                    ),
                                     onPressed: loading
                                         ? null
                                         : () => threadController.loadOlder(
@@ -419,13 +430,22 @@ class _ThreadViewState extends State<ThreadView> {
                                               strokeWidth: 2,
                                             ),
                                           )
-                                        : const Icon(
-                                            Icons.history_rounded,
+                                        : Icon(
+                                            paginationFailed
+                                                ? Icons.error_outline_rounded
+                                                : Icons.history_rounded,
+                                            key: paginationFailed
+                                                ? const Key(
+                                                    'thread-pagination-error',
+                                                  )
+                                                : null,
                                             size: 18,
                                           ),
                                     label: Text(
                                       loading
                                           ? 'Loading…'
+                                          : paginationFailed
+                                          ? 'Retry older replies'
                                           : 'Load older replies',
                                     ),
                                   )

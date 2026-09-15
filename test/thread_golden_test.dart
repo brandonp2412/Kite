@@ -54,6 +54,19 @@ class _AlwaysFailThreadPort implements ThreadSendPort {
   }) async => TimelineSendOutcome.failed;
 }
 
+class _AlwaysFailPaginationPort implements ThreadPaginationPort {
+  const _AlwaysFailPaginationPort();
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    throw StateError('thread pagination failed');
+  }
+}
+
 void main() {
   tearDown(() {
     threadController.reset(
@@ -208,6 +221,43 @@ void main() {
       await expectLater(
         find.byType(Overlay).first,
         matchesGoldenFile('goldens/thread_following_${variant.name}.png'),
+      );
+    });
+
+    testWidgets('thread pagination error ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      threadController.reset(
+        sendPort: const DeterministicThreadSendPort(),
+        paginationPort: const _AlwaysFailPaginationPort(),
+      );
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const HomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('thread-load-older')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('thread-pagination-error')), findsOneWidget);
+      expect(find.text('Retry older replies'), findsOneWidget);
+      await expectLater(
+        find.byType(Overlay).first,
+        matchesGoldenFile(
+          'goldens/thread_pagination_error_${variant.name}.png',
+        ),
       );
     });
 

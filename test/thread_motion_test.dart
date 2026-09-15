@@ -42,6 +42,32 @@ class _ControlledThreadPort implements ThreadSendPort {
   }
 }
 
+class _FailOncePaginationPort implements ThreadPaginationPort {
+  var calls = 0;
+
+  @override
+  Future<ThreadPage> loadOlder({
+    required String roomId,
+    required String parentEventId,
+    required String? beforeReplyId,
+  }) async {
+    calls += 1;
+    if (calls == 1) throw StateError('pagination failed');
+    return ThreadPage(
+      replies: <ThreadReply>[
+        ThreadReply(
+          id: '$parentEventId-recovered-older',
+          sender: 'Alice',
+          body: 'Recovered older context',
+          mine: false,
+          timeLabel: '09:30',
+        ),
+      ],
+      hasMore: false,
+    );
+  }
+}
+
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
   return renderObject.localToGlobal(Offset.zero) & renderObject.size;
@@ -191,6 +217,69 @@ void main() {
     expect(find.text('6 replies'), findsOneWidget);
     expect(find.byKey(const Key('thread-unread-alice-98')), findsNothing);
     expect(roomUnread, findsNothing);
+  });
+
+  testWidgets('thread pagination retry preserves geometry at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final port = _FailOncePaginationPort();
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(),
+      paginationPort: port,
+    );
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(const Key('thread-panel'));
+    final composer = find.byKey(const Key('thread-composer'));
+    final list = find.byKey(const Key('thread-reply-list'));
+    final pagination = find.byKey(const Key('thread-pagination'));
+    final newestReply = find.byKey(const Key('thread-reply-alice-98-thread-2'));
+    final panelRect = _rectOf(tester, panel);
+    final composerRect = _rectOf(tester, composer);
+    final listRect = _rectOf(tester, list);
+    final paginationRect = _rectOf(tester, pagination);
+    final newestReplyRect = _rectOf(tester, newestReply);
+
+    await tester.tap(find.byKey(const Key('thread-load-older')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('thread-pagination-error')), findsOneWidget);
+    expect(find.text('Retry older replies'), findsOneWidget);
+    expect(port.calls, 1);
+
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, panel), panelRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(_rectOf(tester, list), listRect);
+      expect(_rectOf(tester, pagination), paginationRect);
+      expect(_rectOf(tester, newestReply), newestReplyRect);
+      expect(tester.takeException(), isNull);
+    }
+
+    await tester.tap(find.byKey(const Key('thread-load-older')));
+    await tester.pumpAndSettle();
+    expect(port.calls, 2);
+    expect(find.text('Start of thread'), findsOneWidget);
+    expect(find.byKey(const Key('thread-pagination-error')), findsNothing);
+    expect(_rectOf(tester, panel), panelRect);
+    expect(_rectOf(tester, composer), composerRect);
+    expect(_rectOf(tester, list), listRect);
+    expect(_rectOf(tester, pagination), paginationRect);
+    expect(_rectOf(tester, newestReply), newestReplyRect);
   });
 
   testWidgets('thread subscription toggle preserves geometry at 120 Hz', (

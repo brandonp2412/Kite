@@ -190,6 +190,7 @@ class ThreadController {
       <String, Signal<List<ThreadReply>>>{};
   final Map<String, Signal<bool>> _hasMore = <String, Signal<bool>>{};
   final Map<String, Signal<bool>> _isLoadingOlder = <String, Signal<bool>>{};
+  final Map<String, Signal<bool>> _paginationFailed = <String, Signal<bool>>{};
   final Map<String, Signal<int>> _unreadCount = <String, Signal<int>>{};
   final Map<String, Signal<int>> _roomUnreadThreadCount =
       <String, Signal<int>>{};
@@ -243,6 +244,7 @@ class ThreadController {
       ]);
       _hasMore.putIfAbsent(key, () => signal(true));
       _isLoadingOlder.putIfAbsent(key, () => signal(false));
+      _paginationFailed.putIfAbsent(key, () => signal(false));
       _unreadCount.putIfAbsent(key, () => signal(2));
       _latestReadReplyId.putIfAbsent(key, () => signal(replies.first.id));
       return signal(replies);
@@ -269,6 +271,7 @@ class ThreadController {
     _threads.putIfAbsent(key, () => signal(snapshot)).value = snapshot;
     _hasMore.putIfAbsent(key, () => signal(hasMore)).value = hasMore;
     _isLoadingOlder.putIfAbsent(key, () => signal(false)).value = false;
+    _paginationFailed.putIfAbsent(key, () => signal(false)).value = false;
     _unreadCount.putIfAbsent(key, () => signal(unreadCount)).value =
         unreadCount;
     _latestReadReplyId.putIfAbsent(key, () => signal(latestReadReplyId)).value =
@@ -289,6 +292,14 @@ class ThreadController {
   }) {
     repliesFor(roomId: roomId, parent: parent);
     return _isLoadingOlder[_key(roomId, parent.id)] ?? signal(false);
+  }
+
+  Signal<bool> paginationFailedFor({
+    required String roomId,
+    required TimelineMessage parent,
+  }) {
+    repliesFor(roomId: roomId, parent: parent);
+    return _paginationFailed[_key(roomId, parent.id)] ?? signal(false);
   }
 
   Signal<int> unreadCountFor({
@@ -490,6 +501,8 @@ class ThreadController {
     if (!hasMore.value || loading.value) return;
 
     loading.value = true;
+    final failed = paginationFailedFor(roomId: roomId, parent: parent);
+    failed.value = false;
     try {
       final page = await _paginationPort.loadOlder(
         roomId: roomId,
@@ -507,6 +520,8 @@ class ThreadController {
         ]);
       }
       hasMore.value = page.hasMore;
+    } catch (_) {
+      failed.value = true;
     } finally {
       loading.value = false;
     }
@@ -594,6 +609,7 @@ class ThreadController {
     _threads.clear();
     _hasMore.clear();
     _isLoadingOlder.clear();
+    _paginationFailed.clear();
     _unreadCount.clear();
     _roomUnreadThreadCount.clear();
     _latestReadReplyId.clear();
