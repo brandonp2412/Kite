@@ -127,6 +127,51 @@ void main() {
       expect(navigation.opened, isEmpty);
     },
   );
+
+  test('stale call resolution cannot reactivate an old account', () async {
+    final accounts = FakeAccountActivationPort('work');
+    final navigation = FakeAppNavigationPort();
+    final resolver = DeterministicMatrixCallDeepLinkResolver()
+      ..descriptor = const MatrixRtcSessionDescriptor(
+        callId: 'rtc-work',
+        roomId: '!work:example.org',
+        kind: KiteCallKind.video,
+        scope: KiteCallScope.group,
+      )
+      ..holdNextResolution = true;
+    final coordinator = _coordinator(accounts, navigation, resolver);
+
+    final staleOpen = coordinator.open(
+      const MatrixNavigationTarget.call('!work:example.org'),
+    );
+    while (!resolver.hasHeldResolution) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    await accounts.activateAccount('personal');
+    resolver.descriptor = const MatrixRtcSessionDescriptor(
+      callId: 'rtc-personal',
+      roomId: '!personal:example.org',
+      kind: KiteCallKind.voice,
+      scope: KiteCallScope.group,
+    );
+    final currentResult = await coordinator.open(
+      const MatrixNavigationTarget.call('!personal:example.org'),
+    );
+    resolver.releaseHeldResolution();
+
+    expect(await staleOpen, MatrixCallDeepLinkResult.superseded);
+    expect(currentResult, MatrixCallDeepLinkResult.opened);
+    expect(accounts.activeAccountId, 'personal');
+    expect(accounts.activations, <String>['personal']);
+    expect(navigation.opened, <AppDestination>[
+      const AppDestination.call(
+        accountId: 'personal',
+        roomId: '!personal:example.org',
+        callId: 'rtc-personal',
+      ),
+    ]);
+  });
 }
 
 MatrixCallDeepLinkCoordinator _coordinator(

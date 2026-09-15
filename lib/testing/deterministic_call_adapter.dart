@@ -60,8 +60,13 @@ final class DeterministicMatrixCallDeepLinkResolver
     implements MatrixCallDeepLinkResolverPort {
   MatrixRtcSessionDescriptor? descriptor;
   Object? failNextWith;
+  bool holdNextResolution = false;
+  Completer<MatrixRtcSessionDescriptor?>? _heldResolution;
+  MatrixRtcSessionDescriptor? _heldDescriptor;
   final List<MatrixCallDeepLinkResolution> resolutions =
       <MatrixCallDeepLinkResolution>[];
+
+  bool get hasHeldResolution => _heldResolution != null;
 
   @override
   Future<MatrixRtcSessionDescriptor?> resolveActiveCall({
@@ -77,7 +82,23 @@ final class DeterministicMatrixCallDeepLinkResolver
     final failure = failNextWith;
     failNextWith = null;
     if (failure != null) throw failure;
-    return descriptor;
+    final resolved = descriptor;
+    if (!holdNextResolution) return resolved;
+
+    holdNextResolution = false;
+    final completer = Completer<MatrixRtcSessionDescriptor?>();
+    _heldResolution = completer;
+    _heldDescriptor = resolved;
+    return completer.future;
+  }
+
+  void releaseHeldResolution() {
+    final completer = _heldResolution;
+    if (completer == null) return;
+    final resolved = _heldDescriptor;
+    _heldResolution = null;
+    _heldDescriptor = null;
+    completer.complete(resolved);
   }
 }
 
