@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kite/features/settings/settings_layout.dart';
 import 'package:kite/features/settings/support_settings_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -47,7 +48,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
           return ListView(
             key: const Key('support-settings-list'),
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: SettingsLayout.listPadding(context),
             children: <Widget>[
               const _SectionTitle(label: 'Storage'),
               _UsageTile(
