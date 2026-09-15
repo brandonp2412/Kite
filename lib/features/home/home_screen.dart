@@ -6,6 +6,7 @@ import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/home/spaces_screen.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -171,6 +172,16 @@ class _HomeHeader extends StatelessWidget {
                   letterSpacing: -0.4,
                 ),
               ),
+            ),
+            IconButton(
+              key: const Key('home-spaces'),
+              tooltip: 'Spaces',
+              onPressed: () => Navigator.of(context).push(
+                SpacesRoute(
+                  reduceMotion: KiteMotion.prefersReducedMotion(context),
+                ),
+              ),
+              icon: const Icon(Icons.grid_view_rounded),
             ),
             IconButton(
               key: const Key('home-read-all'),
