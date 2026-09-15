@@ -162,7 +162,7 @@ final class SessionLifecycleController {
     final result = _operationTail.then((_) => operation());
     _operationTail = result.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object _, StackTrace _) {},
     );
     return result;
   }

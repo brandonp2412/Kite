@@ -111,6 +111,45 @@ void main() {
     expect(controller.requiresVerification, isFalse);
   });
 
+  test('verification session rejects malformed transaction metadata', () {
+    expect(
+      () => DeviceVerificationSession(
+        transactionId: ' bad transaction ',
+        method: DeviceVerificationMethod.qr,
+        stage: DeviceVerificationStage.ready,
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => DeviceVerificationSession(
+        transactionId: 'qr-transaction',
+        method: DeviceVerificationMethod.qr,
+        stage: DeviceVerificationStage.ready,
+        qrCodeData: '   ',
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => DeviceVerificationSession(
+        transactionId: 'sas-transaction',
+        method: DeviceVerificationMethod.sas,
+        stage: DeviceVerificationStage.ready,
+        sasEmoji: const <String>['🐶', ''],
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('scanned QR verification rejects whitespace-only payloads', () async {
+    final gateway = _FakeVerificationGateway();
+    final controller = DeviceVerificationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.submitScannedQrCode('   '), isFalse);
+    expect(gateway.scannedQrCode, isNull);
+    expect(controller.errorMessage.value, 'Scan a valid verification QR code.');
+  });
+
   test(
     'QR flow delegates opaque verification material to the SDK boundary',
     () async {

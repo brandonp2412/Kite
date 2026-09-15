@@ -14,16 +14,25 @@ final class DeviceVerificationSession {
     this.qrCodeData,
     List<String> sasEmoji = const <String>[],
   }) : sasEmoji = List<String>.unmodifiable(sasEmoji) {
-    if (transactionId.trim().isEmpty) {
-      throw ArgumentError.value(transactionId, 'transactionId');
+    final normalizedTransactionId = transactionId.trim();
+    if (normalizedTransactionId.isEmpty ||
+        normalizedTransactionId != transactionId ||
+        transactionId.contains(RegExp(r'\s'))) {
+      throw ArgumentError('Verification transaction ID is invalid.');
     }
     if (qrCodeData != null && method != DeviceVerificationMethod.qr) {
       throw ArgumentError('QR data can only be attached to QR verification.');
+    }
+    if (qrCodeData != null && qrCodeData!.trim().isEmpty) {
+      throw ArgumentError('Verification QR data cannot be empty.');
     }
     if (sasEmoji.isNotEmpty && method != DeviceVerificationMethod.sas) {
       throw ArgumentError(
         'SAS emoji can only be attached to SAS verification.',
       );
+    }
+    if (sasEmoji.any((emoji) => emoji.trim().isEmpty)) {
+      throw ArgumentError('Verification emoji cannot be empty.');
     }
   }
 
@@ -113,7 +122,7 @@ final class DeviceVerificationController {
 
   Future<bool> submitScannedQrCode(String qrCodeData) async {
     if (isBusy.value) return false;
-    if (qrCodeData.isEmpty) {
+    if (qrCodeData.trim().isEmpty) {
       errorMessage.value = 'Scan a valid verification QR code.';
       return false;
     }
