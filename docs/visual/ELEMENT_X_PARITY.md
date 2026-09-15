@@ -1,9 +1,9 @@
 # Element X visual/parity reference
 
-Baseline refreshed: 2026-09-14
+Baseline refreshed: 2026-09-16
 
 Element X Android reference branch: `develop`
-Reference commit: `8cd3750cde65c8bbfc97cb578d00111b6bf62ee8` (2026-09-11)
+Reference commit: [`3e861cc64645a286a5455e0b47032b1a25b2f49d`](https://github.com/element-hq/element-x-android/commit/3e861cc64645a286a5455e0b47032b1a25b2f49d) (2026-09-15)
 
 Primary sources:
 
@@ -57,6 +57,62 @@ Observed comparison:
 
 Do not approve the home visual-parity roadmap checkbox from this review. The comparison identifies concrete gaps and is intentionally stricter than source-code inspection. The 2026-09-14 true-black render review preserved the same geometry and hierarchy as dark mode. The theme/system-bar implementation is in place, but its roadmap checkbox remains open until the full quality gate passes the pinned cold-frame contract. Shared dialog, sheet, menu, snackbar, and tooltip defaults now also use the same tokenised radii/elevation/surface hierarchy across light, dark, and true-black themes; empty/error/destructive state parity is still open.
 
+### Threads
+
+Kite renders checked in this review:
+
+- `test/goldens/thread_light.png`
+- `test/goldens/thread_dark.png`
+- `test/goldens/thread_following_light.png`
+- `test/goldens/thread_focus_light.png`
+- `test/goldens/thread_room_unread_light.png`
+
+Current Element X `develop` references at `3e861cc64645a286a5455e0b47032b1a25b2f49d`:
+
+- [`ThreadTopBar_Day_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/features.messages.impl.topbars_ThreadTopBar_Day_0_en.png)
+- [`ThreadSummaryView_Day_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/features.messages.impl.timeline.components_ThreadSummaryView_Day_0_en.png)
+- [`ThreadsListView_Day_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/features.messages.impl.threads.list_ThreadsListView_Day_0_en.png)
+
+Observed comparison:
+
+| Area | Element X reference | Current Kite render | Result |
+| --- | --- | --- | --- |
+| Thread top bar | Compact phone header with back affordance, room avatar, `Thread` title, and quiet room-name subtitle | Clear `Thread`/room-name hierarchy and back affordance, with follow/count actions, but no room avatar in the header | Gap |
+| Thread detail composition | Compact Compound hierarchy keeps identity and metadata restrained | Thread root, divider, replies and composer are deliberately composed and tokenised; desktop-width golden is denser and more control-heavy than the upstream phone reference | Partial |
+| Thread summary | Compact reply count plus latest-replier avatar/name/preview | Interactive summary exists in the timeline and has motion/semantics coverage, but there is no dedicated light/dark summary golden matching the upstream component state | Gap |
+| Threads list | Dedicated list with room identity, parent preview, reply count and latest-reply context | No dedicated Threads list UI exists in `lib/features/threads`; Kite opens thread detail from timeline summaries | Gap |
+| State coverage | Day/night snapshots cover top bar, summary and Threads list | Light/dark detail goldens cover following, focused, unread, retry, media and attachment-preview states | Partial |
+
+The Threads review is complete as an audit, not as a parity claim. The roadmap review checkbox can close while the behavioural Threads milestone and visual-parity gaps stay open.
+
+### Message actions / reactions
+
+Kite renders checked in this review:
+
+- `test/goldens/timeline_actions_light.png`
+- `test/goldens/timeline_actions_dark.png`
+- `test/goldens/timeline_reaction_picker_light.png`
+- `test/goldens/timeline_reaction_picker_dark.png`
+- `test/goldens/timeline_delete_light.png`
+- `test/goldens/timeline_forward_light.png`
+
+Current Element X `develop` references at `3e861cc64645a286a5455e0b47032b1a25b2f49d`:
+
+- [`ActionListViewContent_Day_2_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/features.messages.impl.actionlist_ActionListViewContent_Day_2_en.png)
+- [`ReactionSummaryViewContent_Day_0_en.png`](https://github.com/element-hq/element-x-android/blob/3e861cc64645a286a5455e0b47032b1a25b2f49d/tests/uitests/src/test/snapshots/images/features.messages.impl.timeline.components.reactionsummary_ReactionSummaryViewContent_Day_0_en.png)
+
+Observed comparison:
+
+| Area | Element X reference | Current Kite render | Result |
+| --- | --- | --- | --- |
+| Message context | Message identity/preview remains visible at the top of the action surface | The underlying timeline stays visible behind a modal surface, but the selected message is not repeated as a compact preview inside the sheet | Gap |
+| Quick reactions | Six large quick-reaction affordances form the first action row | Quick reactions are present as compact pill controls above the action list | Partial |
+| Action hierarchy | Flat, icon-led list with generous touch rows and destructive actions clearly separated in red | Rounded centered sheet has clear grouping and destructive colour, but is visually more modal/dense and less phone-native than the upstream surface | Gap |
+| Reaction detail | Reaction tabs/counts are prominent, with reactor identity and time below | Kite has a reaction picker and reaction summaries in timeline state, but no matching reactor-detail golden for the upstream reaction-summary screen | Gap |
+| Edge-state coverage | Upstream parameterised snapshots include permission/trust/error action variants | Kite goldens cover action, delete, forward, report and picker surfaces, but not the same upstream trust/error variants | Partial |
+
+The message action/reaction review is complete as an audit. It identifies concrete visual and state-coverage gaps; it does not close the underlying message-action or reaction feature boxes.
+
 ## Screen-by-screen parity matrix
 
 `Missing` means Kite has no corresponding screen yet. `Foundation` means only shared infrastructure or fixture UI exists. `Partial` means a user-visible slice exists but does not meet the full Element X behavior/visual contract. Tests listed are Kite tests that currently exercise the row.
@@ -67,8 +123,8 @@ Do not approve the home visual-parity roadmap checkbox from this review. The com
 | Spaces list / discovery | Joined Spaces, filtering/discovery and Space context | No Spaces UI | None | Missing |
 | Room timeline | Mixed Matrix event timeline with state, receipts and pagination | Deterministic benchmark messages only | open-DM motion/performance fixtures | Foundation |
 | Composer | Rich message composition and send actions | Static text field fixture | gallery goldens | Foundation |
-| Threads | Thread summaries, thread timeline and composer | No Threads UI | None | Missing |
-| Media viewer / files | Image/video/file viewing and sharing workflows | No media viewer | None | Missing |
+| Threads | Thread summaries, dedicated Threads list, thread timeline/composer, unread/subscription state | Timeline summary, thread detail/composer, pagination, unread/following/focus and thread-scoped media exist; dedicated Threads list is still missing | `test/thread_controller_test.dart`, `test/thread_motion_test.dart`, `test/thread_media_test.dart`, thread goldens | Partial |
+| Media viewer / files | Image/video/file viewing and sharing workflows | Full-screen image viewer, adjacent-media browsing, save/share actions and timeline/thread media entry points exist; broader file/video parity remains unfinished | `test/media_viewer_test.dart`, `test/media_viewer_motion_test.dart`, media-viewer goldens | Partial |
 | Polls | Poll creation, voting and results | No poll UI | None | Missing |
 | Location | Static/live location workflows | No location UI | None | Missing |
 | Search / room directory | Current global/room discovery behavior and joined-room filtering | No search UI | None | Missing |
@@ -99,8 +155,8 @@ For each review, record the exact upstream commit or public reference image and 
 - [ ] DM timeline.
 - [ ] Group-room timeline.
 - [ ] Composer / rich text.
-- [ ] Message actions / reactions.
-- [ ] Threads.
+- [x] Message actions / reactions — reviewed 2026-09-16 against current `develop`; gaps recorded above.
+- [x] Threads — reviewed 2026-09-16 against current `develop`; gaps recorded above.
 - [ ] Spaces.
 - [ ] Room creation / invite.
 - [ ] Room / user details.
@@ -116,9 +172,9 @@ For each review, record the exact upstream commit or public reference image and 
 
 ## Current-upstream scope audit
 
-Audit refreshed from a clean shallow checkout of Element X Android `develop` on 2026-09-14.
+Audit established from a clean shallow checkout on 2026-09-14 and rechecked against the current Element X Android `develop` head on 2026-09-16.
 
-- `develop` still points at `8cd3750cde65c8bbfc97cb578d00111b6bf62ee8`, committed 2026-09-11. Because the Kite roadmap baseline is dated 2026-09-14, there are no upstream `develop` commits newer than the roadmap baseline to add or schedule in this audit pass.
+- `develop` now points at `3e861cc64645a286a5455e0b47032b1a25b2f49d`, committed 2026-09-15. This is newer than the roadmap's original 2026-09-14 audit reference. This pass rechecked the current tree and refreshed the rendered Threads and message-action/reaction references; the commit itself is test-tooling-only (`Do not report detekt LargeClass issues on test classes (#7713)`), so it does not add a new user-facing parity requirement.
 - The release-notes head in this tree is `v26.09.2`. Its parity-relevant changes include moving Knock and gallery-message sending into Labs; `v26.09.1` added multi-select poll creation/responses, and `v26.08.3` enabled user status. Those capabilities are tracked by the existing room/join, media/poll, and profile/parity rows rather than by adding duplicate roadmap criteria.
 - Current Labs flags are `Threads`, `SendGalleryMessages`, and `Knock`; all default to disabled and remain unfinished. Threads stays a Kite requirement because the roadmap explicitly targets Threads 2.x. Knock/gallery behaviour is compared against its current upstream exposure instead of being treated as generally available UI.
 - Other unfinished disabled flags include multi-account, QR login, black theme, jump-to-unread, room thread list, automatic back-pagination, selectable media quality, and message search. The current `FeatureFlags.MessageSearch` implementation remains disabled and unfinished; it is not treated as a generally available in-room-search parity blocker.

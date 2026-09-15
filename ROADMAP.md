@@ -369,8 +369,8 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] DM timeline review.
 - [ ] Group-room timeline review.
 - [ ] Composer/rich-text review.
-- [ ] Message action/reaction review.
-- [ ] Threads review.
+- [x] Message action/reaction review.
+- [x] Threads review.
 - [ ] Spaces review.
 - [ ] Room creation/invite review.
 - [ ] Room/user details review.
