@@ -7,6 +7,12 @@ import 'package:kite/features/home/spaces_controller.dart';
 
 import 'performance_benchmark_harness.dart';
 
+Finder _spaceSelector(String spaceId) {
+  final chip = find.byKey(Key('spaces-chip-$spaceId'));
+  if (chip.evaluate().isNotEmpty) return chip;
+  return find.byKey(Key('spaces-rail-$spaceId'));
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const virtualizedBenchmark = bool.fromEnvironment(
@@ -56,7 +62,7 @@ void main() {
     final switchResult = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('spaces-chip-people-space')));
+        await tester.tap(_spaceSelector('people-space'));
         await tester.pump();
       },
       enforceTotalSpan: enforceTotalSpan,

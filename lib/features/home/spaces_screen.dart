@@ -24,7 +24,7 @@ class SpacesRoute extends PageRouteBuilder<void> {
               begin: const Offset(0.08, 0),
               end: Offset.zero,
             ).animate(curved),
-            child: FadeTransition(opacity: curved, child: child),
+            child: child,
           );
         },
       );
