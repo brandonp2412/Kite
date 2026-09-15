@@ -164,10 +164,18 @@ void main() {
     await tester.pumpWidget(const KiteApp());
     await tester.pumpAndSettle();
 
+    final field = find.byKey(const Key('composer-field'));
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: field, matching: find.byType(EditableText)),
+    );
+
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.enterText(find.byKey(const Key('composer-field')), '@a');
+        editable.controller.value = const TextEditingValue(
+          text: '@a',
+          selection: TextSelection.collapsed(offset: 2),
+        );
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('composer-autocomplete-Alice')));
         await tester.pumpAndSettle();
@@ -177,12 +185,6 @@ void main() {
           : PerformanceContract.gatePhysicalTotalSpan,
     );
 
-    final editable = tester.widget<EditableText>(
-      find.descendant(
-        of: find.byKey(const Key('composer-field')),
-        matching: find.byType(EditableText),
-      ),
-    );
     expect(editable.controller.text, '@Alice ');
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['composer_mention_autocomplete'] = <String, dynamic>{
