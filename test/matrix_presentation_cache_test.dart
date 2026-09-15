@@ -187,6 +187,79 @@ void main() {
     );
   });
 
+  test(
+    'persisted snapshots bound rooms and retain only recent timeline events',
+    () {
+      final cache = MatrixPresentationCache();
+      for (final entry in <(String, int)>[
+        ('!alpha:kite.test', 3),
+        ('!beta:kite.test', 2),
+        ('!gamma:kite.test', 1),
+      ]) {
+        final roomId = entry.$1;
+        final position = entry.$2;
+        cache.applySync(
+          MatrixSyncBatch(
+            cursor: 'cursor-$position',
+            rooms: <MatrixRoomDelta>[
+              MatrixRoomDelta(
+                roomId: roomId,
+                summary: _summary(
+                  roomId: roomId,
+                  displayName: roomId,
+                  position: position,
+                  second: position,
+                ),
+                timelineEvents: <MatrixTimelineEvent>[
+                  _event(
+                    eventId: '\$${position}-1',
+                    roomId: roomId,
+                    position: position * 10 + 1,
+                    second: 1,
+                  ),
+                  _event(
+                    eventId: '\$${position}-2',
+                    roomId: roomId,
+                    position: position * 10 + 2,
+                    second: 2,
+                  ),
+                  _event(
+                    eventId: '\$${position}-3',
+                    roomId: roomId,
+                    position: position * 10 + 3,
+                    second: 3,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }
+
+      final snapshot = cache.snapshot(
+        roomLimit: 2,
+        timelineEventLimitPerRoom: 2,
+      );
+
+      expect(snapshot.rooms.map((room) => room.roomId), <String>[
+        '!alpha:kite.test',
+        '!beta:kite.test',
+      ]);
+      expect(snapshot.timelines.keys, <String>{
+        '!alpha:kite.test',
+        '!beta:kite.test',
+      });
+      expect(
+        snapshot.timelines['!alpha:kite.test']!.map((event) => event.eventId),
+        <String>[r'$3-2', r'$3-3'],
+      );
+      expect(snapshot.timelines.containsKey('!gamma:kite.test'), isFalse);
+      expect(snapshot.syncCursor, 'cursor-1');
+      expect(cache.roomOrder.value, hasLength(3));
+      expect(cache.timelineSignal('!alpha:kite.test').value, hasLength(3));
+    },
+  );
+
   test('equivalent JSON content does not rewrite a timeline signal', () {
     final cache = MatrixPresentationCache();
     final first = MatrixTimelineEvent(

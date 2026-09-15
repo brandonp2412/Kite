@@ -16,14 +16,28 @@ final class MatrixPresentationCache {
 
   String? lastSyncCursor;
 
-  MatrixPresentationSnapshot snapshot() {
+  MatrixPresentationSnapshot snapshot({
+    int? roomLimit,
+    int? timelineEventLimitPerRoom,
+  }) {
+    assert(roomLimit == null || roomLimit > 0);
+    assert(timelineEventLimitPerRoom == null || timelineEventLimitPerRoom > 0);
+    final orderedRoomIds = roomLimit == null
+        ? roomOrder.value
+        : roomOrder.value.take(roomLimit);
+    final persistedRoomIds = orderedRoomIds.toSet();
+
     return MatrixPresentationSnapshot(
       rooms: <MatrixRoomSummary>[
-        for (final roomId in roomOrder.value) ?_roomSummaries[roomId]?.value,
+        for (final roomId in orderedRoomIds) ?_roomSummaries[roomId]?.value,
       ],
       timelines: <String, List<MatrixTimelineEvent>>{
-        for (final entry in _timelines.entries)
-          if (entry.value.value.isNotEmpty) entry.key: entry.value.value,
+        for (final roomId in persistedRoomIds)
+          if (_timelines[roomId]?.value.isNotEmpty ?? false)
+            roomId: _recentEvents(
+              _timelines[roomId]!.value,
+              timelineEventLimitPerRoom,
+            ),
       },
       syncCursor: lastSyncCursor,
     );
@@ -133,6 +147,14 @@ final class MatrixPresentationCache {
     if (!_sameStrings(roomOrder.value, ids)) {
       roomOrder.value = ids;
     }
+  }
+
+  static List<MatrixTimelineEvent> _recentEvents(
+    List<MatrixTimelineEvent> events,
+    int? limit,
+  ) {
+    if (limit == null || events.length <= limit) return events;
+    return events.sublist(events.length - limit);
   }
 
   static List<MatrixTimelineEvent> _mergeEvents(

@@ -25,8 +25,12 @@ final class MatrixAccountRuntimeRegistry {
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
     this.presentationStore,
+    this.presentationRoomLimit = 200,
+    this.presentationTimelineEventLimit = 50,
     MatrixPresentationRetryDelay? presentationRetryDelay,
-  }) : _activity = initialActivity,
+  }) : assert(presentationRoomLimit > 0),
+       assert(presentationTimelineEventLimit > 0),
+       _activity = initialActivity,
        _networkState = initialNetworkState,
        _presentationRetryDelay =
            presentationRetryDelay ?? _defaultMatrixPresentationRetryDelay;
@@ -34,6 +38,8 @@ final class MatrixAccountRuntimeRegistry {
   final MatrixAccountStoreRegistry storeRegistry;
   final MatrixSdkBoundaryFactory boundaryFactory;
   final MatrixPresentationStore? presentationStore;
+  final int presentationRoomLimit;
+  final int presentationTimelineEventLimit;
   final MatrixPresentationRetryDelay _presentationRetryDelay;
   final Map<String, _MatrixAccountRuntime> _runtimes =
       <String, _MatrixAccountRuntime>{};
@@ -312,7 +318,10 @@ final class MatrixAccountRuntimeRegistry {
       while (true) {
         await Future<void>.delayed(Duration.zero);
         if (!_presentationDirty.remove(accountId)) return;
-        final snapshot = cache.snapshot();
+        final snapshot = cache.snapshot(
+          roomLimit: presentationRoomLimit,
+          timelineEventLimitPerRoom: presentationTimelineEventLimit,
+        );
         try {
           await store.save(accountId, snapshot);
           failureAttempts = 0;

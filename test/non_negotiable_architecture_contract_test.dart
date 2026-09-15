@@ -129,7 +129,12 @@ void main() {
     expect(callbacks!.group(1), isNot(contains('snapshot()')));
     expect(callbacks.group(2), isNot(contains('snapshot()')));
     expect(source, contains('_schedulePresentationWrite(accountId, cache)'));
-    expect(source, contains('final snapshot = cache.snapshot();'));
+    expect(source, contains('final snapshot = cache.snapshot('));
+    expect(source, contains('roomLimit: presentationRoomLimit'));
+    expect(
+      source,
+      contains('timelineEventLimitPerRoom: presentationTimelineEventLimit'),
+    );
   });
 
   test('Matrix native FFI operations stay off the Flutter UI isolate', () {
