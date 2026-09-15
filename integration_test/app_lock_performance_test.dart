@@ -130,12 +130,18 @@ void main() {
     await tester.pumpAndSettle();
 
     Future<void> enterPin() async {
-      await tester.enterText(find.byKey(const Key('app-unlock-pin')), '1234');
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('app-unlock-pin')),
+      );
+      field.controller!.text = '1234';
+      await tester.pump();
     }
 
     await enterPin();
     await tester.tap(find.byKey(const Key('app-unlock-pin-submit')));
     await tester.pumpAndSettle();
+    expect(controller.errorMessage.value, isNull);
+    expect(controller.isLocked.value, isFalse);
     expect(find.byKey(const Key('protected-app-content')), findsOneWidget);
 
     controller.lock();
