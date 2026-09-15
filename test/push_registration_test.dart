@@ -10,6 +10,7 @@ final class _FakePushGateway implements PushRegistrationGateway {
   String? unregisteredAccountId;
   String? payloadAccountId;
   String? encryptedPayload;
+  String decodedAccountId = 'work';
   Object? failure;
 
   @override
@@ -20,17 +21,17 @@ final class _FakePushGateway implements PushRegistrationGateway {
     if (failure case final error?) throw error;
     payloadAccountId = accountId;
     this.encryptedPayload = encryptedPayload;
-    return const DecryptedPushNotification(
+    return DecryptedPushNotification(
       notification: KiteNotification(
         id: 'push-1',
         kind: KiteNotificationKind.message,
         destination: AppDestination.event(
-          accountId: 'work',
+          accountId: decodedAccountId,
           roomId: '!room:example.org',
           eventId: r'$event',
         ),
       ),
-      content: KiteNotificationContent(
+      content: const KiteNotificationContent(
         title: 'Alice',
         body: 'Decrypted message body',
       ),
@@ -101,6 +102,24 @@ void main() {
     expect(notification?.content.body, 'Decrypted message body');
     expect(notification.toString(), isNot(contains('Decrypted message body')));
     expect(notification.toString(), contains('<redacted>'));
+  });
+
+  test('decrypted push cannot escape the account that received it', () async {
+    final gateway = _FakePushGateway()..decodedAccountId = 'personal';
+    final controller = PushRegistrationController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(
+      await controller.processEncryptedPayload(
+        accountId: 'work',
+        encryptedPayload: 'ENCRYPTED-PUSH-ENVELOPE',
+      ),
+      isNull,
+    );
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid notification.',
+    );
   });
 
   test('gateway failures never expose tokens or encrypted payloads', () async {

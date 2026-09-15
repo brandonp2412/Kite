@@ -47,3 +47,23 @@ final class NotificationBadgeCoordinator {
         KiteNotificationKind.call => true,
       };
 }
+
+final class AllAccountNotificationBadgeRefresher
+    implements NotificationBadgeRefreshPort {
+  factory AllAccountNotificationBadgeRefresher({
+    required NotificationBadgeCoordinator coordinator,
+    required Iterable<String> Function() accountIds,
+  }) => AllAccountNotificationBadgeRefresher._(coordinator, accountIds);
+
+  const AllAccountNotificationBadgeRefresher._(
+    this._coordinator,
+    this._accountIds,
+  );
+
+  final NotificationBadgeCoordinator _coordinator;
+  final Iterable<String> Function() _accountIds;
+
+  @override
+  Future<void> refreshBadgeCount() =>
+      _coordinator.refreshForAccounts(_accountIds());
+}

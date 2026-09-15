@@ -4,6 +4,15 @@ import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
+final class _FakeBadgeRefreshPort implements NotificationBadgeRefreshPort {
+  int refreshes = 0;
+
+  @override
+  Future<void> refreshBadgeCount() async {
+    refreshes += 1;
+  }
+}
+
 void main() {
   group('notification routing', () {
     test(
@@ -298,11 +307,13 @@ void main() {
           ),
         ]);
         final cancellations = FakeNotificationCancellationPort();
+        final badges = _FakeBadgeRefreshPort();
         final coordinator = NotificationCoordinator(
           notifications: notifications,
           cancellations: cancellations,
           accounts: FakeAccountActivationPort('work'),
           navigation: FakeAppNavigationPort(),
+          badgeRefresh: badges,
         );
 
         expect(
@@ -325,6 +336,7 @@ void main() {
         expect(notifications.notification('invite'), isNotNull);
         expect(notifications.notification('call'), isNotNull);
         expect(notifications.notification('other-account'), isNotNull);
+        expect(badges.refreshes, 1);
       },
     );
 

@@ -123,17 +123,23 @@ abstract interface class NotificationCancellationPort {
   Future<bool> cancel(String notificationId);
 }
 
+abstract interface class NotificationBadgeRefreshPort {
+  Future<void> refreshBadgeCount();
+}
+
 final class NotificationCoordinator {
   factory NotificationCoordinator({
     required NotificationRepository notifications,
     required NotificationCancellationPort cancellations,
     required AccountActivationPort accounts,
     required AppNavigationPort navigation,
+    NotificationBadgeRefreshPort? badgeRefresh,
   }) => NotificationCoordinator._(
     notifications,
     cancellations,
     accounts,
     navigation,
+    badgeRefresh,
   );
 
   const NotificationCoordinator._(
@@ -141,12 +147,14 @@ final class NotificationCoordinator {
     this._cancellations,
     this._accounts,
     this._navigation,
+    this._badgeRefresh,
   );
 
   final NotificationRepository _notifications;
   final NotificationCancellationPort _cancellations;
   final AccountActivationPort _accounts;
   final AppNavigationPort _navigation;
+  final NotificationBadgeRefreshPort? _badgeRefresh;
 
   Future<bool> tap(String notificationId) async {
     final notification = _notifications.notification(notificationId);
@@ -204,6 +212,9 @@ final class NotificationCoordinator {
       await _cancellations.cancel(id);
       _notifications.remove(id);
       removed += 1;
+    }
+    if (removed > 0) {
+      await _badgeRefresh?.refreshBadgeCount();
     }
     return removed;
   }
