@@ -71,17 +71,27 @@ final class MatrixAccountRuntimeRegistry {
     return _activeRuntime?.runtime.syncState;
   }
 
-  ReadonlySignal<MatrixPaginationState>? activePaginationState(String roomId) {
-    return _activeRuntime?.runtime.paginationState(roomId);
+  ReadonlySignal<MatrixPaginationState>? activePaginationState({
+    required String accountId,
+    required String roomId,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    if (activeAccountId.value != normalizedAccountId) return null;
+    return _runtimes[normalizedAccountId]?.runtime.paginationState(roomId);
   }
 
   Future<void> onTimelineViewportChanged({
+    required String accountId,
     required String roomId,
     required int oldestVisibleIndex,
     required bool hasMoreHistory,
   }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
-    final active = _activeRuntime;
+    if (activeAccountId.value != normalizedAccountId) {
+      return Future<void>.value();
+    }
+    final active = _runtimes[normalizedAccountId];
     if (active == null) return Future<void>.value();
     return active.runtime.onTimelineViewportChanged(
       roomId: roomId,

@@ -59,16 +59,21 @@ final class MatrixSessionRuntime
     return accounts.updateNetworkState(state);
   }
 
-  ReadonlySignal<MatrixPaginationState>? paginationState(String roomId) {
-    return accounts.activePaginationState(roomId);
+  ReadonlySignal<MatrixPaginationState>? paginationState({
+    required String accountId,
+    required String roomId,
+  }) {
+    return accounts.activePaginationState(accountId: accountId, roomId: roomId);
   }
 
   Future<void> onTimelineViewportChanged({
+    required String accountId,
     required String roomId,
     required int oldestVisibleIndex,
     required bool hasMoreHistory,
   }) {
     return accounts.onTimelineViewportChanged(
+      accountId: accountId,
       roomId: roomId,
       oldestVisibleIndex: oldestVisibleIndex,
       hasMoreHistory: hasMoreHistory,

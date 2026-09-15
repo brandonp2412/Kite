@@ -293,8 +293,12 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      final state = registry.activePaginationState('!alice:example.org')!;
+      final state = registry.activePaginationState(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+      )!;
       await registry.onTimelineViewportChanged(
+        accountId: '@alice:example.org',
         roomId: '!alice:example.org',
         oldestVisibleIndex: 0,
         hasMoreHistory: true,
@@ -365,6 +369,49 @@ void main() {
       'Alice room',
     );
   });
+
+  test(
+    'stale account viewport updates cannot paginate the newly active account',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.activate('@bob:example.org');
+      final bobBoundary = boundaries['@bob:example.org']!;
+
+      expect(
+        registry.activePaginationState(
+          accountId: '@alice:example.org',
+          roomId: '!shared:example.org',
+        ),
+        isNull,
+      );
+      final bobState = registry.activePaginationState(
+        accountId: '@bob:example.org',
+        roomId: '!shared:example.org',
+      );
+      expect(bobState, isNotNull);
+
+      await registry.onTimelineViewportChanged(
+        accountId: '@alice:example.org',
+        roomId: '!shared:example.org',
+        oldestVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(bobBoundary.paginationCalls, isEmpty);
+
+      await registry.onTimelineViewportChanged(
+        accountId: '@bob:example.org',
+        roomId: '!shared:example.org',
+        oldestVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(bobBoundary.paginationCalls, <String>['!shared:example.org']);
+      expect(bobState!.value.reachedStart, isTrue);
+    },
+  );
 
   test(
     'partial initial room chunks persist presentation without advancing cursor',
