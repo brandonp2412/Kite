@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/calls/incoming_call.dart';
+import 'package:kite/features/calls/incoming_call_sync.dart';
 
 final class IncomingCallResolution {
   const IncomingCallResolution({
@@ -37,6 +40,25 @@ final class DeterministicIncomingCallResolver
     if (failure != null) throw failure;
     return descriptor;
   }
+}
+
+final class DeterministicIncomingCallSyncSource
+    implements IncomingCallSyncSourcePort {
+  final StreamController<IncomingCallSyncUpdate> _controller =
+      StreamController<IncomingCallSyncUpdate>.broadcast();
+
+  @override
+  Stream<IncomingCallSyncUpdate> get updates => _controller.stream;
+
+  void emitEnded(String callId) {
+    _controller.add(IncomingCallSyncUpdate.ended(callId));
+  }
+
+  void emitError(Object error, [StackTrace? stackTrace]) {
+    _controller.addError(error, stackTrace ?? StackTrace.current);
+  }
+
+  Future<void> close() => _controller.close();
 }
 
 final class DeterministicIncomingCallRingtone
