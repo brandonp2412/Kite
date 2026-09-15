@@ -95,6 +95,37 @@ void main() {
       expect(navigation.opened, <AppDestination>[room, event, thread]);
     });
 
+    test(
+      'tap does not navigate when owning account activation does not stick',
+      () async {
+        const destination = AppDestination.room(
+          accountId: 'work',
+          roomId: '!team:example.org',
+        );
+        final notifications = FakeNotificationRepository(<KiteNotification>[
+          const KiteNotification(
+            id: 'notification-1',
+            kind: KiteNotificationKind.invite,
+            destination: destination,
+          ),
+        ]);
+        final accounts = FakeAccountActivationPort('personal')
+          ..activates = false;
+        final navigation = FakeAppNavigationPort();
+        final coordinator = NotificationCoordinator(
+          notifications: notifications,
+          cancellations: FakeNotificationCancellationPort(),
+          accounts: accounts,
+          navigation: navigation,
+        );
+
+        expect(await coordinator.tap('notification-1'), isFalse);
+        expect(accounts.activations, <String>['work']);
+        expect(accounts.activeAccountId, 'personal');
+        expect(navigation.opened, isEmpty);
+      },
+    );
+
     test('unknown notification is ignored without navigation', () async {
       final notifications = FakeNotificationRepository();
       final accounts = FakeAccountActivationPort('work');
@@ -337,6 +368,45 @@ void main() {
         expect(notifications.notification('call'), isNotNull);
         expect(notifications.notification('other-account'), isNotNull);
         expect(badges.refreshes, 1);
+      },
+    );
+
+    test(
+      'failed platform cancellation preserves notification and badge state',
+      () async {
+        final notifications = FakeNotificationRepository(<KiteNotification>[
+          const KiteNotification(
+            id: 'message',
+            kind: KiteNotificationKind.message,
+            destination: AppDestination.event(
+              accountId: 'work',
+              roomId: '!team:example.org',
+              eventId: r'$message',
+            ),
+          ),
+        ]);
+        final cancellations = FakeNotificationCancellationPort()
+          ..succeeds = false;
+        final badges = _FakeBadgeRefreshPort();
+        final coordinator = NotificationCoordinator(
+          notifications: notifications,
+          cancellations: cancellations,
+          accounts: FakeAccountActivationPort('work'),
+          navigation: FakeAppNavigationPort(),
+          badgeRefresh: badges,
+        );
+
+        expect(
+          await coordinator.markRoomRead(
+            accountId: 'work',
+            roomId: '!team:example.org',
+          ),
+          0,
+        );
+        expect(notifications.notification('message'), isNotNull);
+        expect(notifications.removedIds, isEmpty);
+        expect(cancellations.cancelledIds, isEmpty);
+        expect(badges.refreshes, 0);
       },
     );
 

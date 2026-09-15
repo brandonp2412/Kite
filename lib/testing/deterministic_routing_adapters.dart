@@ -49,12 +49,14 @@ final class FakeNotificationCancellationPort
     implements NotificationCancellationPort {
   final List<String> cancelledIds = <String>[];
   Object? failNextWith;
+  bool succeeds = true;
 
   @override
   Future<bool> cancel(String notificationId) async {
     final failure = failNextWith;
     failNextWith = null;
     if (failure != null) throw failure;
+    if (!succeeds) return false;
     cancelledIds.add(notificationId);
     return true;
   }
@@ -111,6 +113,7 @@ final class FakeAccountActivationPort implements AccountActivationPort {
 
   String? _activeAccountId;
   final List<String> activations = <String>[];
+  bool activates = true;
 
   @override
   String? get activeAccountId => _activeAccountId;
@@ -118,7 +121,7 @@ final class FakeAccountActivationPort implements AccountActivationPort {
   @override
   Future<void> activateAccount(String accountId) async {
     activations.add(accountId);
-    _activeAccountId = accountId;
+    if (activates) _activeAccountId = accountId;
   }
 }
 
