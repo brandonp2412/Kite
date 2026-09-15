@@ -256,4 +256,42 @@ void main() {
       },
     );
   }
+
+  testWidgets('notification settings survive 200% phone text scaling', (
+    tester,
+  ) async {
+    await _configureViewport(tester, size: const Size(390, 844));
+    final controller = SettingsController(_GoldenSettingsGateway());
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(390, 844),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: NotificationSettingsScreen(
+            controller: controller,
+            roomId: '!kite:example.org',
+            roomName: 'Kite room',
+            messageSounds: const <NotificationSoundOption>[
+              NotificationSoundOption(id: 'soft', label: 'Soft'),
+            ],
+            callRingtones: const <NotificationSoundOption>[
+              NotificationSoundOption(id: 'bright', label: 'Bright'),
+            ],
+            loadOnInit: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('notification-master')), findsOneWidget);
+    expect(find.byKey(const Key('room-notification-mode')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
