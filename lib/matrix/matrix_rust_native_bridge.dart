@@ -163,6 +163,30 @@ final class _MatrixNativePaginationDecodeOperation {
   }
 }
 
+abstract interface class MatrixRustCodecExecutor {
+  Future<MatrixRustSyncDecodeResult> decodeSync(String payload);
+
+  Future<MatrixRustPaginationDecodeResult> decodePagination(String payload);
+}
+
+final class IsolateMatrixRustCodecExecutor implements MatrixRustCodecExecutor {
+  const IsolateMatrixRustCodecExecutor();
+
+  @override
+  Future<MatrixRustSyncDecodeResult> decodeSync(String payload) {
+    return Isolate.run<MatrixRustSyncDecodeResult>(
+      _MatrixNativeSyncDecodeOperation(payload).call,
+    );
+  }
+
+  @override
+  Future<MatrixRustPaginationDecodeResult> decodePagination(String payload) {
+    return Isolate.run<MatrixRustPaginationDecodeResult>(
+      _MatrixNativePaginationDecodeOperation(payload).call,
+    );
+  }
+}
+
 final class _MatrixNativeFreeOperation {
   const _MatrixNativeFreeOperation({
     required this.libraryPath,
@@ -397,14 +421,17 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     required this.bridge,
     required this.homeserver,
     required this.resolveStoreSecret,
+    MatrixRustCodecExecutor? codecExecutor,
     MatrixRustSyncDelay? syncRetryDelay,
     this.logger,
     this.crashReporter,
-  }) : _syncRetryDelay = syncRetryDelay ?? Future<void>.delayed;
+  }) : _codecExecutor = codecExecutor ?? const IsolateMatrixRustCodecExecutor(),
+       _syncRetryDelay = syncRetryDelay ?? Future<void>.delayed;
 
   final MatrixRustBridge bridge;
   final Uri homeserver;
   final MatrixSdkStoreSecretResolver resolveStoreSecret;
+  final MatrixRustCodecExecutor _codecExecutor;
   final MatrixRustSyncDelay _syncRetryDelay;
   final StructuredLogger? logger;
   final CrashReporter? crashReporter;
@@ -483,9 +510,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         final payload = await _requireClient().paginateBackwards(
           roomId: normalizedRoomId,
         );
-        final decoded = await Isolate.run<MatrixRustPaginationDecodeResult>(
-          _MatrixNativePaginationDecodeOperation(payload).call,
-        );
+        final decoded = await _codecExecutor.decodePagination(payload);
         if (decoded.roomId != normalizedRoomId) {
           throw StateError('Matrix Rust SDK pagination room mismatch');
         }
@@ -546,9 +571,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
           since: syncToken,
         );
         if (!_syncRequested || !identical(_client, client)) return;
-        final decoded = await Isolate.run<MatrixRustSyncDecodeResult>(
-          _MatrixNativeSyncDecodeOperation(payload).call,
-        );
+        final decoded = await _codecExecutor.decodeSync(payload);
         trace?.log(
           LogLevel.info,
           DiagnosticEvent.completed,

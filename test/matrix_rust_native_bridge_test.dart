@@ -6,6 +6,7 @@ import 'package:kite/diagnostics/crash_reporting.dart';
 import 'package:kite/diagnostics/structured_logging.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_native_bridge.dart';
+import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
 void main() {
@@ -138,11 +139,13 @@ void main() {
     'native boundary streams sync and pagination through Matrix models',
     () async {
       final client = _FakeRustClient();
+      final codecExecutor = _RecordingCodecExecutor();
       final logSink = MemoryStructuredLogSink();
       final boundary = MatrixRustSdkBoundary(
         bridge: _FakeRustBridge(client),
         homeserver: Uri.parse('https://matrix.example.org'),
         resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: codecExecutor,
         logger: StructuredLogger(
           sink: logSink,
           traceIds: SequenceTraceIdGenerator(seed: 100),
@@ -189,6 +192,8 @@ void main() {
       expect(page.reachedStart, isTrue);
       expect(page.events.single.eventId, r'$older');
       expect(batches, hasLength(1));
+      expect(codecExecutor.syncDecodeCalls, greaterThanOrEqualTo(1));
+      expect(codecExecutor.paginationDecodeCalls, 1);
       final timelineLogs = logSink.events
           .where((event) => event.flow == DiagnosticFlow.timeline)
           .toList(growable: false);
@@ -309,6 +314,26 @@ void main() {
         ? 'Set KITE_MATRIX_BRIDGE_LIBRARY after building the Rust bridge.'
         : false,
   );
+}
+
+final class _RecordingCodecExecutor implements MatrixRustCodecExecutor {
+  final MatrixRustSyncCodec _codec = MatrixRustSyncCodec();
+  int syncDecodeCalls = 0;
+  int paginationDecodeCalls = 0;
+
+  @override
+  Future<MatrixRustSyncDecodeResult> decodeSync(String payload) async {
+    syncDecodeCalls += 1;
+    return _codec.decodeSync(payload);
+  }
+
+  @override
+  Future<MatrixRustPaginationDecodeResult> decodePagination(
+    String payload,
+  ) async {
+    paginationDecodeCalls += 1;
+    return _codec.decodePagination(payload);
+  }
 }
 
 final class _DeferredCrashReporter implements CrashReporter {
