@@ -222,7 +222,7 @@ void main() {
   test(
     'native boundary retries transient sync failures deterministically',
     () async {
-      final client = _RecoveringRustClient();
+      final client = _RecoveringRustClient(failuresBeforeRecovery: 6);
       final retryDelays = <Duration>[];
       final errors = <Object>[];
       final batches = <MatrixSyncBatch>[];
@@ -265,11 +265,18 @@ void main() {
       }
       await boundary.stopSync();
 
-      expect(errors, hasLength(1));
-      expect(errors.single, isA<StateError>());
-      expect(retryDelays, <Duration>[const Duration(seconds: 1)]);
+      expect(errors, hasLength(6));
+      expect(errors, everyElement(isA<StateError>()));
+      expect(retryDelays, <Duration>[
+        const Duration(seconds: 1),
+        const Duration(seconds: 2),
+        const Duration(seconds: 4),
+        const Duration(seconds: 8),
+        const Duration(seconds: 16),
+        const Duration(seconds: 30),
+      ]);
       expect(batches.first.cursor, 'recovered');
-      expect(client.syncCalls, greaterThanOrEqualTo(2));
+      expect(client.syncCalls, greaterThanOrEqualTo(7));
       final failedLogs = logSink.events
           .where(
             (event) =>
@@ -277,12 +284,15 @@ void main() {
                 event.event == DiagnosticEvent.failed,
           )
           .toList(growable: false);
-      expect(failedLogs, hasLength(1));
-      expect(failedLogs.single.metrics[DiagnosticMetric.attempt], 1);
-      expect(crashSink.reports, hasLength(1));
-      expect(crashSink.reports.single.errorType, 'StateError');
-      expect(crashSink.reports.single.flow, DiagnosticFlow.sync);
-      expect(crashSink.reports.single.traceId, failedLogs.single.traceId);
+      expect(failedLogs, hasLength(6));
+      expect(
+        failedLogs.map((event) => event.metrics[DiagnosticMetric.attempt]),
+        <num?>[1, 2, 3, 4, 5, 6],
+      );
+      expect(crashSink.reports, hasLength(6));
+      expect(crashSink.reports.first.errorType, 'StateError');
+      expect(crashSink.reports.first.flow, DiagnosticFlow.sync);
+      expect(crashSink.reports.first.traceId, failedLogs.first.traceId);
       expect(deferredCrashReporter.release.isCompleted, isFalse);
       deferredCrashReporter.release.complete();
     },
@@ -369,6 +379,9 @@ final class _FakeRustBridge implements MatrixRustBridge {
 }
 
 final class _RecoveringRustClient implements MatrixRustClient {
+  _RecoveringRustClient({this.failuresBeforeRecovery = 1});
+
+  final int failuresBeforeRecovery;
   final Completer<void> recovered = Completer<void>();
   int syncCalls = 0;
   bool _closed = false;
@@ -383,7 +396,7 @@ final class _RecoveringRustClient implements MatrixRustClient {
     String? since,
   }) async {
     syncCalls += 1;
-    if (syncCalls == 1) {
+    if (syncCalls <= failuresBeforeRecovery) {
       throw StateError('transient sync failure');
     }
     if (!recovered.isCompleted) recovered.complete();

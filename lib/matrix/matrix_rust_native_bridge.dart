@@ -12,6 +12,19 @@ import 'package:kite/matrix/matrix_sdk_boundary.dart';
 const int kiteMatrixNativeAbiVersion = 5;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
+const int _matrixRustMaxRetryDelaySeconds = 30;
+
+Duration _matrixRustRetryDelayForAttempt(int attempt) {
+  var seconds = 1;
+  for (var index = 1; index < attempt; index += 1) {
+    if (seconds >= _matrixRustMaxRetryDelaySeconds) break;
+    seconds *= 2;
+    if (seconds > _matrixRustMaxRetryDelaySeconds) {
+      seconds = _matrixRustMaxRetryDelaySeconds;
+    }
+  }
+  return Duration(seconds: seconds);
+}
 
 typedef _AbiVersionNative = Uint32 Function();
 typedef _AbiVersionDart = int Function();
@@ -602,7 +615,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
           state: CrashState.retrying,
         );
         _syncBatches.addError(error, stackTrace);
-        await _syncRetryDelay(const Duration(seconds: 1));
+        await _syncRetryDelay(_matrixRustRetryDelayForAttempt(failureAttempt));
       }
     }
   }
