@@ -113,6 +113,7 @@ final class EncryptionTrustController {
       () =>
           _gateway.setHistorySharing(roomId: current.roomId, enabled: enabled),
       expectedRoomId: current.roomId,
+      expectedHistorySharingEnabled: enabled,
       failureMessage: 'Kite could not update encrypted history sharing.',
     );
   }
@@ -120,6 +121,7 @@ final class EncryptionTrustController {
   Future<bool> _run(
     Future<RoomEncryptionTrust> Function() action, {
     required String expectedRoomId,
+    bool? expectedHistorySharingEnabled,
     required String failureMessage,
   }) async {
     if (isBusy.value) return false;
@@ -128,7 +130,9 @@ final class EncryptionTrustController {
     errorMessage.value = null;
     try {
       final next = await action();
-      if (next.roomId != expectedRoomId) {
+      if (next.roomId != expectedRoomId ||
+          (expectedHistorySharingEnabled != null &&
+              next.historySharingEnabled != expectedHistorySharingEnabled)) {
         errorMessage.value = 'Kite received invalid encryption trust state.';
         return false;
       }

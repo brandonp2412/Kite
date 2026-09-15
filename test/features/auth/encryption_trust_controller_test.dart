@@ -10,6 +10,7 @@ final class _FakeEncryptionTrustGateway implements EncryptionTrustGateway {
     historySharingEnabled: false,
   );
   Object? failure;
+  bool ignoreHistorySharingUpdate = false;
   String? loadedRoomId;
   (String, bool)? historySharingUpdate;
 
@@ -27,7 +28,9 @@ final class _FakeEncryptionTrustGateway implements EncryptionTrustGateway {
   }) async {
     if (failure case final error?) throw error;
     historySharingUpdate = (roomId, enabled);
-    current = current.copyWith(historySharingEnabled: enabled);
+    if (!ignoreHistorySharingUpdate) {
+      current = current.copyWith(historySharingEnabled: enabled);
+    }
     return current;
   }
 }
@@ -109,6 +112,25 @@ void main() {
       expect(
         controller.errorMessage.value,
         'Encrypted history sharing is not supported in this room.',
+      );
+    },
+  );
+
+  test(
+    'history sharing rejects SDK state that did not apply the request',
+    () async {
+      final gateway = _FakeEncryptionTrustGateway()
+        ..ignoreHistorySharingUpdate = true;
+      final controller = EncryptionTrustController(gateway);
+      addTearDown(controller.dispose);
+      expect(await controller.load('!room:example.org'), isTrue);
+
+      expect(await controller.setHistorySharing(true), isFalse);
+      expect(gateway.historySharingUpdate, ('!room:example.org', true));
+      expect(controller.state.value?.historySharingEnabled, isFalse);
+      expect(
+        controller.errorMessage.value,
+        'Kite received invalid encryption trust state.',
       );
     },
   );
