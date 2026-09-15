@@ -178,7 +178,8 @@ final class AccountManagementController {
           account.accountId != account.accountId.trim() ||
           !accountIds.add(account.accountId) ||
           !_isValidUserId(account.session.userId) ||
-          account.session.deviceId.trim().isEmpty) {
+          account.session.deviceId.trim().isEmpty ||
+          account.session.deviceId != account.session.deviceId.trim()) {
         return false;
       }
       if (account.isActive) activeCount += 1;
