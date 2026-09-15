@@ -20,6 +20,7 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   Object? dmError;
   Object? ignoreError;
   Object? blockError;
+  String dmRoomId = '!dm:example.org';
   String? updatedDisplayName;
   Uri? updatedAvatar;
   bool avatarWasCleared = false;
@@ -47,7 +48,7 @@ final class _FakeUserProfileGateway implements UserProfileGateway {
   Future<String> openDirectMessage(String userId) async {
     if (dmError case final error?) throw error;
     openedDmUserId = userId;
-    return '!dm:example.org';
+    return dmRoomId;
   }
 
   @override
@@ -129,6 +130,52 @@ void main() {
     expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
   });
 
+  test(
+    'rejects profile and privacy data that does not match Matrix identity',
+    () async {
+      final gateway = _FakeUserProfileGateway()
+        ..profiles['@alice:example.org'] = const MatrixUserProfile(
+          userId: '@mallory:example.org',
+          displayName: 'Mallory',
+        );
+      final controller = UserProfileController(gateway);
+      addTearDown(controller.dispose);
+
+      await controller.loadUserProfile('@alice:example.org');
+
+      expect(controller.viewedProfile.value, isNull);
+      expect(
+        controller.errorMessage.value,
+        'Kite received invalid profile data.',
+      );
+
+      gateway.ownProfile = const MatrixUserProfile(
+        userId: '@brandon:example.org',
+        displayName: 'Brandon',
+      );
+      gateway.ignored = {' invalid-user '};
+      await controller.loadOwnProfile();
+
+      expect(controller.ownProfile.value, isNull);
+      expect(controller.ignoredUserIds.value, isEmpty);
+      expect(
+        controller.errorMessage.value,
+        'Kite received invalid profile data.',
+      );
+    },
+  );
+
+  test('rejects whitespace-normalized Matrix IDs before gateway use', () async {
+    final gateway = _FakeUserProfileGateway();
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.loadUserProfile(' @alice:example.org ');
+
+    expect(controller.viewedProfile.value, isNull);
+    expect(controller.errorMessage.value, 'That Matrix user ID is not valid.');
+  });
+
   test('updates display name and avatar only after gateway success', () async {
     final gateway = _FakeUserProfileGateway();
     final controller = UserProfileController(gateway);
@@ -169,6 +216,14 @@ void main() {
         'Kite could not open a direct message.',
       );
       expect(controller.errorMessage.value, isNot(contains('secret')));
+
+      gateway.dmError = null;
+      gateway.dmRoomId = 'not-a-room';
+      expect(await controller.openDirectMessage('@alice:example.org'), isNull);
+      expect(
+        controller.errorMessage.value,
+        'Kite received an invalid direct-message room.',
+      );
     },
   );
 
