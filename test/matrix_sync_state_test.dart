@@ -196,6 +196,33 @@ void main() {
     expect(engine.stopCalls, 1);
   });
 
+  test('unexpected sync stream closure resets the engine before retry', () async {
+    final engine = _StateFakeMatrixEngine();
+    final applied = <String>[];
+    final coordinator = MatrixSyncCoordinator(
+      engine: engine,
+      applyBatch: (batch) => applied.add(batch.cursor),
+    );
+
+    await coordinator.start();
+    expect(engine.startCalls, 1);
+    expect(applied, <String>['start-1']);
+
+    await engine.close();
+    await Future<void>.delayed(Duration.zero);
+    expect(coordinator.state.value.phase, MatrixSyncPhase.failed);
+
+    await coordinator.start();
+    expect(engine.stopCalls, 1);
+    expect(engine.startCalls, 2);
+    expect(applied, <String>['start-1', 'start-2']);
+    expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+
+    await coordinator.stop();
+    expect(engine.stopCalls, 2);
+    await engine.close();
+  });
+
   test('failed engine start is observable and retryable', () async {
     final engine = _StateFakeMatrixEngine(startFailuresRemaining: 1);
     final coordinator = MatrixSyncCoordinator(
@@ -220,24 +247,32 @@ void main() {
 final class _StateFakeMatrixEngine implements MatrixEngine {
   _StateFakeMatrixEngine({this.startFailuresRemaining = 0});
 
-  final StreamController<MatrixSyncBatch> _sync =
+  StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
   int startFailuresRemaining;
   int startCalls = 0;
   int stopCalls = 0;
+  bool _started = false;
   final List<String> paginationCalls = <String>[];
 
   @override
-  Stream<MatrixSyncBatch> get syncBatches => _sync.stream;
+  Stream<MatrixSyncBatch> get syncBatches {
+    if (_sync.isClosed) {
+      _sync = StreamController<MatrixSyncBatch>.broadcast(sync: true);
+    }
+    return _sync.stream;
+  }
 
   @override
   Future<void> start() async {
+    if (_started) return;
     startCalls += 1;
     if (startFailuresRemaining > 0) {
       startFailuresRemaining -= 1;
       throw StateError('deterministic start failure');
     }
+    _started = true;
     _sync.add(
       MatrixSyncBatch(
         cursor: 'start-$startCalls',
@@ -249,6 +284,7 @@ final class _StateFakeMatrixEngine implements MatrixEngine {
   @override
   Future<void> stop() async {
     stopCalls += 1;
+    _started = false;
   }
 
   @override

@@ -42,11 +42,21 @@ final class MatrixSyncCoordinator {
     const MatrixSyncState.idle(),
   );
   StreamSubscription<MatrixSyncBatch>? _subscription;
+  bool _needsEngineReset = false;
 
   bool get isRunning => _subscription != null;
 
   Future<void> start() async {
     if (_subscription != null) return;
+    if (_needsEngineReset) {
+      try {
+        await engine.stop();
+        _needsEngineReset = false;
+      } catch (error, stackTrace) {
+        state.value = MatrixSyncState.failed(error, stackTrace);
+        rethrow;
+      }
+    }
     state.value = const MatrixSyncState.starting();
     late final StreamSubscription<MatrixSyncBatch> subscription;
     subscription = engine.syncBatches.listen(
@@ -64,6 +74,7 @@ final class MatrixSyncCoordinator {
       onDone: () {
         if (identical(_subscription, subscription)) {
           _subscription = null;
+          _needsEngineReset = true;
           state.value = MatrixSyncState.failed(
             StateError('Matrix sync stream closed unexpectedly'),
             StackTrace.current,
@@ -91,8 +102,9 @@ final class MatrixSyncCoordinator {
   Future<void> stop() async {
     final subscription = _subscription;
     if (subscription == null) {
-      if (state.value.phase != MatrixSyncPhase.idle) {
+      if (state.value.phase != MatrixSyncPhase.idle || _needsEngineReset) {
         await engine.stop();
+        _needsEngineReset = false;
         state.value = const MatrixSyncState.idle();
       }
       return;
@@ -100,6 +112,7 @@ final class MatrixSyncCoordinator {
     _subscription = null;
     await subscription.cancel();
     await engine.stop();
+    _needsEngineReset = false;
     state.value = const MatrixSyncState.idle();
   }
 }

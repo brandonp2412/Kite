@@ -551,7 +551,48 @@ void main() {
 
       expect(boundaries, hasLength(24));
       expect(boundaries.every((boundary) => boundary.closeCalls == 1), isTrue);
+      expect(
+        boundaries.every((boundary) => !boundary.closeHadSyncListener),
+        isTrue,
+      );
       expect(await registry.removeAccount('@missing:example.org'), isFalse);
+    },
+  );
+
+  test(
+    'account removal clears abandoned presentation dirty state before re-add',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+        presentationRetryDelay: (_) async {},
+      );
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.flushPresentationWrites('@alice:example.org');
+      presentationStore.failSaveCallsRemaining = 3;
+      boundaries['@alice:example.org']!.emit(
+        const MatrixSyncBatch(
+          cursor: 'discard-on-remove',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+      await registry.flushPresentationWrites('@alice:example.org');
+
+      presentationStore.failSaveCallsRemaining = 0;
+      await registry.removeAccount('@alice:example.org');
+      final savesAfterRemoval = presentationStore.saveCalls;
+
+      await registry.activateCached('@alice:example.org');
+      await registry.flushPresentationWrites('@alice:example.org');
+
+      expect(presentationStore.saveCalls, savesAfterRemoval);
+      expect(presentationStore.snapshots, isEmpty);
     },
   );
 
@@ -639,6 +680,7 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   int startCalls = 0;
   int stopCalls = 0;
   int closeCalls = 0;
+  bool closeHadSyncListener = false;
   final List<String> paginationCalls = <String>[];
 
   @override
@@ -704,6 +746,7 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   @override
   Future<void> close() async {
     closeCalls += 1;
+    closeHadSyncListener = _sync.hasListener;
     await _sync.close();
   }
 

@@ -166,6 +166,32 @@ void main() {
       },
     );
 
+    test('close is terminal and cannot race a late queued send', () async {
+      final store = _FakeEncryptedOutboxStore();
+      final outbox = MatrixOutbox(
+        store: store,
+        transport: _FakeSendTransport(),
+        initialNetworkState: MatrixNetworkState.offline,
+      );
+      final now = DateTime.utc(2026, 9, 15, 1);
+
+      await outbox.hydrate(now: now);
+      final closing = outbox.close();
+
+      expect(
+        () => outbox.enqueue(_message('late', 'txn-late'), now: now),
+        throwsStateError,
+      );
+      expect(
+        () => outbox.updateNetworkState(MatrixNetworkState.online, now: now),
+        throwsStateError,
+      );
+
+      await closing;
+      await outbox.close();
+      expect(store.pending, isEmpty);
+    });
+
     test('rejects plaintext outbox persistence', () {
       expect(
         () => MatrixOutbox(

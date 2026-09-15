@@ -171,6 +171,7 @@ final class MatrixAccountRuntimeRegistry {
     return _enqueue<bool>(() async {
       final runtime = _runtimes[normalizedAccountId];
       if (runtime != null) {
+        await runtime.runtime.stop();
         await runtime.engine.close();
         _runtimes.remove(normalizedAccountId);
       }
@@ -183,6 +184,8 @@ final class MatrixAccountRuntimeRegistry {
       if (presentation != null) {
         await presentation.clear(normalizedAccountId);
       }
+      _presentationDirty.remove(normalizedAccountId);
+      _presentationWrites.remove(normalizedAccountId);
 
       final removedStore = storeRegistry.removeAccount(normalizedAccountId);
       return runtime != null || removedStore;
