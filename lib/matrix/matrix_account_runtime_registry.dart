@@ -29,6 +29,7 @@ final class MatrixAccountRuntimeRegistry {
       <String, _MatrixAccountRuntime>{};
   final Map<String, Future<void>> _presentationWrites =
       <String, Future<void>>{};
+  final Set<String> _presentationDirty = <String>{};
 
   final Signal<String?> activeAccountId = signal<String?>(null);
 
@@ -231,16 +232,14 @@ final class MatrixAccountRuntimeRegistry {
       engine: engine,
       applyBatch: (batch) {
         cache.applySync(batch);
-        final store = presentationStore;
-        if (store != null) {
-          unawaited(_persistPresentation(accountId, cache.snapshot()));
+        if (presentationStore != null) {
+          unawaited(_schedulePresentationWrite(accountId, cache));
         }
       },
       applyPagination: (page) {
         cache.applyPagination(page);
-        final store = presentationStore;
-        if (store != null) {
-          unawaited(_persistPresentation(accountId, cache.snapshot()));
+        if (presentationStore != null) {
+          unawaited(_schedulePresentationWrite(accountId, cache));
         }
       },
       initialActivity: _activity,
@@ -267,28 +266,35 @@ final class MatrixAccountRuntimeRegistry {
     runtime.hydrated = true;
   }
 
-  Future<void> _persistPresentation(
+  Future<void> _schedulePresentationWrite(
     String accountId,
-    MatrixPresentationSnapshot snapshot,
+    MatrixPresentationCache cache,
   ) {
     final store = presentationStore;
     if (store == null) return Future<void>.value();
 
-    final previous = _presentationWrites[accountId] ?? Future<void>.value();
-    final write = previous.then<void>(
-      (_) => store.save(accountId, snapshot),
-      onError: (Object _, StackTrace _) => store.save(accountId, snapshot),
-    );
-    final guarded = write.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
-    _presentationWrites[accountId] = guarded;
-    return guarded.whenComplete(() {
+    _presentationDirty.add(accountId);
+    final pending = _presentationWrites[accountId];
+    if (pending != null) return pending;
+
+    late final Future<void> guarded;
+    final write = Future<void>(() async {
+      while (true) {
+        await Future<void>.delayed(Duration.zero);
+        if (!_presentationDirty.remove(accountId)) return;
+        final snapshot = cache.snapshot();
+        try {
+          await store.save(accountId, snapshot);
+        } catch (_) {}
+      }
+    });
+    guarded = write.whenComplete(() {
       if (identical(_presentationWrites[accountId], guarded)) {
         _presentationWrites.remove(accountId);
       }
     });
+    _presentationWrites[accountId] = guarded;
+    return guarded;
   }
 
   Future<void> flushPresentationWrites([String? accountId]) async {

@@ -252,6 +252,43 @@ void main() {
   });
 
   test(
+    'burst sync persistence coalesces to the latest presentation snapshot',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+      );
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.flushPresentationWrites();
+      final savesBeforeBurst = presentationStore.saveCalls;
+      final boundary = boundaries['@alice:example.org']!;
+
+      for (var index = 1; index <= 3; index += 1) {
+        boundary.emit(
+          MatrixSyncBatch(
+            cursor: 'burst-$index',
+            rooms: const <MatrixRoomDelta>[],
+          ),
+        );
+      }
+
+      await registry.flushPresentationWrites();
+
+      expect(presentationStore.saveCalls, savesBeforeBurst + 1);
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'burst-3',
+      );
+    },
+  );
+
+  test(
     'failed account activation restores the previous account sync and state',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -509,6 +546,7 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
     : snapshots = Map<String, MatrixPresentationSnapshot>.of(initial);
 
   final Map<String, MatrixPresentationSnapshot> snapshots;
+  int saveCalls = 0;
 
   @override
   Future<void> clear(String accountId) async {
@@ -525,6 +563,7 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
     String accountId,
     MatrixPresentationSnapshot snapshot,
   ) async {
+    saveCalls += 1;
     snapshots[accountId] = snapshot;
   }
 }
