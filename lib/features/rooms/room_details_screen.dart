@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:kite/features/calls/call_launcher.dart';
+import 'package:kite/features/calls/call_session.dart';
+import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_members.dart';
+import 'package:kite/features/rooms/room_settings_screen.dart';
 import 'package:signals/signals_flutter.dart';
 
 class RoomDetailsScreen extends StatefulWidget {
@@ -7,12 +11,22 @@ class RoomDetailsScreen extends StatefulWidget {
     required this.roomId,
     required this.roomName,
     this.store,
+    this.management,
+    this.calls,
+    this.isDirect = false,
+    this.activeGroupCallId,
+    this.activeGroupCallKind = KiteCallKind.video,
     super.key,
   });
 
   final String roomId;
   final String roomName;
   final RoomMembersStore? store;
+  final RoomManagementCoordinator? management;
+  final KiteCallCoordinator? calls;
+  final bool isDirect;
+  final String? activeGroupCallId;
+  final KiteCallKind activeGroupCallKind;
 
   @override
   State<RoomDetailsScreen> createState() => _RoomDetailsScreenState();
@@ -39,7 +53,29 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: const Key('room-details-screen'),
-      appBar: AppBar(title: Text(widget.roomName)),
+      appBar: AppBar(
+        title: Text(widget.roomName),
+        actions: widget.management == null && widget.calls == null
+            ? null
+            : <Widget>[
+                if (widget.calls case final calls?)
+                  KiteRoomCallLauncher(
+                    coordinator: calls,
+                    roomId: widget.roomId,
+                    roomName: widget.roomName,
+                    isDirect: widget.isDirect,
+                    activeGroupCallId: widget.activeGroupCallId,
+                    activeGroupCallKind: widget.activeGroupCallKind,
+                  ),
+                if (widget.management != null)
+                  IconButton(
+                    key: const Key('room-settings-button'),
+                    tooltip: 'Room settings',
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+              ],
+      ),
       body: Column(
         children: <Widget>[
           Padding(
@@ -86,6 +122,17 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openSettings() async {
+    final management = widget.management;
+    if (management == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            RoomSettingsScreen(roomId: widget.roomId, coordinator: management),
       ),
     );
   }

@@ -320,16 +320,18 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
                   ),
                 ),
                 const SizedBox(height: KiteSpacing.sm),
-                FilledButton.icon(
-                  key: const Key('room-create-submit'),
-                  onPressed: _submitting ? null : _create,
-                  icon: _submitting
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.arrow_forward_rounded),
-                  label: Text(_submitLabel(_mode)),
+                Semantics(
+                  value: _submitting ? 'Creating' : null,
+                  child: FilledButton.icon(
+                    key: const Key('room-create-submit'),
+                    style: const ButtonStyle(
+                      animationDuration: Duration.zero,
+                      splashFactory: NoSplash.splashFactory,
+                    ),
+                    onPressed: _create,
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    label: Text(_submitLabel(_mode)),
+                  ),
                 ),
                 if (widget.parentSpaceId != null) ...<Widget>[
                   const SizedBox(height: KiteSpacing.sm),

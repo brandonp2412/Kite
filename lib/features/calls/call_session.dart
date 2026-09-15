@@ -530,7 +530,7 @@ final class KiteCallCoordinator {
   }
 
   Future<void> setMediaInterrupted(bool interrupted) async {
-    final current = _requireActiveSession();
+    final current = _requireReconnectableSession();
     if (isMediaInterrupted.value == interrupted) return;
 
     await _gateway.setMediaInterrupted(
@@ -561,10 +561,18 @@ final class KiteCallCoordinator {
     appState.value = state;
   }
 
-  Future<void> reconnectAfterTransientNetworkLoss() async {
-    final current = _requireReconnectableSession();
+  void markTransientNetworkLoss() {
+    _requireActiveSession();
     phase.value = KiteCallPhase.reconnecting;
     _publishActivity();
+  }
+
+  Future<void> reconnectAfterTransientNetworkLoss() async {
+    final current = _requireReconnectableSession();
+    if (phase.value != KiteCallPhase.reconnecting) {
+      phase.value = KiteCallPhase.reconnecting;
+      _publishActivity();
+    }
 
     try {
       await _gateway.reconnect(current.callId);
