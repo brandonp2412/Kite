@@ -141,10 +141,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 : widget.controller.viewedProfile.value;
             final loading = widget.controller.isLoading.value;
             final privacyLoading = widget.controller.isPrivacyLoading.value;
+            final hasPrivacyState = widget.controller.hasPrivacyState.value;
             final saving = widget.controller.isSaving.value;
             final error = widget.controller.errorMessage.value;
             final busy = loading || saving;
-            final privacyBusy = privacyLoading || saving;
+            final privacyBusy = privacyLoading || saving || !hasPrivacyState;
 
             return ListView(
               key: const Key('user-profile-list'),

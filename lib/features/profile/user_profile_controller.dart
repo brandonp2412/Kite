@@ -57,6 +57,7 @@ final class UserProfileController {
   final blockedUserIds = signal<Set<String>>(const <String>{});
   final isLoading = signal(false);
   final isPrivacyLoading = signal(false);
+  final hasPrivacyState = signal(false);
   final isSaving = signal(false);
   final errorMessage = signal<String?>(null);
 
@@ -112,6 +113,7 @@ final class UserProfileController {
     blockedUserIds.value = const <String>{};
     isLoading.value = false;
     isPrivacyLoading.value = false;
+    hasPrivacyState.value = false;
     isSaving.value = false;
     errorMessage.value = null;
     return true;
@@ -249,7 +251,8 @@ final class UserProfileController {
     if (!_isValidUserId(userId) ||
         isSaving.value ||
         isLoading.value ||
-        isPrivacyLoading.value) {
+        isPrivacyLoading.value ||
+        !hasPrivacyState.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -288,7 +291,8 @@ final class UserProfileController {
     if (!_isValidUserId(userId) ||
         isSaving.value ||
         isLoading.value ||
-        isPrivacyLoading.value) {
+        isPrivacyLoading.value ||
+        !hasPrivacyState.value) {
       if (!_isValidUserId(userId)) {
         errorMessage.value = 'That Matrix user ID is not valid.';
       }
@@ -328,6 +332,7 @@ final class UserProfileController {
     required int requestGeneration,
   }) async {
     if (!_isCurrentRequest(generation, requestGeneration)) return;
+    hasPrivacyState.value = false;
     isPrivacyLoading.value = true;
     try {
       await _loadPrivacyControls(
@@ -359,6 +364,7 @@ final class UserProfileController {
       }
       ignoredUserIds.value = Set<String>.unmodifiable(ignored);
       blockedUserIds.value = Set<String>.unmodifiable(blocked);
+      hasPrivacyState.value = true;
     } catch (_) {
       if (_isCurrentRequest(generation, requestGeneration)) {
         errorMessage.value = 'Kite could not load your privacy settings.';
@@ -422,6 +428,7 @@ final class UserProfileController {
     blockedUserIds.dispose();
     isLoading.dispose();
     isPrivacyLoading.dispose();
+    hasPrivacyState.dispose();
     isSaving.dispose();
     errorMessage.dispose();
   }

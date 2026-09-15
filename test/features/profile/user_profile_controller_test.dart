@@ -127,6 +127,7 @@ void main() {
       await controller.loadOwnProfile();
 
       expect(controller.ownProfile.value?.displayName, 'Brandon');
+      expect(controller.hasPrivacyState.value, isFalse);
       expect(controller.isIgnored('@spam:example.org'), isFalse);
       expect(controller.errorMessage.value, isNull);
 
@@ -226,6 +227,7 @@ void main() {
       await loading;
 
       expect(controller.isPrivacyLoading.value, isFalse);
+      expect(controller.hasPrivacyState.value, isTrue);
       expect(controller.isIgnored('@alice:example.org'), isTrue);
     },
   );
@@ -399,6 +401,7 @@ void main() {
     await controller.loadUserProfile('@alice:example.org');
 
     expect(controller.viewedProfile.value?.displayName, 'Alice');
+    expect(controller.hasPrivacyState.value, isFalse);
     expect(
       controller.errorMessage.value,
       'Kite could not load your privacy settings.',
@@ -515,8 +518,9 @@ void main() {
       final gateway = _FakeUserProfileGateway();
       final controller = UserProfileController(gateway);
       addTearDown(controller.dispose);
-      await controller.loadOwnProfile();
+      await controller.refreshPrivacyControls();
 
+      expect(controller.hasPrivacyState.value, isTrue);
       expect(await controller.setIgnored('@alice:example.org', true), isTrue);
       expect(controller.isIgnored('@alice:example.org'), isTrue);
 
@@ -540,6 +544,7 @@ void main() {
       addTearDown(controller.dispose);
       await controller.loadUserProfile('@alice:example.org');
 
+      expect(controller.hasPrivacyState.value, isTrue);
       expect(controller.isBlocked('@spam:example.org'), isTrue);
       expect(await controller.setBlocked('@alice:example.org', true), isTrue);
       expect(controller.isBlocked('@alice:example.org'), isTrue);

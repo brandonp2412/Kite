@@ -190,9 +190,28 @@ void main() {
 
     expect(controller.isIgnored('@ignored:example.org'), isTrue);
     expect(controller.ignoredUserIds.value, isNot(contains('not-a-matrix-id')));
+    expect(controller.hasPrivacyState.value, isFalse);
     expect(
       controller.errorMessage.value,
       'Kite received invalid privacy settings.',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PrivacyUserControlsScreen(
+          controller: controller,
+          loadOnInit: false,
+        ),
+      ),
+    );
+
+    expect(
+      tester
+          .widget<TextButton>(
+            find.byKey(const Key('unignore-user-@ignored:example.org')),
+          )
+          .onPressed,
+      isNull,
     );
   });
 }

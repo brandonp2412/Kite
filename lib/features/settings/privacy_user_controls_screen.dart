@@ -45,7 +45,8 @@ class _PrivacyUserControlsScreenState extends State<PrivacyUserControlsScreen> {
               ..sort();
             final loading = widget.controller.isPrivacyLoading.value;
             final saving = widget.controller.isSaving.value;
-            final busy = loading || saving;
+            final hasPrivacyState = widget.controller.hasPrivacyState.value;
+            final busy = loading || saving || !hasPrivacyState;
             final error = widget.controller.errorMessage.value;
 
             return ListView(

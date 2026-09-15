@@ -185,6 +185,7 @@ void main() {
       addTearDown(controller.dispose);
       controller.viewedProfile.value = gateway.other;
       controller.isPrivacyLoading.value = true;
+      controller.hasPrivacyState.value = false;
       String? openedRoomId;
 
       await tester.pumpWidget(
@@ -222,6 +223,21 @@ void main() {
       expect(openedRoomId, '!dm:example.org');
 
       controller.isPrivacyLoading.value = false;
+      await tester.pump();
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('profile-ignore')))
+            .onChanged,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('profile-block')))
+            .onChanged,
+        isNull,
+      );
+
+      controller.hasPrivacyState.value = true;
       await tester.pump();
       expect(
         tester
