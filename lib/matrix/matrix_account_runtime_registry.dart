@@ -308,6 +308,9 @@ final class MatrixAccountRuntimeRegistry {
         if (!nextWasLoaded) {
           await _discardFailedNewRuntime(accountId, next);
         }
+        try {
+          await current.runtime.start();
+        } catch (_) {}
         Error.throwWithStackTrace(error, stackTrace);
       }
     }

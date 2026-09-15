@@ -915,6 +915,8 @@ void main() {
 
       expect(registry.activeAccountId.value, '@alice:example.org');
       expect(registry.loadedAccountIds, <String>['@alice:example.org']);
+      expect(boundaries['@alice:example.org']!.startCalls, 2);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.running);
       expect(boundaries['@bob:example.org']!.startCalls, 0);
       expect(boundaries['@bob:example.org']!.closeCalls, 0);
       expect(
