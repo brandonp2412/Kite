@@ -5,7 +5,9 @@ import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_ingress.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
+import 'package:kite/features/notifications/notification_settings_policy.dart';
 import 'package:kite/features/notifications/notification_transport.dart';
+import 'package:kite/features/settings/settings_controller.dart';
 
 final class FakeNotificationRepository
     implements NotificationRepository, NotificationRegistrationPort {
@@ -58,6 +60,16 @@ final class FakeNotificationCancellationPort
     cancelledIds.add(notificationId);
     return true;
   }
+}
+
+final class FakeNotificationPreferencesSource
+    implements NotificationPreferencesSourcePort {
+  FakeNotificationPreferencesSource([
+    this.notificationPreferences = const NotificationPreferences.defaults(),
+  ]);
+
+  @override
+  NotificationPreferences notificationPreferences;
 }
 
 final class FakeNotificationDispatchPolicy
