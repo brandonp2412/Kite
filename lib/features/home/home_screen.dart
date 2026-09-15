@@ -118,10 +118,12 @@ class _RoomList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+    final rowExtent = textScale > 1.3 ? 96.0 : 72.0;
     return ListView.builder(
       key: const Key('room-list'),
       itemCount: rooms.length,
-      itemExtent: 72,
+      itemExtent: rowExtent,
       itemBuilder: (context, index) {
         final room = rooms[index];
         return SignalBuilder(
@@ -230,11 +232,11 @@ class _ChatHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return ConstrainedBox(
       key: const Key('chat-header'),
-      height: 64,
+      constraints: const BoxConstraints(minHeight: 64),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         child: SignalBuilder(
           builder: (context) {
             final roomId = selectedRoomId.value;

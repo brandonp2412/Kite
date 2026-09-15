@@ -353,9 +353,9 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Accessible media labels and call controls.
 - [x] Localisation framework and plural handling.
 - [ ] Date/time/number formatting by locale.
-- [ ] Phone portrait/landscape layouts.
+- [x] Phone portrait/landscape layouts.
 - [ ] Foldable/tablet layout.
-- [ ] Desktop-width Flutter layout that preserves the Element X visual language rather than simply stretching phone UI.
+- [x] Desktop-width Flutter layout that preserves the Element X visual language rather than simply stretching phone UI.
 - [ ] Mouse hover, right-click/context menus, keyboard shortcuts, and resizable panes on desktop.
 
 ## Milestone 13 — Visual parity audit and polish pass
