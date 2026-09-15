@@ -62,6 +62,18 @@ void main() {
     );
 
     expect(find.byKey(const Key('thread-panel')), findsOneWidget);
+    expect(
+      find.byKey(const Key('thread-unread-divider-alice-98-thread-1')),
+      findsOneWidget,
+    );
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+    expect(
+      threadController.unreadCountFor(roomId: 'alice', parent: parent).value,
+      0,
+    );
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['thread_open'] = <String, dynamic>{
       'journey': 'open_thread',

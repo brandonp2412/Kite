@@ -88,10 +88,12 @@ class _ThreadViewState extends State<ThreadView> {
   final ScrollController _replyScrollController = ScrollController();
   final Signal<TimelineAttachment?> _pendingAttachment = signal(null);
   final Map<String, GlobalKey> _replyKeys = <String, GlobalKey>{};
+  String? _initialUnreadBoundaryReplyId;
 
   @override
   void initState() {
     super.initState();
+    _initialUnreadBoundaryReplyId = _captureUnreadBoundaryReplyId();
     final focusedReplyId = widget.focusedReplyId;
     if (focusedReplyId != null) {
       threadController.focusReply(
@@ -125,6 +127,29 @@ class _ThreadViewState extends State<ThreadView> {
 
   GlobalKey _replyKey(String replyId) {
     return _replyKeys.putIfAbsent(replyId, () => GlobalKey());
+  }
+
+  String? _captureUnreadBoundaryReplyId() {
+    final replies = threadController
+        .repliesFor(roomId: widget.roomId, parent: widget.parent)
+        .value;
+    final unreadCount = threadController
+        .unreadCountFor(roomId: widget.roomId, parent: widget.parent)
+        .peek();
+    if (replies.isEmpty || unreadCount <= 0) return null;
+
+    final latestReadReplyId = threadController
+        .latestReadReplyIdFor(roomId: widget.roomId, parent: widget.parent)
+        .peek();
+    final latestReadIndex = latestReadReplyId == null
+        ? -1
+        : replies.indexWhere((reply) => reply.id == latestReadReplyId);
+    final fallbackIndex = replies.length - unreadCount;
+    final boundaryIndex = latestReadIndex >= 0
+        ? latestReadIndex + 1
+        : fallbackIndex.clamp(0, replies.length - 1);
+    if (boundaryIndex >= replies.length) return null;
+    return replies[boundaryIndex].id;
   }
 
   Future<void> _revealFocusedReply() async {
@@ -353,12 +378,19 @@ class _ThreadViewState extends State<ThreadView> {
                           final reply = replies[replies.length - 1 - index];
                           return KeyedSubtree(
                             key: _replyKey(reply.id),
-                            child: _ThreadReplyRow(
-                              key: ValueKey<String>(reply.id),
-                              roomId: widget.roomId,
-                              parent: widget.parent,
-                              reply: reply,
-                              focusSignal: focusSignal,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                if (_initialUnreadBoundaryReplyId == reply.id)
+                                  _ThreadUnreadDivider(replyId: reply.id),
+                                _ThreadReplyRow(
+                                  key: ValueKey<String>(reply.id),
+                                  roomId: widget.roomId,
+                                  parent: widget.parent,
+                                  reply: reply,
+                                  focusSignal: focusSignal,
+                                ),
+                              ],
                             ),
                           );
                         },
@@ -525,6 +557,47 @@ class _ThreadViewState extends State<ThreadView> {
                   ],
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThreadUnreadDivider extends StatelessWidget {
+  const _ThreadUnreadDivider({required this.replyId});
+
+  final String replyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      label: 'Unread replies start here',
+      container: true,
+      child: SizedBox(
+        key: Key('thread-unread-divider-$replyId'),
+        height: 32,
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Divider(color: colors.primary.withValues(alpha: 0.5)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.sm),
+              child: Text(
+                'NEW REPLIES',
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Divider(color: colors.primary.withValues(alpha: 0.5)),
             ),
           ],
         ),

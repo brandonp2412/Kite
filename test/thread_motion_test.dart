@@ -123,11 +123,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('3 replies'), findsOneWidget);
+    expect(
+      threadController
+          .unreadCountFor(
+            roomId: 'alice',
+            parent: timelineController
+                .messagesFor('alice')
+                .value
+                .firstWhere((message) => message.id == 'alice-98'),
+          )
+          .value,
+      0,
+    );
+    final unreadDivider = find.byKey(
+      const Key('thread-unread-divider-alice-98-thread-1'),
+    );
+    expect(unreadDivider, findsOneWidget);
     final threadPanelRect = _rectOf(tester, panel);
     final threadComposer = find.byKey(const Key('thread-composer'));
     final threadReplyList = find.byKey(const Key('thread-reply-list'));
     final composerRect = _rectOf(tester, threadComposer);
     final replyListRect = _rectOf(tester, threadReplyList);
+    final unreadDividerRect = _rectOf(tester, unreadDivider);
     final newestReply = find.byKey(const Key('thread-reply-alice-98-thread-2'));
     final newestReplyRect = _rectOf(tester, newestReply);
 
@@ -142,6 +159,7 @@ void main() {
     expect(_rectOf(tester, panel), threadPanelRect);
     expect(_rectOf(tester, threadComposer), composerRect);
     expect(_rectOf(tester, threadReplyList), replyListRect);
+    expect(_rectOf(tester, unreadDivider), unreadDividerRect);
     expect(_rectOf(tester, newestReply), newestReplyRect);
 
     await tester.enterText(
