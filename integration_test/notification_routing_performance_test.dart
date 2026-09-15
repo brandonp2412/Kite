@@ -8,6 +8,7 @@ import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_ingress.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
+import 'package:kite/features/notifications/notification_transport.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -76,6 +77,16 @@ void main() {
           );
         },
       );
+      final fcm = FakeNotificationPayloadSource();
+      final backgroundSync = FakeNotificationPayloadSource();
+      final transportBinding = NotificationTransportBinding(
+        ingress: ingress,
+        fcm: fcm,
+        backgroundSync: backgroundSync,
+      )..start();
+      addTearDown(transportBinding.stop);
+      addTearDown(fcm.close);
+      addTearDown(backgroundSync.close);
       await tester.pumpWidget(
         MaterialApp(
           theme: KiteTheme.light,
@@ -151,31 +162,20 @@ void main() {
           expect(await coordinator.tap('thread'), isTrue);
           await tester.pump();
 
-          expect(
-            (await ingress.receive(
-              transport: NotificationIngressTransport.fcm,
-              data: const <String, String?>{
-                'notification_id': 'ingress-call',
-                'kind': 'call',
-                'account_id': 'work',
-                'room_id': '!calls:example.org',
-                'call_id': 'rtc-42',
-              },
-            )).accepted,
-            isTrue,
-          );
-          expect(
-            (await ingress.receive(
-              transport: NotificationIngressTransport.backgroundSync,
-              data: const <String, String?>{
-                'notification_id': 'ingress-invite',
-                'kind': 'invite',
-                'account_id': 'personal',
-                'room_id': '!invite:example.org',
-              },
-            )).accepted,
-            isTrue,
-          );
+          fcm.emit(const <String, String?>{
+            'notification_id': 'ingress-call',
+            'kind': 'call',
+            'account_id': 'work',
+            'room_id': '!calls:example.org',
+            'call_id': 'rtc-42',
+          });
+          backgroundSync.emit(const <String, String?>{
+            'notification_id': 'ingress-invite',
+            'kind': 'invite',
+            'account_id': 'personal',
+            'room_id': '!invite:example.org',
+          });
+          await transportBinding.flush();
 
           expect(
             await coordinator.markRoomRead(
@@ -269,7 +269,7 @@ void main() {
       binding.reportData!['notification_routing_reconciliation'] =
           <String, dynamic>{
             'journey': 'notification_tap_and_read_reconciliation',
-            'fixture': 'deterministic_notification_routing_v1',
+            'fixture': 'deterministic_notification_routing_v2',
             ...result,
             'result': 'PASS',
           };

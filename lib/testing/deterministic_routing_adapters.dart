@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_ingress.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
+import 'package:kite/features/notifications/notification_transport.dart';
 
 final class FakeNotificationRepository
     implements NotificationRepository, NotificationRegistrationPort {
@@ -100,6 +103,25 @@ final class FakeNotificationDeliveryPort implements NotificationDeliveryPort {
     failNextWith = null;
     if (failure != null) throw failure;
   }
+}
+
+final class FakeNotificationPayloadSource
+    implements NotificationPayloadSourcePort {
+  final StreamController<Map<String, String?>> _controller =
+      StreamController<Map<String, String?>>.broadcast(sync: true);
+
+  @override
+  Stream<Map<String, String?>> get payloads => _controller.stream;
+
+  void emit(Map<String, String?> payload) {
+    _controller.add(Map<String, String?>.of(payload));
+  }
+
+  void emitError(Object error, [StackTrace? stackTrace]) {
+    _controller.addError(error, stackTrace);
+  }
+
+  Future<void> close() => _controller.close();
 }
 
 final class FakeNotificationIngressAccountPort
