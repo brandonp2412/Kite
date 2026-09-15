@@ -9,6 +9,7 @@ import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/home/spaces_screen.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
+import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
@@ -1123,9 +1124,25 @@ class _MessageRow extends StatelessWidget {
                       ],
                     );
                   }
-                  return KeyedSubtree(
-                    key: Key('message-body-${message.id}'),
-                    child: TimelineMessageBody(body: message.body),
+                  final attachment = message.attachment;
+                  return Column(
+                    key: Key('message-content-${message.id}'),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (attachment != null)
+                        TimelineAttachmentCard(
+                          messageId: message.id,
+                          attachment: attachment,
+                        ),
+                      if (attachment != null && message.body.isNotEmpty)
+                        const SizedBox(height: KiteSpacing.xs),
+                      if (message.body.isNotEmpty)
+                        KeyedSubtree(
+                          key: Key('message-body-${message.id}'),
+                          child: TimelineMessageBody(body: message.body),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -2288,6 +2305,8 @@ class _ComposerState extends State<_Composer> {
   String? _contextRoomId;
   TimelineMessage? _contextMessage;
   String _draftBeforeEdit = '';
+  TimelineAttachment? _pendingAttachment;
+  String? _pendingAttachmentRoomId;
 
   @override
   void dispose() {
@@ -2341,22 +2360,56 @@ class _ComposerState extends State<_Composer> {
     });
   }
 
+  Future<void> _pickAttachment(String roomId) async {
+    final attachment = await showComposerAttachmentPicker(context);
+    if (!mounted || attachment == null) return;
+    setState(() {
+      _pendingAttachment = attachment;
+      _pendingAttachmentRoomId = roomId;
+    });
+    _focusNode.requestFocus();
+  }
+
+  void _removeAttachment() {
+    if (_pendingAttachment == null) return;
+    setState(() {
+      _pendingAttachment = null;
+      _pendingAttachmentRoomId = null;
+    });
+  }
+
   void _send() {
     final body = _controller.text.trim();
-    if (body.isEmpty) return;
     final roomId = selectedRoomId.value;
+    final attachment = _pendingAttachmentRoomId == roomId
+        ? _pendingAttachment
+        : null;
     final contextMessage = _contextRoomId == roomId ? _contextMessage : null;
     if (_mode == _ComposerMode.edit && contextMessage != null) {
+      if (body.isEmpty) return;
       timelineController.editText(contextMessage, body);
       _clearContext(restoreEditDraft: true);
     } else {
-      timelineController.sendText(
-        roomId,
-        body,
-        replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
-      );
+      if (body.isEmpty && attachment == null) return;
+      if (attachment != null) {
+        timelineController.sendAttachment(
+          roomId,
+          attachment,
+          caption: body,
+          replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
+        );
+        _pendingAttachment = null;
+        _pendingAttachmentRoomId = null;
+      } else {
+        timelineController.sendText(
+          roomId,
+          body,
+          replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
+        );
+      }
       _controller.clear();
       if (_mode != null) _clearContext(restoreEditDraft: false);
+      if (mounted) setState(() {});
     }
     _focusNode.requestFocus();
   }
@@ -2369,6 +2422,9 @@ class _ComposerState extends State<_Composer> {
         final roomId = selectedRoomId.value;
         final activeMessage = _contextRoomId == roomId ? _contextMessage : null;
         final activeMode = activeMessage == null ? null : _mode;
+        final activeAttachment = _pendingAttachmentRoomId == roomId
+            ? _pendingAttachment
+            : null;
         return AnimatedSize(
           key: const Key('composer'),
           alignment: Alignment.bottomCenter,
@@ -2385,6 +2441,11 @@ class _ComposerState extends State<_Composer> {
                     message: activeMessage,
                     onClose: () => _clearContext(restoreEditDraft: true),
                   ),
+                if (activeAttachment != null)
+                  ComposerAttachmentPreview(
+                    attachment: activeAttachment,
+                    onRemove: _removeAttachment,
+                  ),
                 SizedBox(
                   height: 76,
                   child: Padding(
@@ -2399,7 +2460,9 @@ class _ComposerState extends State<_Composer> {
                         IconButton(
                           key: const Key('composer-attach'),
                           tooltip: 'Add attachment',
-                          onPressed: () {},
+                          onPressed: activeMode == _ComposerMode.edit
+                              ? null
+                              : () => _pickAttachment(roomId),
                           icon: const Icon(Icons.add_circle_outline_rounded),
                         ),
                         const SizedBox(width: KiteSpacing.xxs),
@@ -2415,6 +2478,8 @@ class _ComposerState extends State<_Composer> {
                             decoration: InputDecoration(
                               hintText: activeMode == _ComposerMode.edit
                                   ? 'Edit message…'
+                                  : activeAttachment != null
+                                  ? 'Add a caption…'
                                   : Localizations.of<AppLocalizations>(
                                           context,
                                           AppLocalizations,
@@ -2455,8 +2520,11 @@ class _ComposerState extends State<_Composer> {
                         ValueListenableBuilder<TextEditingValue>(
                           valueListenable: _controller,
                           builder: (context, value, child) {
-                            final enabled = value.text.trim().isNotEmpty;
                             final editing = activeMode == _ComposerMode.edit;
+                            final enabled = editing
+                                ? value.text.trim().isNotEmpty
+                                : value.text.trim().isNotEmpty ||
+                                      activeAttachment != null;
                             return IconButton.filled(
                               key: const Key('composer-send'),
                               tooltip: editing ? 'Save edit' : 'Send message',
