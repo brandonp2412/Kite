@@ -371,8 +371,8 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] DM timeline review.
 - [ ] Group-room timeline review.
 - [ ] Composer/rich-text review.
-- [ ] Message action/reaction review.
-- [ ] Threads review.
+- [x] Message action/reaction review.
+- [x] Threads review.
 - [ ] Spaces review.
 - [ ] Room creation/invite review.
 - [ ] Room/user details review.
@@ -410,21 +410,21 @@ This milestone is not optional cleanup; it is a product feature.
 
 - [ ] Expand the zero-jitter harness from `open_dm` to every primary navigation and mutation journey.
 - [x] Room-list scroll benchmark with thousands of rooms.
-- [ ] Timeline scroll benchmark with mixed rich event types.
-- [ ] Pagination benchmark.
-- [ ] New-message insertion benchmark.
-- [ ] Reaction/read-receipt/typing-update benchmark.
+- [x] Timeline scroll benchmark with mixed rich event types.
+- [x] Pagination benchmark.
+- [x] New-message insertion benchmark.
+- [x] Reaction/read-receipt/typing-update benchmark.
 - [x] Composer + keyboard benchmark.
-- [ ] Search/filter benchmark.
-- [ ] Spaces/Sections benchmark.
-- [ ] Thread open/switch benchmark.
+- [x] Search/filter benchmark.
+- [x] Spaces/Sections benchmark.
+- [x] Thread open/switch benchmark.
 - [ ] Media viewer benchmark.
-- [ ] Call-screen transition benchmark.
+- [x] Call-screen transition benchmark.
 - [ ] App startup benchmark.
-- [ ] Offline recovery benchmark.
-- [ ] Memory-growth soak test while switching rooms and paginating.
-- [ ] Image/media cache pressure test.
-- [ ] Repeated login/logout/account-switch store-cleanup test.
+- [x] Offline recovery benchmark.
+- [x] Memory-growth soak test while switching rooms and paginating.
+- [x] Image/media cache pressure test.
+- [x] Repeated login/logout/account-switch store-cleanup test.
 - [ ] Thermal/low-memory/background-kill testing on physical Android hardware.
 - [ ] Physical Android Macrobenchmark matrix on at least one 60 Hz and one 120 Hz device.
 - [ ] No accepted performance regression without before/after evidence and an explicit product decision.
@@ -432,11 +432,11 @@ This milestone is not optional cleanup; it is a product feature.
 ## Milestone 16 — Release readiness
 
 - [ ] Security review of SDK boundary, tokens, local stores, logs, media files, deep links, and exported Android components.
-- [ ] Dependency/license review.
+- [x] Dependency/license review.
 - [ ] Reproducible signed Android release build.
 - [ ] Linux/desktop release build if included in the first public target.
 - [ ] Upgrade/migration tests between app versions.
-- [ ] Clean-install tests.
+- [x] Clean-install tests.
 - [ ] Backup/recovery disaster tests.
 - [ ] Notification tests across reboot/doze/background restrictions.
 - [ ] Store metadata, privacy disclosures, licenses, and support/reporting links.

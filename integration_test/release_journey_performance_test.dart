@@ -801,10 +801,18 @@ void main() {
       hasLength(BenchmarkMessageKind.values.length),
     );
 
+    final list = find.byKey(const Key('benchmark-message-list'));
+
+    // Warm the deterministic mixed-event rows once so this journey measures
+    // steady-state timeline scrolling rather than first-use glyph/raster setup.
+    await tester.fling(list, const Offset(0, 1400), 5200);
+    await tester.pumpAndSettle();
+    await tester.fling(list, const Offset(0, -1400), 5200);
+    await tester.pumpAndSettle();
+
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        final list = find.byKey(const Key('benchmark-message-list'));
         await tester.fling(list, const Offset(0, 1400), 5200);
         await tester.pumpAndSettle();
         await tester.fling(list, const Offset(0, 1400), 5200);

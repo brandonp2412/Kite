@@ -44,12 +44,11 @@ class KiteApp extends StatelessWidget {
       themeAnimationDuration: KiteMotion.resolve(context, KiteMotion.standard),
       builder: (context, child) {
         final theme = Theme.of(context);
-        final motionAwareTheme = theme.copyWith(
-          pageTransitionsTheme: KiteMotion.pageTransitions(
-            context,
-            theme.pageTransitionsTheme,
-          ),
-        );
+        final motionAwareTheme = KiteMotion.prefersReducedMotion(context)
+            ? theme.copyWith(
+                pageTransitionsTheme: KiteMotion.reducedPageTransitions,
+              )
+            : theme;
         return Theme(
           data: motionAwareTheme,
           child: AnnotatedRegion<SystemUiOverlayStyle>(

@@ -112,6 +112,59 @@ void main() {
     };
   });
 
+  testWidgets(
+    'switching between thread routes stays within the frame contract',
+    (tester) async {
+      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+      await tester.pumpAndSettle();
+      final messages = timelineController.messagesFor('alice').value;
+      final firstParent = messages.firstWhere(
+        (message) => message.id == 'alice-98',
+      );
+      final secondParent = messages.firstWhere(
+        (message) => message.id == 'alice-81',
+      );
+      final navigatorContext = tester.element(
+        find.byKey(const Key('chat-panel')),
+      );
+
+      Navigator.of(navigatorContext).push(
+        ThreadRoute(roomId: 'alice', parent: firstParent, reduceMotion: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(firstParent.body), findsOneWidget);
+
+      final result = await measureFrames(
+        binding: binding,
+        action: () async {
+          Navigator.of(navigatorContext).pushReplacement(
+            ThreadRoute(
+              roomId: 'alice',
+              parent: secondParent,
+              reduceMotion: false,
+            ),
+          );
+          await tester.pumpAndSettle();
+        },
+        enforceTotalSpan: virtualizedBenchmark
+            ? PerformanceContract.gateVirtualizedTotalSpan
+            : PerformanceContract.gatePhysicalTotalSpan,
+      );
+
+      expect(find.text(firstParent.body), findsNothing);
+      expect(find.text(secondParent.body), findsOneWidget);
+      expect(find.byKey(const Key('thread-panel')), findsOneWidget);
+      binding.reportData ??= <String, dynamic>{};
+      binding.reportData!['thread_switch'] = <String, dynamic>{
+        'journey': 'switch_thread',
+        'fixture': 'deterministic_thread_v1',
+        'iterations': 1,
+        ...result,
+        'result': 'PASS',
+      };
+    },
+  );
+
   testWidgets('loading older thread replies stays within the frame contract', (
     tester,
   ) async {

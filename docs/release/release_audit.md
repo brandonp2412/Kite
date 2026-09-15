@@ -1,6 +1,6 @@
 # Kite release audit baseline
 
-Reviewed: 2026-09-15
+Reviewed: 2026-09-16
 
 This document records the executable release-security and dependency baseline. `tool/release_audit.sh` is the enforcement source; this file explains the reviewed assumptions and intentionally does not replace the final release-candidate security sign-off.
 
@@ -14,6 +14,8 @@ The final Milestone 16 security-review checkbox remains open. Access-token persi
 
 ## Clean-install verification
 
+Reverified on 2026-09-16 on Nox Waydroid (`192.168.240.2:5555`): the release APK built successfully from this branch, installation began from an empty package state, and both the first launch and force-stopped relaunch reported `LaunchState: COLD` with no fatal Android process error.
+
 `tool/clean_install_test.sh` builds the Android app in Flutter release mode, removes any prior package installation, verifies the package is absent, installs the generated APK without replacement semantics, then performs both the first clean launch and a force-stopped cold relaunch while rejecting fatal Android process errors. On 2026-09-15 this passed on Nox Waydroid (`192.168.240.2:5555`) with both launches reported by Android as `LaunchState: COLD`.
 
 This closes the clean-install test item only. The current Gradle release build still uses the debug signing configuration, so the separate reproducible signed Android release-build item remains open until the real release signing configuration and reproducibility evidence are in place.
@@ -25,6 +27,8 @@ Two clean Android release builds were produced on Glass on 2026-09-15 with the s
 `tool/compare_android_releases.sh` now makes this distinction explicit: it verifies the v2 signer certificate, entry list, each uncompressed entry payload and finally whole-file identity. The two clean builds intentionally fail the final byte-identity check. Therefore the Milestone 16 reproducible signed Android release-build item remains open; matching payloads and signer identity are useful evidence but are not being treated as bit-for-bit reproducibility.
 
 ## Dependency and license review
+
+Reverified on 2026-09-16: the executable audit passed with all 38 hosted packages accounted for (27 BSD-family, 9 Apache-2.0, and 2 MIT).
 
 The reviewed `pubspec.lock` SHA-256 is:
 

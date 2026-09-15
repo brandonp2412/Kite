@@ -64,4 +64,42 @@ void main() {
     expect(find.byKey(const Key('benchmark-room-list')), findsOneWidget);
     expect(find.text('600 rooms'), findsOneWidget);
   });
+  testWidgets('room-list mutation journeys preserve safe scroll geometry', (
+    tester,
+  ) async {
+    final controller = RoomListBenchmarkController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(home: RoomListBenchmarkSurface(controller: controller)),
+    );
+
+    final list = find.byKey(const Key('benchmark-room-list'));
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(of: list, matching: find.byType(Scrollable)),
+    );
+    scrollable.position.jumpTo(216);
+    await tester.pump();
+    final anchoredPixels = scrollable.position.pixels;
+
+    controller.selectFilter(BenchmarkRoomFilter.unread);
+    await tester.pump();
+    expect(scrollable.position.pixels, anchoredPixels);
+
+    controller.selectFilter(BenchmarkRoomFilter.people);
+    await tester.pump();
+    expect(scrollable.position.pixels, anchoredPixels);
+
+    controller.selectSpace('space-3');
+    await tester.pump();
+    expect(scrollable.position.pixels, anchoredPixels);
+
+    controller.selectFilter(BenchmarkRoomFilter.all);
+    await tester.pump();
+    expect(scrollable.position.pixels, anchoredPixels);
+
+    controller.selectSpace(null);
+    await tester.pump();
+    expect(scrollable.position.pixels, anchoredPixels);
+  });
 }
