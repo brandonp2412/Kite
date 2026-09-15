@@ -22,6 +22,11 @@ final class _DeferredDiscoveryGateway implements AuthenticationGateway {
   }
 
   @override
+  Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<AuthenticatedSession> loginWithPassword({
     required HomeserverAddress homeserver,
     required String username,

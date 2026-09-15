@@ -13,6 +13,7 @@ final class _FakeAuthenticationGateway implements AuthenticationGateway {
   HomeserverAddress? passwordHomeserver;
   String? username;
   String? password;
+  String? qrCodeData;
   int oidcCalls = 0;
   int ssoCalls = 0;
 
@@ -64,6 +65,12 @@ final class _FakeAuthenticationGateway implements AuthenticationGateway {
     ssoCalls += 1;
     if (ssoError case final error?) throw error;
     return _session(homeserver);
+  }
+
+  @override
+  Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) async {
+    this.qrCodeData = qrCodeData;
+    return _session(HomeserverAddress.parse('matrix.example.org'));
   }
 }
 
@@ -168,6 +175,63 @@ void main() {
     await tester.pumpAndSettle();
     expect(gateway.oidcCalls, 1);
   });
+
+  testWidgets('registration handoff uses the discovered homeserver', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway();
+    final homeserver = HomeserverAddress.parse('matrix.example.org');
+    gateway.discoveryResult = HomeserverLoginMethods(
+      homeserver: homeserver,
+      methods: const <AuthenticationMethod>{AuthenticationMethod.password},
+      registrationAvailable: true,
+    );
+    HomeserverAddress? requestedHomeserver;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AuthenticationScreen(
+          gateway: gateway,
+          onRegistrationRequested: (value) => requestedHomeserver = value,
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create an account'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('registration-available')));
+    expect(requestedHomeserver?.uri, homeserver.uri);
+  });
+
+  testWidgets(
+    'device QR login passes opaque data to the gateway and clears it from UI',
+    (tester) async {
+      final gateway = _FakeAuthenticationGateway();
+      AuthenticatedSession? authenticated;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthenticationScreen(
+            gateway: gateway,
+            scanQrCode: () async => 'OPAQUE-DEVICE-LOGIN-PAYLOAD',
+            onAuthenticated: (session) => authenticated = session,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('qr-device-login')));
+      await tester.pumpAndSettle();
+
+      expect(gateway.qrCodeData, 'OPAQUE-DEVICE-LOGIN-PAYLOAD');
+      expect(authenticated?.userId, '@alice:matrix.example.org');
+      expect(find.textContaining('OPAQUE-DEVICE-LOGIN-PAYLOAD'), findsNothing);
+    },
+  );
 
   testWidgets('unexpected errors never expose gateway exception details', (
     tester,

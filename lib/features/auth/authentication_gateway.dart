@@ -106,4 +106,8 @@ abstract interface class AuthenticationGateway {
   Future<AuthenticatedSession> loginWithSso({
     required HomeserverAddress homeserver,
   });
+
+  /// Delegates an opaque device-to-device login QR payload to the Matrix SDK.
+  /// Kite must not parse, persist, or log [qrCodeData].
+  Future<AuthenticatedSession> loginWithQrCode(String qrCodeData);
 }

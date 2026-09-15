@@ -47,6 +47,10 @@ final class _BenchmarkAuthenticationGateway implements AuthenticationGateway {
   }) async => _session(homeserver);
 
   @override
+  Future<AuthenticatedSession> loginWithQrCode(String qrCodeData) async =>
+      _session(HomeserverAddress.parse('matrix.example.org'));
+
+  @override
   Future<AuthenticatedSession> loginWithPassword({
     required HomeserverAddress homeserver,
     required String username,

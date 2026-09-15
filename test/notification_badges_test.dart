@@ -1,0 +1,146 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/features/navigation/app_destination.dart';
+import 'package:kite/features/notifications/notification_badges.dart';
+import 'package:kite/features/notifications/notification_routing.dart';
+
+final class _FakeRepository implements NotificationRepository {
+  _FakeRepository(this.items);
+
+  final List<KiteNotification> items;
+
+  @override
+  Iterable<KiteNotification> activeForAccount(String accountId) =>
+      items.where((item) => item.destination.accountId == accountId);
+
+  @override
+  KiteNotification? notification(String id) {
+    for (final item in items) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  @override
+  void remove(String id) {
+    items.removeWhere((item) => item.id == id);
+  }
+}
+
+final class _FakeBadgePort implements NotificationBadgePort {
+  final counts = <int>[];
+
+  @override
+  Future<void> setBadgeCount(int count) async {
+    counts.add(count);
+  }
+}
+
+KiteNotification _notification({
+  required String id,
+  required String accountId,
+  required KiteNotificationKind kind,
+}) {
+  return KiteNotification(
+    id: id,
+    kind: kind,
+    destination: AppDestination.event(
+      accountId: accountId,
+      roomId: '!room:example.org',
+      eventId: '\$$id',
+    ),
+  );
+}
+
+void main() {
+  test(
+    'badge count is account-aware and deduplicates notification ids',
+    () async {
+      final duplicate = _notification(
+        id: 'same-id',
+        accountId: 'work',
+        kind: KiteNotificationKind.message,
+      );
+      final repository = _FakeRepository(<KiteNotification>[
+        duplicate,
+        duplicate,
+        _notification(
+          id: 'mention',
+          accountId: 'work',
+          kind: KiteNotificationKind.mention,
+        ),
+        _notification(
+          id: 'personal',
+          accountId: 'personal',
+          kind: KiteNotificationKind.thread,
+        ),
+      ]);
+      final badges = _FakeBadgePort();
+      final coordinator = NotificationBadgeCoordinator(
+        notifications: repository,
+        badges: badges,
+      );
+
+      expect(await coordinator.refreshForAccounts(const <String>['work']), 2);
+      expect(badges.counts, <int>[2]);
+
+      expect(
+        await coordinator.refreshForAccounts(const <String>[
+          'work',
+          'personal',
+        ]),
+        3,
+      );
+      expect(badges.counts.last, 3);
+    },
+  );
+
+  test(
+    'badge refresh reflects notification removal after read reconciliation',
+    () async {
+      final repository = _FakeRepository(<KiteNotification>[
+        _notification(
+          id: 'message',
+          accountId: 'work',
+          kind: KiteNotificationKind.message,
+        ),
+        _notification(
+          id: 'call',
+          accountId: 'work',
+          kind: KiteNotificationKind.call,
+        ),
+      ]);
+      final badges = _FakeBadgePort();
+      final coordinator = NotificationBadgeCoordinator(
+        notifications: repository,
+        badges: badges,
+      );
+
+      expect(await coordinator.refreshForAccounts(const <String>['work']), 2);
+      repository.remove('message');
+      expect(await coordinator.refreshForAccounts(const <String>['work']), 1);
+      expect(badges.counts, <int>[2, 1]);
+    },
+  );
+
+  test(
+    'clear resets the platform badge without mutating notification state',
+    () async {
+      final repository = _FakeRepository(<KiteNotification>[
+        _notification(
+          id: 'message',
+          accountId: 'work',
+          kind: KiteNotificationKind.message,
+        ),
+      ]);
+      final badges = _FakeBadgePort();
+      final coordinator = NotificationBadgeCoordinator(
+        notifications: repository,
+        badges: badges,
+      );
+
+      expect(await coordinator.clear(), 0);
+      expect(badges.counts, <int>[0]);
+      expect(repository.notification('message'), isNotNull);
+    },
+  );
+}
