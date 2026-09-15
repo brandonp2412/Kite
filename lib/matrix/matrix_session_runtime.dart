@@ -128,6 +128,23 @@ final class MatrixSessionRuntime
     });
   }
 
+  Future<bool> removeAccount(String accountId) {
+    return _enqueue<bool>(() async {
+      final normalizedAccountId = accountId.trim();
+      final wasActive = accounts.activeAccountId.value == normalizedAccountId;
+      final removed = await accounts.removeAccount(
+        accountId,
+        onActiveRemoved: () {
+          navigationTarget.value = const MatrixNavigationTarget.home();
+        },
+      );
+      if (wasActive && removed) {
+        await restoration.clear();
+      }
+      return removed;
+    });
+  }
+
   Future<void> _recordNavigation(MatrixNavigationTarget target) async {
     final accountId = accounts.activeAccountId.value;
     if (accountId == null) {

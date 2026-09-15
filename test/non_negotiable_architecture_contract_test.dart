@@ -48,7 +48,7 @@ void main() {
 
   test('production Dart code does not use synchronous filesystem APIs', () {
     final forbidden = RegExp(
-      r'\b(?:readAsBytesSync|readAsStringSync|writeAsBytesSync|writeAsStringSync|openSync|copySync|renameSync|deleteSync|createSync)\s*\(',
+      r'\b(?:readAsBytesSync|readAsStringSync|readAsLinesSync|writeAsBytesSync|writeAsStringSync|openSync|copySync|renameSync|deleteSync|createSync|existsSync|statSync|listSync|createTempSync|resolveSymbolicLinksSync|setLastModifiedSync|lastModifiedSync)\s*\(',
     );
 
     for (final file in _dartFilesUnder('lib')) {

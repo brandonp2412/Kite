@@ -168,7 +168,10 @@ final class MatrixAccountRuntimeRegistry {
     });
   }
 
-  Future<bool> removeAccount(String accountId) {
+  Future<bool> removeAccount(
+    String accountId, {
+    FutureOr<void> Function()? onActiveRemoved,
+  }) {
     final normalizedAccountId = accountId.trim();
     if (normalizedAccountId.isEmpty) {
       throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
@@ -182,8 +185,13 @@ final class MatrixAccountRuntimeRegistry {
         await runtime.engine.close();
         _runtimes.remove(normalizedAccountId);
       }
+      FutureOr<void>? activeRemoval;
       if (activeAccountId.value == normalizedAccountId) {
-        activeAccountId.value = null;
+        batch(() {
+          activeAccountId.value = null;
+          activeRemoval = onActiveRemoved?.call();
+        });
+        await activeRemoval;
       }
 
       await flushPresentationWrites(normalizedAccountId);

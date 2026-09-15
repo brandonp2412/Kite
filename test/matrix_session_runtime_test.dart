@@ -306,6 +306,138 @@ void main() {
   );
 
   test(
+    'removing the active account clears navigation and process restoration',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-remove-active-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const target = MatrixNavigationTarget.event(
+        '!alice:example.org',
+        r'$alice-event:example.org',
+      );
+
+      await session.activateAccount('@alice:example.org', target: target);
+      expect(await restorationStore.load(), isNotNull);
+
+      expect(await session.removeAccount('@alice:example.org'), isTrue);
+
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.cacheFor('@alice:example.org'), isNull);
+      expect(
+        session.navigationTarget.value,
+        const MatrixNavigationTarget.home(),
+      );
+      expect(await restorationStore.load(), isNull);
+    },
+  );
+
+  test(
+    'removing an inactive account preserves active navigation and restoration',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-remove-inactive-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const bobTarget = MatrixNavigationTarget.room('!bob:example.org');
+      const aliceTarget = MatrixNavigationTarget.event(
+        '!alice:example.org',
+        r'$alice-event:example.org',
+      );
+
+      await session.activateAccount('@bob:example.org', target: bobTarget);
+      await session.activateAccount('@alice:example.org', target: aliceTarget);
+
+      expect(await session.removeAccount('@bob:example.org'), isTrue);
+
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.cacheFor('@bob:example.org'), isNull);
+      expect(session.navigationTarget.value, aliceTarget);
+      final restored = await restorationStore.load();
+      expect(restored?.accountId, '@alice:example.org');
+      expect(restored?.navigationTarget, aliceTarget);
+    },
+  );
+
+  test(
+    'queued navigation after active account removal cannot persist stale state',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-remove-queue-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final boundaries = <String, _FakeBoundary>{};
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+
+      await session.activateAccount('@alice:example.org');
+      final removal = session.removeAccount('@alice:example.org');
+      final navigation = session.navigate(
+        const MatrixNavigationTarget.room('!stale:example.org'),
+      );
+
+      expect(await removal, isTrue);
+      await expectLater(navigation, throwsStateError);
+      expect(
+        session.navigationTarget.value,
+        const MatrixNavigationTarget.home(),
+      );
+      expect(await restorationStore.load(), isNull);
+    },
+  );
+
+  test(
     'stale process restoration is cleared without opening an SDK store',
     () async {
       final directory = await Directory.systemTemp.createTemp(
