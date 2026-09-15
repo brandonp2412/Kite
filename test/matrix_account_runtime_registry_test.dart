@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
 import 'package:kite/matrix/matrix_account_store_registry.dart';
+import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -444,6 +445,37 @@ void main() {
   );
 
   test(
+    'rollback restart failure does not mask the initiating account failure',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(
+        boundaries,
+        failStartCallsByAccount: <String, Set<int>>{
+          '@alice:example.org': <int>{2},
+          '@broken:example.org': <int>{1},
+        },
+      );
+      addTearDown(registry.dispose);
+
+      final aliceCache = await registry.activate('@alice:example.org');
+
+      Object? failure;
+      try {
+        await registry.activate('@broken:example.org');
+      } catch (error) {
+        failure = error;
+      }
+
+      expect(failure, isA<StateError>());
+      expect(failure.toString(), contains('@broken:example.org'));
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(registry.activeCache, same(aliceCache));
+      expect(boundaries['@alice:example.org']!.startCalls, 2);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.failed);
+    },
+  );
+
+  test(
     'foreground and connectivity state gate only active account sync',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -550,6 +582,7 @@ MatrixAccountRuntimeRegistry _registry(
   String? startGateFor,
   Completer<void>? startGate,
   MatrixPresentationRetryDelay? presentationRetryDelay,
+  Map<String, Set<int>> failStartCallsByAccount = const <String, Set<int>>{},
 }) {
   return MatrixAccountRuntimeRegistry(
     storeRegistry: MatrixAccountStoreRegistry(
@@ -562,6 +595,7 @@ MatrixAccountRuntimeRegistry _registry(
         () => _FakeAccountBoundary(
           accountId: accountId,
           failStart: accountId == failStartFor,
+          failStartCalls: failStartCallsByAccount[accountId] ?? const <int>{},
           startGate: accountId == startGateFor ? startGate : null,
         ),
       );
@@ -577,11 +611,13 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   _FakeAccountBoundary({
     required this.accountId,
     this.failStart = false,
+    this.failStartCalls = const <int>{},
     this.startGate,
   });
 
   final String accountId;
   final bool failStart;
+  final Set<int> failStartCalls;
   final Completer<void>? startGate;
 
   @override
@@ -617,7 +653,9 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   Future<void> startSync(MatrixSdkSyncConfiguration configuration) async {
     startCalls += 1;
     syncConfigurations.add(configuration);
-    if (failStart) throw StateError('deterministic start failure');
+    if (failStart || failStartCalls.contains(startCalls)) {
+      throw StateError('deterministic start failure for $accountId');
+    }
     await startGate?.future;
     final localpart = accountId.substring(1, accountId.indexOf(':'));
     _sync.add(

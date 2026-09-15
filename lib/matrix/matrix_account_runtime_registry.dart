@@ -234,12 +234,14 @@ final class MatrixAccountRuntimeRegistry {
       if (startSync) {
         await next.runtime.start();
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
       activeAccountId.value = currentId;
       if (current != null) {
-        await current.runtime.start();
+        try {
+          await current.runtime.start();
+        } catch (_) {}
       }
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
     }
     return next.cache;
   }
