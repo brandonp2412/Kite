@@ -5,6 +5,31 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/design/kite_tokens.dart';
 
+double _contrastRatio(Color foreground, Color background) {
+  final foregroundLuminance = foreground.computeLuminance();
+  final backgroundLuminance = background.computeLuminance();
+  final lighter = foregroundLuminance > backgroundLuminance
+      ? foregroundLuminance
+      : backgroundLuminance;
+  final darker = foregroundLuminance > backgroundLuminance
+      ? backgroundLuminance
+      : foregroundLuminance;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+void _expectContrast(
+  Color foreground,
+  Color background,
+  double minimum, {
+  required String reason,
+}) {
+  expect(
+    _contrastRatio(foreground, background),
+    greaterThanOrEqualTo(minimum),
+    reason: reason,
+  );
+}
+
 void main() {
   test('Kite themes install semantic colour tokens', () {
     final light = KiteTheme.light.extension<KiteSemanticColors>();
@@ -18,6 +43,55 @@ void main() {
     expect(black!.canvas, Colors.black);
     expect(black.navigation, Colors.black);
     expect(light.selected, KiteTheme.light.colorScheme.primaryContainer);
+  });
+
+  test('semantic colour pairs meet WCAG text and UI contrast floors', () {
+    final themes = <String, ThemeData>{
+      'light': KiteTheme.light,
+      'dark': KiteTheme.dark,
+      'black': KiteTheme.black,
+    };
+
+    for (final entry in themes.entries) {
+      final scheme = entry.value.colorScheme;
+      final tokens = entry.value.extension<KiteSemanticColors>()!;
+      _expectContrast(
+        scheme.onSurface,
+        tokens.canvas,
+        4.5,
+        reason: '${entry.key} primary text on canvas',
+      );
+      _expectContrast(
+        scheme.onSurfaceVariant,
+        tokens.field,
+        4.5,
+        reason: '${entry.key} secondary text on field',
+      );
+      _expectContrast(
+        scheme.onPrimaryContainer,
+        tokens.selected,
+        4.5,
+        reason: '${entry.key} selected-state content',
+      );
+      _expectContrast(
+        tokens.unread,
+        tokens.canvas,
+        3,
+        reason: '${entry.key} unread indicator against canvas',
+      );
+      _expectContrast(
+        tokens.mention,
+        tokens.canvas,
+        3,
+        reason: '${entry.key} mention indicator against canvas',
+      );
+      _expectContrast(
+        tokens.danger,
+        tokens.canvas,
+        3,
+        reason: '${entry.key} destructive indicator against canvas',
+      );
+    }
   });
 
   testWidgets('true-black app applies dark system bars on black surfaces', (

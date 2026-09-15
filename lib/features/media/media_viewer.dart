@@ -238,6 +238,7 @@ class _MediaViewerState extends State<MediaViewer> {
                         itemBuilder: (context, index) => _MediaPage(
                           item: widget.items[index],
                           index: index,
+                          itemCount: widget.items.length,
                           resolvedMedia: _resolvedMedia,
                         ),
                       ),
@@ -270,17 +271,19 @@ class _MediaPage extends StatelessWidget {
   const _MediaPage({
     required this.item,
     required this.index,
+    required this.itemCount,
     required this.resolvedMedia,
   });
 
   final MediaViewerItem item;
   final int index;
+  final int itemCount;
   final ReadonlySignal<_ResolvedMedia?> resolvedMedia;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: item.semanticLabel,
+      label: '${item.semanticLabel}, ${index + 1} of $itemCount',
       image: true,
       child: Stack(
         key: Key('media-page-${item.id}'),
@@ -351,75 +354,42 @@ class _MediaTopControls extends StatelessWidget {
             curve: KiteMotion.standardCurve,
             child: Align(
               alignment: Alignment.topCenter,
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    KiteSpacing.sm,
-                    KiteSpacing.sm,
-                    KiteSpacing.sm,
-                    0,
-                  ),
-                  child: SizedBox(
-                    height: 48,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _MediaControlButton(
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.48),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.sm,
+                      vertical: KiteSpacing.xs,
+                    ),
+                    child: SizedBox(
+                      height: 48,
+                      child: Row(
+                        children: <Widget>[
+                          _MediaControlButton(
                             key: const Key('media-close'),
                             tooltip: 'Close media viewer',
-                            icon: Icons.close_rounded,
+                            icon: Icons.arrow_back_rounded,
                             onPressed: onDismiss,
                           ),
-                        ),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.58),
-                            borderRadius: BorderRadius.circular(KiteRadii.pill),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: KiteSpacing.sm,
-                              vertical: KiteSpacing.xs,
+                          const Spacer(),
+                          if (onShare != null)
+                            _MediaControlButton(
+                              key: const Key('media-share'),
+                              tooltip: 'Share media',
+                              icon: Icons.share_rounded,
+                              onPressed: () => onShare!(item),
                             ),
-                            child: Text(
-                              '${index + 1} of ${items.length}',
-                              key: const Key('media-counter'),
-                              style: KiteTypography.metadata.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          if (onSave != null)
+                            _MediaControlButton(
+                              key: const Key('media-save'),
+                              tooltip: 'Save media',
+                              icon: Icons.download_rounded,
+                              onPressed: () => onSave!(item),
                             ),
-                          ),
-                        ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              if (onSave != null)
-                                _MediaControlButton(
-                                  key: const Key('media-save'),
-                                  tooltip: 'Save media',
-                                  icon: Icons.download_rounded,
-                                  onPressed: () => onSave!(item),
-                                ),
-                              if (onShare != null) ...<Widget>[
-                                if (onSave != null)
-                                  const SizedBox(width: KiteSpacing.xs),
-                                _MediaControlButton(
-                                  key: const Key('media-share'),
-                                  tooltip: 'Share media',
-                                  icon: Icons.share_rounded,
-                                  onPressed: () => onShare!(item),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -457,7 +427,7 @@ class _MediaControlButton extends StatelessWidget {
             tooltip: tooltip,
             style: IconButton.styleFrom(
               foregroundColor: Colors.white,
-              backgroundColor: Colors.black.withValues(alpha: 0.58),
+              backgroundColor: Colors.transparent,
             ),
             onPressed: onPressed,
             icon: Icon(icon),
