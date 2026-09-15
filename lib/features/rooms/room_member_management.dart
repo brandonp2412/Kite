@@ -142,6 +142,15 @@ final class RoomMemberManagementCoordinator {
   final RoomMemberAuthorizationPort _authorization;
   final RoomMemberMutationPort _mutations;
 
+  RoomMemberManagementCoordinator decorateMutations(
+    RoomMemberMutationPort Function(RoomMemberMutationPort inner) decorate,
+  ) => RoomMemberManagementCoordinator._(
+    _actorUserId,
+    _directory,
+    _authorization,
+    decorate(_mutations),
+  );
+
   Future<List<RoomMember>> searchMembers({
     required String roomId,
     String query = '',

@@ -100,6 +100,105 @@ void main() {
   });
 
   testWidgets(
+    'room details routes report leave and forget through room lifecycle boundary',
+    (tester) async {
+      const member = RoomMember(
+        userId: '@alice:example.org',
+        displayName: 'Alice',
+        membership: RoomMembership.joined,
+        powerLevel: 0,
+      );
+      final memberMutations = FakeRoomMemberMutationPort();
+      final memberManagement = RoomMemberManagementCoordinator(
+        actorUserId: '@me:example.org',
+        directory: FakeRoomMemberDirectoryPort(
+          members: const <RoomMember>[member],
+        ),
+        authorization: FakeRoomMemberAuthorizationPort(),
+        mutations: memberMutations,
+      );
+      final rooms = DeterministicRoomManagementPort();
+      final directMetadata = DeterministicDirectRoomMetadataPort();
+      final roomManagement = RoomManagementCoordinator(
+        rooms: rooms,
+        directMetadata: directMetadata,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: RoomDetailsScreen(
+            roomId: _roomId,
+            roomName: 'Community',
+            management: roomManagement,
+            memberManagement: memberManagement,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-members-management-button')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('member-@alice:example.org')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('member-report')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('room-report-reason')),
+        '  repeated spam  ',
+      );
+      await tester.tap(find.byKey(const Key('room-report-submit')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('room-safety-actions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report room'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-report-submit')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('room-safety-actions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Leave room'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('member-moderation-confirm-Leave')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('room-safety-actions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove local room data'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('member-moderation-confirm-Remove data')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        rooms.invocations.map((entry) => entry.type),
+        <RoomManagementInvocationType>[
+          RoomManagementInvocationType.reportUser,
+          RoomManagementInvocationType.reportRoom,
+          RoomManagementInvocationType.leaveRoom,
+          RoomManagementInvocationType.forgetRoom,
+        ],
+      );
+      expect(rooms.invocations.first.userId, member.userId);
+      expect(rooms.invocations.first.reason, 'repeated spam');
+      expect(memberMutations.userReports, isEmpty);
+      expect(memberMutations.roomReports, isEmpty);
+      expect(memberMutations.leaves, isEmpty);
+      expect(memberMutations.forgottenRooms, isEmpty);
+      expect(directMetadata.invocations, hasLength(2));
+      expect(
+        directMetadata.invocations.every((entry) => entry.userIds.isEmpty),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
     'room details omits settings and managed members without boundaries',
     (tester) async {
       await tester.pumpWidget(
