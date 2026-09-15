@@ -64,7 +64,14 @@ fi
 
 kite_fingerprint="$($apksigner verify --print-certs build/app/outputs/flutter-apk/kite.apk | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
 reference_dir="$(mktemp -d)"
-trap 'rm -rf "$reference_dir"' EXIT
+pages_repo=""
+cleanup() {
+  rm -rf "$reference_dir"
+  if [[ -n "$pages_repo" ]]; then
+    rm -rf "$pages_repo"
+  fi
+}
+trap cleanup EXIT
 gh release download --repo "$flexify_repo" --pattern flexify.apk --dir "$reference_dir"
 flexify_fingerprint="$($apksigner verify --print-certs "$reference_dir/flexify.apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
 if [[ -z "$kite_fingerprint" || "$kite_fingerprint" != "$flexify_fingerprint" ]]; then
@@ -82,5 +89,24 @@ gh release create android-latest \
   --title 'Kite Android (latest)' \
   --notes "Signed Android build from ${sha:0:7}. Build number ${build_number}." \
   --latest
+
+pages_repo="$(mktemp -d)"
+origin_url="$(git remote get-url origin)"
+git clone --quiet "$repo_root" "$pages_repo"
+git -C "$pages_repo" remote set-url origin "$origin_url"
+git -C "$pages_repo" switch --orphan gh-pages >/dev/null
+find "$pages_repo" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$pages_repo/kite.apk"
+printf '%s\n' \
+  '<!doctype html>' \
+  '<meta name="viewport" content="width=device-width">' \
+  '<title>Kite Android</title>' \
+  '<h1>Kite Android</h1>' \
+  '<p><a href="kite.apk" download>Download Kite for Android (ARM64)</a></p>' \
+  > "$pages_repo/index.html"
+: > "$pages_repo/.nojekyll"
+git -C "$pages_repo" add .nojekyll index.html kite.apk
+git -C "$pages_repo" -c user.name='Kite Release' -c user.email='action@github.com' commit --quiet -m 'Publish Kite Android APK'
+git -C "$pages_repo" push --force --quiet origin HEAD:gh-pages
 
 printf 'Published signed Kite APK for %s (build %s).\n' "${sha:0:7}" "$build_number"
