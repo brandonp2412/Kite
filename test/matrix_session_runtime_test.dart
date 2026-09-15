@@ -540,6 +540,48 @@ void main() {
     },
   );
 
+  test(
+    'rejects unsafe navigation before visible or persisted state changes',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-navigation-validation-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final registry = _registry(
+        <String, _FakeBoundary>{},
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const initialTarget = MatrixNavigationTarget.room('!initial:example.org');
+
+      await session.activateAccount(
+        '@alice:example.org',
+        target: initialTarget,
+      );
+      await expectLater(
+        session.navigate(
+          const MatrixNavigationTarget.event('!room:example.org', ''),
+        ),
+        throwsArgumentError,
+      );
+
+      expect(session.navigationTarget.value, initialTarget);
+      expect((await restorationStore.load())?.navigationTarget, initialTarget);
+    },
+  );
+
   test('navigation persistence failure rolls back the visible target and can retry', () async {
     final directory = await Directory.systemTemp.createTemp(
       'kite-session-navigation-rollback-test-',

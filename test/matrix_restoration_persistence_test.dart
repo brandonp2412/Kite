@@ -220,6 +220,23 @@ void main() {
       );
       expect(store.snapshot, isNull);
     });
+
+    test('rejects unsafe navigation targets before persistence', () {
+      final store = _MemoryRestorationStore(null);
+      final coordinator = MatrixRestorationCoordinator(store);
+
+      expect(
+        () => coordinator.record(
+          accountId: '@alice:example.org',
+          navigationTarget: const MatrixNavigationTarget.event(
+            '!room:example.org',
+            'event\u0000other',
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(store.snapshot, isNull);
+    });
   });
 
   group('MatrixProcessRestorationCoordinator', () {

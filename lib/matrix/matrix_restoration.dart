@@ -183,6 +183,13 @@ final class MatrixRestorationCoordinator {
         'must contain a non-empty account id without NUL bytes',
       );
     }
+    if (!navigationTarget.isSafe) {
+      throw ArgumentError.value(
+        navigationTarget,
+        'navigationTarget',
+        'must contain only non-empty Matrix identifiers without NUL bytes',
+      );
+    }
     return _enqueue(() {
       return _store.save(
         MatrixRestorationSnapshot(

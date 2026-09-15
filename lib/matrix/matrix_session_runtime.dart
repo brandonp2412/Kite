@@ -160,6 +160,13 @@ final class MatrixSessionRuntime
     if (accountId == null) {
       throw StateError('Cannot persist navigation without an active account');
     }
+    if (!target.isSafe) {
+      throw ArgumentError.value(
+        target,
+        'target',
+        'must contain only non-empty Matrix identifiers without NUL bytes',
+      );
+    }
     final previousTarget = navigationTarget.value;
     navigationTarget.value = target;
     try {

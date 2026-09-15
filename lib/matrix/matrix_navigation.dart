@@ -55,6 +55,50 @@ final class MatrixNavigationTarget {
   final String? userId;
   final String? callId;
 
+  bool get isSafe {
+    bool safe(String? value) =>
+        value != null && value.isNotEmpty && !value.contains('\u0000');
+
+    return switch (kind) {
+      MatrixNavigationKind.home =>
+        roomIdOrAlias == null &&
+            eventId == null &&
+            threadRootEventId == null &&
+            userId == null &&
+            callId == null,
+      MatrixNavigationKind.room || MatrixNavigationKind.invite =>
+        safe(roomIdOrAlias) &&
+            eventId == null &&
+            threadRootEventId == null &&
+            userId == null &&
+            callId == null,
+      MatrixNavigationKind.event =>
+        safe(roomIdOrAlias) &&
+            safe(eventId) &&
+            threadRootEventId == null &&
+            userId == null &&
+            callId == null,
+      MatrixNavigationKind.thread =>
+        safe(roomIdOrAlias) &&
+            safe(eventId) &&
+            safe(threadRootEventId) &&
+            userId == null &&
+            callId == null,
+      MatrixNavigationKind.user =>
+        safe(userId) &&
+            roomIdOrAlias == null &&
+            eventId == null &&
+            threadRootEventId == null &&
+            callId == null,
+      MatrixNavigationKind.call =>
+        safe(roomIdOrAlias) &&
+            eventId == null &&
+            threadRootEventId == null &&
+            userId == null &&
+            (callId == null || safe(callId)),
+    };
+  }
+
   @override
   bool operator ==(Object other) {
     return other is MatrixNavigationTarget &&
@@ -102,14 +146,13 @@ final class MatrixDeepLinkParser {
   const MatrixDeepLinkParser();
 
   MatrixNavigationTarget? parse(Uri uri) {
-    if (uri.scheme == 'matrix') {
-      return _parseMatrixUri(uri);
-    }
-    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
-        uri.host.toLowerCase() == 'matrix.to') {
-      return _parseMatrixTo(uri);
-    }
-    return null;
+    final target = switch (uri.scheme) {
+      'matrix' => _parseMatrixUri(uri),
+      'https' ||
+      'http' when uri.host.toLowerCase() == 'matrix.to' => _parseMatrixTo(uri),
+      _ => null,
+    };
+    return target?.isSafe == true ? target : null;
   }
 
   MatrixNavigationTarget? _parseMatrixUri(Uri uri) {
