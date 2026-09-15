@@ -110,9 +110,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               ),
               const Divider(height: 1),
               const _SectionTitle(label: 'About'),
-              SizedBox(
+              ConstrainedBox(
                 key: const Key('about-info'),
-                height: 132,
+                constraints: const BoxConstraints(minHeight: 132),
                 child: about == null
                     ? const Center(child: Text('App information unavailable'))
                     : Column(
@@ -143,9 +143,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                         ],
                       ),
               ),
-              SizedBox(
+              ConstrainedBox(
                 key: const Key('support-settings-status'),
-                height: 64,
+                constraints: const BoxConstraints(minHeight: 64),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Align(
