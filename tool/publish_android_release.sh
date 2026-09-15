@@ -5,17 +5,29 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 properties_file="${KITE_ANDROID_KEY_PROPERTIES:-$HOME/.config/android-signing/fdroid.properties}"
-keystore_file="${KITE_ANDROID_KEYSTORE:-$HOME/.config/massive.jks}"
 github_repo="${KITE_GITHUB_REPO:-brandonp2412/Kite}"
+flexify_repo="${KITE_FLEXIFY_REPO:-brandonp2412/Flexify}"
 build_number="${KITE_BUILD_NUMBER:-$(date +%s)}"
 
-if [[ ! -f "$properties_file" || ! -f "$keystore_file" ]]; then
-  printf 'Android signing material is missing.\n' >&2
+if [[ ! -f "$properties_file" ]]; then
+  printf 'Android signing properties are missing.\n' >&2
+  exit 1
+fi
+
+store_file="$(sed -n 's/^storeFile=//p' "$properties_file")"
+if [[ -z "$store_file" ]]; then
+  printf 'Android signing properties do not define storeFile.\n' >&2
+  exit 1
+fi
+if [[ "$store_file" != /* ]]; then
+  store_file="$repo_root/android/app/$store_file"
+fi
+if [[ ! -f "$store_file" ]]; then
+  printf 'Android signing keystore is missing.\n' >&2
   exit 1
 fi
 
 ln -sfn "$properties_file" android/key.properties
-ln -sfn "$keystore_file" android/app/keystore.jks
 
 flutter pub get
 flutter analyze
@@ -25,22 +37,6 @@ flutter test "${tests[@]}"
 flutter build apk --release --build-number "$build_number"
 mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/kite.apk
 flutter build apk --release --split-per-abi --target-platform android-arm64 --build-number "$build_number"
-
-store_password="$(sed -n 's/^storePassword=//p' "$properties_file")"
-key_alias="$(sed -n 's/^keyAlias=//p' "$properties_file")"
-key_fingerprint="$(keytool -list -v -keystore "$keystore_file" -storepass "$store_password" -alias "$key_alias" 2>/dev/null | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
-
-apksigner="$(find /opt/android-sdk/build-tools "${ANDROID_HOME:-/nonexistent}/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
-if [[ -z "$apksigner" ]]; then
-  printf 'apksigner was not found.\n' >&2
-  exit 1
-fi
-
-apk_fingerprint="$($apksigner verify --print-certs build/app/outputs/flutter-apk/kite.apk | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
-if [[ -z "$key_fingerprint" || "$key_fingerprint" != "$apk_fingerprint" ]]; then
-  printf 'APK signing certificate does not match the configured keystore.\n' >&2
-  exit 1
-fi
 
 if [[ -z "${GH_TOKEN:-}" && -f "$HOME/.config/shell/private.env" ]]; then
   set -a
@@ -53,6 +49,23 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
 fi
 
 export TERM=dumb NO_COLOR=1 GH_PAGER=cat GH_PROMPT_DISABLED=1
+
+apksigner="$(find /opt/android-sdk/build-tools "${ANDROID_HOME:-/nonexistent}/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+if [[ -z "$apksigner" ]]; then
+  printf 'apksigner was not found.\n' >&2
+  exit 1
+fi
+
+kite_fingerprint="$($apksigner verify --print-certs build/app/outputs/flutter-apk/kite.apk | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+reference_dir="$(mktemp -d)"
+trap 'rm -rf "$reference_dir"' EXIT
+gh release download --repo "$flexify_repo" --pattern flexify.apk --dir "$reference_dir"
+flexify_fingerprint="$($apksigner verify --print-certs "$reference_dir/flexify.apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+if [[ -z "$kite_fingerprint" || "$kite_fingerprint" != "$flexify_fingerprint" ]]; then
+  printf 'Kite APK signing certificate does not match the latest Flexify release.\n' >&2
+  exit 1
+fi
+
 sha="$(git rev-parse HEAD)"
 gh release delete android-latest --repo "$github_repo" --cleanup-tag --yes >/dev/null 2>&1 || true
 gh release create android-latest \
