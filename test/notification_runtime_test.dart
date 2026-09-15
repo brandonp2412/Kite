@@ -1,9 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/diagnostics/structured_logging.dart';
+import 'package:kite/features/calls/call_session.dart';
+import 'package:kite/features/calls/incoming_call.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_delivery.dart';
 import 'package:kite/features/notifications/notification_dispatch.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
 import 'package:kite/features/notifications/notification_runtime.dart';
+import 'package:kite/testing/deterministic_call_adapter.dart';
+import 'package:kite/testing/deterministic_incoming_call_adapter.dart';
 import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 void main() {
@@ -132,6 +137,28 @@ void main() {
       final delivery = FakeNotificationDeliveryPort();
       final resolver = FakeNotificationEventResolver();
       final callHandOffs = <KiteNotification>[];
+      final callGateway = DeterministicMatrixRtcGateway();
+      final calls = KiteCallCoordinator(
+        gateway: callGateway,
+        pictureInPicture: DeterministicPictureInPicturePort(),
+        logger: StructuredLogger(
+          sink: MemoryStructuredLogSink(),
+          traceIds: SequenceTraceIdGenerator(seed: 610),
+        ),
+      );
+      final incomingResolver = DeterministicIncomingCallResolver()
+        ..descriptor = const MatrixRtcSessionDescriptor(
+          callId: 'rtc-personal',
+          roomId: '!calls:example.org',
+          kind: KiteCallKind.video,
+          scope: KiteCallScope.direct,
+        );
+      final ringtone = DeterministicIncomingCallRingtone();
+      final incoming = IncomingCallCoordinator(
+        calls: calls,
+        resolver: incomingResolver,
+        ringtone: ringtone,
+      );
       final runtime = NotificationRuntime(
         accounts: FakeNotificationIngressAccountPort(const <String>[
           'work',
@@ -146,7 +173,7 @@ void main() {
           ),
           onCallNotification: (notification) async {
             callHandOffs.add(notification);
-            return true;
+            return incoming.admitNotification(notification);
           },
         ),
         fcm: fcm,
@@ -239,6 +266,12 @@ void main() {
         KiteNotificationKind.call,
       );
       expect(callHandOffs.single.destination, call.destination);
+      expect(incomingResolver.resolutions.single.accountId, 'personal');
+      expect(incomingResolver.resolutions.single.roomId, '!calls:example.org');
+      expect(incomingResolver.resolutions.single.callId, 'rtc-personal');
+      expect(calls.phase.value, KiteCallPhase.ringing);
+      expect(calls.session.value?.callId, 'rtc-personal');
+      expect(ringtone.startedCallIds, <String>['rtc-personal']);
       expect(delivery.shown.map((item) => item.body), <String>[
         'Work thread body',
         'Personal call body',

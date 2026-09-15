@@ -134,6 +134,12 @@ void main() {
         ),
         IncomingCallNotificationResult.busy,
       );
+      expect(
+        await fixture.incoming.handleNotification(
+          _callNotification(accountId: 'personal'),
+        ),
+        IncomingCallNotificationResult.busy,
+      );
 
       expect(fixture.resolver.resolutions, hasLength(1));
       expect(fixture.ringtone.startedCallIds, <String>['rtc-42']);
@@ -236,12 +242,15 @@ void main() {
   );
 }
 
-KiteNotification _callNotification({String callId = 'rtc-42'}) {
+KiteNotification _callNotification({
+  String accountId = 'work',
+  String callId = 'rtc-42',
+}) {
   return KiteNotification(
     id: 'push-$callId',
     kind: KiteNotificationKind.call,
     destination: AppDestination.call(
-      accountId: 'work',
+      accountId: accountId,
       roomId: '!calls:example.org',
       callId: callId,
     ),

@@ -45,7 +45,7 @@ final class IncomingCallCoordinator {
     IncomingCallRingtoneErrorHandler? onRingtoneError,
   }) => IncomingCallCoordinator._(calls, resolver, ringtone, onRingtoneError);
 
-  const IncomingCallCoordinator._(
+  IncomingCallCoordinator._(
     this._calls,
     this._resolver,
     this._ringtone,
@@ -56,6 +56,7 @@ final class IncomingCallCoordinator {
   final IncomingCallResolverPort _resolver;
   final IncomingCallRingtonePort _ringtone;
   final IncomingCallRingtoneErrorHandler? _onRingtoneError;
+  String? _incomingAccountId;
 
   Future<bool> admitNotification(KiteNotification notification) async {
     return (await handleNotification(notification)).admitsIncomingCallSurface;
@@ -78,7 +79,9 @@ final class IncomingCallCoordinator {
     final current = _calls.session.value;
     final phase = _calls.phase.value;
     if (current != null && phase == KiteCallPhase.ringing) {
-      if (current.callId == callId && current.roomId == destination.roomId) {
+      if (current.callId == callId &&
+          current.roomId == destination.roomId &&
+          _incomingAccountId == destination.accountId) {
         return IncomingCallNotificationResult.alreadyRinging;
       }
       return IncomingCallNotificationResult.busy;
@@ -103,6 +106,7 @@ final class IncomingCallCoordinator {
     }
 
     _calls.registerIncomingCall(descriptor);
+    _incomingAccountId = destination.accountId;
     await _startRingtone(callId);
     return IncomingCallNotificationResult.ringing;
   }
@@ -116,6 +120,7 @@ final class IncomingCallCoordinator {
   Future<void> decline() async {
     final callId = _ringingCallId();
     await _calls.declineIncomingCall();
+    _incomingAccountId = null;
     await _stopRingtone(callId);
   }
 
@@ -125,6 +130,7 @@ final class IncomingCallCoordinator {
         current?.callId == callId &&
         _calls.phase.value == KiteCallPhase.ringing;
     if (!_calls.endCallFromSync(callId)) return false;
+    _incomingAccountId = null;
     if (wasRinging) await _stopRingtone(callId);
     return true;
   }
