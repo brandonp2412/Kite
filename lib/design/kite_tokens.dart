@@ -64,6 +64,18 @@ abstract final class KiteRadii {
   static const double pill = 999;
 }
 
+abstract final class KiteLayout {
+  static const double readableContentMaxWidth = 720;
+
+  static double centeredHorizontalInset(
+    BuildContext context, {
+    double maxWidth = readableContentMaxWidth,
+  }) {
+    final width = MediaQuery.sizeOf(context).width;
+    return width > maxWidth ? (width - maxWidth) / 2 : 0;
+  }
+}
+
 abstract final class KiteElevation {
   static const double flat = 0;
   static const double raised = 1;
