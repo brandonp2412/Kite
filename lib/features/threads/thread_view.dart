@@ -824,6 +824,19 @@ class _ThreadReplyRow extends StatelessWidget {
   final ThreadReply reply;
   final Signal<String?> focusSignal;
 
+  Future<void> _showReadReceipts(BuildContext context, List<String> readers) {
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (_) => _ThreadReadReceiptDetailsSheet(readers: readers),
+    );
+  }
+
   void _openMedia(BuildContext context) {
     final model = ThreadMediaViewerModel.fromReplies(
       roomId: roomId,
@@ -966,40 +979,73 @@ class _ThreadReplyRow extends StatelessWidget {
                                 SignalBuilder(
                                   builder: (context) {
                                     final state = reply.sendState.value;
+                                    final readers = reply.readByState.value;
                                     return SizedBox(
                                       key: Key('thread-send-state-${reply.id}'),
-                                      width: 20,
-                                      height: 20,
-                                      child: state == TimelineSendState.failed
-                                          ? Tooltip(
-                                              message: 'Retry sending',
-                                              child: InkResponse(
-                                                key: Key(
-                                                  'thread-retry-${reply.id}',
-                                                ),
-                                                radius: 18,
-                                                containedInkWell: true,
-                                                onTap: () =>
-                                                    threadController.retryReply(
-                                                      roomId: roomId,
-                                                      parent: parent,
-                                                      reply: reply,
-                                                    ),
-                                                child: Icon(
-                                                  Icons.error_rounded,
-                                                  semanticLabel: 'Thread reply failed. Retry sending',
-                                                  size: 14,
-                                                  color: colors.error,
-                                                ),
-                                              ),
-                                            )
-                                          : Icon(
-                                              state == TimelineSendState.sending
-                                                  ? Icons.schedule_rounded
-                                                  : Icons.done_rounded,
-                                              size: 14,
-                                              color: colors.onSurfaceVariant,
+                                      width: 44,
+                                      height: 24,
+                                      child: switch (state) {
+                                        TimelineSendState.failed => Tooltip(
+                                          message: 'Retry sending',
+                                          child: InkResponse(
+                                            key: Key(
+                                              'thread-retry-${reply.id}',
                                             ),
+                                            radius: 18,
+                                            containedInkWell: true,
+                                            onTap: () =>
+                                                threadController.retryReply(
+                                                  roomId: roomId,
+                                                  parent: parent,
+                                                  reply: reply,
+                                                ),
+                                            child: Icon(
+                                              Icons.error_rounded,
+                                              semanticLabel: 'Thread reply failed. Retry sending',
+                                              size: 14,
+                                              color: colors.error,
+                                            ),
+                                          ),
+                                        ),
+                                        TimelineSendState.sending => Icon(
+                                          Icons.schedule_rounded,
+                                          semanticLabel: 'Sending thread reply',
+                                          size: 14,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                        TimelineSendState.sent
+                                            when readers.isNotEmpty =>
+                                          Semantics(
+                                            button: true,
+                                            label:
+                                                'Read by ${readers.join(', ')}',
+                                            child: Tooltip(
+                                              message:
+                                                  'Read by ${readers.join(', ')}',
+                                              child: GestureDetector(
+                                                key: Key(
+                                                  'thread-read-receipts-${reply.id}',
+                                                ),
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap: () => _showReadReceipts(
+                                                  context,
+                                                  readers,
+                                                ),
+                                                child:
+                                                    _ThreadReadReceiptAvatars(
+                                                      readers: readers,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        TimelineSendState.sent => Icon(
+                                          Icons.done_rounded,
+                                          semanticLabel: 'Thread reply sent',
+                                          size: 14,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      },
                                     );
                                   },
                                 ),
@@ -1016,6 +1062,122 @@ class _ThreadReplyRow extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _ThreadReadReceiptAvatars extends StatelessWidget {
+  const _ThreadReadReceiptAvatars({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final visible = readers.take(3).toList(growable: false);
+    return SizedBox(
+      width: 44,
+      height: 24,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          for (var index = 0; index < visible.length; index++)
+            Positioned(
+              left: 4.0 + (index * 10),
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: colors.secondaryContainer,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.primaryContainer, width: 1),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  visible[index].characters.first.toUpperCase(),
+                  style: KiteTypography.metadata.copyWith(
+                    color: colors.onSecondaryContainer,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          if (readers.length > 3)
+            Positioned(
+              right: 0,
+              child: Text(
+                '+${readers.length - 3}',
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThreadReadReceiptDetailsSheet extends StatelessWidget {
+  const _ThreadReadReceiptDetailsSheet({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      key: const Key('thread-read-receipt-details'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.md,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Read by',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.sm),
+          for (final reader in readers)
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: <Widget>[
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    foregroundColor: theme.colorScheme.onSecondaryContainer,
+                    child: Text(
+                      reader.characters.first.toUpperCase(),
+                      style: KiteTypography.metadata.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: KiteSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      reader,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KiteTypography.body,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -157,7 +157,9 @@ class ThreadReply {
     required this.timeLabel,
     this.attachment,
     TimelineSendState sendState = TimelineSendState.sent,
-  }) : sendState = signal(sendState);
+    Iterable<String> readBy = const <String>[],
+  }) : sendState = signal(sendState),
+       readByState = signal(List<String>.unmodifiable(readBy));
 
   final String id;
   final String sender;
@@ -166,6 +168,9 @@ class ThreadReply {
   final String timeLabel;
   final TimelineAttachment? attachment;
   final Signal<TimelineSendState> sendState;
+  final Signal<List<String>> readByState;
+
+  List<String> get readBy => readByState.value;
 }
 
 class ThreadController {
@@ -459,6 +464,29 @@ class ThreadController {
     final focus = focusedReplyIdFor(roomId: roomId, parent: parent);
     if (onlyIfReplyId != null && focus.value != onlyIfReplyId) return;
     focus.value = null;
+  }
+
+  void updateReadReceipts({
+    required String roomId,
+    required TimelineMessage parent,
+    required String replyId,
+    required Iterable<String> readers,
+  }) {
+    final replies = repliesFor(roomId: roomId, parent: parent).peek();
+    final matches = replies.where((reply) => reply.id == replyId);
+    if (matches.isEmpty) return;
+    final reply = matches.single;
+    if (!reply.mine || reply.sendState.peek() != TimelineSendState.sent) return;
+
+    final next =
+        readers
+            .map((reader) => reader.trim())
+            .where((reader) => reader.isNotEmpty && reader != 'You')
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    if (listEquals(reply.readByState.peek(), next)) return;
+    reply.readByState.value = List<String>.unmodifiable(next);
   }
 
   void markRead({required String roomId, required TimelineMessage parent}) {

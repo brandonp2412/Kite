@@ -328,6 +328,49 @@ void main() {
       'result': 'PASS',
     };
   });
+  testWidgets('thread read receipt update stays within the frame contract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .firstWhere((candidate) => candidate.mine);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        threadController.updateReadReceipts(
+          roomId: 'alice',
+          parent: parent,
+          replyId: reply.id,
+          readers: const <String>['Sam', 'Maya', 'Jordan'],
+        );
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.byKey(Key('thread-read-receipts-${reply.id}')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_read_receipt'] = <String, dynamic>{
+      'journey': 'update_thread_read_receipt',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('thread attachment preview and send stay within frame contract', (
     tester,
   ) async {

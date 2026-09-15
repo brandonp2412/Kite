@@ -689,6 +689,48 @@ void main() {
     },
   );
 
+  test('thread read receipts are normalized and remain leaf reply state', () {
+    final controller = ThreadController();
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final replies = controller.repliesFor(roomId: 'alice', parent: parent);
+    final mine = replies.value.firstWhere((reply) => reply.mine);
+    final incoming = replies.value.firstWhere((reply) => !reply.mine);
+    final mineState = mine.readByState;
+    final replyList = replies.value;
+
+    controller.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: mine.id,
+      readers: const <String>[' Sam ', 'Alice', 'Sam', 'You', ''],
+    );
+
+    expect(mine.readByState, same(mineState));
+    expect(mine.readBy, <String>['Alice', 'Sam']);
+    expect(replies.value, same(replyList));
+
+    controller.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: incoming.id,
+      readers: const <String>['Sam'],
+    );
+    controller.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: 'missing-reply',
+      readers: const <String>['Sam'],
+    );
+
+    expect(incoming.readBy, isEmpty);
+  });
+
   test('thread notification subscription is scoped and failure-safe', () async {
     final port = _ControlledSubscriptionPort();
     final controller = ThreadController(subscriptionPort: port);

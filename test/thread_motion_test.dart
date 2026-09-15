@@ -220,6 +220,80 @@ void main() {
     expect(roomUnread, findsNothing);
   });
 
+  testWidgets('thread read receipt update preserves reply geometry at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    threadController.reset(sendPort: const DeterministicThreadSendPort());
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .firstWhere((candidate) => candidate.mine);
+    final row = find.byKey(Key('thread-reply-${reply.id}'));
+    final state = find.byKey(Key('thread-send-state-${reply.id}'));
+    final list = find.byKey(const Key('thread-reply-list'));
+    final composer = find.byKey(const Key('thread-composer'));
+    final rowRect = _rectOf(tester, row);
+    final stateRect = _rectOf(tester, state);
+    final listRect = _rectOf(tester, list);
+    final composerRect = _rectOf(tester, composer);
+
+    threadController.updateReadReceipts(
+      roomId: 'alice',
+      parent: parent,
+      replyId: reply.id,
+      readers: const <String>['Sam', 'Maya', 'Jordan'],
+    );
+
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, row), rowRect);
+      expect(_rectOf(tester, state), stateRect);
+      expect(_rectOf(tester, list), listRect);
+      expect(_rectOf(tester, composer), composerRect);
+      expect(tester.takeException(), isNull);
+    }
+
+    final receipts = find.byKey(Key('thread-read-receipts-${reply.id}'));
+    expect(receipts, findsOneWidget);
+    await tester.tap(receipts);
+    await tester.pumpAndSettle();
+
+    final details = find.byKey(const Key('thread-read-receipt-details'));
+    expect(details, findsOneWidget);
+    expect(
+      find.descendant(of: details, matching: find.text('Jordan')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: details, matching: find.text('Maya')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: details, matching: find.text('Sam')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('thread pagination retry preserves geometry at 120 Hz', (
     tester,
   ) async {
