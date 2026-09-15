@@ -213,11 +213,19 @@ final class AppLockController {
 
   Future<void> disable(String pin) async {
     if (isBusy.value || !settings.value.enabled) return;
-    if (!await unlockWithPin(pin)) return;
+    if (!_isValidPin(pin)) {
+      errorMessage.value = 'Enter your app lock PIN.';
+      return;
+    }
 
     isBusy.value = true;
     errorMessage.value = null;
     try {
+      final verified = await _credentials.verifyPin(pin);
+      if (!verified) {
+        errorMessage.value = 'Incorrect PIN.';
+        return;
+      }
       await _credentials.disable();
       const next = AppLockSettings.disabled();
       settings.value = next;
