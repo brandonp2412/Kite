@@ -42,12 +42,13 @@ final class MatrixSyncCoordinator {
     const MatrixSyncState.idle(),
   );
   StreamSubscription<MatrixSyncBatch>? _subscription;
+  Object? _activeRun;
   bool _needsEngineReset = false;
 
-  bool get isRunning => _subscription != null;
+  bool get isRunning => _activeRun != null;
 
   Future<void> start() async {
-    if (_subscription != null) return;
+    if (_activeRun != null) return;
     if (_needsEngineReset) {
       try {
         await engine.stop();
@@ -58,41 +59,74 @@ final class MatrixSyncCoordinator {
       }
     }
     state.value = const MatrixSyncState.starting();
+    final run = Object();
+    _activeRun = run;
     late final StreamSubscription<MatrixSyncBatch> subscription;
-    subscription = engine.syncBatches.listen(
-      (syncBatch) {
-        batch(() {
-          applyBatch(syncBatch);
-          if (identical(_subscription, subscription)) {
-            state.value = const MatrixSyncState.running();
+    try {
+      subscription = engine.syncBatches.listen(
+        (syncBatch) {
+          if (!identical(_activeRun, run)) return;
+          batch(() {
+            applyBatch(syncBatch);
+            if (identical(_activeRun, run)) {
+              state.value = const MatrixSyncState.running();
+            }
+          });
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (identical(_activeRun, run)) {
+            state.value = MatrixSyncState.failed(error, stackTrace);
           }
-        });
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        if (identical(_subscription, subscription)) {
-          state.value = MatrixSyncState.failed(error, stackTrace);
-        }
-      },
-      onDone: () {
-        if (identical(_subscription, subscription)) {
-          _subscription = null;
-          _needsEngineReset = true;
-          state.value = MatrixSyncState.failed(
-            StateError('Matrix sync stream closed unexpectedly'),
-            StackTrace.current,
-          );
-        }
-      },
-    );
+        },
+        onDone: () {
+          if (identical(_activeRun, run)) {
+            _activeRun = null;
+            _subscription = null;
+            _needsEngineReset = true;
+            state.value = MatrixSyncState.failed(
+              StateError('Matrix sync stream closed unexpectedly'),
+              StackTrace.current,
+            );
+          }
+        },
+      );
+    } catch (error, stackTrace) {
+      if (identical(_activeRun, run)) {
+        _activeRun = null;
+        state.value = MatrixSyncState.failed(error, stackTrace);
+      }
+      rethrow;
+    }
+
+    if (!identical(_activeRun, run)) {
+      await subscription.cancel();
+      final failure = state.value;
+      final error =
+          failure.error ?? StateError('Matrix sync stream unavailable');
+      Error.throwWithStackTrace(
+        error,
+        failure.stackTrace ?? StackTrace.current,
+      );
+    }
+
     _subscription = subscription;
     try {
       await engine.start();
-      if (identical(_subscription, subscription) &&
-          state.value.phase == MatrixSyncPhase.starting) {
+      if (!identical(_activeRun, run)) {
+        final failure = state.value;
+        final error =
+            failure.error ?? StateError('Matrix sync stream unavailable');
+        Error.throwWithStackTrace(
+          error,
+          failure.stackTrace ?? StackTrace.current,
+        );
+      }
+      if (state.value.phase == MatrixSyncPhase.starting) {
         state.value = const MatrixSyncState.running();
       }
     } catch (error, stackTrace) {
-      if (identical(_subscription, subscription)) {
+      if (identical(_activeRun, run)) {
+        _activeRun = null;
         _subscription = null;
         state.value = MatrixSyncState.failed(error, stackTrace);
       }
@@ -111,6 +145,7 @@ final class MatrixSyncCoordinator {
       }
       return;
     }
+    _activeRun = null;
     _subscription = null;
     await subscription.cancel();
     await engine.stop();

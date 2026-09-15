@@ -44,6 +44,30 @@ void main() {
     await engine.close();
   });
 
+  test(
+    'sync coordinator accepts synchronous on-listen adapter batches',
+    () async {
+      final engine = _SynchronousOnListenMatrixEngine();
+      final applied = <String>[];
+      final coordinator = MatrixSyncCoordinator(
+        engine: engine,
+        applyBatch: (batch) => applied.add(batch.cursor),
+      );
+
+      await coordinator.start();
+
+      expect(applied, <String>['on-listen']);
+      expect(coordinator.isRunning, isTrue);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.running);
+      expect(engine.startCalls, 1);
+
+      await coordinator.stop();
+      expect(coordinator.isRunning, isFalse);
+      expect(coordinator.state.value.phase, MatrixSyncPhase.idle);
+      await engine.close();
+    },
+  );
+
   test('sync batch and running state publish atomically', () async {
     final engine = _StateFakeMatrixEngine();
     final appliedCursor = signal<String?>(null);
@@ -273,6 +297,52 @@ void main() {
     await coordinator.stop();
     await engine.close();
   });
+}
+
+final class _SynchronousOnListenMatrixEngine implements MatrixEngine {
+  _SynchronousOnListenMatrixEngine() {
+    late final StreamController<MatrixSyncBatch> controller;
+    controller = StreamController<MatrixSyncBatch>.broadcast(
+      sync: true,
+      onListen: () {
+        controller.add(
+          const MatrixSyncBatch(
+            cursor: 'on-listen',
+            rooms: <MatrixRoomDelta>[],
+          ),
+        );
+      },
+    );
+    _sync = controller;
+  }
+
+  late final StreamController<MatrixSyncBatch> _sync;
+  int startCalls = 0;
+  int stopCalls = 0;
+
+  @override
+  Stream<MatrixSyncBatch> get syncBatches => _sync.stream;
+
+  @override
+  Future<void> start() async {
+    startCalls += 1;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls += 1;
+  }
+
+  @override
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) async {
+    return MatrixPaginationPage(
+      roomId: roomId,
+      events: const <MatrixTimelineEvent>[],
+      reachedStart: true,
+    );
+  }
+
+  Future<void> close() => _sync.close();
 }
 
 final class _StateFakeMatrixEngine implements MatrixEngine {
