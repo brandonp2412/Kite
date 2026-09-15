@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:kite/features/auth/account_registration_controller.dart';
+import 'package:kite/features/auth/account_registration_screen.dart';
 import 'package:kite/features/auth/authentication_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:signals/signals_flutter.dart';
@@ -12,6 +14,7 @@ class AuthenticationScreen extends StatefulWidget {
     this.onAuthenticated,
     this.scanQrCode,
     this.onRegistrationRequested,
+    this.registrationGateway,
     super.key,
   });
 
@@ -20,6 +23,7 @@ class AuthenticationScreen extends StatefulWidget {
   final ValueChanged<AuthenticatedSession>? onAuthenticated;
   final AuthenticationQrScanner? scanQrCode;
   final ValueChanged<HomeserverAddress>? onRegistrationRequested;
+  final AccountRegistrationGateway? registrationGateway;
 
   @override
   State<AuthenticationScreen> createState() => _AuthenticationScreenState();
@@ -85,6 +89,30 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     if (authenticatedSession == null) return;
     _passwordController.clear();
     widget.onAuthenticated?.call(authenticatedSession);
+  }
+
+  Future<void> _requestRegistration(HomeserverAddress homeserver) async {
+    final handoff = widget.onRegistrationRequested;
+    if (handoff != null) {
+      handoff(homeserver);
+      return;
+    }
+
+    final registrationGateway = widget.registrationGateway;
+    if (registrationGateway == null || !mounted) return;
+    final registeredSession = await Navigator.of(context)
+        .push<AuthenticatedSession>(
+          MaterialPageRoute<AuthenticatedSession>(
+            builder: (context) => AccountRegistrationScreen(
+              homeserver: homeserver,
+              gateway: registrationGateway,
+              onAuthenticated: (session) => Navigator.of(context).pop(session),
+            ),
+          ),
+        );
+    if (!mounted || registeredSession == null) return;
+    _passwordController.clear();
+    widget.onAuthenticated?.call(registeredSession);
   }
 
   @override
@@ -248,7 +276,8 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                             ],
                             if (methods.registrationAvailable) ...<Widget>[
                               const SizedBox(height: 12),
-                              if (widget.onRegistrationRequested == null)
+                              if (widget.onRegistrationRequested == null &&
+                                  widget.registrationGateway == null)
                                 Text(
                                   'This homeserver also supports account registration.',
                                   key: const Key('registration-available'),
@@ -260,7 +289,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                   key: const Key('registration-available'),
                                   onPressed: busy
                                       ? null
-                                      : () => widget.onRegistrationRequested!(
+                                      : () => _requestRegistration(
                                           methods.homeserver,
                                         ),
                                   icon: const Icon(
