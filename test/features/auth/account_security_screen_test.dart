@@ -85,6 +85,7 @@ Widget _app({
   VoidCallback? onAddAccount,
   ValueChanged<ManagedMatrixAccount>? onActiveAccountChanged,
   VoidCallback? onActiveAccountSignedOut,
+  bool loadOnInit = false,
 }) {
   return MaterialApp(
     home: AccountSecurityScreen(
@@ -93,12 +94,43 @@ Widget _app({
       onAddAccount: onAddAccount,
       onActiveAccountChanged: onActiveAccountChanged,
       onActiveAccountSignedOut: onActiveAccountSignedOut,
-      loadOnInit: false,
+      loadOnInit: loadOnInit,
     ),
   );
 }
 
 void main() {
+  testWidgets('initial load confirms devices belong to the active session', (
+    tester,
+  ) async {
+    final accountGateway = _FakeAccountGateway()
+      ..loaded = <ManagedMatrixAccount>[
+        _account(id: 'work', userId: '@brandon:work.example.org', active: true),
+      ];
+    final sessionGateway = _FakeSessionGateway()
+      ..loaded = const <SessionDevice>[
+        SessionDevice(
+          deviceId: 'WORK_DEVICE',
+          displayName: 'Work phone',
+          isCurrent: true,
+          verification: SessionDeviceVerification.verified,
+        ),
+      ];
+    final accounts = AccountManagementController(accountGateway);
+    final devices = SessionDeviceController(sessionGateway);
+    addTearDown(accounts.dispose);
+    addTearDown(devices.dispose);
+
+    await tester.pumpWidget(
+      _app(accounts: accounts, devices: devices, loadOnInit: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(accounts.activeAccount?.session.deviceId, 'WORK_DEVICE');
+    expect(devices.currentDevice?.deviceId, 'WORK_DEVICE');
+    expect(devices.errorMessage.value, isNull);
+  });
+
   testWidgets(
     'shows current account, account switching and device verification state',
     (tester) async {

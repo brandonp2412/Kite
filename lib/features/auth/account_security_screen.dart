@@ -36,8 +36,30 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
   void initState() {
     super.initState();
     if (widget.loadOnInit) {
-      unawaited(widget.accountController.load());
-      unawaited(widget.sessionDeviceController.load());
+      unawaited(_loadInitialState());
+    }
+  }
+
+  Future<void> _loadInitialState() async {
+    await widget.accountController.load();
+    if (!mounted) return;
+    final active = widget.accountController.activeAccount;
+    if (active == null) {
+      widget.securityScopeController?.resetForAccountChange();
+      widget.sessionDeviceController.resetForAccountChange();
+      return;
+    }
+
+    final securityScope = widget.securityScopeController;
+    if (securityScope != null) {
+      await securityScope.resetAndRefreshActiveAccount(
+        currentDeviceId: active.session.deviceId,
+      );
+    } else {
+      widget.sessionDeviceController.resetForAccountChange();
+      await widget.sessionDeviceController.load(
+        expectedCurrentDeviceId: active.session.deviceId,
+      );
     }
   }
 
