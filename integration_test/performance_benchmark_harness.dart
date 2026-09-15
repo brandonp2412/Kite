@@ -79,20 +79,23 @@ Future<Map<String, dynamic>> measureFrames({
     buildViolations,
     PerformanceContract.maxBuildBudgetViolations,
     reason:
-        'One or more Flutter build frames exceeded the ${budgetUs}us device frame budget.',
+        'One or more Flutter build frames exceeded the ${budgetUs}us device frame budget. '
+        'violations=$buildViolations worst=${worstBuildUs}us frames=${timings.length}.',
   );
   expect(
     rasterViolations,
     PerformanceContract.maxRasterBudgetViolations,
     reason:
-        'One or more Flutter raster frames exceeded the ${budgetUs}us device frame budget.',
+        'One or more Flutter raster frames exceeded the ${budgetUs}us device frame budget. '
+        'violations=$rasterViolations worst=${worstRasterUs}us frames=${timings.length}.',
   );
   if (enforceTotalSpan) {
     expect(
       totalSpanViolations,
       PerformanceContract.maxTotalSpanBudgetViolations,
       reason:
-          'One or more Flutter frames missed the end-to-end ${budgetUs}us device frame budget.',
+          'One or more Flutter frames missed the end-to-end ${budgetUs}us device frame budget. '
+          'violations=$totalSpanViolations worst=${worstTotalSpanUs}us frames=${timings.length}.',
     );
   }
 

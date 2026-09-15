@@ -44,6 +44,8 @@ Waydroid is the continuous regression detector. Release candidates must addition
 
 The 2026-09-15 Waydroid profile-mode release-journey run used a 16,666 µs frame budget and recorded zero build, raster, and total-span violations for both new journeys. The 3,000-room scroll captured 117 frames with worst build/raster/total-span times of 4,959/2,831/6,661 µs. Composer keyboard appearance captured 7 frames with worst build/raster/total-span times of 3,365/2,152/6,366 µs. Waydroid still gates only build and raster timing as described above.
 
+A later same-day profile-mode media-viewer run on Glass Waydroid exposed a real open Milestone 15 blocker rather than being waived. At a 16,666 µs budget, cold full-screen open had 3 raster-budget violations across 4 sampled frames with a 155,099 µs worst raster frame; flick-to-dismiss had 3/3 violations with a 57,810 µs worst raster frame; adjacent-media swipe had 30 violations across 59 frames with a 28,716 µs worst raster frame. `performance_benchmark_harness.dart` now includes violation count, worst timing, and sample count in failure diagnostics. The media-viewer benchmark remains unchecked until these strict zero-raster-violation gates pass; no threshold was relaxed.
+
 ## Regression policy
 
 Do not raise frame budgets, allow non-zero violations, reduce the number of benchmark iterations, disable the artificial-jitter negative control, or remove geometry checks merely to make a failing change pass. Fix the regression instead. Any intentional contract revision must be documented in the same change with the reason and before/after benchmark evidence.
