@@ -143,12 +143,32 @@ void main() {
     final gateway = _FakeEncryptionRecoveryGateway();
     final controller = EncryptionRecoveryController(gateway);
     addTearDown(controller.dispose);
+    expect(await controller.refresh(), isTrue);
 
     expect(await controller.recoverHistoricalMessages(), isTrue);
     expect(gateway.historicalRecoveryCalls, 1);
     expect(
       controller.status.value?.historicalRecoveryState,
       HistoricalRecoveryState.complete,
+    );
+  });
+
+  test('historical recovery requires SDK-advertised availability', () async {
+    final gateway = _FakeEncryptionRecoveryGateway()
+      ..current = const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.ready,
+        historicalRecoveryState: HistoricalRecoveryState.idle,
+        hasUnverifiedSessions: false,
+      );
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+    expect(await controller.refresh(), isTrue);
+
+    expect(await controller.recoverHistoricalMessages(), isFalse);
+    expect(gateway.historicalRecoveryCalls, 0);
+    expect(
+      controller.errorMessage.value,
+      'Encrypted history recovery is not available.',
     );
   });
 

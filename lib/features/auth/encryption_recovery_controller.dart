@@ -97,6 +97,11 @@ final class EncryptionRecoveryController {
   }
 
   Future<bool> recoverHistoricalMessages() {
+    if (status.value?.historicalRecoveryState !=
+        HistoricalRecoveryState.available) {
+      errorMessage.value = 'Encrypted history recovery is not available.';
+      return Future<bool>.value(false);
+    }
     return _run(
       _gateway.recoverHistoricalMessages,
       failureMessage: 'Kite could not recover encrypted message history.',
