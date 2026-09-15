@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_engine.dart';
-import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
