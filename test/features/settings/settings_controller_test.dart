@@ -106,6 +106,77 @@ void main() {
     },
   );
 
+  test(
+    'rejects malformed persisted settings without replacing known state',
+    () async {
+      final gateway = _FakeSettingsGateway()
+        ..loaded = const KiteSettings(
+          appearanceMode: KiteAppearanceMode.dark,
+          languageTag: 'en-NZ',
+          notifications: NotificationPreferences.defaults(),
+        );
+      final controller = SettingsController(gateway);
+      addTearDown(controller.dispose);
+      await controller.load();
+
+      gateway.loaded = const KiteSettings(
+        appearanceMode: KiteAppearanceMode.black,
+        languageTag: ' en-NZ ',
+        notifications: NotificationPreferences(
+          masterEnabled: true,
+          enabledCategories: <NotificationCategory>{
+            NotificationCategory.messages,
+          },
+          roomModes: <String, RoomNotificationMode>{
+            '!room:example.org': RoomNotificationMode.mentionsOnly,
+          },
+        ),
+      );
+      await controller.load();
+
+      expect(controller.settings.value.appearanceMode, KiteAppearanceMode.dark);
+      expect(controller.settings.value.languageTag, 'en-NZ');
+      expect(
+        controller.errorMessage.value,
+        'Kite received invalid settings data.',
+      );
+    },
+  );
+
+  test('loaded notification collections are immutable snapshots', () async {
+    final categories = <NotificationCategory>{NotificationCategory.messages};
+    final roomModes = <String, RoomNotificationMode>{
+      '!room:example.org': RoomNotificationMode.mentionsOnly,
+    };
+    final gateway = _FakeSettingsGateway()
+      ..loaded = KiteSettings(
+        appearanceMode: KiteAppearanceMode.system,
+        languageTag: null,
+        notifications: NotificationPreferences(
+          masterEnabled: true,
+          enabledCategories: categories,
+          roomModes: roomModes,
+        ),
+      );
+    final controller = SettingsController(gateway);
+    addTearDown(controller.dispose);
+
+    await controller.load();
+    categories.add(NotificationCategory.calls);
+    roomModes.clear();
+
+    expect(
+      controller.settings.value.notifications.enabledCategories,
+      <NotificationCategory>{NotificationCategory.messages},
+    );
+    expect(
+      controller.settings.value.notifications.roomModes,
+      <String, RoomNotificationMode>{
+        '!room:example.org': RoomNotificationMode.mentionsOnly,
+      },
+    );
+  });
+
   test('persists system, light, dark, and black appearance modes', () async {
     final gateway = _FakeSettingsGateway();
     final controller = SettingsController(gateway);

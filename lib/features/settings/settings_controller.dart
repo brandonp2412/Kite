@@ -136,7 +136,13 @@ final class SettingsController {
     isLoading.value = true;
     errorMessage.value = null;
     try {
-      settings.value = await _gateway.load();
+      final loaded = await _gateway.load();
+      final snapshot = _validatedSnapshot(loaded);
+      if (snapshot == null) {
+        errorMessage.value = 'Kite received invalid settings data.';
+        return;
+      }
+      settings.value = snapshot;
       hasLoaded.value = true;
     } catch (_) {
       errorMessage.value = 'Kite could not load your settings.';
@@ -337,11 +343,51 @@ final class SettingsController {
     }
   }
 
+  KiteSettings? _validatedSnapshot(KiteSettings loaded) {
+    final languageTag = loaded.languageTag;
+    if (languageTag != null &&
+        _normalizeLanguageTag(languageTag) != languageTag) {
+      return null;
+    }
+    final notifications = loaded.notifications;
+    for (final entry in notifications.roomModes.entries) {
+      if (!_isValidRoomId(entry.key) ||
+          entry.value == RoomNotificationMode.inherit) {
+        return null;
+      }
+    }
+    if (!_isNormalizedSoundId(notifications.messageSoundId) ||
+        !_isNormalizedSoundId(notifications.callRingtoneId)) {
+      return null;
+    }
+    return KiteSettings(
+      appearanceMode: loaded.appearanceMode,
+      languageTag: languageTag,
+      notifications: NotificationPreferences(
+        masterEnabled: notifications.masterEnabled,
+        enabledCategories: Set<NotificationCategory>.unmodifiable(
+          notifications.enabledCategories,
+        ),
+        roomModes: Map<String, RoomNotificationMode>.unmodifiable(
+          notifications.roomModes,
+        ),
+        messageSoundId: notifications.messageSoundId,
+        callRingtoneId: notifications.callRingtoneId,
+      ),
+    );
+  }
+
   bool _isValidRoomId(String roomId) {
-    return roomId.startsWith('!') &&
-        roomId.contains(':') &&
+    final separator = roomId.indexOf(':');
+    return roomId == roomId.trim() &&
+        roomId.startsWith('!') &&
+        separator > 1 &&
+        separator < roomId.length - 1 &&
         !roomId.contains(RegExp(r'\s'));
   }
+
+  bool _isNormalizedSoundId(String? soundId) =>
+      soundId == null || _normalizeSoundId(soundId) == soundId;
 
   String? _normalizeSoundId(String? soundId) {
     final trimmed = soundId?.trim();
