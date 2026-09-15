@@ -84,6 +84,40 @@ final class _SessionGateway implements SessionDeviceGateway {
 }
 
 void main() {
+  testWidgets('unknown security state is never presented as healthy', (
+    tester,
+  ) async {
+    final verification = DeviceVerificationController(_VerificationGateway());
+    final recovery = EncryptionRecoveryController(_RecoveryGateway());
+    final sessions = SessionDeviceController(_SessionGateway());
+    addTearDown(verification.dispose);
+    addTearDown(recovery.dispose);
+    addTearDown(sessions.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PrivacySecuritySettingsScreen(
+          verificationController: verification,
+          recoveryController: recovery,
+          sessionDeviceController: sessions,
+          loadOnInit: false,
+          onOpenVerification: () {},
+          onOpenRecovery: () {},
+          onOpenSessions: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('Security status incomplete'), findsOneWidget);
+    expect(
+      find.text(
+        'Some verification, recovery, or session status is unavailable.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Security looks good'), findsNothing);
+  });
+
   testWidgets('summarizes verification, recovery, sessions and app lock', (
     tester,
   ) async {

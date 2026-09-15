@@ -88,6 +88,10 @@ class _PrivacySecuritySettingsScreenState
                 ),
                 _SecurityStatusCard(
                   loading: loading,
+                  statusUnavailable:
+                      error != null ||
+                      trust == CrossSigningTrustState.unknown ||
+                      recovery == null,
                   verificationNeedsAttention:
                       trust == CrossSigningTrustState.unverified ||
                       unverifiedDevices > 0,
@@ -193,6 +197,7 @@ class _PrivacySecuritySettingsScreenState
 class _SecurityStatusCard extends StatelessWidget {
   const _SecurityStatusCard({
     required this.loading,
+    required this.statusUnavailable,
     required this.verificationNeedsAttention,
     required this.recoveryNeedsAttention,
     required this.onOpenVerification,
@@ -200,6 +205,7 @@ class _SecurityStatusCard extends StatelessWidget {
   });
 
   final bool loading;
+  final bool statusUnavailable;
   final bool verificationNeedsAttention;
   final bool recoveryNeedsAttention;
   final VoidCallback onOpenVerification;
@@ -211,11 +217,15 @@ class _SecurityStatusCard extends StatelessWidget {
     final needsAttention = verificationNeedsAttention || recoveryNeedsAttention;
     final title = loading
         ? 'Checking account security…'
+        : statusUnavailable
+        ? 'Security status incomplete'
         : needsAttention
         ? 'Security action recommended'
         : 'Security looks good';
     final detail = loading
         ? 'Verifying cross-signing, recovery, and signed-in devices.'
+        : statusUnavailable
+        ? 'Some verification, recovery, or session status is unavailable.'
         : _detail();
 
     return SizedBox(
@@ -229,7 +239,7 @@ class _SecurityStatusCard extends StatelessWidget {
           0,
         ),
         child: Material(
-          color: needsAttention
+          color: needsAttention || statusUnavailable
               ? colors.tertiaryContainer
               : colors.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(KiteRadii.md),
