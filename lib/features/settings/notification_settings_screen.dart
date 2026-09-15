@@ -90,30 +90,35 @@ class _NotificationSettingsScreenState
                 _SectionTitle(label: widget.roomName ?? 'This room'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: DropdownButtonFormField<RoomNotificationMode>(
+                  child: KeyedSubtree(
                     key: const Key('room-notification-mode'),
-                    initialValue: notifications.roomMode(roomId),
-                    decoration: const InputDecoration(
-                      labelText: 'Room notifications',
+                    child: DropdownButtonFormField<RoomNotificationMode>(
+                      key: ValueKey<RoomNotificationMode>(
+                        notifications.roomMode(roomId),
+                      ),
+                      initialValue: notifications.roomMode(roomId),
+                      decoration: const InputDecoration(
+                        labelText: 'Room notifications',
+                      ),
+                      items: RoomNotificationMode.values
+                          .map(
+                            (mode) => DropdownMenuItem<RoomNotificationMode>(
+                              value: mode,
+                              child: Text(_roomModeLabel(mode)),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: busy
+                          ? null
+                          : (mode) {
+                              if (mode != null) {
+                                widget.controller.setRoomNotificationMode(
+                                  roomId,
+                                  mode,
+                                );
+                              }
+                            },
                     ),
-                    items: RoomNotificationMode.values
-                        .map(
-                          (mode) => DropdownMenuItem<RoomNotificationMode>(
-                            value: mode,
-                            child: Text(_roomModeLabel(mode)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: busy
-                        ? null
-                        : (mode) {
-                            if (mode != null) {
-                              widget.controller.setRoomNotificationMode(
-                                roomId,
-                                mode,
-                              );
-                            }
-                          },
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -221,27 +226,30 @@ class _SoundPicker extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: DropdownButtonFormField<String>(
+      child: KeyedSubtree(
         key: pickerKey,
-        initialValue: currentId,
-        decoration: InputDecoration(labelText: label),
-        items: <DropdownMenuItem<String>>[
-          const DropdownMenuItem<String>(
-            value: _defaultSoundId,
-            child: Text('Default'),
-          ),
-          ...options.map(
-            (option) => DropdownMenuItem<String>(
-              value: option.id,
-              child: Text(option.label),
+        child: DropdownButtonFormField<String>(
+          key: ValueKey<String>('$label:$currentId'),
+          initialValue: currentId,
+          decoration: InputDecoration(labelText: label),
+          items: <DropdownMenuItem<String>>[
+            const DropdownMenuItem<String>(
+              value: _defaultSoundId,
+              child: Text('Default'),
             ),
-          ),
-        ],
-        onChanged: enabled
-            ? (value) => onChanged(
-                value == null || value == _defaultSoundId ? null : value,
-              )
-            : null,
+            ...options.map(
+              (option) => DropdownMenuItem<String>(
+                value: option.id,
+                child: Text(option.label),
+              ),
+            ),
+          ],
+          onChanged: enabled
+              ? (value) => onChanged(
+                  value == null || value == _defaultSoundId ? null : value,
+                )
+              : null,
+        ),
       ),
     );
   }
