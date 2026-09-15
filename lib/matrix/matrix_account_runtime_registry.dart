@@ -10,6 +10,13 @@ import 'package:kite/matrix/presentation_store.dart';
 import 'package:signals/signals.dart';
 
 typedef MatrixSdkBoundaryFactory = MatrixSdkBoundary Function(String accountId);
+typedef MatrixPresentationRetryDelay = Future<void> Function(int attempt);
+
+const int _matrixPresentationWriteMaxAttempts = 3;
+
+Future<void> _defaultMatrixPresentationRetryDelay(int attempt) {
+  return Future<void>.delayed(Duration(milliseconds: 50 * attempt));
+}
 
 final class MatrixAccountRuntimeRegistry {
   MatrixAccountRuntimeRegistry({
@@ -18,12 +25,16 @@ final class MatrixAccountRuntimeRegistry {
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
     this.presentationStore,
+    MatrixPresentationRetryDelay? presentationRetryDelay,
   }) : _activity = initialActivity,
-       _networkState = initialNetworkState;
+       _networkState = initialNetworkState,
+       _presentationRetryDelay =
+           presentationRetryDelay ?? _defaultMatrixPresentationRetryDelay;
 
   final MatrixAccountStoreRegistry storeRegistry;
   final MatrixSdkBoundaryFactory boundaryFactory;
   final MatrixPresentationStore? presentationStore;
+  final MatrixPresentationRetryDelay _presentationRetryDelay;
   final Map<String, _MatrixAccountRuntime> _runtimes =
       <String, _MatrixAccountRuntime>{};
   final Map<String, Future<void>> _presentationWrites =
@@ -295,13 +306,20 @@ final class MatrixAccountRuntimeRegistry {
 
     late final Future<void> guarded;
     final write = Future<void>(() async {
+      var failureAttempts = 0;
       while (true) {
         await Future<void>.delayed(Duration.zero);
         if (!_presentationDirty.remove(accountId)) return;
         final snapshot = cache.snapshot();
         try {
           await store.save(accountId, snapshot);
-        } catch (_) {}
+          failureAttempts = 0;
+        } catch (_) {
+          failureAttempts += 1;
+          _presentationDirty.add(accountId);
+          if (failureAttempts >= _matrixPresentationWriteMaxAttempts) return;
+          await _presentationRetryDelay(failureAttempts);
+        }
       }
     });
     guarded = write.whenComplete(() {
@@ -315,9 +333,22 @@ final class MatrixAccountRuntimeRegistry {
 
   Future<void> flushPresentationWrites([String? accountId]) async {
     if (accountId != null) {
-      final pending = _presentationWrites[accountId.trim()];
+      final normalizedAccountId = accountId.trim();
+      final runtime = _runtimes[normalizedAccountId];
+      if (runtime != null && _presentationDirty.contains(normalizedAccountId)) {
+        await _schedulePresentationWrite(normalizedAccountId, runtime.cache);
+        return;
+      }
+      final pending = _presentationWrites[normalizedAccountId];
       if (pending != null) await pending;
       return;
+    }
+
+    for (final dirtyAccountId in List<String>.of(_presentationDirty)) {
+      final runtime = _runtimes[dirtyAccountId];
+      if (runtime != null) {
+        unawaited(_schedulePresentationWrite(dirtyAccountId, runtime.cache));
+      }
     }
     await Future.wait<void>(List<Future<void>>.of(_presentationWrites.values));
   }

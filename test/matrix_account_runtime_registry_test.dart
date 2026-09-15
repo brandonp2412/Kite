@@ -342,6 +342,82 @@ void main() {
   );
 
   test(
+    'transient presentation save failure retries without another sync',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+        presentationRetryDelay: (_) async {},
+      );
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.flushPresentationWrites();
+      final savesBefore = presentationStore.saveCalls;
+      presentationStore.failSaveCallsRemaining = 1;
+
+      boundaries['@alice:example.org']!.emit(
+        const MatrixSyncBatch(
+          cursor: 'retry-latest',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+      await registry.flushPresentationWrites();
+
+      expect(presentationStore.saveCalls, savesBefore + 2);
+      expect(
+        presentationStore.snapshots['@alice:example.org']?.syncCursor,
+        'retry-latest',
+      );
+    },
+  );
+
+  test('bounded presentation retries leave dirty state recoverable by explicit flush', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final presentationStore = _MemoryPresentationStore(
+      <String, MatrixPresentationSnapshot>{},
+    );
+    final registry = _registry(
+      boundaries,
+      presentationStore: presentationStore,
+      presentationRetryDelay: (_) async {},
+    );
+    addTearDown(registry.dispose);
+
+    await registry.activate('@alice:example.org');
+    await registry.flushPresentationWrites();
+    final baselineCursor =
+        presentationStore.snapshots['@alice:example.org']?.syncCursor;
+    final savesBefore = presentationStore.saveCalls;
+    presentationStore.failSaveCallsRemaining = 3;
+
+    boundaries['@alice:example.org']!.emit(
+      const MatrixSyncBatch(
+        cursor: 'persist-after-recovery',
+        rooms: <MatrixRoomDelta>[],
+      ),
+    );
+    await registry.flushPresentationWrites();
+
+    expect(presentationStore.saveCalls, savesBefore + 3);
+    expect(
+      presentationStore.snapshots['@alice:example.org']?.syncCursor,
+      baselineCursor,
+    );
+
+    await registry.flushPresentationWrites();
+    expect(presentationStore.saveCalls, savesBefore + 4);
+    expect(
+      presentationStore.snapshots['@alice:example.org']?.syncCursor,
+      'persist-after-recovery',
+    );
+  });
+
+  test(
     'failed account activation restores the previous account sync and state',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -473,6 +549,7 @@ MatrixAccountRuntimeRegistry _registry(
   MatrixPresentationStore? presentationStore,
   String? startGateFor,
   Completer<void>? startGate,
+  MatrixPresentationRetryDelay? presentationRetryDelay,
 }) {
   return MatrixAccountRuntimeRegistry(
     storeRegistry: MatrixAccountStoreRegistry(
@@ -492,6 +569,7 @@ MatrixAccountRuntimeRegistry _registry(
     initialActivity: MatrixAppActivity.foreground,
     initialNetworkState: MatrixNetworkState.online,
     presentationStore: presentationStore,
+    presentationRetryDelay: presentationRetryDelay,
   );
 }
 
@@ -600,6 +678,7 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
 
   final Map<String, MatrixPresentationSnapshot> snapshots;
   int saveCalls = 0;
+  int failSaveCallsRemaining = 0;
   Completer<void>? blockNextSave;
 
   @override
@@ -618,6 +697,10 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
     MatrixPresentationSnapshot snapshot,
   ) async {
     saveCalls += 1;
+    if (failSaveCallsRemaining > 0) {
+      failSaveCallsRemaining -= 1;
+      throw StateError('deterministic presentation save failure');
+    }
     final gate = blockNextSave;
     blockNextSave = null;
     if (gate != null) await gate.future;
