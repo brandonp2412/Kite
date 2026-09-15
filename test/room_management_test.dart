@@ -297,7 +297,7 @@ void main() {
   );
 
   test(
-    'room and user reports preserve exact Matrix identity and trim reason',
+    'room and user reports preserve Matrix identity and optional reasons',
     () async {
       final fixture = _fixture();
 
@@ -308,29 +308,23 @@ void main() {
       await fixture.coordinator.reportUser(
         roomId: '!room:example.org',
         userId: ' @alice:example.org ',
-        reason: '  spam  ',
+        reason: '   ',
       );
+      await fixture.coordinator.reportRoom(roomId: '!room:example.org');
 
       expect(
         fixture.rooms.invocations.map((entry) => entry.type),
         <RoomManagementInvocationType>[
           RoomManagementInvocationType.reportRoom,
           RoomManagementInvocationType.reportUser,
+          RoomManagementInvocationType.reportRoom,
         ],
       );
       expect(fixture.rooms.invocations[0].roomId, '!room:example.org');
       expect(fixture.rooms.invocations[0].reason, 'abusive room');
       expect(fixture.rooms.invocations[1].userId, '@alice:example.org');
-      expect(fixture.rooms.invocations[1].reason, 'spam');
-
-      expect(
-        () => fixture.coordinator.reportRoom(
-          roomId: '!room:example.org',
-          reason: '   ',
-        ),
-        throwsA(isA<RoomManagementValidationException>()),
-      );
-      expect(fixture.rooms.invocations, hasLength(2));
+      expect(fixture.rooms.invocations[1].reason, isNull);
+      expect(fixture.rooms.invocations[2].reason, isNull);
     },
   );
 

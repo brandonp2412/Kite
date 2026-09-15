@@ -35,25 +35,44 @@ void main() {
     expect(directMetadata.invocations.last.userIds, isEmpty);
   });
 
-  test('member mutations keep using the existing member boundary', () async {
-    final memberMutations = FakeRoomMemberMutationPort();
-    final subject = LifecycleAwareRoomMemberMutationPort(
-      memberMutations: memberMutations,
-      roomManagement: RoomManagementCoordinator(
-        rooms: DeterministicRoomManagementPort(),
-        directMetadata: DeterministicDirectRoomMetadataPort(),
-      ),
-    );
+  test(
+    'reports use the room boundary while member actions stay isolated',
+    () async {
+      final memberMutations = FakeRoomMemberMutationPort();
+      final rooms = DeterministicRoomManagementPort();
+      final subject = LifecycleAwareRoomMemberMutationPort(
+        memberMutations: memberMutations,
+        roomManagement: RoomManagementCoordinator(
+          rooms: rooms,
+          directMetadata: DeterministicDirectRoomMetadataPort(),
+        ),
+      );
 
-    await subject.invite(
-      roomId: '!team:example.org',
-      userId: '@alice:example.org',
-    );
-    await subject.reportRoom(roomId: '!team:example.org', reason: 'spam');
+      await subject.invite(
+        roomId: '!team:example.org',
+        userId: '@alice:example.org',
+      );
+      await subject.reportRoom(roomId: '!team:example.org', reason: '  spam  ');
+      await subject.reportUser(
+        roomId: '!team:example.org',
+        userId: '@alice:example.org',
+        reason: '   ',
+      );
 
-    expect(memberMutations.invitations, hasLength(1));
-    expect(memberMutations.roomReports, hasLength(1));
-  });
+      expect(memberMutations.invitations, hasLength(1));
+      expect(memberMutations.roomReports, isEmpty);
+      expect(memberMutations.userReports, isEmpty);
+      expect(
+        rooms.invocations.map((entry) => entry.type),
+        <RoomManagementInvocationType>[
+          RoomManagementInvocationType.reportRoom,
+          RoomManagementInvocationType.reportUser,
+        ],
+      );
+      expect(rooms.invocations.first.reason, 'spam');
+      expect(rooms.invocations.last.reason, isNull);
+    },
+  );
 
   test('failed room lifecycle work does not clear direct metadata', () async {
     final rooms = DeterministicRoomManagementPort()

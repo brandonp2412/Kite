@@ -118,12 +118,12 @@ abstract interface class RoomManagementPort {
     required KiteRoomNotificationMode mode,
   });
 
-  Future<void> reportRoom({required String roomId, required String reason});
+  Future<void> reportRoom({required String roomId, String? reason});
 
   Future<void> reportUser({
     required String roomId,
     required String userId,
-    required String reason,
+    String? reason,
   });
 
   Future<void> leaveRoom(String roomId);
@@ -315,20 +315,17 @@ final class RoomManagementCoordinator {
     required KiteRoomNotificationMode mode,
   }) => _rooms.setNotificationMode(roomId: _roomId(roomId), mode: mode);
 
-  Future<void> reportRoom({required String roomId, required String reason}) =>
-      _rooms.reportRoom(
-        roomId: _roomId(roomId),
-        reason: _requiredReportReason(reason),
-      );
+  Future<void> reportRoom({required String roomId, String? reason}) =>
+      _rooms.reportRoom(roomId: _roomId(roomId), reason: _optionalText(reason));
 
   Future<void> reportUser({
     required String roomId,
     required String userId,
-    required String reason,
+    String? reason,
   }) => _rooms.reportUser(
     roomId: _roomId(roomId),
     userId: _matrixUserId(userId),
-    reason: _requiredReportReason(reason),
+    reason: _optionalText(reason),
   );
 
   Future<void> leaveRoom(String roomId) async {
@@ -415,16 +412,6 @@ final class RoomManagementCoordinator {
         normalized.contains(RegExp(r'\s'))) {
       throw const RoomManagementValidationException(
         'A canonical room alias must look like #room:server.',
-      );
-    }
-    return normalized;
-  }
-
-  String _requiredReportReason(String value) {
-    final normalized = value.trim();
-    if (normalized.isEmpty) {
-      throw const RoomManagementValidationException(
-        'A report reason is required.',
       );
     }
     return normalized;

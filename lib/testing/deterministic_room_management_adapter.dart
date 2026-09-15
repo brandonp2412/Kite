@@ -231,10 +231,7 @@ final class DeterministicRoomManagementPort implements RoomManagementPort {
   }
 
   @override
-  Future<void> reportRoom({
-    required String roomId,
-    required String reason,
-  }) async {
+  Future<void> reportRoom({required String roomId, String? reason}) async {
     invocations.add(
       RoomManagementInvocation(
         type: RoomManagementInvocationType.reportRoom,
@@ -249,7 +246,7 @@ final class DeterministicRoomManagementPort implements RoomManagementPort {
   Future<void> reportUser({
     required String roomId,
     required String userId,
-    required String reason,
+    String? reason,
   }) async {
     invocations.add(
       RoomManagementInvocation(

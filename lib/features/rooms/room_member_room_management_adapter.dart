@@ -54,13 +54,10 @@ final class LifecycleAwareRoomMemberMutationPort
     required String roomId,
     required String userId,
     String? reason,
-  }) => memberMutations.reportUser(
-    roomId: roomId,
-    userId: userId,
-    reason: reason,
-  );
+  }) =>
+      roomManagement.reportUser(roomId: roomId, userId: userId, reason: reason);
 
   @override
   Future<void> reportRoom({required String roomId, String? reason}) =>
-      memberMutations.reportRoom(roomId: roomId, reason: reason);
+      roomManagement.reportRoom(roomId: roomId, reason: reason);
 }
