@@ -91,6 +91,53 @@ void main() {
   });
 
   testWidgets(
+    'section collapse and move sheet preserve stable chrome at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      final store = RoomListStateStore(
+        deterministicRoomListEntries(BenchmarkFixture.rooms),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: HomeScreen(roomListStore: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final list = find.byKey(const Key('room-list'));
+      final header = find.byKey(const Key('room-section-favourites'));
+      final listRect = tester.getRect(list);
+      final headerRect = tester.getRect(header);
+
+      await tester.tap(find.byKey(const Key('room-section-toggle-favourites')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(tester.getRect(list), listRect);
+        expect(tester.getRect(header).top, headerRect.top);
+        expect(tester.getRect(header).width, headerRect.width);
+        expect(tester.takeException(), isNull);
+      }
+      expect(store.collapsedSectionIds.value, contains('favourites'));
+
+      await tester.longPress(find.byKey(const Key('room-alice')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(tester.getRect(list), listRect);
+        expect(tester.takeException(), isNull);
+      }
+      expect(find.text('Move to section'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'leaf room-state update preserves list geometry and scroll anchor',
     (tester) async {
       tester.view.devicePixelRatio = 1;

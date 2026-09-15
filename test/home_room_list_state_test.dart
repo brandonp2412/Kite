@@ -81,6 +81,36 @@ void main() {
     },
   );
 
+  test(
+    'sections expose stable grouping, unread state, collapse and room moves',
+    () {
+      final store = RoomListStateStore(
+        deterministicRoomListEntries(BenchmarkFixture.rooms),
+      );
+
+      expect(store.sectionIdFor('room-3'), 'favourites');
+      expect(store.sectionIdFor('alice'), 'people');
+      expect(store.sectionIdFor('kite'), 'rooms');
+      expect(store.sectionUnreadCount('favourites'), 1);
+      expect(store.sectionUnreadCount('people'), 1);
+      expect(store.sectionUnreadCount('rooms'), 1);
+
+      store.toggleSectionCollapsed('people');
+      expect(store.collapsedSectionIds.value, contains('people'));
+      store.toggleSectionCollapsed('people');
+      expect(store.collapsedSectionIds.value, isNot(contains('people')));
+
+      final revision = store.sectionLayoutRevision.value;
+      store.moveRoomToSection('alice', 'favourites');
+      expect(store.sectionIdFor('alice'), 'favourites');
+      expect(store.sectionLayoutRevision.value, revision + 1);
+      expect(
+        store.visibleRoomIdsForSection('favourites'),
+        containsAllInOrder(<String>['alice', 'room-3']),
+      );
+    },
+  );
+
   test('room-list store rejects duplicate IDs', () {
     const room = RoomListEntry(
       id: 'duplicate',
@@ -122,6 +152,50 @@ void main() {
     expect(find.byKey(const Key('room-favourite-room-3')), findsOne);
     expect(find.text('4'), findsOne);
   });
+
+  testWidgets(
+    'section headers collapse and move rooms without replacing state',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final store = RoomListStateStore(
+        deterministicRoomListEntries(BenchmarkFixture.rooms),
+      );
+      final aliceSignal = store.roomSignal('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: HomeScreen(roomListStore: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('room-section-favourites')), findsOneWidget);
+      expect(find.byKey(const Key('room-section-people')), findsOneWidget);
+      expect(
+        find.byKey(const Key('room-section-unread-favourites')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('room-room-3')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('room-section-toggle-favourites')));
+      await tester.pump();
+      expect(store.collapsedSectionIds.value, contains('favourites'));
+      expect(find.byKey(const Key('room-room-3')), findsNothing);
+
+      await tester.longPress(find.byKey(const Key('room-alice')));
+      await tester.pumpAndSettle();
+      expect(find.text('Move to section'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('room-section-move-alice-rooms')));
+      await tester.pumpAndSettle();
+
+      expect(store.sectionIdFor('alice'), 'rooms');
+      expect(store.roomSignal('alice'), same(aliceSignal));
+    },
+  );
 
   testWidgets('filter controls and read-all action drive visible room state', (
     tester,
