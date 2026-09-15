@@ -52,45 +52,55 @@ void main() {
     );
   });
 
-  test(
-    'crash reporting never serializes exception text or message contents',
-    () async {
-      final sink = MemoryCrashReportSink();
-      final reporter = SanitizingCrashReporter(sink);
-      final error = SecretBearingError();
+  test('crash reporting never serializes exception text or message contents', () async {
+    final sink = MemoryCrashReportSink();
+    final reporter = SanitizingCrashReporter(sink);
+    final error = SecretBearingError();
 
-      await reporter.report(
-        error,
-        stackTrace: StackTrace.current,
-        context: const CrashDiagnosticContext(
-          flow: DiagnosticFlow.encryption,
-          traceId: TraceId('encryption-9'),
-          operation: DiagnosticOperation.encryptionOperation,
-          component: CrashComponent.matrixSdk,
-          state: CrashState.recovering,
-        ),
-      );
+    await reporter.report(
+      error,
+      stackTrace: StackTrace.fromString(
+        '#0 SecretBearingError.fail (package:kite/diagnostics_test.dart:7:3)\n'
+        'token=super-secret decrypted message body\n'
+        '<asynchronous suspension>\n'
+        '#1 main (dart:async:42:1)',
+      ),
+      context: const CrashDiagnosticContext(
+        flow: DiagnosticFlow.encryption,
+        traceId: TraceId('encryption-9'),
+        operation: DiagnosticOperation.encryptionOperation,
+        component: CrashComponent.matrixSdk,
+        state: CrashState.recovering,
+      ),
+    );
 
-      expect(sink.reports, hasLength(1));
-      final report = sink.reports.single;
-      expect(report.errorType, 'SecretBearingError');
-      expect(report.flow, DiagnosticFlow.encryption);
-      expect(report.traceId.value, 'encryption-9');
-      expect(report.operation, DiagnosticOperation.encryptionOperation);
-      expect(report.component, CrashComponent.matrixSdk);
-      expect(report.state, CrashState.recovering);
+    expect(sink.reports, hasLength(1));
+    final report = sink.reports.single;
+    expect(report.errorType, 'SecretBearingError');
+    expect(report.flow, DiagnosticFlow.encryption);
+    expect(report.traceId.value, 'encryption-9');
+    expect(report.operation, DiagnosticOperation.encryptionOperation);
+    expect(report.component, CrashComponent.matrixSdk);
+    expect(report.state, CrashState.recovering);
 
-      final serializedFields = <Object?>[
-        report.errorType,
-        report.flow.name,
-        report.traceId.value,
-        report.operation.name,
-        report.component?.name,
-        report.state?.name,
-      ].join(' ');
-      expect(serializedFields, isNot(contains('super-secret')));
-      expect(serializedFields, isNot(contains('decrypted message body')));
-      expect(serializedFields, isNot(contains(error.toString())));
-    },
-  );
+    final serializedFields = <Object?>[
+      report.errorType,
+      report.flow.name,
+      report.traceId.value,
+      report.operation.name,
+      report.component?.name,
+      report.state?.name,
+    ].join(' ');
+    expect(serializedFields, isNot(contains('super-secret')));
+    expect(serializedFields, isNot(contains('decrypted message body')));
+    expect(serializedFields, isNot(contains(error.toString())));
+    final sanitizedStack = report.stackTrace.toString();
+    expect(sanitizedStack, contains('SecretBearingError.fail'));
+    expect(sanitizedStack, contains('package:kite/diagnostics_test.dart:7:3'));
+    expect(sanitizedStack, contains('<asynchronous suspension>'));
+    expect(sanitizedStack, contains('dart:async:42:1'));
+    expect(sanitizedStack, isNot(contains('super-secret')));
+    expect(sanitizedStack, isNot(contains('decrypted message body')));
+    expect(sanitizedStack, isNot(contains('token=')));
+  });
 }

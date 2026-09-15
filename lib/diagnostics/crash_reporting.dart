@@ -58,6 +58,45 @@ abstract interface class CrashReporter {
   });
 }
 
+final class _SanitizedStackTrace implements StackTrace {
+  const _SanitizedStackTrace(this._frames);
+
+  final List<String> _frames;
+
+  @override
+  String toString() => _frames.join('\n');
+}
+
+final RegExp _dartStackFrame = RegExp(
+  r'^\s*#(\d+)\s+([^\s(]+)(?:\s+\((package:[^\s?)]+|dart:[^\s?)]+)(?::(\d+))?(?::(\d+))?\))?\s*$',
+);
+
+StackTrace? _sanitizeStackTrace(StackTrace? stackTrace) {
+  if (stackTrace == null) return null;
+  final frames = <String>[];
+  for (final line in stackTrace.toString().split('\n')) {
+    final match = _dartStackFrame.firstMatch(line);
+    if (match != null) {
+      final buffer = StringBuffer('#${match.group(1)} ${match.group(2)}');
+      final uri = match.group(3);
+      if (uri != null) {
+        buffer.write(' ($uri');
+        final lineNumber = match.group(4);
+        final columnNumber = match.group(5);
+        if (lineNumber != null) buffer.write(':$lineNumber');
+        if (columnNumber != null) buffer.write(':$columnNumber');
+        buffer.write(')');
+      }
+      frames.add(buffer.toString());
+      continue;
+    }
+    if (line.trim() == '<asynchronous suspension>') {
+      frames.add('<asynchronous suspension>');
+    }
+  }
+  return _SanitizedStackTrace(List<String>.unmodifiable(frames));
+}
+
 final class SanitizingCrashReporter implements CrashReporter {
   const SanitizingCrashReporter(this._sink);
 
@@ -77,7 +116,7 @@ final class SanitizingCrashReporter implements CrashReporter {
         operation: context.operation,
         component: context.component,
         state: context.state,
-        stackTrace: stackTrace,
+        stackTrace: _sanitizeStackTrace(stackTrace),
       ),
     );
   }
