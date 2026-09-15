@@ -127,6 +127,7 @@ final class MatrixRuntimeCoordinator
     if (shouldSync) {
       await _sync.start();
     } else {
+      _pagination.cancelInFlight();
       await _sync.stop();
     }
   }

@@ -180,6 +180,70 @@ void main() {
     },
   );
 
+  test('lifecycle cancellation ignores stale pagination completion', () async {
+    final engine = _PaginationFakeMatrixEngine();
+    final pages = <MatrixPaginationPage>[];
+    final controller = MatrixBackPaginationController(
+      engine: engine,
+      applyPage: pages.add,
+    );
+    final state = controller.stateSignal('!room:kite.test');
+
+    final stale = controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    expect(state.value.phase, MatrixPaginationPhase.loading);
+
+    controller.cancelInFlight();
+    expect(controller.isPaginating('!room:kite.test'), isFalse);
+    expect(state.value.phase, MatrixPaginationPhase.idle);
+
+    engine.completePagination(reachedStart: true);
+    await stale;
+    expect(pages, isEmpty);
+    expect(state.value.reachedStart, isFalse);
+
+    final retry = controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    expect(engine.paginationCalls, <String>[
+      '!room:kite.test',
+      '!room:kite.test',
+    ]);
+    engine.completePagination(reachedStart: true);
+    await retry;
+
+    expect(pages, hasLength(1));
+    expect(state.value.reachedStart, isTrue);
+    await engine.close();
+  });
+
+  test('lifecycle cancellation suppresses stale pagination failures', () async {
+    final engine = _PaginationFakeMatrixEngine();
+    final controller = MatrixBackPaginationController(
+      engine: engine,
+      applyPage: (_) {},
+    );
+    final state = controller.stateSignal('!room:kite.test');
+
+    final stale = controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    controller.cancelInFlight();
+    engine.failPagination(StateError('stale pagination failure'));
+
+    await stale;
+    expect(state.value.phase, MatrixPaginationPhase.idle);
+    expect(state.value.error, isNull);
+    await engine.close();
+  });
+
   test('SDK reached-start state suppresses later edge requests', () async {
     final engine = _PaginationFakeMatrixEngine();
     final pages = <MatrixPaginationPage>[];

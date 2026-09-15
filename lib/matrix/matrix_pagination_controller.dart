@@ -44,6 +44,7 @@ final class MatrixBackPaginationController {
   final Map<String, Future<void>> _inFlight = <String, Future<void>>{};
   final Map<String, Signal<MatrixPaginationState>> _states =
       <String, Signal<MatrixPaginationState>>{};
+  int _generation = 0;
 
   bool isPaginating(String roomId) => _inFlight.containsKey(roomId);
 
@@ -68,6 +69,20 @@ final class MatrixBackPaginationController {
     }
   }
 
+  void cancelInFlight() {
+    if (_inFlight.isEmpty) return;
+    _generation += 1;
+    _inFlight.clear();
+    batch(() {
+      for (final state in _states.values) {
+        if (state.value.phase != MatrixPaginationPhase.loading) continue;
+        state.value = MatrixPaginationState.idle(
+          reachedStart: state.value.reachedStart,
+        );
+      }
+    });
+  }
+
   Future<void> maybePaginate({
     required String roomId,
     required int firstVisibleIndex,
@@ -87,7 +102,7 @@ final class MatrixBackPaginationController {
       reachedStart: state.value.reachedStart,
     );
 
-    final pagination = _paginate(roomId, state);
+    final pagination = _paginate(roomId, state, _generation);
     _inFlight[roomId] = pagination;
     return pagination.whenComplete(() {
       if (identical(_inFlight[roomId], pagination)) {
@@ -99,9 +114,11 @@ final class MatrixBackPaginationController {
   Future<void> _paginate(
     String roomId,
     Signal<MatrixPaginationState> state,
+    int generation,
   ) async {
     try {
       final page = await engine.paginateBackwards(roomId);
+      if (generation != _generation) return;
       if (page.roomId != roomId) {
         throw StateError('Matrix pagination room mismatch');
       }
@@ -112,6 +129,7 @@ final class MatrixBackPaginationController {
         );
       });
     } catch (error, stackTrace) {
+      if (generation != _generation) return;
       state.value = MatrixPaginationState.failed(
         error,
         stackTrace,

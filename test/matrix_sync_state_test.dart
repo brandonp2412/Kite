@@ -169,6 +169,45 @@ void main() {
   );
 
   test(
+    'going offline invalidates in-flight pagination before it can apply',
+    () async {
+      final engine = _DelayedPaginationMatrixEngine();
+      final appliedPages = <MatrixPaginationPage>[];
+      final runtime = MatrixRuntimeCoordinator(
+        engine: engine,
+        applyBatch: (_) {},
+        applyPagination: appliedPages.add,
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+
+      await runtime.start();
+      final pagination = runtime.onTimelineViewportChanged(
+        roomId: '!room:kite.test',
+        oldestVisibleIndex: 0,
+        hasMoreHistory: true,
+      );
+      expect(
+        runtime.paginationState('!room:kite.test').value.phase,
+        MatrixPaginationPhase.loading,
+      );
+
+      await runtime.updateNetworkState(MatrixNetworkState.offline);
+      expect(
+        runtime.paginationState('!room:kite.test').value.phase,
+        MatrixPaginationPhase.idle,
+      );
+
+      engine.completePagination();
+      await pagination;
+      expect(appliedPages, isEmpty);
+
+      await runtime.stop();
+      await engine.close();
+    },
+  );
+
+  test(
     'rapid connectivity transitions preserve offline stop before recovery',
     () async {
       final engine = _StateFakeMatrixEngine();
@@ -297,6 +336,41 @@ void main() {
     await coordinator.stop();
     await engine.close();
   });
+}
+
+final class _DelayedPaginationMatrixEngine implements MatrixEngine {
+  final StreamController<MatrixSyncBatch> _sync =
+      StreamController<MatrixSyncBatch>.broadcast(sync: true);
+  Completer<MatrixPaginationPage>? _pagination;
+
+  @override
+  Stream<MatrixSyncBatch> get syncBatches => _sync.stream;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<MatrixPaginationPage> paginateBackwards(String roomId) {
+    final pagination = Completer<MatrixPaginationPage>();
+    _pagination = pagination;
+    return pagination.future;
+  }
+
+  void completePagination() {
+    _pagination!.complete(
+      const MatrixPaginationPage(
+        roomId: '!room:kite.test',
+        events: <MatrixTimelineEvent>[],
+        reachedStart: false,
+      ),
+    );
+    _pagination = null;
+  }
+
+  Future<void> close() => _sync.close();
 }
 
 final class _SynchronousOnListenMatrixEngine implements MatrixEngine {
