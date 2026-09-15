@@ -62,8 +62,12 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
 
   File _fileFor(String accountId) {
     final normalized = accountId.trim();
-    if (normalized.isEmpty) {
-      throw ArgumentError.value(accountId, 'accountId', 'must not be empty');
+    if (normalized.isEmpty || normalized.contains('\u0000')) {
+      throw ArgumentError.value(
+        accountId,
+        'accountId',
+        'must contain a non-empty account id without NUL bytes',
+      );
     }
     final encoded = Uri.encodeComponent(normalized);
     return File('${rootDirectory.path}/$encoded/presentation.json');
@@ -133,7 +137,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     for (final entry in rawTimelines.entries) {
       if (entry.key is! String || entry.value is! List) return null;
       final roomId = entry.key as String;
-      if (roomId.isEmpty || !roomIds.contains(roomId)) return null;
+      if (!_isSafeIdentifier(roomId) || !roomIds.contains(roomId)) return null;
       final events = <MatrixTimelineEvent>[];
       for (final rawEvent in entry.value as List) {
         if (rawEvent is! Map) return null;
@@ -159,11 +163,12 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final lastEventId = value['lastEventId'];
     final unreadCount = value['unreadCount'];
     if (roomId is! String ||
-        roomId.isEmpty ||
+        !_isSafeIdentifier(roomId) ||
         displayName is! String ||
         lastActivityMs is! int ||
         streamPosition is! int ||
-        (lastEventId != null && lastEventId is! String) ||
+        (lastEventId != null &&
+            (lastEventId is! String || !_isSafeIdentifier(lastEventId))) ||
         unreadCount is! int) {
       return null;
     }
@@ -180,6 +185,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     );
   }
 
+  static bool _isSafeIdentifier(String value) =>
+      value.isNotEmpty && !value.contains('\u0000');
+
   static MatrixTimelineEvent? _decodeEvent(Map<String, dynamic> value) {
     final eventId = value['eventId'];
     final roomId = value['roomId'];
@@ -189,13 +197,13 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final streamPosition = value['streamPosition'];
     final content = value['content'];
     if (eventId is! String ||
-        eventId.isEmpty ||
+        !_isSafeIdentifier(eventId) ||
         roomId is! String ||
-        roomId.isEmpty ||
+        !_isSafeIdentifier(roomId) ||
         senderId is! String ||
-        senderId.isEmpty ||
+        !_isSafeIdentifier(senderId) ||
         type is! String ||
-        type.isEmpty ||
+        !_isSafeIdentifier(type) ||
         timestampMs is! int ||
         streamPosition is! int ||
         content is! Map) {

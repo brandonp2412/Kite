@@ -219,6 +219,32 @@ void main() {
     },
   );
 
+  test('presentation cache load failure falls through to SDK sync', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final presentationStore = _MemoryPresentationStore(
+      <String, MatrixPresentationSnapshot>{},
+    )..failLoadCallsRemaining = 1;
+    final registry = _registry(
+      boundaries,
+      presentationStore: presentationStore,
+    );
+    addTearDown(registry.dispose);
+
+    final cache = await registry.activate('@alice:example.org');
+
+    expect(presentationStore.loadCalls, 1);
+    expect(registry.activeAccountId.value, '@alice:example.org');
+    expect(boundaries['@alice:example.org']?.startCalls, 1);
+    expect(
+      cache.roomSummarySignal('!alice:example.org').value?.displayName,
+      'Alice room',
+    );
+
+    await registry.deactivate();
+    await registry.activate('@alice:example.org');
+    expect(presentationStore.loadCalls, 1);
+  });
+
   test(
     'cached timeline paginates while initial sync is still starting',
     () async {
@@ -938,7 +964,9 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
     : snapshots = Map<String, MatrixPresentationSnapshot>.of(initial);
 
   final Map<String, MatrixPresentationSnapshot> snapshots;
+  int loadCalls = 0;
   int saveCalls = 0;
+  int failLoadCallsRemaining = 0;
   int failSaveCallsRemaining = 0;
   Completer<void>? blockNextSave;
 
@@ -949,6 +977,11 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
 
   @override
   Future<MatrixPresentationSnapshot?> load(String accountId) async {
+    loadCalls += 1;
+    if (failLoadCallsRemaining > 0) {
+      failLoadCallsRemaining -= 1;
+      throw StateError('deterministic presentation load failure');
+    }
     return snapshots[accountId];
   }
 

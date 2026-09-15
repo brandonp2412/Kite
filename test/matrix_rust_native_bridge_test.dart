@@ -160,36 +160,65 @@ void main() {
   );
 
   test(
-    'SDK boundary rejects C-incompatible resume cursors before sync starts',
+    'SDK boundary rejects NUL store secrets before opening a client',
     () async {
       final client = _FakeRustClient();
+      final bridge = _RecordingRustBridge(client);
       final boundary = MatrixRustSdkBoundary(
-        bridge: _FakeRustBridge(client),
+        bridge: bridge,
         homeserver: Uri.parse('https://matrix.example.org'),
-        resolveStoreSecret: (_) async => 'deterministic-secret',
+        resolveStoreSecret: (_) async => 'secret\u0000truncated',
         codecExecutor: _RecordingCodecExecutor(),
       );
       addTearDown(boundary.close);
 
-      await boundary.open(
-        const MatrixSdkStoreConfiguration(
-          accountId: '@alice:example.org',
-          storePath: '/tmp/kite/alice',
-          encryptionKeyId: 'alice-key',
-        ),
-      );
-
-      for (final cursor in <String>['', 'resume\u0000truncated']) {
-        await expectLater(
-          boundary.startSync(
-            MatrixSdkSyncConfiguration(resumeFromCursor: cursor),
+      await expectLater(
+        boundary.open(
+          const MatrixSdkStoreConfiguration(
+            accountId: '@alice:example.org',
+            storePath: '/tmp/kite/alice',
+            encryptionKeyId: 'alice-key',
           ),
-          throwsArgumentError,
-        );
-      }
-      expect(client.syncTokens, isEmpty);
+        ),
+        throwsArgumentError,
+      );
+      expect(bridge.openCalls, 0);
     },
   );
+
+  test('SDK boundary rejects C-incompatible sync and pagination ids', () async {
+    final client = _FakeRustClient();
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+      codecExecutor: _RecordingCodecExecutor(),
+    );
+    addTearDown(boundary.close);
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      ),
+    );
+
+    for (final cursor in <String>['', 'resume\u0000truncated']) {
+      await expectLater(
+        boundary.startSync(
+          MatrixSdkSyncConfiguration(resumeFromCursor: cursor),
+        ),
+        throwsArgumentError,
+      );
+    }
+    await expectLater(
+      boundary.paginateBackwards('!room:kite.test\u0000truncated'),
+      throwsArgumentError,
+    );
+    expect(client.syncTokens, isEmpty);
+    expect(client.paginationCalls, isEmpty);
+  });
 
   test(
     'cold initial room population yields bounded chunks before cursor commit',
@@ -624,6 +653,23 @@ final class _DeferredCrashReporter implements CrashReporter {
   }) async {
     await delegate.report(error, stackTrace: stackTrace, context: context);
     await release.future;
+  }
+}
+
+final class _RecordingRustBridge implements MatrixRustBridge {
+  _RecordingRustBridge(this.client);
+
+  final MatrixRustClient client;
+  int openCalls = 0;
+
+  @override
+  Future<MatrixRustClient> openEncryptedClient({
+    required Uri homeserver,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    openCalls += 1;
+    return client;
   }
 }
 

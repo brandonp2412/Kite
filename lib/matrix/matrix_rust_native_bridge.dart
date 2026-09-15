@@ -386,7 +386,8 @@ final class MatrixRustNativeClient implements MatrixRustClient {
 
   @override
   Future<String> paginateBackwards({required String roomId}) {
-    if (roomId.trim().isEmpty || roomId.contains('\u0000')) {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
       return Future<String>.error(
         ArgumentError.value(
           roomId,
@@ -402,7 +403,7 @@ final class MatrixRustNativeClient implements MatrixRustClient {
         _MatrixNativePaginateOperation(
           libraryPath: path,
           address: address,
-          roomId: roomId,
+          roomId: normalizedRoomId,
         ).call,
       );
     });
@@ -501,6 +502,13 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
           'Matrix SDK store secret resolver returned an empty secret',
         );
       }
+      if (storeSecret.contains('\u0000')) {
+        throw ArgumentError.value(
+          '<redacted>',
+          'storeSecret',
+          'must not contain NUL bytes',
+        );
+      }
       _client = await bridge.openEncryptedClient(
         homeserver: homeserver,
         storePath: store.storePath,
@@ -554,8 +562,12 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       trace?.log(LogLevel.info, DiagnosticEvent.started);
       try {
         final normalizedRoomId = roomId.trim();
-        if (normalizedRoomId.isEmpty) {
-          throw ArgumentError.value(roomId, 'roomId', 'must not be empty');
+        if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+          throw ArgumentError.value(
+            roomId,
+            'roomId',
+            'must not be empty or contain NUL bytes',
+          );
         }
         final payload = await _requireClient().paginateBackwards(
           roomId: normalizedRoomId,
