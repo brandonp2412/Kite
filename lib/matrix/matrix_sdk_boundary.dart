@@ -94,6 +94,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   bool _opened = false;
   bool _started = false;
+  bool _needsSyncReset = false;
 
   @override
   Stream<MatrixSyncBatch> get syncBatches => _boundary.syncBatches;
@@ -104,15 +105,22 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     final configuration = _syncConfigurationProvider();
     _validateSyncConfiguration(configuration);
     await _ensureOpen();
+    if (_needsSyncReset) {
+      await _boundary.stopSync();
+      _needsSyncReset = false;
+    }
+    _needsSyncReset = true;
     await _boundary.startSync(configuration);
     _started = true;
+    _needsSyncReset = false;
   }
 
   @override
   Future<void> stop() async {
-    if (!_started) return;
+    if (!_started && !_needsSyncReset) return;
     await _boundary.stopSync();
     _started = false;
+    _needsSyncReset = false;
   }
 
   @override

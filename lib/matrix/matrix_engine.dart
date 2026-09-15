@@ -151,7 +151,13 @@ final class MatrixSyncCoordinator {
         state.value = MatrixSyncState.failed(error, stackTrace);
       }
       await subscription.cancel();
-      rethrow;
+      try {
+        await engine.stop();
+        _needsEngineReset = false;
+      } catch (_) {
+        _needsEngineReset = true;
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 

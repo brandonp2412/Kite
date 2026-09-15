@@ -104,6 +104,37 @@ void main() {
       },
     );
 
+    test('failed SDK sync start is stopped before retry', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+        startFailuresRemaining: 1,
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+      final coordinator = MatrixSyncCoordinator(
+        engine: engine,
+        applyBatch: (_) {},
+      );
+
+      await expectLater(coordinator.start(), throwsStateError);
+      expect(boundary.openCalls, 1);
+      expect(boundary.startCalls, 1);
+      expect(boundary.stopCalls, 1);
+
+      await coordinator.start();
+      expect(boundary.openCalls, 1);
+      expect(boundary.startCalls, 2);
+      expect(boundary.stopCalls, 1);
+
+      await coordinator.stop();
+      expect(boundary.stopCalls, 2);
+      await engine.close();
+      expect(boundary.closeCalls, 1);
+    });
+
     test(
       'back-pagination rejects blank ids and normalizes surrounding space',
       () async {
@@ -664,12 +695,14 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
     required this.capabilities,
     this.startBatch,
     this.paginationPages = const <String, MatrixPaginationPage>{},
+    this.startFailuresRemaining = 0,
   });
 
   @override
   final Set<MatrixSdkCapability> capabilities;
   final MatrixSyncBatch? startBatch;
   final Map<String, MatrixPaginationPage> paginationPages;
+  int startFailuresRemaining;
 
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
@@ -694,6 +727,10 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   Future<void> startSync(MatrixSdkSyncConfiguration configuration) async {
     startCalls += 1;
     lastSyncConfiguration = configuration;
+    if (startFailuresRemaining > 0) {
+      startFailuresRemaining -= 1;
+      throw StateError('deterministic SDK sync start failure');
+    }
     final batch = startBatch;
     if (batch != null) _sync.add(batch);
   }
