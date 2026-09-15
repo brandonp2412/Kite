@@ -104,7 +104,7 @@ This completes the current-upstream message-action inventory while retaining eve
 
 ## Timeline event-type audit
 
-The sealed `TimelineItemEventContent` family, its concrete model files, the virtual timeline models, and grouped-event wrapper were enumerated at the reference SHA. Kite's production `TimelineMessage` currently models text, replies, edit/redaction state and local send state; the mixed-event benchmark surface is deliberately synthetic and is not counted as production support.
+The sealed `TimelineItemEventContent` family, its concrete model files, the virtual timeline models, and grouped-event wrapper were enumerated at the reference SHA. Kite's production `TimelineMessage` currently models text, replies, edit/redaction state, local send state, and static/live location payloads; the mixed-event benchmark surface is deliberately synthetic and is not counted as production support beyond those concrete event models.
 
 | Element X timeline type | Current Kite capability | Status / owner |
 | --- | --- | --- |
@@ -113,7 +113,7 @@ The sealed `TimelineItemEventContent` family, its concrete model files, the virt
 | Gallery / multi-attachment | No production timeline event model. | Gap — M5/M7 |
 | Sticker | No production timeline event model. | Gap — M5 |
 | Poll | Benchmark fixtures model a synthetic poll shape only; no production poll timeline UI. | Gap — M4/M5 |
-| Static / live location | Benchmark fixtures model a synthetic location shape only; no production map/location timeline UI. | Gap — M5 |
+| Static / live location | Production timeline messages now carry an SDK-ready location payload and render a fixed-geometry map/location card with explicit static/live/ended state. Live updates mutate only the message location signal; location picking/sharing and Matrix SDK event mapping remain unfinished. | Present foundation — M4/M5 |
 | Encrypted / undecryptable event | Encryption foundations exist, but there is no dedicated production timeline event state. | Gap — M2/M4 |
 | Redacted event | Implemented for current text messages. | Present — M4 |
 | Room-membership state event | Room membership foundations exist; no production timeline state-event renderer. | Gap — M4/M9 |

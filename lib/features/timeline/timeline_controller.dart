@@ -11,6 +11,35 @@ enum TimelineSendOutcome { sent, failed }
 
 enum TimelineAttachmentKind { image, video, file }
 
+enum TimelineLocationKind { staticLocation, liveLocation }
+
+@immutable
+final class TimelineLocation {
+  const TimelineLocation({
+    required this.kind,
+    required this.latitude,
+    required this.longitude,
+    required this.label,
+    this.isLiveActive = false,
+  });
+
+  final TimelineLocationKind kind;
+  final double latitude;
+  final double longitude;
+  final String label;
+  final bool isLiveActive;
+
+  TimelineLocation copyWith({String? label, bool? isLiveActive}) {
+    return TimelineLocation(
+      kind: kind,
+      latitude: latitude,
+      longitude: longitude,
+      label: label ?? this.label,
+      isLiveActive: isLiveActive ?? this.isLiveActive,
+    );
+  }
+}
+
 @immutable
 final class TimelineAttachment {
   const TimelineAttachment({
@@ -190,6 +219,7 @@ class TimelineMessage {
     this.replyToSender,
     this.replyToBody,
     this.attachment,
+    TimelineLocation? location,
     TimelineSendState sendState = TimelineSendState.sent,
     bool edited = false,
     bool redacted = false,
@@ -206,6 +236,7 @@ class TimelineMessage {
          Map<String, TimelineReactionSummary>.unmodifiable(reactions),
        ),
        readByState = signal<List<String>>(List<String>.unmodifiable(readBy)),
+       locationState = signal<TimelineLocation?>(location),
        sendState = signal(sendState);
 
   factory TimelineMessage.fromFixture(BenchmarkMessage message, int index) {
@@ -230,6 +261,7 @@ class TimelineMessage {
   final String? replyToSender;
   final String? replyToBody;
   final TimelineAttachment? attachment;
+  final Signal<TimelineLocation?> locationState;
   final Signal<bool> editedState;
   final Signal<bool> redactedState;
   final Signal<List<String>> editHistoryState;
@@ -244,6 +276,7 @@ class TimelineMessage {
   bool get isReply => replyToMessageId != null;
   Map<String, TimelineReactionSummary> get reactions => reactionState.value;
   List<String> get readBy => readByState.value;
+  TimelineLocation? get location => locationState.value;
 }
 
 class TimelineController {
@@ -312,6 +345,21 @@ class TimelineController {
     final signal = typingUsersFor(roomId);
     if (listEquals(signal.peek(), next)) return;
     signal.value = List<String>.unmodifiable(next);
+  }
+
+  void updateLocation(
+    String roomId,
+    String eventId,
+    TimelineLocation location,
+  ) {
+    final matches = messagesFor(roomId)
+        .peek()
+        .where((candidate) => candidate.id == eventId);
+    if (matches.isEmpty) return;
+    final target = matches.single;
+    final current = target.locationState.peek();
+    if (current == null || current.kind != location.kind) return;
+    target.locationState.value = location;
   }
 
   void updateReadReceipts(

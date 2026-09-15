@@ -22,6 +22,7 @@ import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
+import 'package:kite/features/timeline/timeline_location_card.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/l10n/kite_localizations.dart';
@@ -1671,6 +1672,7 @@ class _MessageRow extends StatelessWidget {
                         );
                       }
                       final attachment = message.attachment;
+                      final location = message.location;
                       final linkPreview = timelineLinkPreviewForText(
                         message.body,
                       );
@@ -1692,7 +1694,15 @@ class _MessageRow extends StatelessWidget {
                                   ? null
                                   : () => _openMedia(context),
                             ),
-                          if (attachment != null && message.body.isNotEmpty)
+                          if (attachment != null &&
+                              (location != null || message.body.isNotEmpty))
+                            const SizedBox(height: KiteSpacing.xs),
+                          if (location != null)
+                            TimelineLocationCard(
+                              messageId: message.id,
+                              location: location,
+                            ),
+                          if (location != null && message.body.isNotEmpty)
                             const SizedBox(height: KiteSpacing.xs),
                           if (message.body.isNotEmpty)
                             TimelineMessageBody(
