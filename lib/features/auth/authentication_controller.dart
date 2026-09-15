@@ -104,6 +104,7 @@ final class AuthenticationController {
     HomeserverAddress? expectedHomeserver,
   }) async {
     errorMessage.value = null;
+    session.value = null;
     progress.value = AuthenticationProgress.signingIn;
     try {
       final authenticated = await action();
