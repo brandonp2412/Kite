@@ -49,13 +49,13 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
 
   Future<void> _restoreWithRecoveryKey() async {
     final recoveryKey = _recoveryKeyController.text;
-    _recoveryKeyController.clear();
+    _clearSecrets();
     await widget.controller.restoreWithRecoveryKey(recoveryKey);
   }
 
   Future<void> _restoreWithPassphrase() async {
     final passphrase = _passphraseController.text;
-    _passphraseController.clear();
+    _clearSecrets();
     await widget.controller.restoreWithPassphrase(passphrase);
   }
 
@@ -116,6 +116,7 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
                     autocorrect: false,
                     keyboardType: TextInputType.visiblePassword,
                     textInputAction: TextInputAction.done,
+                    autofillHints: const <String>[],
                     decoration: const InputDecoration(
                       labelText: 'Recovery key',
                     ),
@@ -147,6 +148,7 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
                     autocorrect: false,
                     keyboardType: TextInputType.visiblePassword,
                     textInputAction: TextInputAction.done,
+                    autofillHints: const <String>[],
                     decoration: const InputDecoration(
                       labelText: 'Recovery passphrase',
                     ),
