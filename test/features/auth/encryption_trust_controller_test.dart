@@ -36,6 +36,29 @@ final class _FakeEncryptionTrustGateway implements EncryptionTrustGateway {
 }
 
 void main() {
+  test('room trust rejects malformed or impossible SDK metadata', () {
+    expect(
+      () => RoomEncryptionTrust(
+        roomId: ' !room:example.org ',
+        isEncrypted: true,
+        trustState: EncryptionTrustState.verified,
+        historySharingSupported: true,
+        historySharingEnabled: false,
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => RoomEncryptionTrust(
+        roomId: '!room:example.org',
+        isEncrypted: false,
+        trustState: EncryptionTrustState.unknown,
+        historySharingSupported: true,
+        historySharingEnabled: false,
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('loads SDK-owned encryption and device trust state', () async {
     final gateway = _FakeEncryptionTrustGateway();
     final controller = EncryptionTrustController(gateway);
@@ -112,6 +135,31 @@ void main() {
       expect(
         controller.errorMessage.value,
         'Encrypted history sharing is not supported in this room.',
+      );
+    },
+  );
+
+  test(
+    'history sharing rejects SDK state that loses encrypted support',
+    () async {
+      final gateway = _FakeEncryptionTrustGateway();
+      final controller = EncryptionTrustController(gateway);
+      addTearDown(controller.dispose);
+      expect(await controller.load('!room:example.org'), isTrue);
+
+      gateway.current = RoomEncryptionTrust(
+        roomId: '!room:example.org',
+        isEncrypted: true,
+        trustState: EncryptionTrustState.verified,
+        historySharingSupported: false,
+        historySharingEnabled: false,
+      );
+      gateway.ignoreHistorySharingUpdate = true;
+
+      expect(await controller.setHistorySharing(false), isFalse);
+      expect(
+        controller.errorMessage.value,
+        'Kite received invalid encryption trust state.',
       );
     },
   );
