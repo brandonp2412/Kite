@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart' as intl;
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
@@ -180,6 +181,12 @@ class _RoomList extends StatelessWidget {
       },
     );
   }
+}
+
+TextDirection _eventTextDirection(String text, TextDirection fallback) {
+  if (intl.Bidi.startsWithRtl(text)) return TextDirection.rtl;
+  if (intl.Bidi.startsWithLtr(text)) return TextDirection.ltr;
+  return fallback;
 }
 
 typedef _ComposerAction = void Function(String roomId, TimelineMessage message);
@@ -445,6 +452,10 @@ class _MessageRow extends StatelessWidget {
                   return Text(
                     message.body,
                     key: Key('message-body-${message.id}'),
+                    textDirection: _eventTextDirection(
+                      message.body,
+                      Directionality.of(context),
+                    ),
                     style: KiteTypography.body.copyWith(
                       color: colors.onSurface,
                     ),
@@ -714,6 +725,10 @@ class _MessageReplyPreview extends StatelessWidget {
           Text(
             message.replyToBody ?? '',
             maxLines: 1,
+            textDirection: _eventTextDirection(
+              message.replyToBody ?? '',
+              Directionality.of(context),
+            ),
             overflow: TextOverflow.ellipsis,
             style: KiteTypography.metadata.copyWith(
               color: colors.onSurfaceVariant,
