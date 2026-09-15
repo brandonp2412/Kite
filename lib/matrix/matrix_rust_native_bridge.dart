@@ -572,6 +572,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
     var firstRequest = true;
     var failureAttempt = 0;
     var syncToken = configuration.resumeFromCursor;
+    final isColdStart = syncToken == null;
     while (_syncRequested && identical(_client, client)) {
       final trace = logger?.trace(
         DiagnosticFlow.sync,
@@ -581,7 +582,7 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
       try {
         final payload = await client.syncOnce(
           timeout: firstRequest ? Duration.zero : _matrixRustSyncPollTimeout,
-          timelineEventLimit: firstRequest
+          timelineEventLimit: firstRequest && isColdStart
               ? configuration.initialTimelineEventLimit
               : configuration.timelineEventLimit,
           since: syncToken,

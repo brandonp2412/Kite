@@ -181,7 +181,7 @@ void main() {
         Duration.zero,
         const Duration(seconds: 5),
       ]);
-      expect(client.syncTimelineEventLimits.take(2), <int>[3, 17]);
+      expect(client.syncTimelineEventLimits.take(2), <int>[17, 17]);
       expect(client.syncTokens.take(2), <String?>['resume-42', 'sync-1']);
       expect(batches.first.cursor, 'sync-1');
       expect(batches.first.rooms.single.summary!.displayName, 'Native room');
@@ -264,7 +264,7 @@ void main() {
       );
       await boundary.startSync(const MatrixSdkSyncConfiguration());
       await client.recovered.future;
-      while (batches.isEmpty) {
+      while (batches.isEmpty || client.syncCalls < 8) {
         await Future<void>.delayed(Duration.zero);
       }
       await boundary.stopSync();
@@ -280,9 +280,11 @@ void main() {
         const Duration(seconds: 30),
       ]);
       expect(batches.first.cursor, 'recovered');
-      expect(client.syncCalls, greaterThanOrEqualTo(7));
+      expect(client.syncCalls, greaterThanOrEqualTo(8));
       expect(client.syncTimeouts.take(7), everyElement(Duration.zero));
+      expect(client.syncTimeouts[7], const Duration(seconds: 5));
       expect(client.syncTimelineEventLimits.take(7), everyElement(1));
+      expect(client.syncTimelineEventLimits[7], 20);
       final failedLogs = logSink.events
           .where(
             (event) =>
