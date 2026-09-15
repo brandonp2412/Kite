@@ -239,6 +239,65 @@ void main() {
       'result': 'PASS',
     };
   });
+  testWidgets('thread attachment preview and send stay within frame contract', (
+    tester,
+  ) async {
+    threadController.reset(
+      sendPort: const DeterministicThreadSendPort(latency: Duration.zero),
+      attachmentSendPort: const DeterministicThreadAttachmentSendPort(
+        latency: Duration.zero,
+      ),
+    );
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-summary-alice-98')));
+    await tester.pumpAndSettle();
+    final parent = timelineController
+        .messagesFor('alice')
+        .value
+        .firstWhere((message) => message.id == 'alice-98');
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('thread-composer-attach')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('attachment-option-photo-library')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('thread-attachment-preview')),
+          findsOneWidget,
+        );
+        await tester.enterText(
+          find.byKey(const Key('thread-composer-field')),
+          'Profile-mode thread media',
+        );
+        await tester.tap(find.byKey(const Key('thread-composer-send')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final reply = threadController
+        .repliesFor(roomId: 'alice', parent: parent)
+        .value
+        .last;
+    expect(reply.attachment?.id, 'photo-library');
+    expect(reply.sendState.value, TimelineSendState.sent);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['thread_attachment_send'] = <String, dynamic>{
+      'journey': 'thread_attachment_preview_send',
+      'fixture': 'deterministic_thread_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('opening thread media stays within the frame contract', (
     tester,
   ) async {

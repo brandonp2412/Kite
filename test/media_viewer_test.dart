@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/media_viewer_fixture.dart';
@@ -110,6 +112,56 @@ void main() {
     await tester.pump();
 
     expect(sharedIds, <String>['fixture-1']);
+  });
+
+  testWidgets('media action progress is stable and de-duplicates taps', (
+    tester,
+  ) async {
+    final completer = Completer<void>();
+    var saveCalls = 0;
+    await pumpViewer(
+      tester,
+      onSave: (item) {
+        saveCalls++;
+        return completer.future;
+      },
+      onShare: (item) async {},
+    );
+
+    final save = find.byKey(const Key('media-save'));
+    final saveRect = tester.getRect(save);
+    await tester.tap(save);
+    await tester.pump();
+
+    expect(saveCalls, 1);
+    expect(find.byKey(const Key('media-action-progress')), findsOneWidget);
+    expect(tester.getRect(save), saveRect);
+
+    await tester.tap(save);
+    await tester.pump();
+    expect(saveCalls, 1);
+
+    completer.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('media-action-progress')), findsNothing);
+    expect(find.text('Media saved'), findsOneWidget);
+    expect(tester.getRect(save), saveRect);
+  });
+
+  testWidgets('media action failure is surfaced without leaving viewer', (
+    tester,
+  ) async {
+    await pumpViewer(
+      tester,
+      onSave: (item) async => throw StateError('fixture failure'),
+    );
+
+    await tester.tap(find.byKey(const Key('media-save')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('media-viewer')), findsOneWidget);
+    expect(find.text('Could not save media'), findsOneWidget);
+    expect(find.byKey(const Key('media-action-progress')), findsNothing);
   });
 
   testWidgets('single tap hides chrome without removing media', (tester) async {

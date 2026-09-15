@@ -123,6 +123,77 @@ void main() {
     };
   });
 
+  testWidgets('formatting toolbar has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('composer-format-toggle')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(
+      find.byKey(const Key('composer-formatting-toolbar')),
+      findsOneWidget,
+    );
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['composer_formatting_toolbar'] = <String, dynamic>{
+      'journey': 'open_composer_formatting_toolbar',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('mention autocomplete has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.enterText(find.byKey(const Key('composer-field')), '@a');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('composer-autocomplete-Alice')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    final editable = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('composer-field')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(editable.controller.text, '@Alice ');
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['composer_mention_autocomplete'] = <String, dynamic>{
+      'journey': 'composer_mention_autocomplete',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
   testWidgets('formatted send has zero late Flutter frames', (tester) async {
     timelineController.reset(sendPort: DeterministicTimelineSendPort());
     selectRoom('alice');
@@ -387,6 +458,43 @@ void main() {
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['copy_message'] = <String, dynamic>{
       'journey': 'copy_message_text',
+      'fixture': 'deterministic_v1',
+      'iterations': 1,
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('share message action has zero late Flutter frames', (
+    tester,
+  ) async {
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      sharePort: DeterministicTimelineSharePort(latency: Duration.zero),
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-99')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-action-share')), findsOneWidget);
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('message-action-share')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: virtualizedBenchmark
+          ? PerformanceContract.gateVirtualizedTotalSpan
+          : PerformanceContract.gatePhysicalTotalSpan,
+    );
+
+    expect(find.text('Share sheet opened'), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['share_message'] = <String, dynamic>{
+      'journey': 'share_message_content',
       'fixture': 'deterministic_v1',
       'iterations': 1,
       ...result,

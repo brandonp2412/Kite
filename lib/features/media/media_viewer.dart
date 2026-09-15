@@ -6,6 +6,16 @@ typedef MediaVisualBuilder = Widget Function(BuildContext context);
 typedef MediaFullResolutionLoader = Future<MediaVisualBuilder> Function();
 typedef MediaViewerActionHandler = Future<void> Function(MediaViewerItem item);
 
+enum _MediaViewerAction { save, share }
+
+@immutable
+class _PendingMediaAction {
+  const _PendingMediaAction({required this.itemId, required this.action});
+
+  final String itemId;
+  final _MediaViewerAction action;
+}
+
 @immutable
 class MediaViewerItem {
   const MediaViewerItem({
@@ -99,6 +109,7 @@ class _MediaViewerState extends State<MediaViewer> {
   final Signal<bool> _controlsVisible = signal(true);
   final Signal<double> _dismissOffset = signal(0);
   final Signal<bool> _isDismissDragging = signal(false);
+  final Signal<_PendingMediaAction?> _pendingAction = signal(null);
   int _loadGeneration = 0;
 
   @override
@@ -172,6 +183,47 @@ class _MediaViewerState extends State<MediaViewer> {
     if (navigator?.canPop() ?? false) navigator!.pop();
   }
 
+  Future<void> _runAction(
+    _MediaViewerAction action,
+    MediaViewerItem item,
+    MediaViewerActionHandler handler,
+  ) async {
+    if (_pendingAction.peek() != null) return;
+    _pendingAction.value = _PendingMediaAction(itemId: item.id, action: action);
+    try {
+      await handler(item);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            action == _MediaViewerAction.save ? 'Media saved' : 'Media shared',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            action == _MediaViewerAction.save
+                ? 'Could not save media'
+                : 'Could not share media',
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) _pendingAction.value = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -216,10 +268,12 @@ class _MediaViewerState extends State<MediaViewer> {
           _MediaTopControls(
             currentIndex: _currentIndex,
             visible: _controlsVisible,
+            pendingAction: _pendingAction,
             items: widget.items,
             onDismiss: _dismiss,
             onSave: widget.onSave,
             onShare: widget.onShare,
+            onRunAction: _runAction,
           ),
           _MediaCaptionOverlay(
             currentIndex: _currentIndex,
@@ -288,18 +342,27 @@ class _MediaTopControls extends StatelessWidget {
   const _MediaTopControls({
     required this.currentIndex,
     required this.visible,
+    required this.pendingAction,
     required this.items,
     required this.onDismiss,
     required this.onSave,
     required this.onShare,
+    required this.onRunAction,
   });
 
   final ReadonlySignal<int> currentIndex;
   final ReadonlySignal<bool> visible;
+  final ReadonlySignal<_PendingMediaAction?> pendingAction;
   final List<MediaViewerItem> items;
   final VoidCallback onDismiss;
   final MediaViewerActionHandler? onSave;
   final MediaViewerActionHandler? onShare;
+  final Future<void> Function(
+    _MediaViewerAction action,
+    MediaViewerItem item,
+    MediaViewerActionHandler handler,
+  )
+  onRunAction;
 
   @override
   Widget build(BuildContext context) {
@@ -308,6 +371,14 @@ class _MediaTopControls extends StatelessWidget {
         final isVisible = visible.value;
         final index = currentIndex.value;
         final item = items[index];
+        final pending = pendingAction.value;
+        final actionBlocked = pending != null;
+        final saveBusy =
+            pending?.itemId == item.id &&
+            pending?.action == _MediaViewerAction.save;
+        final shareBusy =
+            pending?.itemId == item.id &&
+            pending?.action == _MediaViewerAction.share;
         return IgnorePointer(
           ignoring: !isVisible,
           child: AnimatedOpacity(
@@ -368,18 +439,36 @@ class _MediaTopControls extends StatelessWidget {
                               if (onSave != null)
                                 _MediaControlButton(
                                   key: const Key('media-save'),
-                                  tooltip: 'Save media',
+                                  tooltip: saveBusy
+                                      ? 'Saving media'
+                                      : 'Save media',
                                   icon: Icons.download_rounded,
-                                  onPressed: () => onSave!(item),
+                                  busy: saveBusy,
+                                  onPressed: actionBlocked
+                                      ? null
+                                      : () => onRunAction(
+                                          _MediaViewerAction.save,
+                                          item,
+                                          onSave!,
+                                        ),
                                 ),
                               if (onShare != null) ...<Widget>[
                                 if (onSave != null)
                                   const SizedBox(width: KiteSpacing.xs),
                                 _MediaControlButton(
                                   key: const Key('media-share'),
-                                  tooltip: 'Share media',
+                                  tooltip: shareBusy
+                                      ? 'Sharing media'
+                                      : 'Share media',
                                   icon: Icons.share_rounded,
-                                  onPressed: () => onShare!(item),
+                                  busy: shareBusy,
+                                  onPressed: actionBlocked
+                                      ? null
+                                      : () => onRunAction(
+                                          _MediaViewerAction.share,
+                                          item,
+                                          onShare!,
+                                        ),
                                 ),
                               ],
                             ],
@@ -404,11 +493,13 @@ class _MediaControlButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.busy = false,
   });
 
   final String tooltip;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -421,7 +512,16 @@ class _MediaControlButton extends StatelessWidget {
           backgroundColor: Colors.black.withValues(alpha: 0.58),
         ),
         onPressed: onPressed,
-        icon: Icon(icon),
+        icon: busy
+            ? const SizedBox.square(
+                key: Key('media-action-progress'),
+                dimension: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(icon),
       ),
     );
   }

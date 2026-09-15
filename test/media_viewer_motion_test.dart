@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/media_viewer_fixture.dart';
@@ -101,6 +103,56 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(_rectOf(tester, pageView), initialPageView);
+  });
+
+  testWidgets('save progress preserves chrome geometry at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final fixture = MediaViewerFixture();
+    final completer = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.dark,
+        home: MediaViewer(
+          items: fixture.items,
+          onSave: (item) => completer.future,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final viewer = find.byKey(const Key('media-viewer'));
+    final topControls = find.byKey(const Key('media-top-controls'));
+    final save = find.byKey(const Key('media-save'));
+    final initialViewer = _rectOf(tester, viewer);
+    final initialTopControls = _rectOf(tester, topControls);
+    final initialSave = _rectOf(tester, save);
+
+    await tester.tap(save);
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, viewer), initialViewer);
+      expect(_rectOf(tester, topControls), initialTopControls);
+      expect(_rectOf(tester, save), initialSave);
+      expect(tester.takeException(), isNull);
+    }
+    expect(find.byKey(const Key('media-action-progress')), findsOneWidget);
+
+    completer.complete();
+    await tester.pumpAndSettle();
+    expect(_rectOf(tester, viewer), initialViewer);
+    expect(_rectOf(tester, topControls), initialTopControls);
+    expect(_rectOf(tester, save), initialSave);
   });
 
   testWidgets('adjacent-media swipe keeps fixed chrome geometry', (

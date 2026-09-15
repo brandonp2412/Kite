@@ -772,6 +772,7 @@ enum _MessageAction {
   reply,
   edit,
   copy,
+  share,
   forward,
   report,
   redact,
@@ -786,6 +787,15 @@ const _reportReasons = <String>[
 ];
 
 enum _ComposerMode { reply, edit }
+
+enum _ComposerFormatAction {
+  bold,
+  italic,
+  strikethrough,
+  inlineCode,
+  quote,
+  codeBlock,
+}
 
 class _ChatPanel extends StatefulWidget {
   const _ChatPanel({this.showHeader = true});
@@ -1029,6 +1039,18 @@ class _MessageRow extends StatelessWidget {
           ..showSnackBar(
             const SnackBar(
               content: Text('Message copied'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.share:
+        await timelineController.shareMessage(roomId, message);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Share sheet opened'),
               behavior: SnackBarBehavior.floating,
               duration: Duration(seconds: 2),
             ),
@@ -1553,6 +1575,12 @@ class _MessageActionSheet extends StatelessWidget {
                   icon: Icons.content_copy_rounded,
                   label: 'Copy text',
                   onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-share'),
+                  icon: Icons.share_outlined,
+                  label: 'Share',
+                  onTap: () => Navigator.of(context).pop(_MessageAction.share),
                 ),
                 _MessageActionButton(
                   key: const Key('message-action-forward'),
@@ -2372,6 +2400,16 @@ class _ComposerState extends State<_Composer> {
   String _draftBeforeEdit = '';
   TimelineAttachment? _pendingAttachment;
   String? _pendingAttachmentRoomId;
+  bool _formattingVisible = false;
+
+  static const _autocompleteCandidates =
+      <({String token, String label, IconData icon})>[
+        (token: '@Alice', label: 'Alice', icon: Icons.person_outline_rounded),
+        (token: '@Maya', label: 'Maya', icon: Icons.person_outline_rounded),
+        (token: '@Sam', label: 'Sam', icon: Icons.person_outline_rounded),
+        (token: '#Kite', label: 'Kite', icon: Icons.tag_rounded),
+        (token: '#Design-Lab', label: 'Design Lab', icon: Icons.tag_rounded),
+      ];
 
   @override
   void dispose() {
@@ -2443,6 +2481,148 @@ class _ComposerState extends State<_Composer> {
     });
   }
 
+  void _toggleFormatting() {
+    setState(() => _formattingVisible = !_formattingVisible);
+    _focusNode.requestFocus();
+  }
+
+  ({int start, String prefix, String query})? _autocompleteMatch(
+    TextEditingValue value,
+  ) {
+    final selection = value.selection;
+    if (!selection.isValid || !selection.isCollapsed) return null;
+    final beforeCursor = value.text.substring(0, selection.extentOffset);
+    final match = RegExp(r'([@#])([^\s@#]*)$').firstMatch(beforeCursor);
+    if (match == null) return null;
+    final start = match.start;
+    if (start > 0 && !RegExp(r'\s').hasMatch(beforeCursor[start - 1])) {
+      return null;
+    }
+    return (
+      start: start,
+      prefix: match.group(1)!,
+      query: match.group(2)!.toLowerCase(),
+    );
+  }
+
+  List<({String token, String label, IconData icon})> _autocompleteOptions(
+    TextEditingValue value,
+  ) {
+    final match = _autocompleteMatch(value);
+    if (match == null) return const [];
+    return _autocompleteCandidates
+        .where(
+          (candidate) =>
+              candidate.token.startsWith(match.prefix) &&
+              candidate.label.toLowerCase().startsWith(match.query),
+        )
+        .take(4)
+        .toList(growable: false);
+  }
+
+  void _insertAutocompleteToken(
+    ({String token, String label, IconData icon}) candidate,
+  ) {
+    final value = _controller.value;
+    final match = _autocompleteMatch(value);
+    if (match == null) return;
+    final end = value.selection.extentOffset;
+    final replacement = '${candidate.token} ';
+    _controller.value = value
+        .replaced(TextRange(start: match.start, end: end), replacement)
+        .copyWith(
+          selection: TextSelection.collapsed(
+            offset: match.start + replacement.length,
+          ),
+          composing: TextRange.empty,
+        );
+    _focusNode.requestFocus();
+  }
+
+  void _applyFormat(_ComposerFormatAction action) {
+    final value = _controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    final start = selection.start < selection.end
+        ? selection.start
+        : selection.end;
+    final end = selection.start < selection.end
+        ? selection.end
+        : selection.start;
+    final selected = value.text.substring(start, end);
+
+    late final String replacement;
+    late final TextSelection nextSelection;
+    switch (action) {
+      case _ComposerFormatAction.quote:
+        replacement = selected.isEmpty
+            ? '> '
+            : selected.split('\n').map((line) => '> $line').join('\n');
+        nextSelection = TextSelection.collapsed(
+          offset: start + replacement.length,
+        );
+      case _ComposerFormatAction.codeBlock:
+        replacement = selected.isEmpty ? '```\n\n```' : '```\n$selected\n```';
+        nextSelection = selected.isEmpty
+            ? TextSelection.collapsed(offset: start + 4)
+            : TextSelection(
+                baseOffset: start + 4,
+                extentOffset: start + 4 + selected.length,
+              );
+      case _ComposerFormatAction.bold:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '**',
+        );
+      case _ComposerFormatAction.italic:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '*',
+        );
+      case _ComposerFormatAction.strikethrough:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '~~',
+        );
+      case _ComposerFormatAction.inlineCode:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '`',
+        );
+    }
+
+    _controller.value = value
+        .replaced(selection, replacement)
+        .copyWith(selection: nextSelection, composing: TextRange.empty);
+    _focusNode.requestFocus();
+  }
+
+  (String, TextSelection) _wrapComposerSelection({
+    required int start,
+    required String selected,
+    required String marker,
+  }) {
+    final replacement = '$marker$selected$marker';
+    if (selected.isEmpty) {
+      return (
+        replacement,
+        TextSelection.collapsed(offset: start + marker.length),
+      );
+    }
+    return (
+      replacement,
+      TextSelection(
+        baseOffset: start + marker.length,
+        extentOffset: start + marker.length + selected.length,
+      ),
+    );
+  }
+
   void _send() {
     final body = _controller.text.trim();
     final roomId = selectedRoomId.value;
@@ -2511,6 +2691,36 @@ class _ComposerState extends State<_Composer> {
                     attachment: activeAttachment,
                     onRemove: _removeAttachment,
                   ),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (context, value, child) {
+                    final options = _autocompleteOptions(value);
+                    return AnimatedSize(
+                      key: const Key('composer-autocomplete-slot'),
+                      alignment: Alignment.bottomCenter,
+                      duration: KiteMotion.resolve(
+                        context,
+                        KiteMotion.standard,
+                      ),
+                      curve: KiteMotion.standardCurve,
+                      child: options.isEmpty
+                          ? const SizedBox.shrink()
+                          : _ComposerAutocompleteBar(
+                              options: options,
+                              onSelected: _insertAutocompleteToken,
+                            ),
+                    );
+                  },
+                ),
+                AnimatedSize(
+                  key: const Key('composer-formatting-slot'),
+                  alignment: Alignment.bottomCenter,
+                  duration: KiteMotion.resolve(context, KiteMotion.standard),
+                  curve: KiteMotion.standardCurve,
+                  child: _formattingVisible
+                      ? _ComposerFormattingToolbar(onFormat: _applyFormat)
+                      : const SizedBox.shrink(),
+                ),
                 SizedBox(
                   height: 76,
                   child: Padding(
@@ -2529,6 +2739,18 @@ class _ComposerState extends State<_Composer> {
                               ? null
                               : () => _pickAttachment(roomId),
                           icon: const Icon(Icons.add_circle_outline_rounded),
+                        ),
+                        IconButton(
+                          key: const Key('composer-format-toggle'),
+                          tooltip: _formattingVisible
+                              ? 'Hide formatting'
+                              : 'Show formatting',
+                          onPressed: _toggleFormatting,
+                          icon: Icon(
+                            _formattingVisible
+                                ? Icons.text_format_rounded
+                                : Icons.text_format_outlined,
+                          ),
                         ),
                         const SizedBox(width: KiteSpacing.xxs),
                         Expanded(
@@ -2624,6 +2846,112 @@ class _ComposerState extends State<_Composer> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ComposerAutocompleteBar extends StatelessWidget {
+  const _ComposerAutocompleteBar({
+    required this.options,
+    required this.onSelected,
+  });
+
+  final List<({String token, String label, IconData icon})> options;
+  final ValueChanged<({String token, String label, IconData icon})> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: const Key('composer-autocomplete'),
+      height: 52,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
+        itemBuilder: (context, index) {
+          final option = options[index];
+          return ActionChip(
+            key: Key('composer-autocomplete-${option.token.substring(1)}'),
+            avatar: Icon(option.icon, size: 17, color: colors.onSurfaceVariant),
+            label: Text(option.token),
+            onPressed: () => onSelected(option),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ComposerFormattingToolbar extends StatelessWidget {
+  const _ComposerFormattingToolbar({required this.onFormat});
+
+  final ValueChanged<_ComposerFormatAction> onFormat;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    const actions =
+        <({_ComposerFormatAction action, IconData icon, String tooltip})>[
+          (
+            action: _ComposerFormatAction.bold,
+            icon: Icons.format_bold_rounded,
+            tooltip: 'Bold',
+          ),
+          (
+            action: _ComposerFormatAction.italic,
+            icon: Icons.format_italic_rounded,
+            tooltip: 'Italic',
+          ),
+          (
+            action: _ComposerFormatAction.strikethrough,
+            icon: Icons.strikethrough_s_rounded,
+            tooltip: 'Strikethrough',
+          ),
+          (
+            action: _ComposerFormatAction.inlineCode,
+            icon: Icons.code_rounded,
+            tooltip: 'Inline code',
+          ),
+          (
+            action: _ComposerFormatAction.quote,
+            icon: Icons.format_quote_rounded,
+            tooltip: 'Quote',
+          ),
+          (
+            action: _ComposerFormatAction.codeBlock,
+            icon: Icons.data_object_rounded,
+            tooltip: 'Code block',
+          ),
+        ];
+
+    return SizedBox(
+      key: const Key('composer-formatting-toolbar'),
+      height: 52,
+      child: ListView.separated(
+        key: const Key('composer-formatting-actions'),
+        padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+        scrollDirection: Axis.horizontal,
+        itemCount: actions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xxs),
+        itemBuilder: (context, index) {
+          final action = actions[index];
+          return SizedBox.square(
+            dimension: 44,
+            child: IconButton(
+              key: Key('composer-format-${action.action.name}'),
+              tooltip: action.tooltip,
+              onPressed: () => onFormat(action.action),
+              style: IconButton.styleFrom(
+                foregroundColor: colors.onSurfaceVariant,
+                backgroundColor: colors.surfaceContainerLow,
+              ),
+              icon: Icon(action.icon, size: 20),
+            ),
+          );
+        },
+      ),
     );
   }
 }
