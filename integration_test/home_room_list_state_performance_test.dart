@@ -5,6 +5,7 @@ import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -48,6 +49,79 @@ void main() {
     binding.reportData!['room_list_filter_change'] = <String, dynamic>{
       'journey': 'room_list_filter_change',
       'fixture': 'deterministic_200_rooms_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('space change has zero late Flutter frames', (tester) async {
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(390, 844)),
+          child: HomeScreen(roomListStore: store),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(find.byKey(const Key('space-filter-kite-space')));
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(store.selectedSpaceId.value, 'kite-space');
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['space_filter_change'] = <String, dynamic>{
+      'journey': 'space_filter_change',
+      'fixture': 'deterministic_200_rooms_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
+
+  testWidgets('invite accept mutation has zero late Flutter frames', (
+    tester,
+  ) async {
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    final inviteStore = RoomInviteStore(deterministicRoomInvites);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(390, 844)),
+          child: HomeScreen(roomListStore: store, inviteStore: inviteStore),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        await tester.tap(
+          find.byKey(const Key('invite-accept-design-lab-invite')),
+        );
+        await tester.pumpAndSettle();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(inviteStore.visibleInviteIds.value, isEmpty);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['invite_accept'] = <String, dynamic>{
+      'journey': 'invite_accept',
+      'fixture': 'deterministic_room_invite_v1',
       ...result,
       'result': 'PASS',
     };

@@ -4,6 +4,7 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
@@ -13,10 +14,16 @@ import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, this.benchmarkRooms, this.roomListStore});
+  const HomeScreen({
+    super.key,
+    this.benchmarkRooms,
+    this.roomListStore,
+    this.inviteStore,
+  });
 
   final List<BenchmarkRoom>? benchmarkRooms;
   final RoomListStateStore? roomListStore;
+  final RoomInviteStore? inviteStore;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -37,6 +44,7 @@ class HomeScreen extends StatelessWidget {
             child: _HomeSidebar(
               rooms: roomEntries,
               store: roomListStore,
+              inviteStore: inviteStore,
               onRoomTap: (roomId) {
                 selectRoom(roomId);
                 Navigator.of(context).push(
@@ -60,7 +68,11 @@ class HomeScreen extends StatelessWidget {
           SizedBox(
             key: const Key('sidebar'),
             width: adaptiveSidebarWidth,
-            child: _HomeSidebar(rooms: roomEntries, store: roomListStore),
+            child: _HomeSidebar(
+              rooms: roomEntries,
+              store: roomListStore,
+              inviteStore: inviteStore,
+            ),
           ),
           const VerticalDivider(width: 1),
           const Expanded(child: _ChatPanel()),
@@ -71,10 +83,16 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _HomeSidebar extends StatefulWidget {
-  const _HomeSidebar({required this.rooms, this.store, this.onRoomTap});
+  const _HomeSidebar({
+    required this.rooms,
+    this.store,
+    this.inviteStore,
+    this.onRoomTap,
+  });
 
   final List<RoomListEntry> rooms;
   final RoomListStateStore? store;
+  final RoomInviteStore? inviteStore;
   final ValueChanged<String>? onRoomTap;
 
   @override
@@ -83,13 +101,16 @@ class _HomeSidebar extends StatefulWidget {
 
 class _HomeSidebarState extends State<_HomeSidebar> {
   late RoomListStateStore _ownedStore;
+  late RoomInviteStore _ownedInviteStore;
 
   RoomListStateStore get store => widget.store ?? _ownedStore;
+  RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore;
 
   @override
   void initState() {
     super.initState();
     _ownedStore = RoomListStateStore(widget.rooms);
+    _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
   }
 
   @override
@@ -97,7 +118,9 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     return Column(
       children: <Widget>[
         _HomeHeader(store: store),
+        _SpaceFilterBar(store: store),
         _RoomFilterBar(store: store),
+        _InviteSection(store: inviteStore),
         Expanded(
           child: _RoomList(store: store, onRoomTap: widget.onRoomTap),
         ),
@@ -162,6 +185,62 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
+class _SpaceFilterBar extends StatelessWidget {
+  const _SpaceFilterBar({required this.store});
+
+  final RoomListStateStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 56,
+      child: SignalBuilder(
+        builder: (context) {
+          final selectedSpaceId = store.selectedSpaceId.value;
+          return ListView.separated(
+            key: const Key('space-filter-row'),
+            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+            scrollDirection: Axis.horizontal,
+            itemCount: deterministicJoinedSpaces.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
+            itemBuilder: (context, index) {
+              final space = index == 0
+                  ? null
+                  : deterministicJoinedSpaces[index - 1];
+              final id = space?.id;
+              final selected = selectedSpaceId == id;
+              final label = space?.name ?? 'All';
+              return ChoiceChip(
+                key: Key('space-filter-${id ?? 'all'}'),
+                selected: selected,
+                showCheckmark: false,
+                avatar: CircleAvatar(
+                  radius: 12,
+                  backgroundColor: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.surfaceContainerHighest,
+                  foregroundColor: selected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurfaceVariant,
+                  child: Text(
+                    space == null ? '•' : space.name.characters.first,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                label: Text(label),
+                onSelected: (_) => store.selectSpace(id),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _RoomFilterBar extends StatelessWidget {
   const _RoomFilterBar({required this.store});
 
@@ -192,6 +271,158 @@ class _RoomFilterBar extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _InviteSection extends StatelessWidget {
+  const _InviteSection({required this.store});
+
+  final RoomInviteStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    return SignalBuilder(
+      builder: (context) {
+        final inviteIds = store.visibleInviteIds.value;
+        if (inviteIds.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.md,
+            KiteSpacing.xs,
+            KiteSpacing.md,
+            KiteSpacing.sm,
+          ),
+          child: Column(
+            key: const Key('room-invites'),
+            children: <Widget>[
+              for (final inviteId in inviteIds)
+                _InviteCard(
+                  key: ValueKey<String>('invite-$inviteId'),
+                  invite: store.invite(inviteId),
+                  state: store.stateSignal(inviteId),
+                  onAccept: () => store.accept(inviteId),
+                  onDecline: () => store.decline(inviteId),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _InviteCard extends StatelessWidget {
+  const _InviteCard({
+    super.key,
+    required this.invite,
+    required this.state,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  final RoomInvite invite;
+  final ReadonlySignal<RoomInviteActionState> state;
+  final Future<void> Function() onAccept;
+  final Future<void> Function() onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(KiteRadii.md),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(KiteSpacing.sm),
+        child: Row(
+          children: <Widget>[
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: theme.colorScheme.secondaryContainer,
+              foregroundColor: theme.colorScheme.onSecondaryContainer,
+              child: Text(
+                invite.roomName.characters.first,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: KiteSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    invite.roomName,
+                    key: Key('invite-title-${invite.id}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${invite.inviterName} invited you · ${invite.memberCount} members',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (invite.description case final description?)
+                    Text(
+                      description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: KiteSpacing.xs),
+            SignalBuilder(
+              builder: (context) {
+                final actionState = state.value;
+                final pending =
+                    actionState == RoomInviteActionState.accepting ||
+                    actionState == RoomInviteActionState.declining;
+                if (pending) {
+                  return SizedBox.square(
+                    key: Key('invite-progress-${invite.id}'),
+                    dimension: 48,
+                    child: const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      key: Key('invite-decline-${invite.id}'),
+                      tooltip: 'Decline invite',
+                      onPressed: onDecline,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    IconButton.filled(
+                      key: Key('invite-accept-${invite.id}'),
+                      tooltip: 'Accept invite',
+                      onPressed: onAccept,
+                      icon: const Icon(Icons.check_rounded),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -534,9 +765,57 @@ class _ChatPanelState extends State<_ChatPanel> {
         Expanded(
           child: _Timeline(onReply: _reply, onEdit: _edit),
         ),
+        const _TypingIndicator(),
         const Divider(height: 1),
         _Composer(key: _composerKey),
       ],
+    );
+  }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      key: const Key('typing-indicator-slot'),
+      height: 28,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.lg),
+          child: SignalBuilder(
+            builder: (context) {
+              final roomId = selectedRoomId.value;
+              final users = timelineController.typingUsersFor(roomId).value;
+              final text = switch (users.length) {
+                0 => '',
+                1 => '${users.first} is typing…',
+                2 => '${users.first} and ${users.last} are typing…',
+                _ =>
+                  '${users.first} and ${users.length - 1} others are typing…',
+              };
+              return AnimatedOpacity(
+                key: const Key('typing-indicator'),
+                opacity: users.isEmpty ? 0 : 1,
+                duration: KiteMotion.resolve(context, KiteMotion.fast),
+                curve: KiteMotion.standardCurve,
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: KiteTypography.metadata.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }

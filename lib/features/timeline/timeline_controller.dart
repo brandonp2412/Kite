@@ -167,7 +167,29 @@ class TimelineController {
   TimelineModerationPort _moderationPort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
+  final Map<String, Signal<List<String>>> _typingUsers =
+      <String, Signal<List<String>>>{};
   int _transactionCounter = 0;
+
+  Signal<List<String>> typingUsersFor(String roomId) {
+    return _typingUsers.putIfAbsent(
+      roomId,
+      () => signal<List<String>>(const <String>[]),
+    );
+  }
+
+  void updateTypingUsers(String roomId, Iterable<String> users) {
+    final next =
+        users
+            .map((user) => user.trim())
+            .where((user) => user.isNotEmpty && user != 'You')
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    final signal = typingUsersFor(roomId);
+    if (listEquals(signal.peek(), next)) return;
+    signal.value = List<String>.unmodifiable(next);
+  }
 
   Signal<List<TimelineMessage>> messagesFor(String roomId) {
     return _messages.putIfAbsent(roomId, () {
@@ -302,6 +324,7 @@ class TimelineController {
     if (moderationPort != null) _moderationPort = moderationPort;
     _transactionCounter = 0;
     _messages.clear();
+    _typingUsers.clear();
   }
 
   Future<void> _settle(String roomId, TimelineMessage message) async {

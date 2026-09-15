@@ -4,6 +4,19 @@ import 'package:signals/signals.dart';
 
 enum RoomListFilter { all, unreads, people, rooms, favourites }
 
+@immutable
+final class JoinedSpace {
+  const JoinedSpace({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
+const deterministicJoinedSpaces = <JoinedSpace>[
+  JoinedSpace(id: 'kite-space', name: 'Kite'),
+  JoinedSpace(id: 'people-space', name: 'People'),
+];
+
 extension RoomListFilterPresentation on RoomListFilter {
   String get label => switch (this) {
     RoomListFilter.all => 'All',
@@ -28,6 +41,7 @@ final class RoomListEntry {
     this.isMuted = false,
     this.isFavourite = false,
     this.isDirect = false,
+    this.spaceIds = const <String>[],
   });
 
   factory RoomListEntry.fromBenchmark(BenchmarkRoom room) {
@@ -49,6 +63,7 @@ final class RoomListEntry {
   final bool isMuted;
   final bool isFavourite;
   final bool isDirect;
+  final List<String> spaceIds;
 
   bool matches(RoomListFilter filter) => switch (filter) {
     RoomListFilter.all => true,
@@ -68,6 +83,7 @@ final class RoomListEntry {
     bool? isMuted,
     bool? isFavourite,
     bool? isDirect,
+    List<String>? spaceIds,
   }) {
     return RoomListEntry(
       id: id,
@@ -81,6 +97,7 @@ final class RoomListEntry {
       isMuted: isMuted ?? this.isMuted,
       isFavourite: isFavourite ?? this.isFavourite,
       isDirect: isDirect ?? this.isDirect,
+      spaceIds: List<String>.unmodifiable(spaceIds ?? this.spaceIds),
     );
   }
 }
@@ -92,6 +109,7 @@ final class RoomListStateStore {
         for (final room in rooms) room.id: signal(room),
       },
       selectedFilter = signal(RoomListFilter.all),
+      selectedSpaceId = signal<String?>(null),
       visibleRoomIds = signal<List<String>>(
         List<String>.unmodifiable(rooms.map((room) => room.id)),
       ) {
@@ -103,6 +121,7 @@ final class RoomListStateStore {
   final List<String> roomIds;
   final Map<String, Signal<RoomListEntry>> _rooms;
   final Signal<RoomListFilter> selectedFilter;
+  final Signal<String?> selectedSpaceId;
   final Signal<List<String>> visibleRoomIds;
 
   Signal<RoomListEntry> roomSignal(String roomId) {
@@ -119,11 +138,13 @@ final class RoomListStateStore {
       throw ArgumentError.value(room.id, 'room.id', 'Unknown room.');
     }
     final filter = selectedFilter.value;
+    final spaceId = selectedSpaceId.value;
     final membershipChanged =
-        target.value.matches(filter) != room.matches(filter);
+        _matches(target.value, filter, spaceId) !=
+        _matches(room, filter, spaceId);
     target.value = room;
     if (membershipChanged) {
-      _refreshVisibleRoomIds(filter);
+      _refreshVisibleRoomIds();
     }
   }
 
@@ -132,7 +153,15 @@ final class RoomListStateStore {
       return;
     }
     selectedFilter.value = filter;
-    _refreshVisibleRoomIds(filter);
+    _refreshVisibleRoomIds();
+  }
+
+  void selectSpace(String? spaceId) {
+    if (selectedSpaceId.value == spaceId) {
+      return;
+    }
+    selectedSpaceId.value = spaceId;
+    _refreshVisibleRoomIds();
   }
 
   void markAllRead() {
@@ -149,13 +178,22 @@ final class RoomListStateStore {
       );
     }
     if (selectedFilter.value == RoomListFilter.unreads) {
-      _refreshVisibleRoomIds(RoomListFilter.unreads);
+      _refreshVisibleRoomIds();
     }
   }
 
-  void _refreshVisibleRoomIds(RoomListFilter filter) {
+  bool _matches(RoomListEntry room, RoomListFilter filter, String? spaceId) {
+    return room.matches(filter) &&
+        (spaceId == null || room.spaceIds.contains(spaceId));
+  }
+
+  void _refreshVisibleRoomIds() {
+    final filter = selectedFilter.value;
+    final spaceId = selectedSpaceId.value;
     visibleRoomIds.value = List<String>.unmodifiable(
-      roomIds.where((roomId) => _rooms[roomId]!.value.matches(filter)),
+      roomIds.where(
+        (roomId) => _matches(_rooms[roomId]!.value, filter, spaceId),
+      ),
     );
   }
 }
@@ -170,6 +208,7 @@ List<RoomListEntry> deterministicRoomListEntries(List<BenchmarkRoom> rooms) {
           latestEventBody: 'The room-list motion trace is clean.',
           unreadCount: 12,
           hasMention: true,
+          spaceIds: const <String>['kite-space'],
         ),
         'alice' => base.copyWith(
           latestSender: 'Alice',
@@ -177,18 +216,21 @@ List<RoomListEntry> deterministicRoomListEntries(List<BenchmarkRoom> rooms) {
           hasMutedActivity: true,
           isMuted: true,
           isDirect: true,
+          spaceIds: const <String>['people-space'],
         ),
         'bob' => base.copyWith(
           latestSender: 'Bob',
           latestEventBody: 'Call is active now',
           hasActiveCall: true,
           isDirect: true,
+          spaceIds: const <String>['people-space'],
         ),
         'room-3' => base.copyWith(
           latestSender: 'Sam',
           latestEventBody: 'Unread room activity is easy to scan.',
           unreadCount: 4,
           isFavourite: true,
+          spaceIds: const <String>['kite-space'],
         ),
         _ => base,
       };

@@ -38,6 +38,27 @@ void main() {
     expect(store.visibleRoomIds.value, isNot(contains('bob')));
   });
 
+  test('space selection composes with room filters without reordering', () {
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+
+    store.selectSpace('kite-space');
+    expect(store.visibleRoomIds.value, <String>['kite', 'room-3']);
+
+    store.selectFilter(RoomListFilter.favourites);
+    expect(store.visibleRoomIds.value, <String>['room-3']);
+
+    store.selectSpace('people-space');
+    expect(store.visibleRoomIds.value, isEmpty);
+
+    store.selectFilter(RoomListFilter.people);
+    expect(store.visibleRoomIds.value, <String>['alice', 'bob']);
+
+    store.selectSpace(null);
+    expect(store.visibleRoomIds.value, <String>['alice', 'bob']);
+  });
+
   test(
     'mark all read clears unread membership without touching room identity',
     () {
@@ -121,6 +142,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('space-filter-all')), findsOneWidget);
+    expect(find.byKey(const Key('space-filter-kite-space')), findsOneWidget);
+    expect(find.byKey(const Key('space-filter-people-space')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('space-filter-people-space')));
+    await tester.pumpAndSettle();
+    expect(store.selectedSpaceId.value, 'people-space');
+    expect(find.byKey(const Key('room-alice')), findsOne);
+    expect(find.byKey(const Key('room-bob')), findsOne);
+    expect(find.byKey(const Key('room-kite')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('space-filter-all')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('room-filter-people')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('room-alice')), findsOne);
