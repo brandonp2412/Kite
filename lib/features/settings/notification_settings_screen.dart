@@ -94,6 +94,7 @@ class _NotificationSettingsScreenState
                   child: DropdownButtonFormField<RoomNotificationMode>(
                     key: const Key('room-notification-mode'),
                     initialValue: notifications.roomMode(roomId),
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Room notifications',
                     ),
@@ -225,6 +226,7 @@ class _SoundPicker extends StatelessWidget {
       child: DropdownButtonFormField<String>(
         key: pickerKey,
         initialValue: currentId,
+        isExpanded: true,
         decoration: InputDecoration(labelText: label),
         items: <DropdownMenuItem<String>>[
           const DropdownMenuItem<String>(

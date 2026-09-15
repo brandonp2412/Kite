@@ -78,9 +78,12 @@ final class _GoldenSupportGateway implements SupportSettingsGateway {
   Future<void> submitProblemReport(ProblemReportRequest report) async {}
 }
 
-Future<void> _configureViewport(WidgetTester tester) async {
+Future<void> _configureViewport(
+  WidgetTester tester, {
+  Size size = const Size(1200, 800),
+}) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1200, 800);
+  tester.view.physicalSize = size;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 }
@@ -205,5 +208,52 @@ void main() {
         matchesGoldenFile('goldens/settings_support_${variant.$1}.png'),
       );
     });
+  }
+
+  for (final variant in <(String, ThemeMode)>[
+    ('light', ThemeMode.light),
+    ('dark', ThemeMode.dark),
+  ]) {
+    testWidgets(
+      'approved notification settings phone baseline - ${variant.$1}',
+      (tester) async {
+        await _configureViewport(tester, size: const Size(390, 844));
+        final controller = SettingsController(_GoldenSettingsGateway());
+        addTearDown(controller.dispose);
+        await controller.load();
+
+        await tester.pumpWidget(
+          _materialApp(
+            themeMode: variant.$2,
+            home: NotificationSettingsScreen(
+              controller: controller,
+              roomId: '!kite:example.org',
+              roomName: 'Kite room',
+              messageSounds: const <NotificationSoundOption>[
+                NotificationSoundOption(id: 'soft', label: 'Soft'),
+              ],
+              callRingtones: const <NotificationSoundOption>[
+                NotificationSoundOption(id: 'bright', label: 'Bright'),
+              ],
+              loadOnInit: false,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final master = tester.getRect(
+          find.byKey(const Key('notification-master')),
+        );
+        expect(master.width, 390);
+        expect(master.left, 0);
+
+        await expectLater(
+          find.byType(NotificationSettingsScreen),
+          matchesGoldenFile(
+            'goldens/settings_notifications_phone_${variant.$1}.png',
+          ),
+        );
+      },
+    );
   }
 }
