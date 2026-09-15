@@ -43,6 +43,40 @@ void main() {
       );
     });
 
+    testWidgets('read receipts ${variant.name} reference render', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      timelineController.reset(sendPort: DeterministicTimelineSendPort());
+      final target = timelineController.messagesFor('alice').value.last;
+      timelineController.updateReadReceipts('alice', target.id, const <String>[
+        'Alice',
+        'Maya',
+        'Sam',
+      ]);
+      selectRoom('alice');
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: variant.theme,
+          home: const RepaintBoundary(
+            key: Key('timeline-receipts-golden'),
+            child: HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byKey(const Key('timeline-receipts-golden')),
+        matchesGoldenFile('goldens/timeline_receipts_${variant.name}.png'),
+      );
+    });
+
     testWidgets('message actions ${variant.name} reference render', (
       tester,
     ) async {

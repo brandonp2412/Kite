@@ -1144,7 +1144,7 @@ class _MessageRow extends StatelessWidget {
                   _MessageReactionSummary(message: message),
                   if (mine) ...<Widget>[
                     const SizedBox(width: KiteSpacing.xxs),
-                    _MessageSendState(roomId: roomId, message: message),
+                    _MessageDeliveryState(roomId: roomId, message: message),
                   ],
                 ],
               ),
@@ -2068,17 +2068,31 @@ class _MessageAvatar extends StatelessWidget {
   }
 }
 
-class _MessageSendState extends StatelessWidget {
-  const _MessageSendState({required this.roomId, required this.message});
+class _MessageDeliveryState extends StatelessWidget {
+  const _MessageDeliveryState({required this.roomId, required this.message});
 
   final String roomId;
   final TimelineMessage message;
+
+  Future<void> _showReadReceipts(BuildContext context, List<String> readers) {
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (_) => _ReadReceiptDetailsSheet(readers: readers),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return SignalBuilder(
       builder: (context) {
         final state = message.sendState.value;
+        final readers = message.readByState.value;
         final colors = Theme.of(context).colorScheme;
         return SizedBox(
           key: Key('send-state-${message.id}'),
@@ -2091,6 +2105,19 @@ class _MessageSendState extends StatelessWidget {
                 size: 14,
                 color: colors.onSurfaceVariant,
                 semanticLabel: 'Sending',
+              ),
+            ),
+            TimelineSendState.sent when readers.isNotEmpty => Semantics(
+              button: true,
+              label: 'Read by ${readers.join(', ')}',
+              child: Tooltip(
+                message: 'Read by ${readers.join(', ')}',
+                child: GestureDetector(
+                  key: Key('read-receipts-${message.id}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _showReadReceipts(context, readers),
+                  child: _ReadReceiptAvatars(readers: readers),
+                ),
               ),
             ),
             TimelineSendState.sent => Center(
@@ -2120,6 +2147,118 @@ class _MessageSendState extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _ReadReceiptAvatars extends StatelessWidget {
+  const _ReadReceiptAvatars({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final visible = readers.take(3).toList(growable: false);
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        for (var index = 0; index < visible.length; index++)
+          Positioned(
+            left: 4.0 + (index * 10),
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.surfaceContainerHighest),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                visible[index].characters.first.toUpperCase(),
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSecondaryContainer,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        if (readers.length > 3)
+          Positioned(
+            right: 0,
+            child: Text(
+              '+${readers.length - 3}',
+              style: KiteTypography.metadata.copyWith(
+                color: colors.onSurfaceVariant,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ReadReceiptDetailsSheet extends StatelessWidget {
+  const _ReadReceiptDetailsSheet({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      key: const Key('read-receipt-details'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.md,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Read by',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.sm),
+          for (final reader in readers)
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: <Widget>[
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    foregroundColor: theme.colorScheme.onSecondaryContainer,
+                    child: Text(
+                      reader.characters.first.toUpperCase(),
+                      style: KiteTypography.metadata.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: KiteSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      reader,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KiteTypography.body,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

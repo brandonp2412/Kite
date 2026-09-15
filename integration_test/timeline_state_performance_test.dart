@@ -47,4 +47,36 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets('read receipt update stays within the frame contract', (
+    tester,
+  ) async {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+    final target = timelineController.messagesFor('alice').value.last;
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        timelineController.updateReadReceipts(
+          'alice',
+          target.id,
+          const <String>['Alice', 'Maya'],
+        );
+        await tester.pump();
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    expect(find.byKey(const Key('read-receipts-alice-99')), findsOneWidget);
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['timeline_read_receipt_update'] = <String, dynamic>{
+      'journey': 'timeline_read_receipt_update',
+      'fixture': 'deterministic_timeline_receipts_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
 }

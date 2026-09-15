@@ -112,12 +112,14 @@ class TimelineMessage {
     bool edited = false,
     bool redacted = false,
     Map<String, TimelineReactionSummary> reactions = const {},
+    List<String> readBy = const <String>[],
   }) : bodyText = signal(body),
        editedState = signal(edited),
        redactedState = signal(redacted),
        reactionState = signal<Map<String, TimelineReactionSummary>>(
          Map<String, TimelineReactionSummary>.unmodifiable(reactions),
        ),
+       readByState = signal<List<String>>(List<String>.unmodifiable(readBy)),
        sendState = signal(sendState);
 
   factory TimelineMessage.fromFixture(BenchmarkMessage message, int index) {
@@ -144,6 +146,7 @@ class TimelineMessage {
   final Signal<bool> editedState;
   final Signal<bool> redactedState;
   final Signal<Map<String, TimelineReactionSummary>> reactionState;
+  final Signal<List<String>> readByState;
   final Signal<TimelineSendState> sendState;
 
   String get body => bodyText.value;
@@ -151,6 +154,7 @@ class TimelineMessage {
   bool get redacted => redactedState.value;
   bool get isReply => replyToMessageId != null;
   Map<String, TimelineReactionSummary> get reactions => reactionState.value;
+  List<String> get readBy => readByState.value;
 }
 
 class TimelineController {
@@ -189,6 +193,28 @@ class TimelineController {
     final signal = typingUsersFor(roomId);
     if (listEquals(signal.peek(), next)) return;
     signal.value = List<String>.unmodifiable(next);
+  }
+
+  void updateReadReceipts(
+    String roomId,
+    String eventId,
+    Iterable<String> readers,
+  ) {
+    final message = messagesFor(roomId)
+        .peek()
+        .where((candidate) => candidate.id == eventId);
+    if (message.isEmpty) return;
+    final target = message.single;
+    if (!target.mine || target.redacted) return;
+    final next =
+        readers
+            .map((reader) => reader.trim())
+            .where((reader) => reader.isNotEmpty && reader != 'You')
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    if (listEquals(target.readByState.peek(), next)) return;
+    target.readByState.value = List<String>.unmodifiable(next);
   }
 
   Signal<List<TimelineMessage>> messagesFor(String roomId) {
@@ -248,6 +274,7 @@ class TimelineController {
       message.bodyText.value = '';
       message.editedState.value = false;
       message.reactionState.value = const <String, TimelineReactionSummary>{};
+      message.readByState.value = const <String>[];
       message.redactedState.value = true;
     });
   }
