@@ -48,8 +48,7 @@ final class RoomEncryptionTrust {
   final bool historySharingEnabled;
 
   bool get requiresTrustWarning =>
-      trustState == EncryptionTrustState.unverifiedDevice ||
-      trustState == EncryptionTrustState.unverifiedUser;
+      isEncrypted && trustState != EncryptionTrustState.verified;
 
   RoomEncryptionTrust copyWith({bool? historySharingEnabled}) {
     return RoomEncryptionTrust(
@@ -84,23 +83,27 @@ final class EncryptionTrustController {
   final errorMessage = signal<String?>(null);
 
   String? get warningMessage {
-    return switch (state.value?.trustState) {
+    final current = state.value;
+    if (current == null || !current.isEncrypted) return null;
+    return switch (current.trustState) {
       EncryptionTrustState.unverifiedDevice =>
         'This encrypted room includes an unverified device.',
       EncryptionTrustState.unverifiedUser =>
         'This encrypted room includes an unverified user.',
-      EncryptionTrustState.unknown ||
-      EncryptionTrustState.verified ||
-      null => null,
+      EncryptionTrustState.unknown =>
+        'This encrypted room has unknown verification state.',
+      EncryptionTrustState.verified => null,
     };
   }
 
   Future<bool> load(String roomId) async {
     final normalizedRoomId = roomId.trim();
     if (!_isValidRoomId(normalizedRoomId)) {
+      state.value = null;
       errorMessage.value = 'Choose a valid Matrix room.';
       return false;
     }
+    state.value = null;
     return _run(
       () => _gateway.loadRoomTrust(normalizedRoomId),
       expectedRoomId: normalizedRoomId,

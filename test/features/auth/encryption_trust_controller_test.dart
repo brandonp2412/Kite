@@ -108,6 +108,37 @@ void main() {
     expect(controller.state.value?.requiresTrustWarning, isFalse);
   });
 
+  test('unknown encrypted trust requires a visible warning', () async {
+    final gateway = _FakeEncryptionTrustGateway()
+      ..current = RoomEncryptionTrust(
+        roomId: '!room:example.org',
+        isEncrypted: true,
+        trustState: EncryptionTrustState.unknown,
+        historySharingSupported: false,
+        historySharingEnabled: false,
+      );
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('!room:example.org'), isTrue);
+    expect(controller.state.value?.requiresTrustWarning, isTrue);
+    expect(
+      controller.warningMessage,
+      'This encrypted room has unknown verification state.',
+    );
+
+    gateway.current = RoomEncryptionTrust(
+      roomId: '!plain:example.org',
+      isEncrypted: false,
+      trustState: EncryptionTrustState.unknown,
+      historySharingSupported: false,
+      historySharingEnabled: false,
+    );
+    expect(await controller.load('!plain:example.org'), isTrue);
+    expect(controller.state.value?.requiresTrustWarning, isFalse);
+    expect(controller.warningMessage, isNull);
+  });
+
   test(
     'history sharing is delegated only when SDK policy supports it',
     () async {
@@ -215,6 +246,37 @@ void main() {
       controller.errorMessage.value,
       'Kite received invalid encryption trust state.',
     );
+  });
+
+  test('failed room switch clears stale encryption trust state', () async {
+    final gateway = _FakeEncryptionTrustGateway();
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('!room:example.org'), isTrue);
+    expect(controller.state.value, isNotNull);
+
+    gateway.failure = StateError('decrypted_message=secret');
+    expect(await controller.load('!next:example.org'), isFalse);
+
+    expect(controller.state.value, isNull);
+    expect(controller.warningMessage, isNull);
+    expect(
+      controller.errorMessage.value,
+      'Kite could not read encryption trust state.',
+    );
+  });
+
+  test('invalid room selection clears stale encryption trust state', () async {
+    final gateway = _FakeEncryptionTrustGateway();
+    final controller = EncryptionTrustController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(await controller.load('!room:example.org'), isTrue);
+    expect(await controller.load('room-without-sigil'), isFalse);
+
+    expect(controller.state.value, isNull);
+    expect(controller.warningMessage, isNull);
   });
 
   test('gateway failures expose fixed public errors only', () async {
