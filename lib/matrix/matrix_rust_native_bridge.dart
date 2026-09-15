@@ -64,6 +64,14 @@ final class MatrixRustNativeBridge {
       final homeserverUtf8 = homeserverText.toNativeUtf8(allocator: calloc);
       final storePathUtf8 = storePath.toNativeUtf8(allocator: calloc);
       final passphraseUtf8 = storePassphrase.toNativeUtf8(allocator: calloc);
+      final passphraseBytePointer = passphraseUtf8.cast<Uint8>();
+      var passphraseByteLength = 0;
+      while (passphraseBytePointer[passphraseByteLength] != 0) {
+        passphraseByteLength += 1;
+      }
+      final passphraseBytes = passphraseBytePointer.asTypedList(
+        passphraseByteLength + 1,
+      );
       try {
         final client = clientNew(
           homeserverUtf8.cast<Char>(),
@@ -77,6 +85,7 @@ final class MatrixRustNativeBridge {
         }
         return client.address;
       } finally {
+        passphraseBytes.fillRange(0, passphraseBytes.length, 0);
         calloc.free(passphraseUtf8);
         calloc.free(storePathUtf8);
         calloc.free(homeserverUtf8);
@@ -102,15 +111,24 @@ final class MatrixRustNativeClient {
     if (_address == 0) return Future<void>.value();
 
     final address = _address;
-    _address = 0;
-    final closing = Isolate.run<void>(() {
-      final library = DynamicLibrary.open(libraryPath);
-      final clientFree = library
-          .lookupFunction<_ClientFreeNative, _ClientFreeDart>(
-            'kite_matrix_client_free',
-          );
-      clientFree(Pointer<Void>.fromAddress(address));
-    });
+    late final Future<void> closing;
+    closing =
+        Isolate.run<void>(() {
+              final library = DynamicLibrary.open(libraryPath);
+              final clientFree = library
+                  .lookupFunction<_ClientFreeNative, _ClientFreeDart>(
+                    'kite_matrix_client_free',
+                  );
+              clientFree(Pointer<Void>.fromAddress(address));
+            })
+            .then<void>((_) {
+              _address = 0;
+            })
+            .whenComplete(() {
+              if (_address != 0 && identical(_closing, closing)) {
+                _closing = null;
+              }
+            });
     _closing = closing;
     return closing;
   }

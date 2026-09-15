@@ -59,7 +59,7 @@ void main() {
       final client = await bridge.openEncryptedClient(
         homeserver: Uri.parse('http://localhost:8008'),
         storePath: storePath,
-        storePassphrase: 'deterministic-test-store-secret',
+        storePassphrase: 'deterministic-🔐-store-secret',
       );
 
       expect(client.isClosed, isFalse);
