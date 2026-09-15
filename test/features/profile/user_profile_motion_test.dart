@@ -121,6 +121,7 @@ void main() {
         home: UserProfileScreen.user(
           controller: controller,
           userId: '@alice:example.org',
+          onOpenRoom: (_) {},
           loadOnInit: false,
         ),
       ),

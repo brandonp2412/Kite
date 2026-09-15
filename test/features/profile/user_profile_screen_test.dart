@@ -148,6 +148,7 @@ void main() {
           home: UserProfileScreen.user(
             controller: controller,
             userId: '@alice:example.org',
+            onOpenRoom: (_) {},
           ),
         ),
       );
@@ -163,6 +164,7 @@ void main() {
           home: UserProfileScreen.user(
             controller: controller,
             userId: '@bob:example.org',
+            onOpenRoom: (_) {},
           ),
         ),
       );

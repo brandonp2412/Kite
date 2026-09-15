@@ -21,7 +21,7 @@ class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen.user({
     required this.controller,
     required String this.userId,
-    this.onOpenRoom,
+    required this.onOpenRoom,
     this.avatarImageProvider,
     this.loadOnInit = true,
     super.key,
@@ -122,7 +122,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _openDirectMessage(MatrixUserProfile profile) async {
     final roomId = await widget.controller.openDirectMessage(profile.userId);
     if (roomId != null && mounted) {
-      widget.onOpenRoom?.call(roomId);
+      widget.onOpenRoom!(roomId);
     }
   }
 
