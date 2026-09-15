@@ -81,6 +81,26 @@ void main() {
   );
 
   test(
+    'rejects settings that bypass the verified app-lock lifecycle',
+    () async {
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return null;
+      });
+      final gateway = PlatformAppLockGateway(channel);
+      const disabled = AppLockSettings.disabled();
+
+      expect(
+        () => gateway.enablePin(pin: '4826', settings: disabled),
+        throwsStateError,
+      );
+      expect(() => gateway.saveSettings(disabled), throwsStateError);
+      expect(calls, isEmpty);
+    },
+  );
+
+  test(
     'biometric methods use boolean platform results and fail closed on null',
     () async {
       messenger.setMockMethodCallHandler(channel, (call) async {

@@ -122,6 +122,29 @@ void main() {
   });
 
   test(
+    'existing app lock cannot be re-enrolled without disabling first',
+    () async {
+      final credentials = _FakeAppLockCredentials();
+      final controller = AppLockController(credentials, _FakeBiometrics());
+      addTearDown(controller.dispose);
+
+      await controller.enableWithPin(
+        pin: '1234',
+        hideNotificationContents: true,
+      );
+      await controller.enableWithPin(
+        pin: '9876',
+        hideNotificationContents: false,
+      );
+
+      expect(credentials.enrolledPin, '1234');
+      expect(controller.settings.value.hideNotificationContents, isTrue);
+      expect(controller.isLocked.value, isTrue);
+      expect(controller.errorMessage.value, 'App lock is already enabled.');
+    },
+  );
+
+  test(
     'PIN app lock validates input and redacts notifications only while locked',
     () async {
       final credentials = _FakeAppLockCredentials();
