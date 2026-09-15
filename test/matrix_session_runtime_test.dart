@@ -255,6 +255,57 @@ void main() {
   );
 
   test(
+    'queued account switch failure rolls navigation back to preceding switch',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'kite-session-switch-order-test-',
+      );
+      addTearDown(() async {
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
+      final boundaries = <String, _FakeBoundary>{};
+      final restorationStore = FileMatrixRestorationStore(
+        File('${directory.path}/restoration.json'),
+      );
+      final registry = _registry(
+        boundaries,
+        FileMatrixPresentationStore(
+          Directory('${directory.path}/presentation'),
+        ),
+        failStartFor: <String>{'@broken:example.org'},
+      );
+      addTearDown(registry.dispose);
+      final session = MatrixSessionRuntime(
+        accounts: registry,
+        restoration: MatrixRestorationCoordinator(restorationStore),
+        isAccountAvailable: (_) => true,
+      );
+      const aliceTarget = MatrixNavigationTarget.room('!alice:example.org');
+      const bobTarget = MatrixNavigationTarget.room('!bob:example.org');
+      const brokenTarget = MatrixNavigationTarget.room('!broken:example.org');
+
+      await session.activateAccount('@alice:example.org', target: aliceTarget);
+      final bobSwitch = session.activateAccount(
+        '@bob:example.org',
+        target: bobTarget,
+      );
+      final brokenSwitch = session.activateAccount(
+        '@broken:example.org',
+        target: brokenTarget,
+      );
+
+      await bobSwitch;
+      await expectLater(brokenSwitch, throwsA(isA<StateError>()));
+
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(session.navigationTarget.value, bobTarget);
+      final restored = await restorationStore.load();
+      expect(restored?.accountId, '@bob:example.org');
+      expect(restored?.navigationTarget, bobTarget);
+    },
+  );
+
+  test(
     'stale process restoration is cleared without opening an SDK store',
     () async {
       final directory = await Directory.systemTemp.createTemp(
