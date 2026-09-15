@@ -35,8 +35,27 @@ class KiteApp extends StatelessWidget {
           ? KiteTheme.black
           : KiteTheme.dark,
       themeMode: themeMode,
+      locale: locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       themeAnimationCurve: KiteMotion.standardCurve,
       themeAnimationDuration: KiteMotion.resolve(context, KiteMotion.standard),
+      builder: (context, child) {
+        final theme = Theme.of(context);
+        final motionAwareTheme = theme.copyWith(
+          pageTransitionsTheme: KiteMotion.pageTransitions(
+            context,
+            theme.pageTransitionsTheme,
+          ),
+        );
+        return Theme(
+          data: motionAwareTheme,
+          child: AnnotatedRegion<SystemUiOverlayStyle>(
+            value: KiteSystemBars.forTheme(theme),
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
       home: const HomeScreen(),
     );
   }

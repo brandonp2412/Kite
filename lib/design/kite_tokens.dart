@@ -28,6 +28,23 @@ abstract final class KiteTypography {
     height: 1.3,
     fontWeight: FontWeight.w400,
   );
+
+  static TextTheme apply(TextTheme base) {
+    return base.copyWith(
+      headlineSmall: base.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.35,
+      ),
+      titleLarge: base.titleLarge?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.2,
+      ),
+      titleMedium: base.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      bodyLarge: base.bodyLarge?.copyWith(height: 1.35),
+      bodyMedium: base.bodyMedium?.copyWith(height: 1.35),
+      labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+    );
+  }
 }
 
 abstract final class KiteSpacing {
@@ -51,6 +68,17 @@ abstract final class KiteElevation {
   static const double flat = 0;
   static const double raised = 1;
   static const double floating = 3;
+  static const double overlay = 6;
+}
+
+abstract final class KiteSizes {
+  static const double minimumTouchTarget = 48;
+  static const double sidebar = 320;
+  static const double sidebarMin = sidebar;
+  static const double sidebarMax = 360;
+  static const double roomRow = 72;
+  static const double chatHeader = 64;
+  static const double composer = 72;
 }
 
 abstract final class KiteStroke {
@@ -71,21 +99,63 @@ abstract final class KiteMotion {
   static const Duration fast = Duration(milliseconds: 120);
   static const Duration standard = Duration(milliseconds: 200);
   static const Duration deliberate = Duration(milliseconds: 280);
+  static const Duration emphasized = Duration(milliseconds: 320);
 
   static const Curve standardCurve = Curves.easeOutCubic;
   static const Curve emphasizedCurve = Curves.easeInOutCubicEmphasized;
+  static const PageTransitionsTheme reducedPageTransitions =
+      PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: _NoMotionPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: _NoMotionPageTransitionsBuilder(),
+          TargetPlatform.iOS: _NoMotionPageTransitionsBuilder(),
+          TargetPlatform.linux: _NoMotionPageTransitionsBuilder(),
+          TargetPlatform.macOS: _NoMotionPageTransitionsBuilder(),
+          TargetPlatform.windows: _NoMotionPageTransitionsBuilder(),
+        },
+      );
 
-  static bool prefersReducedMotion(BuildContext context) {
+  static bool reducedMotion(BuildContext context) {
     final mediaQuery = MediaQuery.maybeOf(context);
-    if (mediaQuery != null) return mediaQuery.disableAnimations;
+    if (mediaQuery != null) {
+      return mediaQuery.disableAnimations || mediaQuery.accessibleNavigation;
+    }
     return View.of(context)
         .platformDispatcher
         .accessibilityFeatures
         .disableAnimations;
   }
 
-  static Duration resolve(BuildContext context, Duration duration) {
-    return prefersReducedMotion(context) ? Duration.zero : duration;
+  static bool prefersReducedMotion(BuildContext context) =>
+      reducedMotion(context);
+
+  static Duration duration(BuildContext context, Duration duration) {
+    return reducedMotion(context) ? Duration.zero : duration;
+  }
+
+  static Duration resolve(BuildContext context, Duration duration) =>
+      KiteMotion.duration(context, duration);
+
+  static PageTransitionsTheme pageTransitions(
+    BuildContext context,
+    PageTransitionsTheme normal,
+  ) {
+    return reducedMotion(context) ? reducedPageTransitions : normal;
+  }
+}
+
+class _NoMotionPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoMotionPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
   }
 }
 

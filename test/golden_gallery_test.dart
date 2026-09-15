@@ -7,6 +7,8 @@ import 'package:kite/features/home/home_screen.dart';
 import 'golden_test_support.dart';
 
 void main() {
+  setUpAll(loadGoldenTestFonts);
+
   const viewports = <String, Size>{
     'phone_portrait': Size(390, 844),
     'phone_landscape': Size(844, 390),
