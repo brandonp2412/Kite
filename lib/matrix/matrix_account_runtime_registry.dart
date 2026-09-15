@@ -390,6 +390,7 @@ final class MatrixAccountRuntimeRegistry {
     _MatrixAccountRuntime runtime,
   ) async {
     if (!identical(_runtimes[accountId], runtime)) return;
+    final storeWasOpened = runtime.engine.hasOpenedStore;
 
     try {
       await runtime.runtime.stop();
@@ -402,7 +403,11 @@ final class MatrixAccountRuntimeRegistry {
 
     if (!identical(_runtimes[accountId], runtime)) return;
     _runtimes.remove(accountId);
-    storeRegistry.removeAccount(accountId);
+    if (storeWasOpened) {
+      storeRegistry.removeAccount(accountId);
+    } else {
+      storeRegistry.discardUnopenedAccount(accountId);
+    }
   }
 
   _MatrixAccountRuntime _runtimeFor(String accountId) {
@@ -447,7 +452,7 @@ final class MatrixAccountRuntimeRegistry {
       return accountRuntime;
     } catch (_) {
       if (!storeAlreadyRegistered) {
-        storeRegistry.removeAccount(accountId);
+        storeRegistry.discardUnopenedAccount(accountId);
       }
       rethrow;
     }

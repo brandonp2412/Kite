@@ -123,6 +123,45 @@ void main() {
   });
 
   test(
+    'failed boundary creation releases a never-opened encryption key alias',
+    () async {
+      final stores = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => 'shared-platform-key',
+      );
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = MatrixAccountRuntimeRegistry(
+        storeRegistry: stores,
+        boundaryFactory: (accountId) {
+          if (accountId == '@broken:example.org') {
+            throw StateError('boundary unavailable');
+          }
+          return boundaries.putIfAbsent(
+            accountId,
+            () => _FakeAccountBoundary(accountId: accountId),
+          );
+        },
+        initialActivity: MatrixAppActivity.foreground,
+        initialNetworkState: MatrixNetworkState.online,
+      );
+      addTearDown(registry.dispose);
+
+      await expectLater(
+        registry.activate('@broken:example.org'),
+        throwsStateError,
+      );
+      expect(stores.stores, isEmpty);
+
+      await registry.activate('@bob:example.org');
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(
+        boundaries['@bob:example.org']!.openedStore?.encryptionKeyId,
+        'shared-platform-key',
+      );
+    },
+  );
+
+  test(
     'failed boundary creation preserves a pre-registered account store',
     () async {
       final stores = MatrixAccountStoreRegistry(
@@ -153,7 +192,7 @@ void main() {
     () async {
       final stores = MatrixAccountStoreRegistry(
         rootPath: '/data/kite/matrix',
-        encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+        encryptionKeyIdForAccount: (_) => 'shared-platform-key',
       );
       final boundaries = <String, _FakeAccountBoundary>{};
       final registry = MatrixAccountRuntimeRegistry(
@@ -188,6 +227,7 @@ void main() {
 
       expect(registry.activeAccountId.value, '@alice:example.org');
       expect(stores.stores.single.accountId, '@alice:example.org');
+      expect(stores.stores.single.encryptionKeyId, 'shared-platform-key');
       expect(
         aliceCache.roomSummarySignal('!alice:example.org').value?.displayName,
         'Alice room',
@@ -899,10 +939,48 @@ void main() {
   );
 
   test(
+    'failed sync start retains opened-store encryption key ownership',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(
+        boundaries,
+        failStartFor: '@broken:example.org',
+        encryptionKeyIdForAccount: (accountId) =>
+            accountId == '@alice:example.org' ? 'alice-key' : 'opened-key',
+      );
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await expectLater(
+        registry.activate('@broken:example.org'),
+        throwsStateError,
+      );
+
+      expect(boundaries['@broken:example.org']!.openedStore, isNotNull);
+      expect(registry.activeAccountId.value, '@alice:example.org');
+      expect(
+        registry.storeRegistry.stores.map((store) => store.accountId),
+        <String>['@alice:example.org'],
+      );
+
+      await expectLater(
+        registry.activate('@carol:example.org'),
+        throwsStateError,
+      );
+      expect(boundaries.containsKey('@carol:example.org'), isFalse);
+      expect(registry.activeAccountId.value, '@alice:example.org');
+    },
+  );
+
+  test(
     'failed previous-account stop discards the unopened next-account runtime',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
-      final registry = _registry(boundaries);
+      final registry = _registry(
+        boundaries,
+        encryptionKeyIdForAccount: (accountId) =>
+            accountId == '@alice:example.org' ? 'alice-key' : 'transient-key',
+      );
       addTearDown(registry.dispose);
 
       await registry.activate('@alice:example.org');
@@ -922,6 +1000,13 @@ void main() {
       expect(
         registry.storeRegistry.stores.map((store) => store.accountId),
         <String>['@alice:example.org'],
+      );
+
+      await registry.activate('@carol:example.org');
+      expect(registry.activeAccountId.value, '@carol:example.org');
+      expect(
+        boundaries['@carol:example.org']!.openedStore?.encryptionKeyId,
+        'transient-key',
       );
     },
   );
@@ -1315,11 +1400,13 @@ MatrixAccountRuntimeRegistry _registry(
   Completer<void>? startGate,
   MatrixPresentationRetryDelay? presentationRetryDelay,
   Map<String, Set<int>> failStartCallsByAccount = const <String, Set<int>>{},
+  String Function(String accountId)? encryptionKeyIdForAccount,
 }) {
   return MatrixAccountRuntimeRegistry(
     storeRegistry: MatrixAccountStoreRegistry(
       rootPath: '/data/kite/matrix',
-      encryptionKeyIdForAccount: (accountId) => 'matrix-key:$accountId',
+      encryptionKeyIdForAccount:
+          encryptionKeyIdForAccount ?? (accountId) => 'matrix-key:$accountId',
     ),
     boundaryFactory: (accountId) {
       return boundaries.putIfAbsent(

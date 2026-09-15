@@ -96,6 +96,8 @@ final class MatrixBoundaryEngine implements MatrixEngine {
   bool _started = false;
   bool _needsSyncReset = false;
 
+  bool get hasOpenedStore => _opened;
+
   @override
   Stream<MatrixSyncBatch> get syncBatches => _boundary.syncBatches;
 

@@ -20,6 +20,7 @@ final class MatrixAccountStoreRegistry {
   final Map<String, MatrixSdkStoreConfiguration> _stores =
       <String, MatrixSdkStoreConfiguration>{};
   final Map<String, String> _accountByEncryptionKeyId = <String, String>{};
+  final Map<String, String> _encryptionKeyIdByAccount = <String, String>{};
 
   MatrixSdkStoreConfiguration forAccount(String accountId) {
     final normalizedAccountId = accountId.trim();
@@ -39,6 +40,15 @@ final class MatrixAccountStoreRegistry {
     if (encryptionKeyId.isEmpty || encryptionKeyId.contains('\u0000')) {
       throw StateError(
         'Matrix account store encryption key id must be non-empty and contain no NUL bytes',
+      );
+    }
+
+    final retainedEncryptionKeyId =
+        _encryptionKeyIdByAccount[normalizedAccountId];
+    if (retainedEncryptionKeyId != null &&
+        retainedEncryptionKeyId != encryptionKeyId) {
+      throw StateError(
+        'Matrix account stores must keep a stable encryption key per account',
       );
     }
 
@@ -64,10 +74,32 @@ final class MatrixAccountStoreRegistry {
     );
     _stores[normalizedAccountId] = configuration;
     _accountByEncryptionKeyId[encryptionKeyId] = normalizedAccountId;
+    _encryptionKeyIdByAccount[normalizedAccountId] = encryptionKeyId;
     return configuration;
   }
 
   bool removeAccount(String accountId) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    final removed = _stores.remove(normalizedAccountId);
+    return removed != null;
+  }
+
+  bool discardUnopenedAccount(String accountId) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    final removed = _stores.remove(normalizedAccountId);
+    if (removed == null) return false;
+    if (_accountByEncryptionKeyId[removed.encryptionKeyId] ==
+        normalizedAccountId) {
+      _accountByEncryptionKeyId.remove(removed.encryptionKeyId);
+    }
+    if (_encryptionKeyIdByAccount[normalizedAccountId] ==
+        removed.encryptionKeyId) {
+      _encryptionKeyIdByAccount.remove(normalizedAccountId);
+    }
+    return true;
+  }
+
+  static String _normalizeAccountId(String accountId) {
     final normalizedAccountId = accountId.trim();
     if (normalizedAccountId.isEmpty || normalizedAccountId.contains('\u0000')) {
       throw ArgumentError.value(
@@ -76,9 +108,7 @@ final class MatrixAccountStoreRegistry {
         'must contain a non-empty account id without NUL bytes',
       );
     }
-
-    final removed = _stores.remove(normalizedAccountId);
-    return removed != null;
+    return normalizedAccountId;
   }
 
   Iterable<MatrixSdkStoreConfiguration> get stores =>

@@ -369,6 +369,46 @@ void main() {
         'shared-key',
       );
     });
+
+    test('re-added accounts cannot silently change persistent-store keys', () {
+      var encryptionKeyId = 'alice-key-v1';
+      final registry = MatrixAccountStoreRegistry(
+        rootPath: '/data/kite/matrix',
+        encryptionKeyIdForAccount: (_) => encryptionKeyId,
+      );
+
+      registry.forAccount('@alice:example.org');
+      expect(registry.removeAccount('@alice:example.org'), isTrue);
+      encryptionKeyId = 'alice-key-v2';
+
+      expect(() => registry.forAccount('@alice:example.org'), throwsStateError);
+      expect(registry.stores, isEmpty);
+
+      encryptionKeyId = 'alice-key-v1';
+      expect(
+        registry.forAccount('@alice:example.org').encryptionKeyId,
+        'alice-key-v1',
+      );
+    });
+
+    test(
+      'discarding an unopened account releases encryption-key ownership',
+      () {
+        final registry = MatrixAccountStoreRegistry(
+          rootPath: '/data/kite/matrix',
+          encryptionKeyIdForAccount: (_) => 'shared-key',
+        );
+
+        registry.forAccount('@broken:example.org');
+        expect(registry.discardUnopenedAccount('@broken:example.org'), isTrue);
+        expect(registry.stores, isEmpty);
+
+        expect(
+          registry.forAccount('@bob:example.org').encryptionKeyId,
+          'shared-key',
+        );
+      },
+    );
   });
 }
 
