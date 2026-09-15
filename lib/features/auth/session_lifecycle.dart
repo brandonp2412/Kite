@@ -135,23 +135,27 @@ final class SessionLifecycleController {
     errorMessage.value = null;
     final current = state.value;
 
+    var remoteLogoutFailed = false;
     if (current is SessionAuthenticated) {
       try {
         await _gateway.logout(current.session);
       } catch (_) {
-        errorMessage.value = 'Kite could not sign out this Matrix session.';
-        return;
+        remoteLogoutFailed = true;
       }
     }
 
     try {
       await _gateway.clear();
       state.value = const SessionSignedOut();
+      if (remoteLogoutFailed) {
+        errorMessage.value = 'Signed out from Kite, but the Matrix server may still list this device.';
+      }
     } catch (_) {
       if (current is SessionAuthenticated) {
         state.value = const SessionSignedOut();
-        errorMessage.value =
-            'Signed out, but Kite could not clear all local session data.';
+        errorMessage.value = remoteLogoutFailed
+            ? 'Kite hid the signed-in session, but could not confirm server sign-out or clear all local session data.'
+            : 'Signed out, but Kite could not clear all local session data.';
       } else {
         errorMessage.value = 'Kite could not clear the local session securely.';
       }

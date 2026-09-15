@@ -201,26 +201,47 @@ void main() {
     },
   );
 
-  test(
-    'remote logout failure keeps the local authenticated session intact',
-    () async {
-      final gateway = _FakeSessionLifecycleGateway()
-        ..logoutError = StateError('access_token=secret');
-      final controller = SessionLifecycleController(gateway);
-      addTearDown(controller.dispose);
-      await controller.acceptAuthenticatedSession(_session());
+  test('remote logout failure still clears the local authenticated session', () async {
+    final gateway = _FakeSessionLifecycleGateway()
+      ..logoutError = StateError('access_token=secret');
+    final controller = SessionLifecycleController(gateway);
+    addTearDown(controller.dispose);
+    await controller.acceptAuthenticatedSession(_session());
 
-      await controller.signOut();
+    await controller.signOut();
 
-      expect(gateway.clearCalls, 0);
-      expect(controller.state.value, isA<SessionAuthenticated>());
-      expect(
-        controller.errorMessage.value,
-        'Kite could not sign out this Matrix session.',
-      );
-      expect(controller.errorMessage.value, isNot(contains('secret')));
-    },
-  );
+    expect(gateway.clearCalls, 1);
+    expect(controller.state.value, isA<SessionSignedOut>());
+    expect(
+      controller.errorMessage.value,
+      'Signed out from Kite, but the Matrix server may still list this device.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+  });
+
+  test('combined remote and local sign-out failures fail closed', () async {
+    final gateway = _FakeSessionLifecycleGateway()
+      ..logoutError = StateError('access_token=secret')
+      ..clearError = StateError('encrypted store busy');
+    final controller = SessionLifecycleController(gateway);
+    addTearDown(controller.dispose);
+    await controller.acceptAuthenticatedSession(_session());
+
+    await controller.signOut();
+
+    expect(gateway.logoutCalls, 1);
+    expect(gateway.clearCalls, 1);
+    expect(controller.state.value, isA<SessionSignedOut>());
+    expect(
+      controller.errorMessage.value,
+      'Kite hid the signed-in session, but could not confirm server sign-out or clear all local session data.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('secret')));
+    expect(
+      controller.errorMessage.value,
+      isNot(contains('encrypted store busy')),
+    );
+  });
 
   test('remote logout success drops runtime authentication even if local clear fails', () async {
     final gateway = _FakeSessionLifecycleGateway()
