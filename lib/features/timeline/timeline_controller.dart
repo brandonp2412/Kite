@@ -711,8 +711,11 @@ class TimelineController implements TimelineLocationShareDelegate {
       for (final message in current) message.id: message,
     };
     final projected = <TimelineMessage>[];
+    final echoedTransactionIds = <String>{};
     for (final event in events) {
       if (event.roomId != roomId) continue;
+      final transactionId = event.transactionId;
+      if (transactionId != null) echoedTransactionIds.add(transactionId);
       final mapped = TimelineMessage.fromMatrixEvent(
         event,
         currentUserId: currentUserId,
@@ -729,6 +732,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       current.where(
         (message) =>
             message.id.startsWith('kite-local-') &&
+            !echoedTransactionIds.contains(message.id) &&
             !projected.any((candidate) => candidate.id == message.id),
       ),
     );

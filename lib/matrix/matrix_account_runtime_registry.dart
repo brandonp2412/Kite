@@ -79,6 +79,27 @@ final class MatrixAccountRuntimeRegistry {
     return _runtimes[normalizedAccountId]?.runtime.paginationState(roomId);
   }
 
+  Future<String> sendTextMessage({
+    required String accountId,
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<String>.error(
+        StateError('Cannot send a Matrix message for an inactive account'),
+      );
+    }
+    return active.engine.sendTextMessage(
+      roomId: roomId,
+      transactionId: transactionId,
+      body: body,
+    );
+  }
+
   Future<void> onTimelineViewportChanged({
     required String accountId,
     required String roomId,

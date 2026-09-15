@@ -146,6 +146,35 @@ void main() {
     },
   );
 
+  test('Matrix transaction IDs reconcile optimistic local sends', () async {
+    final controller = TimelineController(
+      sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+    );
+    controller.applyMatrixEvents(
+      '!alpha:example.org',
+      const <MatrixTimelineEvent>[],
+      currentUserId: '@me:example.org',
+    );
+    final local = controller.sendText('!alpha:example.org', 'Sent for real');
+    await Future<void>.delayed(Duration.zero);
+
+    controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+      _event(
+        eventId: r'$real',
+        streamPosition: 9,
+        senderId: '@me:example.org',
+        msgtype: 'm.text',
+        body: 'Sent for real',
+        transactionId: local.id,
+      ),
+    ], currentUserId: '@me:example.org');
+
+    final messages = controller.messagesFor('!alpha:example.org').value;
+    expect(messages, hasLength(1));
+    expect(messages.single.id, r'$real');
+    expect(messages.single.sendState.value, TimelineSendState.sent);
+  });
+
   test(
     'incremental Matrix projection preserves old identity and local sends',
     () {
@@ -196,6 +225,7 @@ MatrixTimelineEvent _event({
   required String msgtype,
   required String body,
   Map<String, Object?>? info,
+  String? transactionId,
   Map<String, Object?> extra = const <String, Object?>{},
 }) {
   return MatrixTimelineEvent(
@@ -205,6 +235,7 @@ MatrixTimelineEvent _event({
     type: 'm.room.message',
     originServerTimestamp: DateTime.utc(2026, 9, 16, 10, streamPosition),
     streamPosition: streamPosition,
+    transactionId: transactionId,
     content: <String, Object?>{
       'msgtype': msgtype,
       'body': body,

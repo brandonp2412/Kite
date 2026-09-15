@@ -5,16 +5,19 @@ use std::time::Duration;
 
 use matrix_sdk::{
     Client,
+    authentication::matrix::MatrixSession,
     config::SyncSettings,
     ruma::{
-        RoomId, UInt,
+        OwnedTransactionId, RoomId, UInt,
         api::client::filter::{FilterDefinition, RoomEventFilter, RoomFilter},
+        events::room::message::RoomMessageEventContent,
     },
 };
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 5;
+const KITE_MATRIX_ABI_VERSION: u32 = 6;
+const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 pub struct KiteMatrixClient {
     client: Option<Client>,
@@ -80,6 +83,22 @@ pub unsafe extern "C" fn kite_matrix_client_new(
     let Ok(client) = runtime.block_on(builder.build()) else {
         return ptr::null_mut();
     };
+    let session_bytes = match runtime.block_on(
+        client
+            .state_store()
+            .get_custom_value(KITE_MATRIX_SESSION_STORE_KEY),
+    ) {
+        Ok(value) => value,
+        Err(_) => return ptr::null_mut(),
+    };
+    if let Some(session_bytes) = session_bytes {
+        let Ok(session) = serde_json::from_slice::<MatrixSession>(&session_bytes) else {
+            return ptr::null_mut();
+        };
+        if runtime.block_on(client.restore_session(session)).is_err() {
+            return ptr::null_mut();
+        }
+    }
     if runtime
         .block_on(async { client.event_cache().subscribe() })
         .is_err()
@@ -90,6 +109,106 @@ pub unsafe extern "C" fn kite_matrix_client_new(
     Box::into_raw(Box::new(KiteMatrixClient {
         client: Some(client),
         runtime,
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_login_password(
+    client: *mut KiteMatrixClient,
+    username: *const c_char,
+    password: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return ptr::null_mut();
+    }
+    let Some(username) = (unsafe { required_utf8(username) }) else {
+        return ptr::null_mut();
+    };
+    let Some(password) = (unsafe { required_utf8(password) }) else {
+        return ptr::null_mut();
+    };
+    if username.is_empty() || password.is_empty() {
+        return ptr::null_mut();
+    }
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return ptr::null_mut();
+    };
+    let Ok(response) = client.runtime.block_on(
+        matrix_client
+            .matrix_auth()
+            .login_username(username, password)
+            .initial_device_display_name("Kite")
+            .send(),
+    ) else {
+        return ptr::null_mut();
+    };
+    let session = MatrixSession::from(&response);
+    let Ok(session_bytes) = serde_json::to_vec(&session) else {
+        return ptr::null_mut();
+    };
+    if client
+        .runtime
+        .block_on(
+            matrix_client
+                .state_store()
+                .set_custom_value(KITE_MATRIX_SESSION_STORE_KEY, session_bytes),
+        )
+        .is_err()
+    {
+        return ptr::null_mut();
+    }
+
+    json_to_c_string(&json!({
+        "userId": response.user_id.as_str(),
+        "deviceId": response.device_id.as_str(),
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_send_text(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    transaction_id: *const c_char,
+    body: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return ptr::null_mut();
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return ptr::null_mut();
+    };
+    let Some(transaction_id) = (unsafe { required_utf8(transaction_id) }) else {
+        return ptr::null_mut();
+    };
+    let Some(body) = (unsafe { required_utf8(body) }) else {
+        return ptr::null_mut();
+    };
+    if room_id.is_empty() || transaction_id.is_empty() || body.is_empty() {
+        return ptr::null_mut();
+    }
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return ptr::null_mut();
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return ptr::null_mut();
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return ptr::null_mut();
+    };
+    let Ok(response) = client.runtime.block_on(async {
+        room.send(RoomMessageEventContent::text_plain(body))
+            .with_transaction_id(OwnedTransactionId::from(transaction_id))
+            .await
+    }) else {
+        return ptr::null_mut();
+    };
+
+    json_to_c_string(&json!({
+        "eventId": response.response.event_id.as_str(),
     }))
 }
 
@@ -254,7 +373,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 5);
+        assert_eq!(kite_matrix_abi_version(), 6);
     }
 
     #[test]
@@ -335,9 +454,26 @@ mod tests {
     #[test]
     fn sync_and_pagination_reject_missing_clients() {
         let room_id = CString::new("!room:kite.test").unwrap();
+        let body = CString::new("hello").unwrap();
+        let username = CString::new("@alice:kite.test").unwrap();
+        let password = CString::new("password").unwrap();
+        let login = unsafe {
+            kite_matrix_client_login_password(ptr::null_mut(), username.as_ptr(), password.as_ptr())
+        };
+        let transaction_id = CString::new("kite-test-transaction").unwrap();
+        let send = unsafe {
+            kite_matrix_client_send_text(
+                ptr::null_mut(),
+                room_id.as_ptr(),
+                transaction_id.as_ptr(),
+                body.as_ptr(),
+            )
+        };
         let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
+        assert!(login.is_null());
+        assert!(send.is_null());
         assert!(sync.is_null());
         assert!(pagination.is_null());
     }

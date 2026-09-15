@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
 
@@ -10,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 5;
+const int kiteMatrixNativeAbiVersion = 6;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -59,6 +60,28 @@ typedef _ClientPaginateDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
 );
+typedef _ClientLoginPasswordNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientLoginPasswordDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientSendTextNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientSendTextDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
 typedef _StringFreeNative = Void Function(Pointer<Char> value);
 typedef _StringFreeDart = void Function(Pointer<Char> value);
 typedef _ClientFreeNative = Void Function(Pointer<Void> client);
@@ -66,6 +89,120 @@ typedef _ClientFreeDart = void Function(Pointer<Void> client);
 
 typedef MatrixSdkStoreSecretResolver = Future<String> Function(String keyId);
 typedef MatrixRustSyncDelay = Future<void> Function(Duration duration);
+
+final class MatrixRustLoginResult {
+  const MatrixRustLoginResult({required this.userId, required this.deviceId});
+
+  final String userId;
+  final String deviceId;
+}
+
+final class MatrixRustSendResult {
+  const MatrixRustSendResult({required this.eventId});
+
+  final String eventId;
+}
+
+final class _MatrixNativeLoginPasswordOperation {
+  const _MatrixNativeLoginPasswordOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.username,
+    required this.password,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String username;
+  final String password;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final login = library
+        .lookupFunction<_ClientLoginPasswordNative, _ClientLoginPasswordDart>(
+          'kite_matrix_client_login_password',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final usernameUtf8 = username.toNativeUtf8(allocator: calloc);
+    final passwordUtf8 = password.toNativeUtf8(allocator: calloc);
+    final passwordBytes = passwordUtf8.cast<Uint8>().asTypedList(
+      passwordUtf8.length + 1,
+    );
+    try {
+      final value = login(
+        Pointer<Void>.fromAddress(address),
+        usernameUtf8.cast<Char>(),
+        passwordUtf8.cast<Char>(),
+      );
+      if (value == nullptr) {
+        throw StateError('Matrix Rust SDK password login failed');
+      }
+      try {
+        return value.cast<Utf8>().toDartString();
+      } finally {
+        freeString(value);
+      }
+    } finally {
+      passwordBytes.fillRange(0, passwordBytes.length, 0);
+      calloc.free(passwordUtf8);
+      calloc.free(usernameUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeSendTextOperation {
+  const _MatrixNativeSendTextOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.transactionId,
+    required this.body,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String transactionId;
+  final String body;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final send = library
+        .lookupFunction<_ClientSendTextNative, _ClientSendTextDart>(
+          'kite_matrix_client_send_text',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final transactionIdUtf8 = transactionId.toNativeUtf8(allocator: calloc);
+    final bodyUtf8 = body.toNativeUtf8(allocator: calloc);
+    try {
+      final value = send(
+        Pointer<Void>.fromAddress(address),
+        roomIdUtf8.cast<Char>(),
+        transactionIdUtf8.cast<Char>(),
+        bodyUtf8.cast<Char>(),
+      );
+      if (value == nullptr) {
+        throw StateError('Matrix Rust SDK text send failed');
+      }
+      try {
+        return value.cast<Utf8>().toDartString();
+      } finally {
+        freeString(value);
+      }
+    } finally {
+      calloc.free(bodyUtf8);
+      calloc.free(transactionIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
 
 final class _MatrixNativeSyncOperation {
   const _MatrixNativeSyncOperation({
@@ -231,6 +368,17 @@ abstract interface class MatrixRustBridge {
 abstract interface class MatrixRustClient {
   bool get isClosed;
 
+  Future<MatrixRustLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  });
+
+  Future<MatrixRustSendResult> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  });
+
   Future<String> syncOnce({
     required Duration timeout,
     required int timelineEventLimit,
@@ -338,6 +486,113 @@ final class MatrixRustNativeClient implements MatrixRustClient {
 
   @override
   bool get isClosed => _address == 0;
+
+  @override
+  Future<MatrixRustLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  }) {
+    final normalizedUsername = username.trim();
+    if (normalizedUsername.isEmpty || normalizedUsername.contains('\u0000')) {
+      return Future<MatrixRustLoginResult>.error(
+        ArgumentError.value(
+          username,
+          'username',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (password.isEmpty || password.contains('\u0000')) {
+      return Future<MatrixRustLoginResult>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'password',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<MatrixRustLoginResult>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeLoginPasswordOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          username: normalizedUsername,
+          password: password,
+        ).call,
+      );
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Invalid Matrix password login response');
+      }
+      final userId = decoded['userId'];
+      final deviceId = decoded['deviceId'];
+      if (userId is! String ||
+          userId.isEmpty ||
+          deviceId is! String ||
+          deviceId.isEmpty) {
+        throw const FormatException('Invalid Matrix password login session');
+      }
+      return MatrixRustLoginResult(userId: userId, deviceId: deviceId);
+    });
+  }
+
+  @override
+  Future<MatrixRustSendResult> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedTransactionId = transactionId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedTransactionId.isEmpty ||
+        normalizedTransactionId.contains('\u0000')) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          transactionId,
+          'transactionId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (body.isEmpty || body.contains('\u0000')) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          body.isEmpty ? body : '<redacted>',
+          'body',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<MatrixRustSendResult>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeSendTextOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          transactionId: normalizedTransactionId,
+          body: body,
+        ).call,
+      );
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Invalid Matrix text send response');
+      }
+      final eventId = decoded['eventId'];
+      if (eventId is! String || eventId.isEmpty) {
+        throw const FormatException('Invalid Matrix text send receipt');
+      }
+      return MatrixRustSendResult(eventId: eventId);
+    });
+  }
 
   @override
   Future<String> syncOnce({
@@ -453,7 +708,11 @@ final class MatrixRustNativeClient implements MatrixRustClient {
   }
 }
 
-final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
+final class MatrixRustSdkBoundary
+    implements
+        MatrixSdkBoundary,
+        MatrixSdkPasswordAuthenticator,
+        MatrixSdkTextMessageSender {
   MatrixRustSdkBoundary({
     required this.bridge,
     required this.homeserver,
@@ -525,6 +784,39 @@ final class MatrixRustSdkBoundary implements MatrixSdkBoundary {
         storePassphrase: storeSecret,
       );
       _openedStore = store;
+    });
+  }
+
+  @override
+  Future<MatrixSdkPasswordLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  }) {
+    return _enqueue<MatrixSdkPasswordLoginResult>(() async {
+      final result = await _requireClient().loginWithPassword(
+        username: username,
+        password: password,
+      );
+      return MatrixSdkPasswordLoginResult(
+        userId: result.userId,
+        deviceId: result.deviceId,
+      );
+    });
+  }
+
+  @override
+  Future<String> sendTextMessage({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) {
+    return _enqueue<String>(() async {
+      final result = await _requireClient().sendText(
+        roomId: roomId,
+        transactionId: transactionId,
+        body: body,
+      );
+      return result.eventId;
     });
   }
 

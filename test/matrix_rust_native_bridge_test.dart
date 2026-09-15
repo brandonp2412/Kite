@@ -39,6 +39,47 @@ void main() {
     );
   });
 
+  test(
+    'native boundary routes password login and idempotent text send',
+    () async {
+      final client = _FakeRustClient();
+      final boundary = MatrixRustSdkBoundary(
+        bridge: _FakeRustBridge(client),
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: _RecordingCodecExecutor(),
+      );
+      addTearDown(boundary.close);
+
+      await boundary.open(
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:kite.test',
+          storePath: '/tmp/kite/alice',
+          encryptionKeyId: 'alice-key',
+        ),
+      );
+      final login = await boundary.loginWithPassword(
+        username: '@alice:kite.test',
+        password: 'test-password',
+      );
+      final eventId = await boundary.sendTextMessage(
+        roomId: '!room:kite.test',
+        transactionId: 'kite-transaction-1',
+        body: 'Hello Matrix',
+      );
+
+      expect(login.userId, '@alice:kite.test');
+      expect(login.deviceId, 'KITEDEVICE');
+      expect(client.loginCalls, <(String, String)>[
+        ('@alice:kite.test', 'test-password'),
+      ]);
+      expect(eventId, r'$sent');
+      expect(client.sendCalls, <(String, String, String)>[
+        ('!room:kite.test', 'kite-transaction-1', 'Hello Matrix'),
+      ]);
+    },
+  );
+
   test('native bridge rejects an empty store passphrase before FFI', () async {
     final bridge = MatrixRustNativeBridge(
       libraryPath: libraryPath ?? '/unused',
@@ -755,6 +796,23 @@ final class _FailingCloseRustClient implements MatrixRustClient {
   bool get isClosed => _closed;
 
   @override
+  Future<MatrixRustLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MatrixRustSendResult> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<String> syncOnce({
     required Duration timeout,
     required int timelineEventLimit,
@@ -792,6 +850,23 @@ final class _RecoveringRustClient implements MatrixRustClient {
   bool get isClosed => _closed;
 
   @override
+  Future<MatrixRustLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MatrixRustSendResult> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<String> syncOnce({
     required Duration timeout,
     required int timelineEventLimit,
@@ -825,12 +900,36 @@ final class _FakeRustClient implements MatrixRustClient {
   final List<int> syncTimelineEventLimits = <int>[];
   final List<String?> syncTokens = <String?>[];
   final List<String> paginationCalls = <String>[];
+  final List<(String, String, String)> sendCalls = <(String, String, String)>[];
+  final List<(String, String)> loginCalls = <(String, String)>[];
 
   bool _closed = false;
   int _syncCalls = 0;
 
   @override
   bool get isClosed => _closed;
+
+  @override
+  Future<MatrixRustLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  }) async {
+    loginCalls.add((username, password));
+    return const MatrixRustLoginResult(
+      userId: '@alice:kite.test',
+      deviceId: 'KITEDEVICE',
+    );
+  }
+
+  @override
+  Future<MatrixRustSendResult> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) async {
+    sendCalls.add((roomId, transactionId, body));
+    return const MatrixRustSendResult(eventId: r'$sent');
+  }
 
   @override
   Future<String> syncOnce({
