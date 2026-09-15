@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/design/kite_theme.dart';
+import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/rooms/room_member_management.dart';
 import 'package:kite/features/rooms/room_members_screen.dart';
 import 'package:kite/testing/deterministic_room_member_adapters.dart';
@@ -61,6 +62,10 @@ void main() {
   testWidgets('approved room members baseline - light', (tester) async {
     await pumpMembers(tester, themeMode: ThemeMode.light);
 
+    final content = find.byKey(const Key('member-content'));
+    expect(tester.getSize(content).width, KiteLayout.readableContentMaxWidth);
+    expect(tester.getTopLeft(content).dx, 240);
+
     await expectLater(
       find.byType(RoomMembersScreen),
       matchesGoldenFile('goldens/room_members_light.png'),
@@ -69,6 +74,10 @@ void main() {
 
   testWidgets('approved room members baseline - dark', (tester) async {
     await pumpMembers(tester, themeMode: ThemeMode.dark);
+
+    final content = find.byKey(const Key('member-content'));
+    expect(tester.getSize(content).width, KiteLayout.readableContentMaxWidth);
+    expect(tester.getTopLeft(content).dx, 240);
 
     await expectLater(
       find.byType(RoomMembersScreen),

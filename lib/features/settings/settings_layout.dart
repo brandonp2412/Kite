@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:kite/design/kite_tokens.dart';
 
 abstract final class SettingsLayout {
-  static const double maxContentWidth = 720;
+  static const double maxContentWidth = KiteLayout.readableContentMaxWidth;
   static const double bottomPadding = 24;
 
   static EdgeInsets listPadding(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final horizontal = width > maxContentWidth
-        ? (width - maxContentWidth) / 2
-        : 0.0;
+    final horizontal = KiteLayout.centeredHorizontalInset(context);
     return EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottomPadding);
   }
 }
