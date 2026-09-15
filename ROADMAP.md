@@ -46,7 +46,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Reproduce the polished avatar treatment and contextual colour/bloom concept without copying Element trademarks/assets.
 - [ ] Use high-quality avatars and media at their actual rendered resolution; never upscale tiny thumbnails into visible blur.
 - [ ] Keep touch targets at least platform-accessible size while preserving compact visual rhythm.
-- [x] Light, dark, and true-black themes with correct system-bar treatment.
+- [ ] Light, dark, and true-black themes with correct system-bar treatment.
 - [ ] Consistent sheets, dialogs, menus, snackbars, tooltips, empty states, error states, and destructive confirmations.
 - [ ] Deliberate motion system: room changes, new messages, reactions, sheets, navigation, image viewer, composer expansion, and call transitions use consistent curves and durations.
 - [x] Respect reduced-motion accessibility settings.
@@ -351,8 +351,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Reduced motion.
 - [ ] Colour is never the sole carrier of unread/error/selection state.
 - [ ] Accessible media labels and call controls.
-- [x] Localisation framework and plural handling.
-- [x] Date/time/number formatting by locale.
+- [ ] Localisation framework and plural handling.
+- [ ] Date/time/number formatting by locale.
 - [ ] Phone portrait/landscape layouts.
 - [ ] Foldable/tablet layout.
 - [ ] Desktop-width Flutter layout that preserves the Element X visual language rather than simply stretching phone UI.
