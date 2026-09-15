@@ -1,22 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show RenderAbstractViewport, ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
-import 'package:kite/features/home/room_list_entry.dart';
-import 'package:kite/features/home/room_list_filter.dart';
+import 'package:kite/features/home/room_invites.dart';
+import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/home/spaces_screen.dart';
+import 'package:kite/features/media/media_viewer.dart';
+import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
+import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_link_preview.dart';
+import 'package:kite/features/timeline/timeline_message_body.dart';
+import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, this.benchmarkRooms});
+  const HomeScreen({
+    super.key,
+    this.benchmarkRooms,
+    this.roomListStore,
+    this.inviteStore,
+  });
 
   final List<BenchmarkRoom>? benchmarkRooms;
+  final RoomListStateStore? roomListStore;
+  final RoomInviteStore? inviteStore;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -27,31 +43,26 @@ class HomeScreen extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final isPhone = size.shortestSide < phoneBreakpoint;
     final rooms = benchmarkRooms ?? BenchmarkFixture.rooms;
+    final roomEntries = deterministicRoomListEntries(rooms);
 
     if (isPhone) {
       return Scaffold(
         body: SafeArea(
-          child: Column(
-            children: <Widget>[
-              const _CompactHomeHeader(),
-              const _RoomFilterBar(),
-              Expanded(
-                child: SizedBox.expand(
-                  key: const Key('sidebar'),
-                  child: _RoomList(
-                    rooms: rooms,
-                    onRoomTap: (room) {
-                      selectRoom(room.id);
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const _CompactChatScreen(),
-                        ),
-                      );
-                    },
+          child: SizedBox.expand(
+            key: const Key('sidebar'),
+            child: _HomeSidebar(
+              rooms: roomEntries,
+              store: roomListStore,
+              inviteStore: inviteStore,
+              onRoomTap: (roomId) {
+                selectRoom(roomId);
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const _CompactChatScreen(),
                   ),
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           ),
         ),
       );
@@ -63,20 +74,13 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       body: Row(
         children: <Widget>[
-          RepaintBoundary(
-            child: SizedBox(
-              key: const Key('sidebar'),
-              width: adaptiveSidebarWidth,
-              child: ColoredBox(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                child: Column(
-                  children: <Widget>[
-                    const _CompactHomeHeader(),
-                    const _RoomFilterBar(),
-                    Expanded(child: _RoomList(rooms: rooms)),
-                  ],
-                ),
-              ),
+          SizedBox(
+            key: const Key('sidebar'),
+            width: adaptiveSidebarWidth,
+            child: _HomeSidebar(
+              rooms: roomEntries,
+              store: roomListStore,
+              inviteStore: inviteStore,
             ),
           ),
           const VerticalDivider(width: 1),
@@ -87,105 +91,358 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _CompactHomeHeader extends StatelessWidget {
-  const _CompactHomeHeader();
+class _HomeSidebar extends StatefulWidget {
+  const _HomeSidebar({
+    required this.rooms,
+    this.store,
+    this.inviteStore,
+    this.onRoomTap,
+  });
+
+  final List<RoomListEntry> rooms;
+  final RoomListStateStore? store;
+  final RoomInviteStore? inviteStore;
+  final ValueChanged<String>? onRoomTap;
+
+  @override
+  State<_HomeSidebar> createState() => _HomeSidebarState();
+}
+
+class _HomeSidebarState extends State<_HomeSidebar> {
+  late RoomListStateStore _ownedStore;
+  late RoomInviteStore _ownedInviteStore;
+
+  RoomListStateStore get store => widget.store ?? _ownedStore;
+  RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownedStore = RoomListStateStore(widget.rooms);
+    _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
+  }
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _HomeHeader(store: store),
+        _SpaceFilterBar(store: store),
+        _RoomFilterBar(store: store),
+        _InviteSection(store: inviteStore),
+        Expanded(
+          child: _RoomList(store: store, onRoomTap: widget.onRoomTap),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({required this.store});
+
+  final RoomListStateStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SizedBox(
-      key: const Key('home-header'),
       height: 72,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Chats',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.md,
+          KiteSpacing.sm,
+          KiteSpacing.sm,
+          KiteSpacing.xs,
+        ),
+        child: Row(
+          children: <Widget>[
+            Semantics(
+              image: true,
+              label: 'Profile',
+              child: CircleAvatar(
+                key: const Key('home-profile'),
+                radius: 20,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Icon(
+                  Icons.person_rounded,
+                  size: 22,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            const SizedBox(width: KiteSpacing.sm),
+            Expanded(
+              child: Text(
+                'Chats',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ),
+            IconButton(
+              key: const Key('home-spaces'),
+              tooltip: 'Spaces',
+              onPressed: () => Navigator.of(context).push(
+                SpacesRoute(
+                  reduceMotion: KiteMotion.prefersReducedMotion(context),
+                ),
+              ),
+              icon: const Icon(Icons.grid_view_rounded),
+            ),
+            IconButton(
+              key: const Key('home-read-all'),
+              tooltip: 'Mark all as read',
+              onPressed: store.markAllRead,
+              icon: const Icon(Icons.done_all_rounded),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _RoomFilterBar extends StatelessWidget {
-  const _RoomFilterBar();
+class _SpaceFilterBar extends StatelessWidget {
+  const _SpaceFilterBar({required this.store});
+
+  final RoomListStateStore store;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SizedBox(
-      key: const Key('room-filter-bar'),
-      height: 52,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-        scrollDirection: Axis.horizontal,
-        itemCount: RoomListFilter.values.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 7),
-        itemBuilder: (context, index) =>
-            _RoomFilterPill(filter: RoomListFilter.values[index]),
+      height: 56,
+      child: SignalBuilder(
+        builder: (context) {
+          final selectedSpaceId = store.selectedSpaceId.value;
+          return ListView.separated(
+            key: const Key('space-filter-row'),
+            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+            scrollDirection: Axis.horizontal,
+            itemCount: deterministicJoinedSpaces.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
+            itemBuilder: (context, index) {
+              final space = index == 0
+                  ? null
+                  : deterministicJoinedSpaces[index - 1];
+              final id = space?.id;
+              final selected = selectedSpaceId == id;
+              final label = space?.name ?? 'All';
+              return ChoiceChip(
+                key: Key('space-filter-${id ?? 'all'}'),
+                selected: selected,
+                showCheckmark: false,
+                avatar: CircleAvatar(
+                  radius: 12,
+                  backgroundColor: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.surfaceContainerHighest,
+                  foregroundColor: selected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurfaceVariant,
+                  child: Text(
+                    space == null ? '•' : space.name.characters.first,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                label: Text(label),
+                onSelected: (_) => store.selectSpace(id),
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
 
-class _RoomFilterPill extends StatefulWidget {
-  const _RoomFilterPill({required this.filter});
+class _RoomFilterBar extends StatelessWidget {
+  const _RoomFilterBar({required this.store});
 
-  final RoomListFilter filter;
-
-  @override
-  State<_RoomFilterPill> createState() => _RoomFilterPillState();
-}
-
-class _RoomFilterPillState extends State<_RoomFilterPill> {
-  late final FlutterComputed<bool> _selected = computed(
-    () => activeRoomListFilter.value == widget.filter,
-  );
-
-  @override
-  void dispose() {
-    _selected.dispose();
-    super.dispose();
-  }
+  final RoomListStateStore store;
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _selected,
-      builder: (context, selected, child) {
-        final theme = Theme.of(context);
-        final scheme = theme.colorScheme;
-        return Material(
-          color: selected
-              ? scheme.secondaryContainer
-              : scheme.surfaceContainerHighest.withValues(alpha: .72),
-          borderRadius: BorderRadius.circular(18),
-          child: InkWell(
-            key: Key('filter-${widget.filter.name}'),
-            onTap: () => selectRoomListFilter(widget.filter),
-            borderRadius: BorderRadius.circular(18),
-            splashFactory: NoSplash.splashFactory,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 44),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Center(
-                  child: Text(
-                    widget.filter.label,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: selected
-                          ? scheme.onSecondaryContainer
-                          : scheme.onSurfaceVariant,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    ),
-                  ),
+    return SizedBox(
+      height: 48,
+      child: SignalBuilder(
+        builder: (context) {
+          final selected = store.selectedFilter.value;
+          return ListView.separated(
+            key: const Key('room-filter-row'),
+            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+            scrollDirection: Axis.horizontal,
+            itemCount: RoomListFilter.values.length,
+            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
+            itemBuilder: (context, index) {
+              final filter = RoomListFilter.values[index];
+              return ChoiceChip(
+                key: Key('room-filter-${filter.name}'),
+                label: Text(filter.label),
+                selected: selected == filter,
+                showCheckmark: false,
+                onSelected: (_) => store.selectFilter(filter),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _InviteSection extends StatelessWidget {
+  const _InviteSection({required this.store});
+
+  final RoomInviteStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    return SignalBuilder(
+      builder: (context) {
+        final inviteIds = store.visibleInviteIds.value;
+        if (inviteIds.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.md,
+            KiteSpacing.xs,
+            KiteSpacing.md,
+            KiteSpacing.sm,
+          ),
+          child: Column(
+            key: const Key('room-invites'),
+            children: <Widget>[
+              for (final inviteId in inviteIds)
+                _InviteCard(
+                  key: ValueKey<String>('invite-$inviteId'),
+                  invite: store.invite(inviteId),
+                  state: store.stateSignal(inviteId),
+                  onAccept: () => store.accept(inviteId),
+                  onDecline: () => store.decline(inviteId),
                 ),
-              ),
-            ),
+            ],
           ),
         );
       },
+    );
+  }
+}
+
+class _InviteCard extends StatelessWidget {
+  const _InviteCard({
+    super.key,
+    required this.invite,
+    required this.state,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  final RoomInvite invite;
+  final ReadonlySignal<RoomInviteActionState> state;
+  final Future<void> Function() onAccept;
+  final Future<void> Function() onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(KiteRadii.md),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(KiteSpacing.sm),
+        child: Row(
+          children: <Widget>[
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: theme.colorScheme.secondaryContainer,
+              foregroundColor: theme.colorScheme.onSecondaryContainer,
+              child: Text(
+                invite.roomName.characters.first,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: KiteSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    invite.roomName,
+                    key: Key('invite-title-${invite.id}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${invite.inviterName} invited you · ${invite.memberCount} members',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (invite.description case final description?)
+                    Text(
+                      description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: KiteSpacing.xs),
+            SignalBuilder(
+              builder: (context) {
+                final actionState = state.value;
+                final pending =
+                    actionState == RoomInviteActionState.accepting ||
+                    actionState == RoomInviteActionState.declining;
+                if (pending) {
+                  return SizedBox.square(
+                    key: Key('invite-progress-${invite.id}'),
+                    dimension: 48,
+                    child: const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      key: Key('invite-decline-${invite.id}'),
+                      tooltip: 'Decline invite',
+                      onPressed: onDecline,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                    IconButton.filled(
+                      key: Key('invite-accept-${invite.id}'),
+                      tooltip: 'Accept invite',
+                      onPressed: onAccept,
+                      icon: const Icon(Icons.check_rounded),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -208,277 +465,204 @@ class _CompactChatScreen extends StatelessWidget {
 }
 
 class _RoomList extends StatelessWidget {
-  const _RoomList({required this.rooms, this.onRoomTap});
+  const _RoomList({required this.store, this.onRoomTap});
 
-  final List<BenchmarkRoom> rooms;
-  final ValueChanged<BenchmarkRoom>? onRoomTap;
+  final RoomListStateStore store;
+  final ValueChanged<String>? onRoomTap;
 
   @override
   Widget build(BuildContext context) {
     return SignalBuilder(
       builder: (context) {
-        final filter = activeRoomListFilter.value;
-        final visibleRooms = rooms
-            .where((room) => roomMatchesFilter(room, filter))
-            .toList(growable: false);
+        final ids = store.visibleRoomIds.value;
         return ListView.builder(
           key: const Key('room-list'),
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          itemCount: visibleRooms.length,
-          itemExtent: 76,
-          itemBuilder: (context, index) => _RoomListItem(
-            key: ValueKey<String>(visibleRooms[index].id),
-            room: visibleRooms[index],
-            onTap: onRoomTap,
-          ),
+          itemCount: ids.length,
+          itemExtent: 72,
+          itemBuilder: (context, index) {
+            final roomId = ids[index];
+            return SignalBuilder(
+              builder: (context) {
+                final room = store.roomSignal(roomId).value;
+                final selected = selectedRoomId.value == room.id;
+                final unreadThreadCount = threadController
+                    .unreadThreadCountForRoom(room.id)
+                    .value;
+                return _RoomListRow(
+                  room: room,
+                  selected: selected,
+                  unreadThreadCount: unreadThreadCount,
+                  onTap: () {
+                    final handler = onRoomTap;
+                    if (handler != null) {
+                      handler(room.id);
+                    } else {
+                      selectRoom(room.id);
+                    }
+                  },
+                );
+              },
+            );
+          },
         );
       },
     );
   }
 }
 
-class _RoomListItem extends StatefulWidget {
-  const _RoomListItem({super.key, required this.room, this.onTap});
-
-  final BenchmarkRoom room;
-  final ValueChanged<BenchmarkRoom>? onTap;
-
-  @override
-  State<_RoomListItem> createState() => _RoomListItemState();
-}
-
-class _RoomListItemState extends State<_RoomListItem> {
-  late final FlutterComputed<bool> _selected = computed(
-    () => selectedRoomId.value == widget.room.id,
-  );
-
-  @override
-  void dispose() {
-    _selected.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _selected,
-      builder: (context, selected, child) {
-        final room = widget.room;
-        final theme = Theme.of(context);
-        final scheme = theme.colorScheme;
-        final previewStyle = theme.textTheme.bodyMedium?.copyWith(
-          color: selected
-              ? scheme.onSecondaryContainer.withValues(alpha: .82)
-              : scheme.onSurfaceVariant,
-          height: 1.15,
-        );
-
-        return Semantics(
-          button: true,
-          selected: selected,
-          label: _semanticLabel(room),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            child: Material(
-              color: selected
-                  ? scheme.secondaryContainer.withValues(alpha: .68)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                key: Key('room-${room.id}'),
-                onTap: () {
-                  final handler = widget.onTap;
-                  if (handler != null) {
-                    handler(room);
-                  } else {
-                    selectRoom(room.id);
-                  }
-                },
-                borderRadius: BorderRadius.circular(16),
-                splashFactory: NoSplash.splashFactory,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                  child: Row(
-                    children: <Widget>[
-                      _RoomAvatar(room: room, selected: selected),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    room.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: room.unreadCount > 0
-                                          ? FontWeight.w700
-                                          : FontWeight.w600,
-                                      letterSpacing: -0.1,
-                                    ),
-                                  ),
-                                ),
-                                if (room.isFavourite) ...<Widget>[
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.star_rounded,
-                                    key: Key('favourite-${room.id}'),
-                                    size: 15,
-                                    color: scheme.primary,
-                                  ),
-                                ],
-                                if (room.hasActiveCall) ...<Widget>[
-                                  const SizedBox(width: 5),
-                                  Container(
-                                    key: Key('active-call-${room.id}'),
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: scheme.primaryContainer,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      Icons.call_rounded,
-                                      size: 12,
-                                      color: scheme.onPrimaryContainer,
-                                    ),
-                                  ),
-                                ],
-                                if (room.isMuted) ...<Widget>[
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.notifications_off_outlined,
-                                    key: Key('muted-${room.id}'),
-                                    size: 15,
-                                    color: scheme.onSurfaceVariant,
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: <Widget>[
-                                if (room.hasMutedActivity) ...<Widget>[
-                                  Container(
-                                    key: Key('muted-activity-${room.id}'),
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: scheme.primary,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                Expanded(
-                                  child: Text.rich(
-                                    key: Key('preview-${room.id}'),
-                                    TextSpan(
-                                      style: previewStyle,
-                                      children: <InlineSpan>[
-                                        TextSpan(
-                                          text: '${room.latestSender}: ',
-                                          style: previewStyle?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            color: selected
-                                                ? scheme.onSecondaryContainer
-                                                : scheme.onSurface,
-                                          ),
-                                        ),
-                                        TextSpan(text: room.subtitle),
-                                      ],
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 64,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: <Widget>[
-                            SizedBox(
-                              height: 16,
-                              child: Text(
-                                room.timeLabel,
-                                key: Key('time-${room.id}'),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            SizedBox(
-                              height: 20,
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: _RoomIndicators(room: room),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  static String _semanticLabel(RoomListEntry room) {
-    final parts = <String>[
-      room.name,
-      '${room.latestSender}: ${room.subtitle}',
-      if (room.unreadCount > 0) '${room.unreadCount} unread',
-      if (room.mentionCount > 0) '${room.mentionCount} mention',
-      if (room.isFavourite) 'favourite',
-      if (room.hasActiveCall) 'active call',
-      if (room.isMuted) 'notifications muted',
-      if (room.hasMutedActivity) 'new activity',
-    ];
-    return parts.join(', ');
-  }
-}
-
-class _RoomAvatar extends StatelessWidget {
-  const _RoomAvatar({required this.room, required this.selected});
+class _RoomListRow extends StatelessWidget {
+  const _RoomListRow({
+    required this.room,
+    required this.selected,
+    required this.unreadThreadCount,
+    required this.onTap,
+  });
 
   final RoomListEntry room;
   final bool selected;
+  final int unreadThreadCount;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final colors =
+        theme.extension<KiteSemanticColors>() ??
+        KiteSemanticColors.forBrightness(theme.brightness, theme.colorScheme);
+    final previewStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: room.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+    );
+    final sender = room.latestSender;
+    final preview = sender == null || sender.isEmpty
+        ? room.latestEventBody
+        : '$sender: ${room.latestEventBody}';
+    final semantics = <String>[
+      room.name,
+      preview,
+      if (room.unreadCount > 0) '${room.unreadCount} unread',
+      if (room.hasMention) 'Mention',
+      if (room.hasMutedActivity) 'Muted room has new activity',
+      if (room.hasActiveCall) 'Active call',
+      if (room.isMuted) 'Muted',
+      if (room.isFavourite) 'Favourite',
+      if (unreadThreadCount > 0)
+        '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
+    ].join(', ');
 
-    return CircleAvatar(
-      radius: 22,
-      backgroundColor: selected
-          ? scheme.primary.withValues(alpha: .16)
-          : scheme.surfaceContainerHighest,
-      foregroundColor: selected ? scheme.primary : scheme.onSurfaceVariant,
-      child: Text(
-        room.name.characters.first,
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w700,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: semantics,
+      child: Material(
+        color: selected
+            ? colors.selected.withValues(alpha: 0.62)
+            : Colors.transparent,
+        child: InkWell(
+          key: Key('room-${room.id}'),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: KiteSpacing.md,
+              vertical: KiteSpacing.xs,
+            ),
+            child: Row(
+              children: <Widget>[
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: selected
+                      ? theme.colorScheme.primaryContainer
+                      : theme.colorScheme.surfaceContainerHighest,
+                  child: Text(
+                    room.name.characters.first,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: KiteSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              room.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: room.unreadCount > 0
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (room.hasActiveCall)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: KiteSpacing.xs,
+                              ),
+                              child: Icon(
+                                Icons.call_rounded,
+                                key: Key('room-active-call-${room.id}'),
+                                size: 16,
+                                color: colors.unread,
+                              ),
+                            ),
+                          if (room.isMuted)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: KiteSpacing.xs,
+                              ),
+                              child: Icon(
+                                Icons.notifications_off_outlined,
+                                key: Key('room-muted-${room.id}'),
+                                size: 15,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          if (room.isFavourite)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: KiteSpacing.xs,
+                              ),
+                              child: Icon(
+                                Icons.star_rounded,
+                                key: Key('room-favourite-${room.id}'),
+                                size: 16,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        preview,
+                        key: Key('room-preview-${room.id}'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: previewStyle,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: KiteSpacing.xs),
+                SizedBox(
+                  width: 52,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _RoomIndicators(
+                      room: room,
+                      unreadThreadCount: unreadThreadCount,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -486,62 +670,87 @@ class _RoomAvatar extends StatelessWidget {
 }
 
 class _RoomIndicators extends StatelessWidget {
-  const _RoomIndicators({required this.room});
+  const _RoomIndicators({required this.room, required this.unreadThreadCount});
 
   final RoomListEntry room;
+  final int unreadThreadCount;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SignalBuilder(
-      builder: (context) {
-        final unreadThreadCount = threadController
-            .unreadThreadCountForRoom(room.id)
-            .value;
-        final indicators = <Widget>[];
+    final theme = Theme.of(context);
+    final colors =
+        theme.extension<KiteSemanticColors>() ??
+        KiteSemanticColors.forBrightness(theme.brightness, theme.colorScheme);
+    final textTheme = theme.textTheme;
+    Widget primary;
+    if (room.hasMention) {
+      primary = Container(
+        key: Key('room-mention-${room.id}'),
+        constraints: const BoxConstraints(minWidth: 26, minHeight: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: colors.mention,
+          borderRadius: BorderRadius.circular(KiteRadii.pill),
+        ),
+        child: Text(
+          '@${room.unreadCount > 0 ? room.unreadCount : ''}',
+          style: textTheme.labelSmall?.copyWith(
+            color:
+                ThemeData.estimateBrightnessForColor(colors.mention) ==
+                    Brightness.dark
+                ? Colors.white
+                : Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    } else if (room.unreadCount > 0) {
+      primary = Container(
+        key: Key('room-unread-${room.id}'),
+        constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: colors.unread,
+          borderRadius: BorderRadius.circular(KiteRadii.pill),
+        ),
+        child: Text(
+          '${room.unreadCount}',
+          style: textTheme.labelSmall?.copyWith(
+            color:
+                ThemeData.estimateBrightnessForColor(colors.unread) ==
+                    Brightness.dark
+                ? Colors.white
+                : Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    } else if (room.hasMutedActivity) {
+      primary = Container(
+        key: Key('room-muted-activity-${room.id}'),
+        width: 9,
+        height: 9,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurfaceVariant
+              .withValues(alpha: 0.72),
+          shape: BoxShape.circle,
+        ),
+      );
+    } else {
+      primary = const SizedBox(width: 24, height: 24);
+    }
 
-        if (room.mentionCount > 0) {
-          indicators.add(
-            _CountBadge(
-              key: Key('mention-${room.id}'),
-              label: '@',
-              background: scheme.primary,
-              foreground: scheme.onPrimary,
-            ),
-          );
-          if (room.unreadCount > 0) {
-            indicators
-              ..add(const SizedBox(width: 4))
-              ..add(
-                _CountBadge(
-                  key: Key('unread-${room.id}'),
-                  label: '${room.unreadCount}',
-                  background: scheme.surfaceContainerHighest,
-                  foreground: scheme.onSurface,
-                ),
-              );
-          }
-        } else if (room.unreadCount > 0) {
-          indicators.add(
-            _CountBadge(
-              key: Key('unread-${room.id}'),
-              label: '${room.unreadCount}',
-              background: room.isMuted
-                  ? scheme.surfaceContainerHighest
-                  : scheme.primary,
-              foreground: room.isMuted
-                  ? scheme.onSurfaceVariant
-                  : scheme.onPrimary,
-            ),
-          );
-        }
-
-        if (unreadThreadCount > 0) {
-          if (indicators.isNotEmpty) {
-            indicators.add(const SizedBox(width: 4));
-          }
-          indicators.add(
-            Semantics(
+    if (unreadThreadCount <= 0) return primary;
+    return SizedBox(
+      width: 52,
+      height: 24,
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: <Widget>[
+          primary,
+          Positioned(
+            left: 3,
+            child: Semantics(
               label:
                   '$unreadThreadCount unread thread ${unreadThreadCount == 1 ? 'reply' : 'replies'}',
               child: Container(
@@ -549,66 +758,49 @@ class _RoomIndicators extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: context.kiteColors.unread,
+                  color: colors.unread,
                   shape: BoxShape.circle,
                 ),
               ),
             ),
-          );
-        }
-
-        if (indicators.isEmpty) {
-          return const SizedBox(height: 20);
-        }
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: indicators,
-        );
-      },
-    );
-  }
-}
-
-class _CountBadge extends StatelessWidget {
-  const _CountBadge({
-    super.key,
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: foreground,
-          fontWeight: FontWeight.w800,
-          height: 1,
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 typedef _ComposerAction = void Function(String roomId, TimelineMessage message);
+typedef _ReactionAction = void Function(String emoji);
 
-enum _MessageAction { reply, edit, copy, redact }
+enum _MessageAction {
+  reply,
+  edit,
+  copy,
+  share,
+  forward,
+  report,
+  redact,
+  reactionPicker,
+}
+
+const _reportReasons = <String>[
+  'Spam or scam',
+  'Harassment or abuse',
+  'Inappropriate content',
+  'Other',
+];
 
 enum _ComposerMode { reply, edit }
+
+enum _ComposerFormatAction {
+  bold,
+  italic,
+  strikethrough,
+  inlineCode,
+  quote,
+  codeBlock,
+}
 
 class _ChatPanel extends StatefulWidget {
   const _ChatPanel({this.showHeader = true});
@@ -642,9 +834,55 @@ class _ChatPanelState extends State<_ChatPanel> {
         Expanded(
           child: _Timeline(onReply: _reply, onEdit: _edit),
         ),
+        const _TypingIndicator(),
         const Divider(height: 1),
         _Composer(key: _composerKey),
       ],
+    );
+  }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      key: const Key('typing-indicator-slot'),
+      height: 28,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.lg),
+          child: SignalBuilder(
+            builder: (context) {
+              final roomId = selectedRoomId.value;
+              final users = timelineController.typingUsersFor(roomId).value;
+              final text = switch (users.length) {
+                0 => '',
+                1 => '${users.first} is typing…',
+                2 => '${users.first} and ${users.last} are typing…',
+                _ =>
+                  '${users.first} and ${users.length - 1} others are typing…',
+              };
+              return KeyedSubtree(
+                key: const Key('typing-indicator'),
+                child: users.isEmpty
+                    ? const SizedBox.shrink()
+                    : Text(
+                        text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KiteTypography.metadata.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
@@ -695,6 +933,21 @@ class _ChatHeader extends StatelessWidget {
                     ],
                   ),
                 ),
+                IconButton(
+                  key: const Key('room-content-gallery-action'),
+                  tooltip: 'Shared content',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => RoomContentGallery(
+                          roomId: roomId,
+                          messages: timelineController.messagesFor(roomId),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.photo_library_outlined, size: 20),
+                ),
                 Icon(
                   Icons.lock_outline_rounded,
                   size: 18,
@@ -725,11 +978,80 @@ class _ChatHeader extends StatelessWidget {
   }
 }
 
-class _Timeline extends StatelessWidget {
+class _Timeline extends StatefulWidget {
   const _Timeline({required this.onReply, required this.onEdit});
 
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
+
+  @override
+  State<_Timeline> createState() => _TimelineState();
+}
+
+class _TimelineState extends State<_Timeline> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _unreadMarkerKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _jumpToUnread(String roomId) async {
+    final eventId = timelineController.unreadMarkerFor(roomId).peek();
+    if (eventId == null || !_scrollController.hasClients) return;
+
+    final retainedMarkerContext = _unreadMarkerKey.currentContext;
+    final retainedMarker = retainedMarkerContext?.findRenderObject();
+    if (retainedMarker != null && retainedMarker.attached) {
+      final position = _scrollController.position;
+      final viewport = RenderAbstractViewport.maybeOf(retainedMarker);
+      if (viewport != null) {
+        final target = viewport
+            .getOffsetToReveal(retainedMarker, 0.22)
+            .offset
+            .clamp(position.minScrollExtent, position.maxScrollExtent);
+        final distance = (target - position.pixels).abs();
+        final duration = distance > position.viewportDimension
+            ? Duration.zero
+            : KiteMotion.resolve(context, KiteMotion.standard);
+        await position.ensureVisible(
+          retainedMarker,
+          alignment: 0.22,
+          duration: duration,
+          curve: KiteMotion.standardCurve,
+        );
+        return;
+      }
+    }
+
+    final messages = timelineController.messagesFor(roomId).peek();
+    final targetIndex = messages.indexWhere((message) => message.id == eventId);
+    if (targetIndex < 0) return;
+    final reverseIndex = messages.length - 1 - targetIndex;
+    final denominator = messages.length <= 1 ? 1 : messages.length - 1;
+    final targetOffset =
+        _scrollController.position.maxScrollExtent * reverseIndex / denominator;
+    await _scrollController.animateTo(
+      targetOffset.clamp(
+        _scrollController.position.minScrollExtent,
+        _scrollController.position.maxScrollExtent,
+      ),
+      duration: KiteMotion.resolve(context, KiteMotion.deliberate),
+      curve: KiteMotion.standardCurve,
+    );
+    if (!mounted) return;
+    final markerContext = _unreadMarkerKey.currentContext;
+    if (markerContext != null && markerContext.mounted) {
+      await Scrollable.ensureVisible(
+        markerContext,
+        alignment: 0.22,
+        duration: KiteMotion.resolve(context, KiteMotion.standard),
+        curve: KiteMotion.standardCurve,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -737,23 +1059,141 @@ class _Timeline extends StatelessWidget {
       builder: (context) {
         final roomId = selectedRoomId.value;
         final messages = timelineController.messagesFor(roomId).value;
-        return ListView.builder(
-          key: const Key('message-list'),
-          reverse: true,
-          padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
-          itemCount: messages.length,
-          itemBuilder: (context, index) {
-            final message = messages[messages.length - 1 - index];
-            return _MessageRow(
-              key: ValueKey<String>(message.id),
-              roomId: roomId,
-              message: message,
-              onReply: onReply,
-              onEdit: onEdit,
-            );
-          },
+        final unreadMarkerEventId = timelineController
+            .unreadMarkerFor(roomId)
+            .value;
+        return Stack(
+          key: const Key('timeline-stack'),
+          children: <Widget>[
+            ListView.builder(
+              key: const Key('message-list'),
+              controller: _scrollController,
+              reverse: true,
+              scrollCacheExtent: unreadMarkerEventId == null
+                  ? null
+                  : const ScrollCacheExtent.viewport(1.8),
+              padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
+              itemCount: messages.length,
+              itemBuilder: (context, index) {
+                final message = messages[messages.length - 1 - index];
+                final row = _MessageRow(
+                  key: ValueKey<String>(message.id),
+                  roomId: roomId,
+                  message: message,
+                  onReply: widget.onReply,
+                  onEdit: widget.onEdit,
+                );
+                if (message.id != unreadMarkerEventId) return row;
+                return _UnreadMarkerOverlay(
+                  markerKey: _unreadMarkerKey,
+                  child: row,
+                );
+              },
+            ),
+            Positioned(
+              right: KiteSpacing.md,
+              bottom: KiteSpacing.md,
+              child: SignalBuilder(
+                builder: (context) {
+                  final eventId = timelineController
+                      .unreadMarkerFor(roomId)
+                      .value;
+                  return KeyedSubtree(
+                    key: const Key('jump-to-unread-slot'),
+                    child: eventId == null
+                        ? const SizedBox.shrink()
+                        : _UnreadJumpButton(onTap: () => _jumpToUnread(roomId)),
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+}
+
+class _UnreadJumpButton extends StatelessWidget {
+  const _UnreadJumpButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return RepaintBoundary(
+      child: Semantics(
+        button: true,
+        label: 'Jump to unread messages',
+        child: GestureDetector(
+          key: const Key('jump-to-unread'),
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Icon(
+                      Icons.arrow_downward_rounded,
+                      size: 18,
+                      color: colors.onSecondaryContainer,
+                    ),
+                    const SizedBox(width: KiteSpacing.xs),
+                    Text(
+                      'Unread',
+                      style: KiteTypography.metadata.copyWith(
+                        color: colors.onSecondaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadMarkerOverlay extends StatelessWidget {
+  const _UnreadMarkerOverlay({required this.markerKey, required this.child});
+
+  final GlobalKey markerKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        child,
+        Positioned(
+          key: markerKey,
+          left: KiteSpacing.md,
+          right: KiteSpacing.md,
+          top: 0,
+          child: IgnorePointer(
+            child: SizedBox(
+              key: const Key('timeline-unread-marker'),
+              height: 1,
+              child: ColoredBox(color: colors.primary.withValues(alpha: 0.72)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -772,8 +1212,24 @@ class _MessageRow extends StatelessWidget {
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
 
-  Future<void> _showActions(BuildContext context) async {
-    final action = await showModalBottomSheet<_MessageAction>(
+  void _openMedia(BuildContext context) {
+    final model = TimelineMediaViewerModel.fromMessages(
+      roomId: roomId,
+      messages: timelineController.messagesFor(roomId).peek(),
+      initialMessageId: message.id,
+    );
+    Navigator.of(context).push(
+      MediaViewerRoute(
+        items: model.items,
+        initialIndex: model.initialIndex,
+        onSave: model.onSave,
+        onShare: model.onShare,
+      ),
+    );
+  }
+
+  Future<void> _showEditHistory(BuildContext context) {
+    return showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       backgroundColor: context.kiteColors.canvas,
@@ -781,7 +1237,27 @@ class _MessageRow extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
       ),
-      builder: (sheetContext) => _MessageActionSheet(message: message),
+      builder: (_) => _EditHistorySheet(message: message),
+    );
+  }
+
+  Future<void> _showActions(BuildContext context) async {
+    final action = await showModalBottomSheet<_MessageAction>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (sheetContext) => _MessageActionSheet(
+        message: message,
+        onReact: (emoji) {
+          timelineController.toggleReaction(message, emoji);
+          Navigator.of(sheetContext).pop();
+        },
+      ),
     );
     if (!context.mounted || action == null) return;
     switch (action) {
@@ -801,6 +1277,88 @@ class _MessageRow extends StatelessWidget {
               duration: Duration(seconds: 2),
             ),
           );
+      case _MessageAction.share:
+        await timelineController.shareMessage(roomId, message);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Share sheet opened'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.forward:
+        final destinations = await showModalBottomSheet<List<String>>(
+          context: context,
+          useSafeArea: true,
+          isScrollControlled: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (_) =>
+              _ForwardMessageSheet(currentRoomId: roomId, message: message),
+        );
+        if (!context.mounted || destinations == null || destinations.isEmpty) {
+          return;
+        }
+        final forwarded = timelineController.forwardText(message, destinations);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Forwarded to ${forwarded.length} ${forwarded.length == 1 ? 'room' : 'rooms'}',
+              ),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.report:
+        final reason = await showModalBottomSheet<String>(
+          context: context,
+          useSafeArea: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (_) => _ReportMessageSheet(message: message),
+        );
+        if (!context.mounted || reason == null) return;
+        await timelineController.reportMessage(roomId, message, reason);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Report sent'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+      case _MessageAction.reactionPicker:
+        final emoji = await showModalBottomSheet<String>(
+          context: context,
+          useSafeArea: true,
+          backgroundColor: context.kiteColors.canvas,
+          constraints: const BoxConstraints(maxWidth: 440),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KiteRadii.lg),
+            ),
+          ),
+          builder: (_) => const _ReactionPickerSheet(),
+        );
+        if (!context.mounted || emoji == null) return;
+        timelineController.toggleReaction(message, emoji);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -880,12 +1438,43 @@ class _MessageRow extends StatelessWidget {
                       ],
                     );
                   }
-                  return Text(
-                    message.body,
-                    key: Key('message-body-${message.id}'),
-                    style: KiteTypography.body.copyWith(
-                      color: colors.onSurface,
-                    ),
+                  final attachment = message.attachment;
+                  final linkPreview = timelineLinkPreviewForText(message.body);
+                  return Column(
+                    key: Key('message-content-${message.id}'),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (attachment != null)
+                        TimelineAttachmentCard(
+                          messageId: message.id,
+                          attachment: attachment,
+                          heroTag:
+                              attachment.kind == TimelineAttachmentKind.file
+                              ? null
+                              : timelineMediaHeroTag(message),
+                          onTap: attachment.kind == TimelineAttachmentKind.file
+                              ? null
+                              : () => _openMedia(context),
+                        ),
+                      if (attachment != null && message.body.isNotEmpty)
+                        const SizedBox(height: KiteSpacing.xs),
+                      if (message.body.isNotEmpty)
+                        KeyedSubtree(
+                          key: Key('message-body-${message.id}'),
+                          child: TimelineMessageBody(body: message.body),
+                        ),
+                      if (linkPreview != null) ...<Widget>[
+                        const SizedBox(height: KiteSpacing.xs),
+                        TimelineLinkPreviewCard(
+                          key: Key('message-link-preview-${message.id}'),
+                          preview: linkPreview,
+                          onOpen: () async {
+                            await timelineController.openLink(linkPreview.uri);
+                          },
+                        ),
+                      ],
+                    ],
                   );
                 },
               ),
@@ -902,19 +1491,30 @@ class _MessageRow extends StatelessWidget {
                   ),
                   SignalBuilder(
                     builder: (context) => message.edited
-                        ? Text(
-                            ' · edited',
-                            key: Key('edited-${message.id}'),
-                            style: KiteTypography.metadata.copyWith(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 11,
+                        ? Semantics(
+                            button: true,
+                            label: 'View edit history',
+                            child: GestureDetector(
+                              key: Key('edited-${message.id}'),
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _showEditHistory(context),
+                              child: Text(
+                                ' · edited',
+                                style: KiteTypography.metadata.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  fontSize: 11,
+                                  decoration: TextDecoration.underline,
+                                  decorationStyle: TextDecorationStyle.dotted,
+                                ),
+                              ),
                             ),
                           )
                         : const SizedBox.shrink(),
                   ),
+                  _MessageReactionSummary(message: message),
                   if (mine) ...<Widget>[
                     const SizedBox(width: KiteSpacing.xxs),
-                    _MessageSendState(roomId: roomId, message: message),
+                    _MessageDeliveryState(roomId: roomId, message: message),
                   ],
                 ],
               ),
@@ -1164,9 +1764,10 @@ class _MessageReplyPreview extends StatelessWidget {
 }
 
 class _MessageActionSheet extends StatelessWidget {
-  const _MessageActionSheet({required this.message});
+  const _MessageActionSheet({required this.message, required this.onReact});
 
   final TimelineMessage message;
+  final _ReactionAction onReact;
 
   @override
   Widget build(BuildContext context) {
@@ -1179,61 +1780,538 @@ class _MessageActionSheet extends StatelessWidget {
         KiteSpacing.lg,
         KiteSpacing.lg,
       ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.76,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.outlineVariant,
+                  borderRadius: BorderRadius.circular(KiteRadii.pill),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  message.body,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: KiteTypography.body.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              if (!message.redacted) ...<Widget>[
+                _QuickReactionRow(onReact: onReact),
+                const SizedBox(height: KiteSpacing.xs),
+                _MessageActionButton(
+                  key: const Key('message-action-more-reactions'),
+                  icon: Icons.add_reaction_outlined,
+                  label: 'More reactions',
+                  onTap: () =>
+                      Navigator.of(context).pop(_MessageAction.reactionPicker),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-reply'),
+                  icon: Icons.reply_rounded,
+                  label: 'Reply',
+                  onTap: () => Navigator.of(context).pop(_MessageAction.reply),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-copy'),
+                  icon: Icons.content_copy_rounded,
+                  label: 'Copy text',
+                  onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-share'),
+                  icon: Icons.share_outlined,
+                  label: 'Share',
+                  onTap: () => Navigator.of(context).pop(_MessageAction.share),
+                ),
+                _MessageActionButton(
+                  key: const Key('message-action-forward'),
+                  icon: Icons.forward_to_inbox_rounded,
+                  label: 'Forward',
+                  onTap: () =>
+                      Navigator.of(context).pop(_MessageAction.forward),
+                ),
+                if (!message.mine)
+                  _MessageActionButton(
+                    key: const Key('message-action-report'),
+                    icon: Icons.flag_outlined,
+                    label: 'Report',
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.report),
+                  ),
+                if (message.mine)
+                  _MessageActionButton(
+                    key: const Key('message-action-edit'),
+                    icon: Icons.edit_outlined,
+                    label: 'Edit message',
+                    onTap: () => Navigator.of(context).pop(_MessageAction.edit),
+                  ),
+                if (message.mine)
+                  _MessageActionButton(
+                    key: const Key('message-action-delete'),
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Delete message',
+                    destructive: true,
+                    onTap: () =>
+                        Navigator.of(context).pop(_MessageAction.redact),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ForwardMessageSheet extends StatefulWidget {
+  const _ForwardMessageSheet({
+    required this.currentRoomId,
+    required this.message,
+  });
+
+  final String currentRoomId;
+  final TimelineMessage message;
+
+  @override
+  State<_ForwardMessageSheet> createState() => _ForwardMessageSheetState();
+}
+
+class _ForwardMessageSheetState extends State<_ForwardMessageSheet> {
+  final Set<String> _selectedRoomIds = <String>{};
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final normalizedQuery = _query.trim().toLowerCase();
+    final rooms = BenchmarkFixture.rooms
+        .where((room) => room.id != widget.currentRoomId)
+        .where(
+          (room) =>
+              normalizedQuery.isEmpty ||
+              room.name.toLowerCase().contains(normalizedQuery) ||
+              room.subtitle.toLowerCase().contains(normalizedQuery),
+        )
+        .toList(growable: false);
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        key: const Key('forward-message-sheet'),
+        height: 560,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.lg,
+            KiteSpacing.sm,
+            KiteSpacing.lg,
+            KiteSpacing.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.outlineVariant,
+                    borderRadius: BorderRadius.circular(KiteRadii.pill),
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.lg),
+              Text(
+                'Forward message',
+                style: KiteTypography.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.xs),
+              Text(
+                widget.message.body,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: KiteTypography.body.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.md),
+              TextField(
+                key: const Key('forward-room-search'),
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Search rooms',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: context.kiteColors.field,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: KiteSpacing.md,
+                    vertical: KiteSpacing.sm,
+                  ),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.circular(KiteRadii.lg),
+                  ),
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              Expanded(
+                child: ListView.builder(
+                  key: const Key('forward-room-list'),
+                  itemCount: rooms.length,
+                  itemExtent: 56,
+                  itemBuilder: (context, index) {
+                    final room = rooms[index];
+                    final selected = _selectedRoomIds.contains(room.id);
+                    void toggle() {
+                      setState(() {
+                        if (!_selectedRoomIds.add(room.id)) {
+                          _selectedRoomIds.remove(room.id);
+                        }
+                      });
+                    }
+
+                    return InkWell(
+                      key: Key('forward-room-${room.id}'),
+                      onTap: toggle,
+                      borderRadius: BorderRadius.circular(KiteRadii.md),
+                      child: Row(
+                        children: <Widget>[
+                          CircleAvatar(
+                            radius: 17,
+                            child: Text(room.name.characters.first),
+                          ),
+                          const SizedBox(width: KiteSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              room.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KiteTypography.body.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Checkbox(value: selected, onChanged: (_) => toggle()),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: KiteSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const Key('forward-message-confirm'),
+                  onPressed: _selectedRoomIds.isEmpty
+                      ? null
+                      : () =>
+                            Navigator.of(context)
+                                .pop(_selectedRoomIds.toList(growable: false)),
+                  child: Text(
+                    _selectedRoomIds.isEmpty
+                        ? 'Select rooms'
+                        : 'Forward to ${_selectedRoomIds.length}',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportMessageSheet extends StatelessWidget {
+  const _ReportMessageSheet({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('report-message-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: colors.outlineVariant,
-              borderRadius: BorderRadius.circular(KiteRadii.pill),
-            ),
-          ),
-          const SizedBox(height: KiteSpacing.md),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              message.body,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: KiteTypography.body.copyWith(
-                color: colors.onSurfaceVariant,
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.outlineVariant,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
               ),
             ),
+          ),
+          const SizedBox(height: KiteSpacing.lg),
+          Text(
+            'Report message',
+            style: KiteTypography.title.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.xs),
+          Text(
+            message.body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: KiteTypography.body.copyWith(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: KiteSpacing.sm),
-          if (!message.redacted) ...<Widget>[
+          for (var index = 0; index < _reportReasons.length; index++)
             _MessageActionButton(
-              key: const Key('message-action-reply'),
-              icon: Icons.reply_rounded,
-              label: 'Reply',
-              onTap: () => Navigator.of(context).pop(_MessageAction.reply),
+              key: Key('report-reason-$index'),
+              icon: index == _reportReasons.length - 1
+                  ? Icons.more_horiz_rounded
+                  : Icons.flag_outlined,
+              label: _reportReasons[index],
+              onTap: () => Navigator.of(context).pop(_reportReasons[index]),
             ),
-            _MessageActionButton(
-              key: const Key('message-action-copy'),
-              icon: Icons.content_copy_rounded,
-              label: 'Copy text',
-              onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickReactionRow extends StatelessWidget {
+  const _QuickReactionRow({required this.onReact});
+
+  final _ReactionAction onReact;
+
+  static const reactions = <String>['👍', '❤️', '😂', '🎉'];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: const Key('quick-reaction-row'),
+      height: 46,
+      child: Row(
+        children: <Widget>[
+          for (var index = 0; index < reactions.length; index++) ...<Widget>[
+            if (index > 0) const SizedBox(width: KiteSpacing.xs),
+            Expanded(
+              child: Semantics(
+                button: true,
+                label: 'React with ${reactions[index]}',
+                child: InkWell(
+                  key: Key('quick-reaction-$index'),
+                  onTap: () => onReact(reactions[index]),
+                  borderRadius: BorderRadius.circular(KiteRadii.pill),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(KiteRadii.pill),
+                    ),
+                    child: Center(
+                      child: Text(
+                        reactions[index],
+                        style: const TextStyle(fontSize: 21),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-            if (message.mine)
-              _MessageActionButton(
-                key: const Key('message-action-edit'),
-                icon: Icons.edit_outlined,
-                label: 'Edit message',
-                onTap: () => Navigator.of(context).pop(_MessageAction.edit),
-              ),
-            if (message.mine)
-              _MessageActionButton(
-                key: const Key('message-action-delete'),
-                icon: Icons.delete_outline_rounded,
-                label: 'Delete message',
-                destructive: true,
-                onTap: () => Navigator.of(context).pop(_MessageAction.redact),
-              ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ReactionPickerSheet extends StatelessWidget {
+  const _ReactionPickerSheet();
+
+  static const emoji = <String>[
+    '👍',
+    '❤️',
+    '😂',
+    '🎉',
+    '🔥',
+    '👏',
+    '👀',
+    '🤔',
+    '😮',
+    '😢',
+    '🙏',
+    '✅',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('reaction-picker-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.sm,
+        KiteSpacing.lg,
+        KiteSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          Text(
+            'Choose a reaction',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 6,
+              mainAxisSpacing: KiteSpacing.xs,
+              crossAxisSpacing: KiteSpacing.xs,
+            ),
+            itemCount: emoji.length,
+            itemBuilder: (context, index) {
+              return InkWell(
+                key: Key('reaction-picker-$index'),
+                onTap: () => Navigator.of(context).pop(emoji[index]),
+                borderRadius: BorderRadius.circular(KiteRadii.md),
+                child: Center(
+                  child: Text(
+                    emoji[index],
+                    style: const TextStyle(fontSize: 26),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageReactionSummary extends StatelessWidget {
+  const _MessageReactionSummary({required this.message});
+
+  final TimelineMessage message;
+
+  Future<void> _showDetails(
+    BuildContext context,
+    TimelineReactionSummary reaction,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        key: const Key('reaction-details'),
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.lg,
+          KiteSpacing.sm,
+          KiteSpacing.lg,
+          KiteSpacing.xl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '${reaction.emoji} ${reaction.count}',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: KiteSpacing.sm),
+            for (final reactor in reaction.reactors)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  radius: 18,
+                  child: Icon(Icons.person_rounded, size: 18),
+                ),
+                title: Text(reactor),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SignalBuilder(
+      builder: (context) {
+        final reactions = message.reactions.values.toList(growable: false);
+        if (reactions.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final primary = reactions.first;
+        final extraCount = reactions.length - 1;
+        return Padding(
+          padding: const EdgeInsets.only(left: KiteSpacing.xxs),
+          child: InkWell(
+            key: Key('message-reactions-${message.id}'),
+            onTap: () => _showDetails(context, primary),
+            borderRadius: BorderRadius.circular(KiteRadii.pill),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Text(
+                '${primary.emoji} ${primary.count}${extraCount > 0 ? ' +$extraCount' : ''}',
+                style: KiteTypography.metadata.copyWith(
+                  color: primary.reactedByMe
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1366,17 +2444,31 @@ class _MessageAvatar extends StatelessWidget {
   }
 }
 
-class _MessageSendState extends StatelessWidget {
-  const _MessageSendState({required this.roomId, required this.message});
+class _MessageDeliveryState extends StatelessWidget {
+  const _MessageDeliveryState({required this.roomId, required this.message});
 
   final String roomId;
   final TimelineMessage message;
+
+  Future<void> _showReadReceipts(BuildContext context, List<String> readers) {
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: context.kiteColors.canvas,
+      constraints: const BoxConstraints(maxWidth: 440),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
+      ),
+      builder: (_) => _ReadReceiptDetailsSheet(readers: readers),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return SignalBuilder(
       builder: (context) {
         final state = message.sendState.value;
+        final readers = message.readByState.value;
         final colors = Theme.of(context).colorScheme;
         return SizedBox(
           key: Key('send-state-${message.id}'),
@@ -1389,6 +2481,19 @@ class _MessageSendState extends StatelessWidget {
                 size: 14,
                 color: colors.onSurfaceVariant,
                 semanticLabel: 'Sending',
+              ),
+            ),
+            TimelineSendState.sent when readers.isNotEmpty => Semantics(
+              button: true,
+              label: 'Read by ${readers.join(', ')}',
+              child: Tooltip(
+                message: 'Read by ${readers.join(', ')}',
+                child: GestureDetector(
+                  key: Key('read-receipts-${message.id}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _showReadReceipts(context, readers),
+                  child: _ReadReceiptAvatars(readers: readers),
+                ),
               ),
             ),
             TimelineSendState.sent => Center(
@@ -1422,6 +2527,210 @@ class _MessageSendState extends StatelessWidget {
   }
 }
 
+class _ReadReceiptAvatars extends StatelessWidget {
+  const _ReadReceiptAvatars({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final visible = readers.take(3).toList(growable: false);
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        for (var index = 0; index < visible.length; index++)
+          Positioned(
+            left: 4.0 + (index * 10),
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.surfaceContainerHighest),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                visible[index].characters.first.toUpperCase(),
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSecondaryContainer,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        if (readers.length > 3)
+          Positioned(
+            right: 0,
+            child: Text(
+              '+${readers.length - 3}',
+              style: KiteTypography.metadata.copyWith(
+                color: colors.onSurfaceVariant,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _EditHistorySheet extends StatelessWidget {
+  const _EditHistorySheet({required this.message});
+
+  final TimelineMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('edit-history-sheet'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.md,
+        KiteSpacing.lg,
+        KiteSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Edit history',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          _EditHistoryEntry(
+            key: const Key('edit-history-current'),
+            label: 'Current',
+            body: message.body,
+            emphasized: true,
+          ),
+          for (var index = message.editHistory.length - 1; index >= 0; index--)
+            _EditHistoryEntry(
+              key: Key('edit-history-$index'),
+              label: index == 0 ? 'Original' : 'Earlier edit',
+              body: message.editHistory[index],
+            ),
+          if (message.editHistory.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: KiteSpacing.sm),
+              child: Text(
+                'Earlier versions are unavailable.',
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditHistoryEntry extends StatelessWidget {
+  const _EditHistoryEntry({
+    super.key,
+    required this.label,
+    required this.body,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String body;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: KiteSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: KiteTypography.metadata.copyWith(
+              color: emphasized ? colors.primary : colors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.xxs),
+          Text(
+            body,
+            style: KiteTypography.body.copyWith(color: colors.onSurface),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReadReceiptDetailsSheet extends StatelessWidget {
+  const _ReadReceiptDetailsSheet({required this.readers});
+
+  final List<String> readers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      key: const Key('read-receipt-details'),
+      padding: const EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.md,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Read by',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.sm),
+          for (final reader in readers)
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: <Widget>[
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    foregroundColor: theme.colorScheme.onSecondaryContainer,
+                    child: Text(
+                      reader.characters.first.toUpperCase(),
+                      style: KiteTypography.metadata.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: KiteSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      reader,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KiteTypography.body,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Composer extends StatefulWidget {
   const _Composer({super.key});
 
@@ -1436,6 +2745,18 @@ class _ComposerState extends State<_Composer> {
   String? _contextRoomId;
   TimelineMessage? _contextMessage;
   String _draftBeforeEdit = '';
+  TimelineAttachment? _pendingAttachment;
+  String? _pendingAttachmentRoomId;
+  bool _formattingVisible = false;
+
+  static const _autocompleteCandidates =
+      <({String token, String label, IconData icon})>[
+        (token: '@Alice', label: 'Alice', icon: Icons.person_outline_rounded),
+        (token: '@Maya', label: 'Maya', icon: Icons.person_outline_rounded),
+        (token: '@Sam', label: 'Sam', icon: Icons.person_outline_rounded),
+        (token: '#Kite', label: 'Kite', icon: Icons.tag_rounded),
+        (token: '#Design-Lab', label: 'Design Lab', icon: Icons.tag_rounded),
+      ];
 
   @override
   void dispose() {
@@ -1489,22 +2810,201 @@ class _ComposerState extends State<_Composer> {
     });
   }
 
+  Future<void> _pickAttachment(String roomId) async {
+    final attachment = await showComposerAttachmentPicker(context);
+    if (!mounted || attachment == null) return;
+    setState(() {
+      _pendingAttachment = attachment;
+      _pendingAttachmentRoomId = roomId;
+    });
+    _focusNode.requestFocus();
+  }
+
+  void _removeAttachment() {
+    if (_pendingAttachment == null) return;
+    setState(() {
+      _pendingAttachment = null;
+      _pendingAttachmentRoomId = null;
+    });
+  }
+
+  void _toggleFormatting() {
+    setState(() => _formattingVisible = !_formattingVisible);
+    _focusNode.requestFocus();
+  }
+
+  ({int start, String prefix, String query})? _autocompleteMatch(
+    TextEditingValue value,
+  ) {
+    final selection = value.selection;
+    if (selection.isValid && !selection.isCollapsed) return null;
+    final cursorOffset = selection.isValid
+        ? selection.extentOffset
+        : value.text.length;
+    final beforeCursor = value.text.substring(0, cursorOffset);
+    final match = RegExp(r'([@#])([^\s@#]*)$').firstMatch(beforeCursor);
+    if (match == null) return null;
+    final start = match.start;
+    if (start > 0 && !RegExp(r'\s').hasMatch(beforeCursor[start - 1])) {
+      return null;
+    }
+    return (
+      start: start,
+      prefix: match.group(1)!,
+      query: match.group(2)!.toLowerCase(),
+    );
+  }
+
+  List<({String token, String label, IconData icon})> _autocompleteOptions(
+    TextEditingValue value,
+  ) {
+    final match = _autocompleteMatch(value);
+    if (match == null) return const [];
+    return _autocompleteCandidates
+        .where(
+          (candidate) =>
+              candidate.token.startsWith(match.prefix) &&
+              candidate.label.toLowerCase().startsWith(match.query),
+        )
+        .take(4)
+        .toList(growable: false);
+  }
+
+  void _insertAutocompleteToken(
+    ({String token, String label, IconData icon}) candidate,
+  ) {
+    final value = _controller.value;
+    final match = _autocompleteMatch(value);
+    if (match == null) return;
+    final end = value.selection.extentOffset;
+    final replacement = '${candidate.token} ';
+    _controller.value = value
+        .replaced(TextRange(start: match.start, end: end), replacement)
+        .copyWith(
+          selection: TextSelection.collapsed(
+            offset: match.start + replacement.length,
+          ),
+          composing: TextRange.empty,
+        );
+    _focusNode.requestFocus();
+  }
+
+  void _applyFormat(_ComposerFormatAction action) {
+    final value = _controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    final start = selection.start < selection.end
+        ? selection.start
+        : selection.end;
+    final end = selection.start < selection.end
+        ? selection.end
+        : selection.start;
+    final selected = value.text.substring(start, end);
+
+    late final String replacement;
+    late final TextSelection nextSelection;
+    switch (action) {
+      case _ComposerFormatAction.quote:
+        replacement = selected.isEmpty
+            ? '> '
+            : selected.split('\n').map((line) => '> $line').join('\n');
+        nextSelection = TextSelection.collapsed(
+          offset: start + replacement.length,
+        );
+      case _ComposerFormatAction.codeBlock:
+        replacement = selected.isEmpty ? '```\n\n```' : '```\n$selected\n```';
+        nextSelection = selected.isEmpty
+            ? TextSelection.collapsed(offset: start + 4)
+            : TextSelection(
+                baseOffset: start + 4,
+                extentOffset: start + 4 + selected.length,
+              );
+      case _ComposerFormatAction.bold:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '**',
+        );
+      case _ComposerFormatAction.italic:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '*',
+        );
+      case _ComposerFormatAction.strikethrough:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '~~',
+        );
+      case _ComposerFormatAction.inlineCode:
+        (replacement, nextSelection) = _wrapComposerSelection(
+          start: start,
+          selected: selected,
+          marker: '`',
+        );
+    }
+
+    _controller.value = value
+        .replaced(selection, replacement)
+        .copyWith(selection: nextSelection, composing: TextRange.empty);
+    _focusNode.requestFocus();
+  }
+
+  (String, TextSelection) _wrapComposerSelection({
+    required int start,
+    required String selected,
+    required String marker,
+  }) {
+    final replacement = '$marker$selected$marker';
+    if (selected.isEmpty) {
+      return (
+        replacement,
+        TextSelection.collapsed(offset: start + marker.length),
+      );
+    }
+    return (
+      replacement,
+      TextSelection(
+        baseOffset: start + marker.length,
+        extentOffset: start + marker.length + selected.length,
+      ),
+    );
+  }
+
   void _send() {
     final body = _controller.text.trim();
-    if (body.isEmpty) return;
     final roomId = selectedRoomId.value;
+    final attachment = _pendingAttachmentRoomId == roomId
+        ? _pendingAttachment
+        : null;
     final contextMessage = _contextRoomId == roomId ? _contextMessage : null;
     if (_mode == _ComposerMode.edit && contextMessage != null) {
+      if (body.isEmpty) return;
       timelineController.editText(contextMessage, body);
       _clearContext(restoreEditDraft: true);
     } else {
-      timelineController.sendText(
-        roomId,
-        body,
-        replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
-      );
+      if (body.isEmpty && attachment == null) return;
+      if (attachment != null) {
+        timelineController.sendAttachment(
+          roomId,
+          attachment,
+          caption: body,
+          replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
+        );
+        _pendingAttachment = null;
+        _pendingAttachmentRoomId = null;
+      } else {
+        timelineController.sendText(
+          roomId,
+          body,
+          replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
+        );
+      }
       _controller.clear();
       if (_mode != null) _clearContext(restoreEditDraft: false);
+      if (mounted) setState(() {});
     }
     _focusNode.requestFocus();
   }
@@ -1517,6 +3017,9 @@ class _ComposerState extends State<_Composer> {
         final roomId = selectedRoomId.value;
         final activeMessage = _contextRoomId == roomId ? _contextMessage : null;
         final activeMode = activeMessage == null ? null : _mode;
+        final activeAttachment = _pendingAttachmentRoomId == roomId
+            ? _pendingAttachment
+            : null;
         return AnimatedSize(
           key: const Key('composer'),
           alignment: Alignment.bottomCenter,
@@ -1533,6 +3036,41 @@ class _ComposerState extends State<_Composer> {
                     message: activeMessage,
                     onClose: () => _clearContext(restoreEditDraft: true),
                   ),
+                if (activeAttachment != null)
+                  ComposerAttachmentPreview(
+                    attachment: activeAttachment,
+                    onRemove: _removeAttachment,
+                  ),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (context, value, child) {
+                    final options = _autocompleteOptions(value);
+                    return AnimatedSize(
+                      key: const Key('composer-autocomplete-slot'),
+                      alignment: Alignment.bottomCenter,
+                      duration: KiteMotion.resolve(
+                        context,
+                        KiteMotion.standard,
+                      ),
+                      curve: KiteMotion.standardCurve,
+                      child: options.isEmpty
+                          ? const SizedBox.shrink()
+                          : _ComposerAutocompleteBar(
+                              options: options,
+                              onSelected: _insertAutocompleteToken,
+                            ),
+                    );
+                  },
+                ),
+                AnimatedSize(
+                  key: const Key('composer-formatting-slot'),
+                  alignment: Alignment.bottomCenter,
+                  duration: KiteMotion.resolve(context, KiteMotion.standard),
+                  curve: KiteMotion.standardCurve,
+                  child: _formattingVisible
+                      ? _ComposerFormattingToolbar(onFormat: _applyFormat)
+                      : const SizedBox.shrink(),
+                ),
                 SizedBox(
                   height: 76,
                   child: Padding(
@@ -1547,8 +3085,22 @@ class _ComposerState extends State<_Composer> {
                         IconButton(
                           key: const Key('composer-attach'),
                           tooltip: 'Add attachment',
-                          onPressed: () {},
+                          onPressed: activeMode == _ComposerMode.edit
+                              ? null
+                              : () => _pickAttachment(roomId),
                           icon: const Icon(Icons.add_circle_outline_rounded),
+                        ),
+                        IconButton(
+                          key: const Key('composer-format-toggle'),
+                          tooltip: _formattingVisible
+                              ? 'Hide formatting'
+                              : 'Show formatting',
+                          onPressed: _toggleFormatting,
+                          icon: Icon(
+                            _formattingVisible
+                                ? Icons.text_format_rounded
+                                : Icons.text_format_outlined,
+                          ),
                         ),
                         const SizedBox(width: KiteSpacing.xxs),
                         Expanded(
@@ -1563,6 +3115,8 @@ class _ComposerState extends State<_Composer> {
                             decoration: InputDecoration(
                               hintText: activeMode == _ComposerMode.edit
                                   ? 'Edit message…'
+                                  : activeAttachment != null
+                                  ? 'Add a caption…'
                                   : Localizations.of<AppLocalizations>(
                                           context,
                                           AppLocalizations,
@@ -1603,8 +3157,11 @@ class _ComposerState extends State<_Composer> {
                         ValueListenableBuilder<TextEditingValue>(
                           valueListenable: _controller,
                           builder: (context, value, child) {
-                            final enabled = value.text.trim().isNotEmpty;
                             final editing = activeMode == _ComposerMode.edit;
+                            final enabled = editing
+                                ? value.text.trim().isNotEmpty
+                                : value.text.trim().isNotEmpty ||
+                                      activeAttachment != null;
                             return IconButton.filled(
                               key: const Key('composer-send'),
                               tooltip: editing ? 'Save edit' : 'Send message',
@@ -1639,6 +3196,112 @@ class _ComposerState extends State<_Composer> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ComposerAutocompleteBar extends StatelessWidget {
+  const _ComposerAutocompleteBar({
+    required this.options,
+    required this.onSelected,
+  });
+
+  final List<({String token, String label, IconData icon})> options;
+  final ValueChanged<({String token, String label, IconData icon})> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: const Key('composer-autocomplete'),
+      height: 52,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
+        itemBuilder: (context, index) {
+          final option = options[index];
+          return ActionChip(
+            key: Key('composer-autocomplete-${option.token.substring(1)}'),
+            avatar: Icon(option.icon, size: 17, color: colors.onSurfaceVariant),
+            label: Text(option.token),
+            onPressed: () => onSelected(option),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ComposerFormattingToolbar extends StatelessWidget {
+  const _ComposerFormattingToolbar({required this.onFormat});
+
+  final ValueChanged<_ComposerFormatAction> onFormat;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    const actions =
+        <({_ComposerFormatAction action, IconData icon, String tooltip})>[
+          (
+            action: _ComposerFormatAction.bold,
+            icon: Icons.format_bold_rounded,
+            tooltip: 'Bold',
+          ),
+          (
+            action: _ComposerFormatAction.italic,
+            icon: Icons.format_italic_rounded,
+            tooltip: 'Italic',
+          ),
+          (
+            action: _ComposerFormatAction.strikethrough,
+            icon: Icons.strikethrough_s_rounded,
+            tooltip: 'Strikethrough',
+          ),
+          (
+            action: _ComposerFormatAction.inlineCode,
+            icon: Icons.code_rounded,
+            tooltip: 'Inline code',
+          ),
+          (
+            action: _ComposerFormatAction.quote,
+            icon: Icons.format_quote_rounded,
+            tooltip: 'Quote',
+          ),
+          (
+            action: _ComposerFormatAction.codeBlock,
+            icon: Icons.data_object_rounded,
+            tooltip: 'Code block',
+          ),
+        ];
+
+    return SizedBox(
+      key: const Key('composer-formatting-toolbar'),
+      height: 52,
+      child: ListView.separated(
+        key: const Key('composer-formatting-actions'),
+        padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+        scrollDirection: Axis.horizontal,
+        itemCount: actions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xxs),
+        itemBuilder: (context, index) {
+          final action = actions[index];
+          return SizedBox.square(
+            dimension: 44,
+            child: IconButton(
+              key: Key('composer-format-${action.action.name}'),
+              tooltip: action.tooltip,
+              onPressed: () => onFormat(action.action),
+              style: IconButton.styleFrom(
+                foregroundColor: colors.onSurfaceVariant,
+                backgroundColor: colors.surfaceContainerLow,
+              ),
+              icon: Icon(action.icon, size: 20),
+            ),
+          );
+        },
+      ),
     );
   }
 }

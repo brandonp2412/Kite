@@ -27,6 +27,50 @@ class _ControlledSubscriptionPort implements ThreadSubscriptionPort {
   }
 }
 
+class _ControlledThreadAttachmentPort implements ThreadAttachmentSendPort {
+  final List<
+    ({
+      String roomId,
+      String parentEventId,
+      String transactionId,
+      TimelineAttachment attachment,
+      String caption,
+    })
+  >
+  calls =
+      <
+        ({
+          String roomId,
+          String parentEventId,
+          String transactionId,
+          TimelineAttachment attachment,
+          String caption,
+        })
+      >[];
+  final List<Completer<TimelineSendOutcome>> attempts =
+      <Completer<TimelineSendOutcome>>[];
+
+  @override
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+  }) {
+    calls.add((
+      roomId: roomId,
+      parentEventId: parentEventId,
+      transactionId: transactionId,
+      attachment: attachment,
+      caption: caption,
+    ));
+    final completer = Completer<TimelineSendOutcome>();
+    attempts.add(completer);
+    return completer.future;
+  }
+}
+
 class _ControlledThreadPort implements ThreadSendPort {
   final List<Completer<TimelineSendOutcome>> attempts =
       <Completer<TimelineSendOutcome>>[];
@@ -131,6 +175,63 @@ void main() {
     );
   });
 
+  test('thread snapshot replaces cached replies without broad state loss', () {
+    final controller = ThreadController();
+    final parent = TimelineMessage(
+      id: 'alice-98',
+      sender: 'Alice',
+      body: 'Parent message',
+      mine: false,
+      timeLabel: '10:00',
+    );
+    final mediaReply = ThreadReply(
+      id: 'alice-98-media',
+      sender: 'Alice',
+      body: 'Scoped media',
+      mine: false,
+      timeLabel: '10:04',
+      attachment: const TimelineAttachment(
+        id: 'thread-media',
+        kind: TimelineAttachmentKind.image,
+        name: 'thread.png',
+        sizeLabel: '1.2 MB · Photo',
+      ),
+    );
+
+    controller.applyThreadSnapshot(
+      roomId: 'alice',
+      parent: parent,
+      replies: <ThreadReply>[mediaReply],
+      hasMore: false,
+      unreadCount: 1,
+      latestReadReplyId: null,
+    );
+
+    expect(
+      controller.repliesFor(roomId: 'alice', parent: parent).value,
+      <ThreadReply>[mediaReply],
+    );
+    expect(
+      controller.hasMoreFor(roomId: 'alice', parent: parent).value,
+      isFalse,
+    );
+    expect(controller.unreadCountFor(roomId: 'alice', parent: parent).value, 1);
+    expect(
+      controller.latestReadReplyIdFor(roomId: 'alice', parent: parent).value,
+      isNull,
+    );
+    expect(
+      () => controller.applyThreadSnapshot(
+        roomId: 'alice',
+        parent: parent,
+        replies: <ThreadReply>[mediaReply],
+        hasMore: false,
+        unreadCount: 2,
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('thread pagination prepends older replies exactly once', () async {
     final controller = ThreadController(
       paginationPort: const DeterministicThreadPaginationPort(
@@ -199,6 +300,58 @@ void main() {
       port.attempts.last.complete(TimelineSendOutcome.sent);
       await Future<void>.delayed(Duration.zero);
 
+      expect(reply.sendState.value, TimelineSendState.sent);
+      expect(replies.value, hasLength(initialCount + 1));
+    },
+  );
+
+  test(
+    'thread attachment send and retry stay scoped without duplicate replies',
+    () async {
+      final port = _ControlledThreadAttachmentPort();
+      final controller = ThreadController(attachmentSendPort: port);
+      final parent = TimelineMessage(
+        id: 'alice-98',
+        sender: 'Alice',
+        body: 'Parent message',
+        mine: false,
+        timeLabel: '10:00',
+      );
+      final replies = controller.repliesFor(roomId: 'alice', parent: parent);
+      final initialCount = replies.value.length;
+      const attachment = TimelineAttachment(
+        id: 'thread-photo',
+        kind: TimelineAttachmentKind.image,
+        name: 'thread-photo.jpg',
+        sizeLabel: '2.4 MB · Photo',
+      );
+
+      final reply = controller.sendAttachment(
+        roomId: 'alice',
+        parent: parent,
+        attachment: attachment,
+        caption: 'Scoped media',
+      );
+
+      expect(replies.value, hasLength(initialCount + 1));
+      expect(replies.value.last, same(reply));
+      expect(reply.attachment, same(attachment));
+      expect(reply.body, 'Scoped media');
+      expect(reply.sendState.value, TimelineSendState.sending);
+      expect(port.calls.single.roomId, 'alice');
+      expect(port.calls.single.parentEventId, parent.id);
+      expect(port.calls.single.caption, 'Scoped media');
+
+      port.attempts.single.complete(TimelineSendOutcome.failed);
+      await Future<void>.delayed(Duration.zero);
+      expect(reply.sendState.value, TimelineSendState.failed);
+
+      controller.retryReply(roomId: 'alice', parent: parent, reply: reply);
+      expect(port.attempts, hasLength(2));
+      expect(replies.value, hasLength(initialCount + 1));
+
+      port.attempts.last.complete(TimelineSendOutcome.sent);
+      await Future<void>.delayed(Duration.zero);
       expect(reply.sendState.value, TimelineSendState.sent);
       expect(replies.value, hasLength(initialCount + 1));
     },

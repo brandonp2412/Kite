@@ -13,6 +13,16 @@ abstract interface class ThreadSendPort {
   });
 }
 
+abstract interface class ThreadAttachmentSendPort {
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+  });
+}
+
 enum ThreadSubscriptionOutcome { applied, failed }
 
 abstract interface class ThreadSubscriptionPort {
@@ -98,6 +108,27 @@ class DeterministicThreadSubscriptionPort implements ThreadSubscriptionPort {
   }
 }
 
+class DeterministicThreadAttachmentSendPort
+    implements ThreadAttachmentSendPort {
+  const DeterministicThreadAttachmentSendPort({
+    this.latency = const Duration(milliseconds: 140),
+  });
+
+  final Duration latency;
+
+  @override
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String parentEventId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+  }) async {
+    await Future<void>.delayed(latency);
+    return TimelineSendOutcome.sent;
+  }
+}
+
 class DeterministicThreadSendPort implements ThreadSendPort {
   const DeterministicThreadSendPort({
     this.latency = const Duration(milliseconds: 140),
@@ -125,6 +156,7 @@ class ThreadReply {
     required this.body,
     required this.mine,
     required this.timeLabel,
+    this.attachment,
     TimelineSendState sendState = TimelineSendState.sent,
   }) : sendState = signal(sendState);
 
@@ -133,21 +165,26 @@ class ThreadReply {
   final String body;
   final bool mine;
   final String timeLabel;
+  final TimelineAttachment? attachment;
   final Signal<TimelineSendState> sendState;
 }
 
 class ThreadController {
   ThreadController({
     ThreadSendPort? sendPort,
+    ThreadAttachmentSendPort? attachmentSendPort,
     ThreadPaginationPort? paginationPort,
     ThreadSubscriptionPort? subscriptionPort,
   }) : _sendPort = sendPort ?? const DeterministicThreadSendPort(),
+       _attachmentSendPort =
+           attachmentSendPort ?? const DeterministicThreadAttachmentSendPort(),
        _paginationPort =
            paginationPort ?? const DeterministicThreadPaginationPort(),
        _subscriptionPort =
            subscriptionPort ?? const DeterministicThreadSubscriptionPort();
 
   ThreadSendPort _sendPort;
+  ThreadAttachmentSendPort _attachmentSendPort;
   ThreadPaginationPort _paginationPort;
   ThreadSubscriptionPort _subscriptionPort;
   final Map<String, Signal<List<ThreadReply>>> _threads =
@@ -211,6 +248,32 @@ class ThreadController {
       _latestReadReplyId.putIfAbsent(key, () => signal(replies.first.id));
       return signal(replies);
     });
+  }
+
+  void applyThreadSnapshot({
+    required String roomId,
+    required TimelineMessage parent,
+    required List<ThreadReply> replies,
+    required bool hasMore,
+    required int unreadCount,
+    String? latestReadReplyId,
+  }) {
+    if (unreadCount < 0 || unreadCount > replies.length) {
+      throw ArgumentError.value(
+        unreadCount,
+        'unreadCount',
+        'Unread reply count must be between zero and the reply count',
+      );
+    }
+    final key = _key(roomId, parent.id);
+    final snapshot = List<ThreadReply>.unmodifiable(replies);
+    _threads.putIfAbsent(key, () => signal(snapshot)).value = snapshot;
+    _hasMore.putIfAbsent(key, () => signal(hasMore)).value = hasMore;
+    _isLoadingOlder.putIfAbsent(key, () => signal(false)).value = false;
+    _unreadCount.putIfAbsent(key, () => signal(unreadCount)).value =
+        unreadCount;
+    _latestReadReplyId.putIfAbsent(key, () => signal(latestReadReplyId)).value =
+        latestReadReplyId;
   }
 
   Signal<bool> hasMoreFor({
@@ -438,6 +501,31 @@ class ThreadController {
     return reply;
   }
 
+  ThreadReply sendAttachment({
+    required String roomId,
+    required TimelineMessage parent,
+    required TimelineAttachment attachment,
+    String caption = '',
+  }) {
+    final transactionId = 'kite-thread-${_transactionCounter++}';
+    final reply = ThreadReply(
+      id: transactionId,
+      sender: 'You',
+      body: caption.trim(),
+      mine: true,
+      timeLabel: 'now',
+      attachment: attachment,
+      sendState: TimelineSendState.sending,
+    );
+    final replies = repliesFor(roomId: roomId, parent: parent);
+    replies.value = List<ThreadReply>.unmodifiable(<ThreadReply>[
+      ...replies.value,
+      reply,
+    ]);
+    unawaited(_settleAttachment(roomId: roomId, parent: parent, reply: reply));
+    return reply;
+  }
+
   void retryReply({
     required String roomId,
     required TimelineMessage parent,
@@ -445,15 +533,23 @@ class ThreadController {
   }) {
     if (reply.sendState.value != TimelineSendState.failed) return;
     reply.sendState.value = TimelineSendState.sending;
-    unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
+    if (reply.attachment != null) {
+      unawaited(
+        _settleAttachment(roomId: roomId, parent: parent, reply: reply),
+      );
+    } else {
+      unawaited(_settle(roomId: roomId, parent: parent, reply: reply));
+    }
   }
 
   void reset({
     ThreadSendPort? sendPort,
+    ThreadAttachmentSendPort? attachmentSendPort,
     ThreadPaginationPort? paginationPort,
     ThreadSubscriptionPort? subscriptionPort,
   }) {
     if (sendPort != null) _sendPort = sendPort;
+    if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (paginationPort != null) _paginationPort = paginationPort;
     if (subscriptionPort != null) _subscriptionPort = subscriptionPort;
     _transactionCounter = 0;
@@ -467,6 +563,26 @@ class ThreadController {
     _isFollowing.clear();
     _isUpdatingSubscription.clear();
     _subscriptionFailed.clear();
+  }
+
+  Future<void> _settleAttachment({
+    required String roomId,
+    required TimelineMessage parent,
+    required ThreadReply reply,
+  }) async {
+    final attachment = reply.attachment;
+    if (attachment == null) return;
+    final outcome = await _attachmentSendPort.sendAttachment(
+      roomId: roomId,
+      parentEventId: parent.id,
+      transactionId: reply.id,
+      attachment: attachment,
+      caption: reply.body,
+    );
+    reply.sendState.value = switch (outcome) {
+      TimelineSendOutcome.sent => TimelineSendState.sent,
+      TimelineSendOutcome.failed => TimelineSendState.failed,
+    };
   }
 
   Future<void> _settle({

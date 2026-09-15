@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_media_viewer.dart';
+import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -82,6 +85,7 @@ class ThreadView extends StatefulWidget {
 class _ThreadViewState extends State<ThreadView> {
   final TextEditingController _composerController = TextEditingController();
   final FocusNode _composerFocusNode = FocusNode();
+  final Signal<TimelineAttachment?> _pendingAttachment = signal(null);
 
   @override
   void initState() {
@@ -115,15 +119,34 @@ class _ThreadViewState extends State<ThreadView> {
     super.dispose();
   }
 
+  Future<void> _pickAttachment() async {
+    threadController.requireSupportedComposerAction(ThreadComposerAction.text);
+    final attachment = await showComposerAttachmentPicker(context);
+    if (!mounted || attachment == null) return;
+    _pendingAttachment.value = attachment;
+    _composerFocusNode.requestFocus();
+  }
+
   void _send() {
     final body = _composerController.text.trim();
-    if (body.isEmpty) return;
-    threadController.sendReply(
-      roomId: widget.roomId,
-      parent: widget.parent,
-      rawBody: body,
-    );
+    final attachment = _pendingAttachment.peek();
+    if (body.isEmpty && attachment == null) return;
+    if (attachment == null) {
+      threadController.sendReply(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        rawBody: body,
+      );
+    } else {
+      threadController.sendAttachment(
+        roomId: widget.roomId,
+        parent: widget.parent,
+        attachment: attachment,
+        caption: body,
+      );
+    }
     _composerController.clear();
+    _pendingAttachment.value = null;
     _composerFocusNode.requestFocus();
   }
 
@@ -328,6 +351,26 @@ class _ThreadViewState extends State<ThreadView> {
               ),
             ),
             const Divider(height: 1),
+            SignalBuilder(
+              builder: (context) {
+                final attachment = _pendingAttachment.value;
+                return AnimatedSize(
+                  key: const Key('thread-attachment-preview-slot'),
+                  duration: KiteMotion.resolve(context, KiteMotion.standard),
+                  curve: KiteMotion.standardCurve,
+                  alignment: Alignment.bottomCenter,
+                  child: attachment == null
+                      ? const SizedBox.shrink()
+                      : KeyedSubtree(
+                          key: const Key('thread-attachment-preview'),
+                          child: ComposerAttachmentPreview(
+                            attachment: attachment,
+                            onRemove: () => _pendingAttachment.value = null,
+                          ),
+                        ),
+                );
+              },
+            ),
             SizedBox(
               key: const Key('thread-composer'),
               height: 76,
@@ -340,6 +383,17 @@ class _ThreadViewState extends State<ThreadView> {
                 ),
                 child: Row(
                   children: <Widget>[
+                    IconButton(
+                      key: const Key('thread-composer-attach'),
+                      tooltip: 'Add attachment',
+                      onPressed: _pickAttachment,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size.square(44),
+                        foregroundColor: colors.onSurfaceVariant,
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                    ),
+                    const SizedBox(width: KiteSpacing.xxs),
                     Expanded(
                       child: TextField(
                         key: const Key('thread-composer-field'),
@@ -376,27 +430,34 @@ class _ThreadViewState extends State<ThreadView> {
                       ),
                     ),
                     const SizedBox(width: KiteSpacing.xs),
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _composerController,
-                      builder: (context, value, child) {
-                        final enabled = value.text.trim().isNotEmpty;
-                        return IconButton.filled(
-                          key: const Key('thread-composer-send'),
-                          tooltip: 'Send thread reply',
-                          onPressed: enabled ? _send : null,
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size.square(44),
-                            backgroundColor: enabled
-                                ? colors.primary
-                                : colors.surfaceContainerHighest,
-                            foregroundColor: enabled
-                                ? colors.onPrimary
-                                : colors.onSurfaceVariant,
-                            disabledBackgroundColor:
-                                colors.surfaceContainerHighest,
-                            disabledForegroundColor: colors.onSurfaceVariant,
-                          ),
-                          icon: const Icon(Icons.arrow_upward_rounded),
+                    SignalBuilder(
+                      builder: (context) {
+                        final hasAttachment = _pendingAttachment.value != null;
+                        return ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _composerController,
+                          builder: (context, value, child) {
+                            final enabled =
+                                hasAttachment || value.text.trim().isNotEmpty;
+                            return IconButton.filled(
+                              key: const Key('thread-composer-send'),
+                              tooltip: 'Send thread reply',
+                              onPressed: enabled ? _send : null,
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size.square(44),
+                                backgroundColor: enabled
+                                    ? colors.primary
+                                    : colors.surfaceContainerHighest,
+                                foregroundColor: enabled
+                                    ? colors.onPrimary
+                                    : colors.onSurfaceVariant,
+                                disabledBackgroundColor:
+                                    colors.surfaceContainerHighest,
+                                disabledForegroundColor:
+                                    colors.onSurfaceVariant,
+                              ),
+                              icon: const Icon(Icons.arrow_upward_rounded),
+                            );
+                          },
                         );
                       },
                     ),
@@ -566,6 +627,25 @@ class _ThreadReplyRow extends StatelessWidget {
   final ThreadReply reply;
   final Signal<String?> focusSignal;
 
+  void _openMedia(BuildContext context) {
+    final model = ThreadMediaViewerModel.fromReplies(
+      roomId: roomId,
+      parent: parent,
+      replies: threadController
+          .repliesFor(roomId: roomId, parent: parent)
+          .value,
+      initialReplyId: reply.id,
+    );
+    Navigator.of(context).push(
+      MediaViewerRoute(
+        items: model.items,
+        initialIndex: model.initialIndex,
+        onSave: model.onSave,
+        onShare: model.onShare,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -646,12 +726,30 @@ class _ThreadReplyRow extends StatelessWidget {
                             ),
                             const SizedBox(height: KiteSpacing.xxs),
                           ],
-                          Text(
-                            reply.body,
-                            style: KiteTypography.body.copyWith(
-                              color: colors.onSurface,
+                          if (reply.attachment
+                              case final attachment?) ...<Widget>[
+                            TimelineAttachmentCard(
+                              messageId: 'thread-${reply.id}',
+                              attachment: attachment,
+                              heroTag:
+                                  attachment.kind == TimelineAttachmentKind.file
+                                  ? null
+                                  : threadMediaHeroTag(parent, reply),
+                              onTap:
+                                  attachment.kind == TimelineAttachmentKind.file
+                                  ? null
+                                  : () => _openMedia(context),
                             ),
-                          ),
+                            if (reply.body.isNotEmpty)
+                              const SizedBox(height: KiteSpacing.xs),
+                          ],
+                          if (reply.body.isNotEmpty)
+                            Text(
+                              reply.body,
+                              style: KiteTypography.body.copyWith(
+                                color: colors.onSurface,
+                              ),
+                            ),
                           const SizedBox(height: KiteSpacing.xxs),
                           Row(
                             mainAxisSize: MainAxisSize.min,
