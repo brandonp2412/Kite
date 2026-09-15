@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/notifications/notification_ingress.dart';
 import 'package:kite/features/notifications/notification_routing.dart';
+import 'package:kite/testing/deterministic_routing_adapters.dart';
 
 void main() {
   const parser = NotificationIngressParser();
@@ -199,7 +200,9 @@ void main() {
     'coordinator forwards only accepted transport-neutral notifications',
     () async {
       final accepted = <NotificationIngressResult>[];
+      final accounts = FakeNotificationIngressAccountPort(<String>['work']);
       final coordinator = NotificationIngressCoordinator(
+        accounts: accounts,
         onAccepted: (result) async => accepted.add(result),
       );
 
@@ -211,11 +214,20 @@ void main() {
         transport: NotificationIngressTransport.backgroundSync,
         data: base('thread'),
       );
+      final unknownAccount = await coordinator.receive(
+        transport: NotificationIngressTransport.fcm,
+        data: base('call')
+          ..['account_id'] = 'signed-out'
+          ..['call_id'] = 'call-2',
+      );
 
       expect(good.accepted, isTrue);
       expect(bad.accepted, isFalse);
+      expect(unknownAccount.accepted, isFalse);
+      expect(unknownAccount.failure, NotificationIngressFailure.unknownAccount);
       expect(accepted, <NotificationIngressResult>[good]);
       expect(accepted.single.notification?.destination.accountId, 'work');
+      expect(accounts.queries, <String>['work', 'signed-out']);
     },
   );
 }
