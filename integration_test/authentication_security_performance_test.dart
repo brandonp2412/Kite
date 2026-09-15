@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/features/auth/authentication_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/authentication_screen.dart';
 import 'package:kite/features/auth/device_verification_controller.dart';
@@ -245,18 +246,30 @@ void main() {
     tester,
   ) async {
     final gateway = _BenchmarkAuthenticationGateway();
+    final controllers = <AuthenticationController>[];
+    addTearDown(() {
+      for (final controller in controllers) {
+        controller.dispose();
+      }
+    });
+    var authGeneration = 0;
 
     Future<void> pumpDiscoveredAuthentication() async {
+      final controller = AuthenticationController(gateway);
+      controllers.add(controller);
+      await controller.discover('matrix.example.org');
       await tester.pumpWidget(
-        MaterialApp(home: AuthenticationScreen(gateway: gateway)),
+        MaterialApp(
+          home: AuthenticationScreen(
+            key: ValueKey<int>(authGeneration++),
+            gateway: gateway,
+            controller: controller,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('homeserver-field')),
-        'matrix.example.org',
-      );
-      await tester.tap(find.byKey(const Key('discover-homeserver')));
-      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('oidc-login')), findsOneWidget);
+      expect(find.byKey(const Key('sso-login')), findsOneWidget);
     }
 
     await pumpDiscoveredAuthentication();
@@ -284,6 +297,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: AuthenticationScreen(
+          key: ValueKey<int>(authGeneration++),
           gateway: gateway,
           scanQrCode: () async => 'opaque-benchmark-login-qr',
         ),
