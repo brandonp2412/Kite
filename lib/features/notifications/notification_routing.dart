@@ -32,20 +32,26 @@ final class KiteNotificationContent {
   final String body;
 }
 
+enum KiteNotificationSurface { standard, incomingCall }
+
 final class KiteNotificationPresentation {
   const KiteNotificationPresentation({
     required this.notification,
     required this.title,
     required this.body,
     required this.contentsHidden,
+    required this.surface,
   });
 
   final KiteNotification notification;
   final String title;
   final String body;
   final bool contentsHidden;
+  final KiteNotificationSurface surface;
 
   String get groupKey => notification.groupKey;
+  bool get requestsIncomingCallSurface =>
+      surface == KiteNotificationSurface.incomingCall;
 }
 
 final class KiteNotificationSummary {
@@ -80,6 +86,9 @@ final class NotificationPresentationPolicy {
       title: hideContents ? privateTitle : content.title,
       body: hideContents ? privateBody : content.body,
       contentsHidden: hideContents,
+      surface: notification.kind == KiteNotificationKind.call
+          ? KiteNotificationSurface.incomingCall
+          : KiteNotificationSurface.standard,
     );
   }
 

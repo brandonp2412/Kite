@@ -39,6 +39,7 @@ class _KiteCallScreenState extends State<KiteCallScreen> {
     _hydrating = true;
     try {
       await Future.wait<void>(<Future<void>>[
+        widget.coordinator.refreshSecurityState().then((_) {}),
         widget.coordinator.refreshParticipants().then((_) {}),
         widget.coordinator.refreshAudioRoutes().then((_) {}),
         widget.coordinator.refreshPictureInPictureSupport().then((_) {}),
@@ -139,11 +140,13 @@ class _KiteCallScreenState extends State<KiteCallScreen> {
             builder: (context) {
               final phase = widget.coordinator.phase.value;
               final session = widget.coordinator.session.value;
+              final securityState = widget.coordinator.securityState.value;
               return Column(
                 children: <Widget>[
                   _CallHeader(
                     roomName: widget.roomName,
                     phase: phase,
+                    securityState: securityState,
                     onClose: widget.onClose,
                   ),
                   Expanded(
@@ -205,11 +208,13 @@ class _CallHeader extends StatelessWidget {
   const _CallHeader({
     required this.roomName,
     required this.phase,
+    required this.securityState,
     required this.onClose,
   });
 
   final String roomName;
   final KiteCallPhase phase;
+  final KiteCallSecurityState? securityState;
   final VoidCallback? onClose;
 
   @override
@@ -251,8 +256,53 @@ class _CallHeader extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 48),
+            if (phase == KiteCallPhase.active)
+              _CallSecurityIndicator(state: securityState)
+            else
+              const SizedBox(width: 48),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CallSecurityIndicator extends StatelessWidget {
+  const _CallSecurityIndicator({required this.state});
+
+  final KiteCallSecurityState? state;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = state;
+    final warning = current?.hasTrustWarning ?? false;
+    final trusted =
+        current?.e2eeEnabled == true &&
+        current?.identityTrust == KiteCallIdentityTrust.trusted;
+    final label = warning
+        ? 'Call security needs attention'
+        : trusted
+        ? 'End-to-end encrypted call'
+        : 'Checking call security';
+    final icon = warning
+        ? Icons.warning_amber_rounded
+        : trusted
+        ? Icons.verified_user_rounded
+        : Icons.shield_outlined;
+
+    return SizedBox(
+      key: const Key('call-security'),
+      width: 48,
+      child: Tooltip(
+        message: label,
+        child: Semantics(
+          label: label,
+          child: Icon(
+            icon,
+            color: warning
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );

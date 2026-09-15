@@ -163,6 +163,45 @@ void main() {
       expect(presentation.contentsHidden, isFalse);
     });
 
+    test('call presentation requests incoming-call surface without leaking lock content', () {
+      const policy = NotificationPresentationPolicy();
+      const notification = KiteNotification(
+        id: 'incoming-call',
+        kind: KiteNotificationKind.call,
+        destination: AppDestination.call(
+          accountId: 'work',
+          roomId: '!calls:example.org',
+          callId: 'matrix-rtc-42',
+        ),
+      );
+
+      final visible = policy.present(
+        notification: notification,
+        content: const KiteNotificationContent(
+          title: 'Alice',
+          body: 'Incoming video call',
+        ),
+        hideContents: false,
+      );
+      final locked = policy.present(
+        notification: notification,
+        content: const KiteNotificationContent(
+          title: 'Alice',
+          body: 'Incoming video call',
+        ),
+        hideContents: true,
+      );
+
+      expect(visible.surface, KiteNotificationSurface.incomingCall);
+      expect(visible.requestsIncomingCallSurface, isTrue);
+      expect(visible.title, 'Alice');
+      expect(locked.surface, KiteNotificationSurface.incomingCall);
+      expect(locked.requestsIncomingCallSurface, isTrue);
+      expect(locked.title, NotificationPresentationPolicy.privateTitle);
+      expect(locked.body, NotificationPresentationPolicy.privateBody);
+      expect(locked.contentsHidden, isTrue);
+    });
+
     test(
       'summaries group by account and room without merging account state',
       () {

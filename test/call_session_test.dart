@@ -280,6 +280,42 @@ void main() {
     },
   );
 
+  test('call security state comes only from the MatrixRTC gateway and preserves last confirmed trust', () async {
+    final fixture = _fixture();
+    await fixture.coordinator.startDirectVideoCall('!dm:example.org');
+    fixture.gateway.callSecurityState = const KiteCallSecurityState(
+      e2eeEnabled: true,
+      identityTrust: KiteCallIdentityTrust.warning,
+    );
+
+    final security = await fixture.coordinator.refreshSecurityState();
+    expect(security.e2eeEnabled, isTrue);
+    expect(security.identityTrust, KiteCallIdentityTrust.warning);
+    expect(security.hasTrustWarning, isTrue);
+    expect(fixture.coordinator.securityState.value, same(security));
+
+    fixture.gateway.callSecurityState = const KiteCallSecurityState(
+      e2eeEnabled: true,
+      identityTrust: KiteCallIdentityTrust.trusted,
+    );
+    fixture.gateway.failNextWith = StateError('security state unavailable');
+    await expectLater(
+      fixture.coordinator.refreshSecurityState(),
+      throwsStateError,
+    );
+
+    expect(
+      fixture.coordinator.securityState.value?.identityTrust,
+      KiteCallIdentityTrust.warning,
+    );
+    expect(
+      fixture.gateway.invocations.where(
+        (entry) => entry.type == MatrixRtcInvocationType.securityState,
+      ),
+      hasLength(2),
+    );
+  });
+
   test(
     'audio routes refresh and selection preserve platform route identity',
     () async {

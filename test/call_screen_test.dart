@@ -62,6 +62,18 @@ void main() {
     expect(find.byKey(const Key('call-switch-camera')), findsOneWidget);
     expect(find.byKey(const Key('call-audio-route')), findsOneWidget);
     expect(find.byKey(const Key('call-pip')), findsOneWidget);
+    expect(find.byKey(const Key('call-security')), findsOneWidget);
+    expect(
+      tester
+          .widget<Tooltip>(
+            find.descendant(
+              of: find.byKey(const Key('call-security')),
+              matching: find.byType(Tooltip),
+            ),
+          )
+          .message,
+      'End-to-end encrypted call',
+    );
 
     await tester.tap(_roundButton('call-microphone'));
     await tester.pump();
@@ -141,6 +153,17 @@ void main() {
     expect(find.byKey(const Key('call-camera')), findsNothing);
     expect(find.byKey(const Key('call-audio-route')), findsOneWidget);
     expect(find.byKey(const Key('call-pip')), findsOneWidget);
+    expect(
+      fixture.gateway.invocations.where(
+        (entry) => entry.type == MatrixRtcInvocationType.securityState,
+      ),
+      hasLength(1),
+    );
+    expect(
+      fixture.coordinator.securityState.value?.identityTrust,
+      KiteCallIdentityTrust.trusted,
+    );
+    expect(find.byKey(const Key('call-security')), findsOneWidget);
     expect(
       fixture.gateway.invocations.where(
         (entry) => entry.type == MatrixRtcInvocationType.participants,
