@@ -260,6 +260,9 @@ final class MatrixAccountRuntimeRegistry {
       await current.runtime.stop();
     }
 
+    await next.runtime.updateActivity(_activity);
+    await next.runtime.updateNetworkState(_networkState);
+
     FutureOr<void>? activation;
     Object? synchronousActivationError;
     StackTrace? synchronousActivationStackTrace;

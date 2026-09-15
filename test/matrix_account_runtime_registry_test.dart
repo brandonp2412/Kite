@@ -754,6 +754,56 @@ void main() {
   );
 
   test(
+    'switching to an inactive account inherits current background activity',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.activate('@bob:example.org');
+      await registry.activate('@alice:example.org');
+      final bob = boundaries['@bob:example.org']!;
+      expect(bob.startCalls, 1);
+
+      await registry.updateActivity(MatrixAppActivity.background);
+      await registry.activate('@bob:example.org');
+
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(bob.startCalls, 1);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.idle);
+
+      await registry.updateActivity(MatrixAppActivity.foreground);
+      expect(bob.startCalls, 2);
+    },
+  );
+
+  test(
+    'switching to an inactive account inherits current offline network state',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.activate('@bob:example.org');
+      await registry.activate('@alice:example.org');
+      final bob = boundaries['@bob:example.org']!;
+      expect(bob.startCalls, 1);
+
+      await registry.updateNetworkState(MatrixNetworkState.offline);
+      await registry.activate('@bob:example.org');
+
+      expect(registry.activeAccountId.value, '@bob:example.org');
+      expect(bob.startCalls, 1);
+      expect(registry.activeSyncState?.value.phase, MatrixSyncPhase.idle);
+
+      await registry.updateNetworkState(MatrixNetworkState.online);
+      expect(bob.startCalls, 2);
+    },
+  );
+
+  test(
     'repeated login logout and account switching releases runtimes and stores',
     () async {
       final stores = MatrixAccountStoreRegistry(
