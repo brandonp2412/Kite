@@ -158,6 +158,38 @@ void main() {
     expect(find.text('Incorrect PIN.'), findsOneWidget);
   });
 
+  testWidgets('enabling app lock immediately refreshes notification privacy', (
+    tester,
+  ) async {
+    final credentials = _GateCredentials();
+    final controller = AppLockController(credentials, _GateBiometrics());
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    var privacyRefreshes = 0;
+    await tester.pumpWidget(
+      _app(
+        controller: controller,
+        loadOnInit: false,
+        refreshNotificationPrivacy: () async {
+          privacyRefreshes += 1;
+        },
+        child: const Text('private timeline', key: Key('private-content')),
+      ),
+    );
+    expect(privacyRefreshes, 0);
+    expect(find.byKey(const Key('private-content')), findsOneWidget);
+
+    await controller.enableWithPin(pin: '1234', hideNotificationContents: true);
+    await tester.pumpAndSettle();
+
+    expect(controller.isLocked.value, isTrue);
+    expect(controller.shouldHideNotificationContents, isTrue);
+    expect(privacyRefreshes, 1);
+    expect(find.byKey(const Key('private-content')), findsNothing);
+    expect(find.byKey(const Key('app-unlock-heading')), findsOneWidget);
+  });
+
   testWidgets(
     'backgrounding relocks and unlocking refreshes notification privacy',
     (tester) async {

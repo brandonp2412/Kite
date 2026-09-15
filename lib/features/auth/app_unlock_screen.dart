@@ -18,6 +18,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
 
   @override
   void dispose() {
+    _pinController.clear();
     _pinController.dispose();
     super.dispose();
   }
