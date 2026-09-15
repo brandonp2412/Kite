@@ -32,21 +32,47 @@ abstract interface class NotificationRegistrationPort {
   void upsertNotification(KiteNotification notification);
 }
 
+abstract interface class NotificationDispatchPolicyPort {
+  bool allows({
+    required MatrixNotificationEvent event,
+    required KiteNotification notification,
+  });
+}
+
+final class AllowAllNotificationDispatchPolicy
+    implements NotificationDispatchPolicyPort {
+  const AllowAllNotificationDispatchPolicy();
+
+  @override
+  bool allows({
+    required MatrixNotificationEvent event,
+    required KiteNotification notification,
+  }) => true;
+}
+
 final class NotificationDispatchCoordinator {
   NotificationDispatchCoordinator({
     required NotificationRegistrationPort notifications,
     required NotificationDeliveryCoordinator delivery,
-  }) : this._(notifications, delivery);
+    NotificationDispatchPolicyPort policy =
+        const AllowAllNotificationDispatchPolicy(),
+  }) : this._(notifications, delivery, policy);
 
-  const NotificationDispatchCoordinator._(this._notifications, this._delivery);
+  const NotificationDispatchCoordinator._(
+    this._notifications,
+    this._delivery,
+    this._policy,
+  );
 
   final NotificationRegistrationPort _notifications;
   final NotificationDeliveryCoordinator _delivery;
+  final NotificationDispatchPolicyPort _policy;
 
-  Future<KiteNotificationPresentation> dispatch(
+  Future<KiteNotificationPresentation?> dispatch(
     MatrixNotificationEvent event,
   ) async {
     final notification = _notificationFor(event);
+    if (!_policy.allows(event: event, notification: notification)) return null;
     final presentation = await _delivery.upsert(
       notification: notification,
       content: KiteNotificationContent(title: event.title, body: event.body),

@@ -59,6 +59,21 @@ final class FakeNotificationCancellationPort
   }
 }
 
+final class FakeNotificationDispatchPolicy
+    implements NotificationDispatchPolicyPort {
+  bool allow = true;
+  final List<String> evaluatedIds = <String>[];
+
+  @override
+  bool allows({
+    required MatrixNotificationEvent event,
+    required KiteNotification notification,
+  }) {
+    evaluatedIds.add(notification.id);
+    return allow;
+  }
+}
+
 final class FakeNotificationPrivacyPort implements NotificationPrivacyPort {
   FakeNotificationPrivacyPort({this.hideNotificationContents = false});
 
