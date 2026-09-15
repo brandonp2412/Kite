@@ -415,7 +415,7 @@ This milestone is not optional cleanup; it is a product feature.
 - [x] Composer + keyboard benchmark.
 - [x] Search/filter benchmark.
 - [x] Spaces/Sections benchmark.
-- [ ] Thread open/switch benchmark.
+- [x] Thread open/switch benchmark.
 - [ ] Media viewer benchmark.
 - [x] Call-screen transition benchmark.
 - [ ] App startup benchmark.
