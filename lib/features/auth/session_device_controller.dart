@@ -48,7 +48,6 @@ final class SessionDeviceController {
     if (expectedCurrentDeviceId != null &&
         (expectedDeviceId!.isEmpty ||
             expectedDeviceId != expectedCurrentDeviceId)) {
-      devices.value = const <SessionDevice>[];
       errorMessage.value = 'Kite received an invalid current device identity.';
       return;
     }
@@ -64,7 +63,6 @@ final class SessionDeviceController {
             expectedCurrentDeviceId: expectedDeviceId,
           ) ==
           false) {
-        devices.value = const <SessionDevice>[];
         errorMessage.value = expectedDeviceId == null
             ? 'Kite received an invalid device list.'
             : 'Kite could not confirm the current Matrix device.';

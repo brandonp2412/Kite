@@ -212,6 +212,49 @@ void main() {
     },
   );
 
+  test('invalid refresh preserves the last trusted device snapshot', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load(expectedCurrentDeviceId: 'CURRENT');
+
+    gateway.loaded = const <SessionDevice>[
+      SessionDevice(
+        deviceId: 'REMOTE',
+        isCurrent: false,
+        verification: SessionDeviceVerification.verified,
+      ),
+    ];
+    await controller.load(expectedCurrentDeviceId: 'CURRENT');
+
+    expect(controller.devices.value.map((device) => device.deviceId), <String>[
+      'CURRENT',
+      'REMOTE',
+    ]);
+    expect(controller.currentDevice?.deviceId, 'CURRENT');
+    expect(
+      controller.errorMessage.value,
+      'Kite could not confirm the current Matrix device.',
+    );
+  });
+
+  test('invalid expected identity does not blank known device state', () async {
+    final gateway = _FakeSessionDeviceGateway()
+      ..loaded = const <SessionDevice>[_current, _remote];
+    final controller = SessionDeviceController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load(expectedCurrentDeviceId: 'CURRENT');
+
+    await controller.load(expectedCurrentDeviceId: ' CURRENT ');
+
+    expect(controller.devices.value, const <SessionDevice>[_current, _remote]);
+    expect(
+      controller.errorMessage.value,
+      'Kite received an invalid current device identity.',
+    );
+  });
+
   test('rejects whitespace-bearing device identifiers', () async {
     final gateway = _FakeSessionDeviceGateway()
       ..loaded = const <SessionDevice>[
