@@ -31,6 +31,10 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             APP_LOCK_CHANNEL,
         ).setMethodCallHandler(::handleAppLockCall)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            MATRIX_BOOTSTRAP_CHANNEL,
+        ).setMethodCallHandler(::handleMatrixBootstrapCall)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -38,8 +42,30 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             APP_LOCK_CHANNEL,
         ).setMethodCallHandler(null)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            MATRIX_BOOTSTRAP_CHANNEL,
+        ).setMethodCallHandler(null)
         appLockExecutor.shutdown()
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    private fun handleMatrixBootstrapCall(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "dataRoot" -> result.success(filesDir.resolve("matrix").absolutePath)
+            "resolveStoreSecret" -> onBackground(result) {
+                val keyId = call.argument<String>("keyId")?.trim()
+                    ?: throw IllegalArgumentException("Missing Matrix store key id.")
+                require(keyId.isNotEmpty() && !keyId.contains('\u0000')) {
+                    "Invalid Matrix store key id."
+                }
+                Base64.encodeToString(
+                    hmac(keyId, MATRIX_STORE_HMAC_KEY_ALIAS),
+                    Base64.NO_WRAP,
+                )
+            }
+            else -> result.notImplemented()
+        }
     }
 
     private fun handleAppLockCall(call: MethodCall, result: MethodChannel.Result) {
@@ -171,15 +197,17 @@ class MainActivity : FlutterActivity() {
         return MessageDigest.isEqual(expected, actual)
     }
 
-    private fun hmac(pin: String): ByteArray {
+    private fun hmac(pin: String): ByteArray = hmac(pin, HMAC_KEY_ALIAS)
+
+    private fun hmac(value: String, keyAlias: String): ByteArray {
         val mac = Mac.getInstance(HMAC_ALGORITHM)
-        mac.init(loadOrCreateHmacKey())
-        return mac.doFinal(pin.toByteArray(Charsets.UTF_8))
+        mac.init(loadOrCreateHmacKey(keyAlias))
+        return mac.doFinal(value.toByteArray(Charsets.UTF_8))
     }
 
-    private fun loadOrCreateHmacKey(): SecretKey {
+    private fun loadOrCreateHmacKey(keyAlias: String = HMAC_KEY_ALIAS): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
-        val existing = keyStore.getKey(HMAC_KEY_ALIAS, null) as? SecretKey
+        val existing = keyStore.getKey(keyAlias, null) as? SecretKey
         if (existing != null) return existing
 
         val keyGenerator = KeyGenerator.getInstance(
@@ -188,7 +216,7 @@ class MainActivity : FlutterActivity() {
         )
         keyGenerator.init(
             KeyGenParameterSpec.Builder(
-                HMAC_KEY_ALIAS,
+                keyAlias,
                 KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY,
             )
                 .setDigests(KeyProperties.DIGEST_SHA256)
@@ -278,6 +306,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val APP_LOCK_CHANNEL = "nz.presley.kite/app_lock"
+        const val MATRIX_BOOTSTRAP_CHANNEL = "nz.presley.kite/matrix_bootstrap"
         const val PREFERENCES_NAME = "kite_app_lock"
         const val ENABLED_KEY = "enabled"
         const val BIOMETRICS_KEY = "biometrics_enabled"
@@ -285,6 +314,7 @@ class MainActivity : FlutterActivity() {
         const val PIN_VERIFIER_KEY = "pin_verifier"
         const val ANDROID_KEY_STORE = "AndroidKeyStore"
         const val HMAC_KEY_ALIAS = "kite_app_lock_hmac_v1"
+        const val MATRIX_STORE_HMAC_KEY_ALIAS = "kite_matrix_store_hmac_v1"
         const val HMAC_ALGORITHM = "HmacSHA256"
         val PIN_PATTERN = Regex("^[0-9]{4,64}$")
     }

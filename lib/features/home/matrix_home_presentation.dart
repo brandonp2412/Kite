@@ -85,7 +85,10 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return HomeScreen(roomListStore: _binding.roomListStore);
+    return HomeScreen(
+      roomListStore: _binding.roomListStore,
+      timeline: _binding.controller,
+    );
   }
 }
 
@@ -97,7 +100,12 @@ final class MatrixHomePresentationBinding {
     TimelineController? controller,
     Signal<String>? selectedRoom,
   }) : currentUserId = _normalizeUserId(currentUserId),
-       controller = controller ?? timelineController,
+       controller =
+           controller ??
+           TimelineController(
+             sendPort: sendPort,
+             fixtureProvider: (_) => const [],
+           ),
        selectedRoom = selectedRoom ?? selectedRoomId,
        roomListStore = RoomListStateStore(matrixRoomListEntries(cache)) {
     this.controller.reset(sendPort: sendPort, fixtureProvider: (_) => const []);

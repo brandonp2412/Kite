@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/matrix/matrix_models.dart';
@@ -135,6 +137,146 @@ void main() {
       <String>['One', 'Two'],
     );
   });
+
+  testWidgets(
+    'Matrix home composer sends through its production timeline port',
+    (tester) async {
+      final calls = <String>[];
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            MatrixRoomSummary(
+              roomId: '!real:example.org',
+              displayName: 'Real room',
+              lastActivity: DateTime.utc(2026, 9, 16, 11),
+              streamPosition: 1,
+              lastEventId: r'$cached',
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!real:example.org': <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$cached',
+                body: 'Cached before send',
+                streamPosition: 1,
+              ),
+            ],
+          },
+        ),
+      );
+
+      await tester.pumpWidget(
+        KiteApp(
+          home: MatrixHomeScreen(
+            cache: cache,
+            currentUserId: '@me:example.org',
+            sendPort: MatrixTimelineSendPort(({
+              required roomId,
+              required transactionId,
+              required body,
+            }) async {
+              calls.add('$roomId|$transactionId|$body');
+            }),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Real room'), findsWidgets);
+      expect(find.text('Cached before send'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('composer-field')),
+        'From production composer',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('composer-send')));
+      await tester.pump();
+
+      expect(calls, hasLength(1));
+      expect(
+        calls.single,
+        startsWith('!real:example.org|kite-local-0|From production composer'),
+      );
+      expect(find.text('From production composer'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'compact Matrix timeline keeps the production send port after navigation',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final calls = <String>[];
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            MatrixRoomSummary(
+              roomId: '!mobile:example.org',
+              displayName: 'Mobile room',
+              lastActivity: DateTime.utc(2026, 9, 16, 11),
+              streamPosition: 1,
+              lastEventId: r'$mobile',
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!mobile:example.org': <MatrixTimelineEvent>[
+              MatrixTimelineEvent(
+                eventId: r'$mobile',
+                roomId: '!mobile:example.org',
+                senderId: '@alice:example.org',
+                type: 'm.room.message',
+                originServerTimestamp: DateTime.utc(2026, 9, 16, 11),
+                streamPosition: 1,
+                content: const <String, Object?>{
+                  'msgtype': 'm.text',
+                  'body': 'Cached mobile message',
+                },
+              ),
+            ],
+          },
+        ),
+      );
+
+      await tester.pumpWidget(
+        KiteApp(
+          home: MatrixHomeScreen(
+            cache: cache,
+            currentUserId: '@me:example.org',
+            sendPort: MatrixTimelineSendPort(({
+              required roomId,
+              required transactionId,
+              required body,
+            }) async {
+              calls.add('$roomId|$transactionId|$body');
+            }),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('room-!mobile:example.org')));
+      await tester.pumpAndSettle();
+      expect(find.text('Cached mobile message'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('composer-field')),
+        'From compact composer',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('composer-send')));
+      await tester.pump();
+
+      expect(calls, hasLength(1));
+      expect(
+        calls.single,
+        startsWith('!mobile:example.org|kite-local-0|From compact composer'),
+      );
+    },
+  );
 
   test(
     'production send port settles optimistic messages from real sender',
