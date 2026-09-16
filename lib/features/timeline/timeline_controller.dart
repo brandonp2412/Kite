@@ -404,6 +404,10 @@ final class DeterministicTimelineSharePort implements TimelineSharePort {
   }
 }
 
+typedef TimelineFixtureProvider = List<BenchmarkMessage> Function(
+  String roomId,
+);
+
 abstract interface class TimelineSendPort {
   Future<TimelineSendOutcome> sendText({
     required String roomId,
@@ -583,7 +587,9 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineLinkOpenPort? linkOpenPort,
     TimelineLocationPort? locationPort,
     TimelinePollPort? pollPort,
+    TimelineFixtureProvider? fixtureProvider,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
+       _fixtureProvider = fixtureProvider ?? BenchmarkFixture.messagesFor,
        _attachmentSendPort =
            attachmentSendPort ??
            const DeterministicTimelineAttachmentSendPort(),
@@ -597,6 +603,7 @@ class TimelineController implements TimelineLocationShareDelegate {
   }
 
   TimelineSendPort _sendPort;
+  TimelineFixtureProvider _fixtureProvider;
   TimelineAttachmentSendPort _attachmentSendPort;
   TimelineModerationPort _moderationPort;
   TimelineSharePort _sharePort;
@@ -687,7 +694,7 @@ class TimelineController implements TimelineLocationShareDelegate {
 
   Signal<List<TimelineMessage>> messagesFor(String roomId) {
     return _messages.putIfAbsent(roomId, () {
-      final fixture = BenchmarkFixture.messagesFor(roomId);
+      final fixture = _fixtureProvider(roomId);
       return signal(
         List<TimelineMessage>.unmodifiable(<TimelineMessage>[
           for (var index = 0; index < fixture.length; index++)
@@ -711,8 +718,11 @@ class TimelineController implements TimelineLocationShareDelegate {
       for (final message in current) message.id: message,
     };
     final projected = <TimelineMessage>[];
+    final echoedTransactionIds = <String>{};
     for (final event in events) {
       if (event.roomId != roomId) continue;
+      final transactionId = event.transactionId;
+      if (transactionId != null) echoedTransactionIds.add(transactionId);
       final mapped = TimelineMessage.fromMatrixEvent(
         event,
         currentUserId: currentUserId,
@@ -729,6 +739,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       current.where(
         (message) =>
             message.id.startsWith('kite-local-') &&
+            !echoedTransactionIds.contains(message.id) &&
             !projected.any((candidate) => candidate.id == message.id),
       ),
     );
@@ -1101,8 +1112,10 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineLinkOpenPort? linkOpenPort,
     TimelineLocationPort? locationPort,
     TimelinePollPort? pollPort,
+    TimelineFixtureProvider? fixtureProvider,
   }) {
     if (sendPort != null) _sendPort = sendPort;
+    if (fixtureProvider != null) _fixtureProvider = fixtureProvider;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
     if (sharePort != null) _sharePort = sharePort;

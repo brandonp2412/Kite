@@ -8,6 +8,7 @@ final class MatrixTimelineEvent {
     required this.type,
     required this.originServerTimestamp,
     required this.streamPosition,
+    this.transactionId,
     Map<String, Object?> content = const <String, Object?>{},
   }) : content = freezeMatrixJsonMap(content);
 
@@ -17,6 +18,7 @@ final class MatrixTimelineEvent {
   final String type;
   final DateTime originServerTimestamp;
   final int streamPosition;
+  final String? transactionId;
   final Map<String, Object?> content;
 }
 

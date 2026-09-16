@@ -66,6 +66,42 @@ void main() {
   );
 
   test(
+    'active account routes plain text sends through its SDK boundary',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      final eventId = await registry.sendTextMessage(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        transactionId: 'kite-local-42',
+        body: 'Hello from Kite',
+      );
+
+      expect(eventId, r'$sent-1');
+      expect(
+        boundaries['@alice:example.org']!.sentTextMessages,
+        <(String, String, String)>[
+          ('!alice:example.org', 'kite-local-42', 'Hello from Kite'),
+        ],
+      );
+
+      await registry.deactivate();
+      await expectLater(
+        registry.sendTextMessage(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+          transactionId: 'kite-local-43',
+          body: 'Inactive',
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
     'invalid account stores fail before allocating an SDK boundary',
     () async {
       var boundaryFactoryCalls = 0;
@@ -1426,7 +1462,8 @@ MatrixAccountRuntimeRegistry _registry(
   );
 }
 
-final class _FakeAccountBoundary implements MatrixSdkBoundary {
+final class _FakeAccountBoundary
+    implements MatrixSdkBoundary, MatrixSdkTextMessageSender {
   _FakeAccountBoundary({
     required this.accountId,
     this.failStart = false,
@@ -1466,6 +1503,18 @@ final class _FakeAccountBoundary implements MatrixSdkBoundary {
   int closeFailuresRemaining = 0;
   bool closeHadSyncListener = false;
   final List<String> paginationCalls = <String>[];
+  final List<(String, String, String)> sentTextMessages =
+      <(String, String, String)>[];
+
+  @override
+  Future<String> sendTextMessage({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) async {
+    sentTextMessages.add((roomId, transactionId, body));
+    return r'$sent-' + sentTextMessages.length.toString();
+  }
 
   @override
   Stream<MatrixSyncBatch> get syncBatches => _sync.stream;

@@ -102,6 +102,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
                 'originServerTimestampMs':
                     event.originServerTimestamp.millisecondsSinceEpoch,
                 'streamPosition': event.streamPosition,
+                if (event.transactionId != null)
+                  'transactionId': event.transactionId,
                 'content': event.content,
               },
           ],
@@ -195,6 +197,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final type = value['type'];
     final timestampMs = value['originServerTimestampMs'];
     final streamPosition = value['streamPosition'];
+    final transactionId = value['transactionId'];
     final content = value['content'];
     if (eventId is! String ||
         !_isSafeIdentifier(eventId) ||
@@ -206,6 +209,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         !_isSafeIdentifier(type) ||
         timestampMs is! int ||
         streamPosition is! int ||
+        (transactionId != null &&
+            (transactionId is! String || !_isSafeIdentifier(transactionId))) ||
         content is! Map) {
       return null;
     }
@@ -219,6 +224,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         isUtc: true,
       ),
       streamPosition: streamPosition,
+      transactionId: transactionId as String?,
       content: Map<String, Object?>.from(content),
     );
   }
