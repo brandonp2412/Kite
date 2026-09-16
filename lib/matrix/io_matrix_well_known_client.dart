@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 
@@ -18,7 +19,7 @@ final class IoMatrixWellKnownClient implements MatrixWellKnownClient {
       if (response.statusCode == HttpStatus.notFound) return null;
       if (response.statusCode < 200 || response.statusCode >= 300) return null;
       final payload = await utf8.decoder.bind(response).join().timeout(timeout);
-      final decoded = jsonDecode(payload);
+      final decoded = await Isolate.run<Object?>(() => jsonDecode(payload));
       if (decoded is! Map) {
         throw const FormatException('Invalid Matrix .well-known response');
       }

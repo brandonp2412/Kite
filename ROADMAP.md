@@ -21,7 +21,7 @@ These rules apply to every milestone and cannot be traded away to ship a feature
 - [ ] Offline-first rendering: cached UI renders immediately; network/sync work must never blank an already-known screen.
 - [ ] No visible loading-induced layout shift. Skeletons/placeholders reserve final geometry.
 - [ ] No broad reactive rebuilds when a leaf signal can express the dependency.
-- [ ] No blocking disk, crypto, image decode, JSON parsing, database migration, or Matrix sync work on the Flutter UI isolate.
+- [x] No blocking disk, crypto, image decode, JSON parsing, database migration, or Matrix sync work on the Flutter UI isolate.
 
 ## Definition of Element X parity
 
@@ -313,7 +313,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] View another user's profile/avatar.
 - [ ] Start/open DM from user profile.
 - [ ] Ignore/block controls supported upstream.
-- [ ] Account management and sign out.
+- [x] Account management and sign out.
 - [ ] Multi-account management if present upstream.
 - [x] General settings.
 - [x] Light/dark/system/black appearance modes matching current upstream capabilities.
@@ -333,7 +333,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] About/version/licenses.
 - [ ] Developer settings only where they are genuinely useful; never leak Matrix complexity into normal settings.
 
-**Verification note (2026-09-17):** production sign-out is now reachable from a compact authenticated-home account menu without adding permanent dashboard chrome. Kite first stops and closes the active Matrix runtime, then invalidates the server session through the Matrix SDK and removes restore metadata plus that account's encrypted SDK store. Focused Flutter/Rust/ABI validation and a Linux release build pass. Account management/sign-out remains unchecked because the full quality gate is still blocked by pre-existing `origin/main` home-suite failures: adaptive tests expect the removed `Chats` header and room-list goldens are stale; both were reproduced unchanged on `2fdafbf`.
+**Verification note (2026-09-17):** production sign-out is reachable from a compact authenticated-home account menu without adding permanent dashboard chrome. Kite first stops and closes the active Matrix runtime, then invalidates the server session through the Matrix SDK and removes restore metadata plus that account's encrypted SDK store. The simplified-home adaptive expectation and intentional room-list/thread golden baselines were reconciled without restoring removed header/filter chrome. JSON parsing and native Matrix response decoding now remain behind background-isolate boundaries, covered by the architecture contract. Full `tool/quality_gate.sh` passes, including the release audit, 7 Rust bridge tests, clean Flutter analysis, native ABI smoke coverage, the 991-test Flutter suite with 3 intentional native-library skips, and the locked Waydroid jitter/back-navigation gates.
 
 ## Milestone 11 — Notifications and deep-link correctness
 

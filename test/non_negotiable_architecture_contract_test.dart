@@ -74,13 +74,19 @@ void main() {
       jsonFiles.sort();
 
       expect(jsonFiles, <String>[
+        'lib/matrix/io_matrix_well_known_client.dart',
         'lib/matrix/matrix_restoration.dart',
+        'lib/matrix/matrix_rust_auth_session_api.dart',
+        'lib/matrix/matrix_rust_native_bridge.dart',
         'lib/matrix/matrix_rust_sync_codec.dart',
         'lib/matrix/presentation_store.dart',
       ]);
 
       for (final path in <String>[
+        'lib/matrix/io_matrix_well_known_client.dart',
         'lib/matrix/matrix_restoration.dart',
+        'lib/matrix/matrix_rust_auth_session_api.dart',
+        'lib/matrix/matrix_rust_native_bridge.dart',
         'lib/matrix/presentation_store.dart',
       ]) {
         expect(

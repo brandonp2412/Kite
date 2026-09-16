@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 
 import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
@@ -292,7 +293,8 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
     final file = _sessionFile;
     if (!await file.exists()) return null;
     try {
-      final decoded = jsonDecode(await file.readAsString());
+      final payload = await file.readAsString();
+      final decoded = await Isolate.run<Object?>(() => jsonDecode(payload));
       if (decoded is! Map<String, dynamic>) return null;
       return _MatrixSessionRecord.fromJson(decoded);
     } catch (_) {
@@ -304,7 +306,9 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
     await _rootDirectory.create(recursive: true);
     final target = _sessionFile;
     final temporary = File('${target.path}.tmp');
-    await temporary.writeAsString(jsonEncode(record.toJson()), flush: true);
+    final json = record.toJson();
+    final payload = await Isolate.run<String>(() => jsonEncode(json));
+    await temporary.writeAsString(payload, flush: true);
     if (await target.exists()) await target.delete();
     await temporary.rename(target.path);
   }

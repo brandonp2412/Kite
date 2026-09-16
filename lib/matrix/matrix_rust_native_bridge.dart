@@ -304,7 +304,7 @@ final class _MatrixNativeDiscoverAuthenticationOperation {
   final String libraryPath;
   final String homeserver;
 
-  String call() {
+  Object? call() {
     final library = DynamicLibrary.open(libraryPath);
     final discover = library
         .lookupFunction<
@@ -317,11 +317,12 @@ final class _MatrixNativeDiscoverAuthenticationOperation {
         );
     final homeserverUtf8 = homeserver.toNativeUtf8(allocator: calloc);
     try {
-      return _readNativeString(
+      final payload = _readNativeString(
         discover(homeserverUtf8.cast<Char>()),
         freeString,
         'authentication discovery',
       );
+      return _decodeNativeEnvelope(payload);
     } finally {
       calloc.free(homeserverUtf8);
     }
@@ -341,7 +342,7 @@ final class _MatrixNativeLoginPasswordOperation {
   final String username;
   final String password;
 
-  String call() {
+  Object? call() {
     final library = DynamicLibrary.open(libraryPath);
     final login = library
         .lookupFunction<_ClientLoginPasswordNative, _ClientLoginPasswordDart>(
@@ -362,7 +363,8 @@ final class _MatrixNativeLoginPasswordOperation {
         usernameUtf8.cast<Char>(),
         passwordUtf8.cast<Char>(),
       );
-      return _readNativeString(value, freeString, 'password login');
+      final payload = _readNativeString(value, freeString, 'password login');
+      return _decodeNativeEnvelope(payload);
     } finally {
       passwordBytes.fillRange(0, passwordBytes.length, 0);
       calloc.free(passwordUtf8);
@@ -386,7 +388,7 @@ final class _MatrixNativeSendTextOperation {
   final String transactionId;
   final String body;
 
-  String call() {
+  Object? call() {
     final library = DynamicLibrary.open(libraryPath);
     final send = library
         .lookupFunction<_ClientSendTextNative, _ClientSendTextDart>(
@@ -406,7 +408,8 @@ final class _MatrixNativeSendTextOperation {
         transactionIdUtf8.cast<Char>(),
         bodyUtf8.cast<Char>(),
       );
-      return _readNativeString(value, freeString, 'text send');
+      final payload = _readNativeString(value, freeString, 'text send');
+      return _decodeNativeEnvelope(payload);
     } finally {
       calloc.free(bodyUtf8);
       calloc.free(transactionIdUtf8);
@@ -428,7 +431,7 @@ final class _MatrixNativeSessionOperation {
   final String symbol;
   final String operation;
 
-  String call() {
+  Object? call() {
     final library = DynamicLibrary.open(libraryPath);
     final sessionOperation = library
         .lookupFunction<
@@ -439,11 +442,12 @@ final class _MatrixNativeSessionOperation {
         .lookupFunction<_StringFreeNative, _StringFreeDart>(
           'kite_matrix_string_free',
         );
-    return _readNativeString(
+    final payload = _readNativeString(
       sessionOperation(Pointer<Void>.fromAddress(address)),
       freeString,
       operation,
     );
+    return _decodeNativeEnvelope(payload);
   }
 }
 
@@ -725,13 +729,12 @@ final class MatrixRustNativeBridge
         'must not be empty or contain NUL bytes',
       );
     }
-    final payload = await Isolate.run<String>(
+    final value = await Isolate.run<Object?>(
       _MatrixNativeDiscoverAuthenticationOperation(
         libraryPath: libraryPath,
         homeserver: homeserverText,
       ).call,
     );
-    final value = _decodeNativeEnvelope(payload);
     if (value is! Map<String, dynamic>) {
       throw const MatrixRustNativeException(
         code: 'invalid_native_response',
@@ -881,7 +884,7 @@ final class MatrixRustNativeClient
       );
     }
     return _enqueue<MatrixRustLoginResult>(() async {
-      final payload = await Isolate.run<String>(
+      final decoded = await Isolate.run<Object?>(
         _MatrixNativeLoginPasswordOperation(
           libraryPath: libraryPath,
           address: _requireAddress(),
@@ -889,7 +892,6 @@ final class MatrixRustNativeClient
           password: password,
         ).call,
       );
-      final decoded = _decodeNativeEnvelope(payload);
       if (decoded is! Map<String, dynamic>) {
         throw const MatrixRustNativeException(
           code: 'invalid_native_response',
@@ -950,7 +952,7 @@ final class MatrixRustNativeClient
       );
     }
     return _enqueue<MatrixRustSendResult>(() async {
-      final payload = await Isolate.run<String>(
+      final decoded = await Isolate.run<Object?>(
         _MatrixNativeSendTextOperation(
           libraryPath: libraryPath,
           address: _requireAddress(),
@@ -959,7 +961,6 @@ final class MatrixRustNativeClient
           body: body,
         ).call,
       );
-      final decoded = _decodeNativeEnvelope(payload);
       if (decoded is! Map<String, dynamic>) {
         throw const MatrixRustNativeException(
           code: 'invalid_native_response',
@@ -980,7 +981,7 @@ final class MatrixRustNativeClient
   @override
   Future<MatrixRustSessionDescriptor?> restoreSession() {
     return _enqueue<MatrixRustSessionDescriptor?>(() async {
-      final payload = await Isolate.run<String>(
+      final value = await Isolate.run<Object?>(
         _MatrixNativeSessionOperation(
           libraryPath: libraryPath,
           address: _requireAddress(),
@@ -988,7 +989,6 @@ final class MatrixRustNativeClient
           operation: 'session restore',
         ).call,
       );
-      final value = _decodeNativeEnvelope(payload);
       return value == null ? null : _decodeSessionDescriptor(value);
     });
   }
@@ -996,7 +996,7 @@ final class MatrixRustNativeClient
   @override
   Future<void> persistSession() {
     return _enqueue<void>(() async {
-      final payload = await Isolate.run<String>(
+      await Isolate.run<Object?>(
         _MatrixNativeSessionOperation(
           libraryPath: libraryPath,
           address: _requireAddress(),
@@ -1004,14 +1004,13 @@ final class MatrixRustNativeClient
           operation: 'session persistence',
         ).call,
       );
-      _decodeNativeEnvelope(payload);
     });
   }
 
   @override
   Future<void> logout() {
     return _enqueue<void>(() async {
-      final payload = await Isolate.run<String>(
+      await Isolate.run<Object?>(
         _MatrixNativeSessionOperation(
           libraryPath: libraryPath,
           address: _requireAddress(),
@@ -1019,7 +1018,6 @@ final class MatrixRustNativeClient
           operation: 'session logout',
         ).call,
       );
-      _decodeNativeEnvelope(payload);
     });
   }
 
@@ -1459,7 +1457,14 @@ final class MatrixRustSdkBoundary
           since: syncToken,
         );
         if (!_syncRequested || !identical(_client, client)) return;
-        final syncFailure = _decodeMatrixRustSyncFailure(payload);
+        final syncFailureCodeIndex = await Isolate.run<int?>(() {
+          return _decodeMatrixRustSyncFailure(payload)?.code.index;
+        });
+        final syncFailure = syncFailureCodeIndex == null
+            ? null
+            : _MatrixRustSyncFailure(
+                _MatrixRustSyncFailureCode.values[syncFailureCodeIndex],
+              );
         if (syncFailure != null) {
           if (syncFailure.code == _MatrixRustSyncFailureCode.unknownPosition &&
               syncToken != null) {

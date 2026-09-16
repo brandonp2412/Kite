@@ -24,7 +24,7 @@ void main() {
     ) async {
       await pumpAt(tester, entry.value);
 
-      expect(find.text('Chats'), findsOneWidget);
+      expect(find.byKey(const Key('home-search')), findsOneWidget);
       expect(find.byKey(const Key('sidebar')), findsOneWidget);
       expect(find.byKey(const Key('chat-panel')), findsNothing);
 
