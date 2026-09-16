@@ -37,6 +37,31 @@ final class MatrixSdkSyncConfiguration {
   final String? resumeFromCursor;
 }
 
+final class MatrixSdkPasswordLoginResult {
+  const MatrixSdkPasswordLoginResult({
+    required this.userId,
+    required this.deviceId,
+  });
+
+  final String userId;
+  final String deviceId;
+}
+
+abstract interface class MatrixSdkPasswordAuthenticator {
+  Future<MatrixSdkPasswordLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  });
+}
+
+abstract interface class MatrixSdkTextMessageSender {
+  Future<String> sendTextMessage({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  });
+}
+
 abstract interface class MatrixSdkBoundary {
   Set<MatrixSdkCapability> get capabilities;
 
@@ -138,6 +163,42 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     return _boundary.paginateBackwards(normalizedRoomId);
+  }
+
+  Future<MatrixSdkPasswordLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  }) async {
+    final authenticator = _boundary;
+    if (authenticator is! MatrixSdkPasswordAuthenticator) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support password authentication',
+      );
+    }
+    await _ensureOpen();
+    return (authenticator as MatrixSdkPasswordAuthenticator).loginWithPassword(
+      username: username,
+      password: password,
+    );
+  }
+
+  Future<String> sendTextMessage({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) async {
+    final sender = _boundary;
+    if (sender is! MatrixSdkTextMessageSender) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support text messages',
+      );
+    }
+    await _ensureOpen();
+    return (sender as MatrixSdkTextMessageSender).sendTextMessage(
+      roomId: roomId,
+      transactionId: transactionId,
+      body: body,
+    );
   }
 
   Future<void> close() async {

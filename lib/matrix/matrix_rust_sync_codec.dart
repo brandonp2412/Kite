@@ -115,6 +115,13 @@ final class MatrixRustSyncCodec {
   MatrixTimelineEvent _decodeEvent(String roomId, Object? rawEvent) {
     final event = _asMap(rawEvent, 'timeline event');
     final timestamp = _requiredNonNegativeInt(event, 'origin_server_ts');
+    final unsigned = event['unsigned'];
+    final transactionId = unsigned is Map
+        ? _optionalIdentifier(
+            unsigned['transaction_id'],
+            'unsigned.transaction_id',
+          )
+        : null;
     return MatrixTimelineEvent(
       eventId: _requiredIdentifier(event, 'event_id'),
       roomId: roomId,
@@ -125,6 +132,7 @@ final class MatrixRustSyncCodec {
         'origin_server_ts',
       ),
       streamPosition: timestamp,
+      transactionId: transactionId,
       content: Map<String, Object?>.unmodifiable(
         _asMap(event['content'], 'event content'),
       ),

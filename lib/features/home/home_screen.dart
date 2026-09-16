@@ -78,6 +78,7 @@ class HomeScreen extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => _CompactChatScreen(
+                      roomListStore: roomListStore,
                       roomManagement: roomManagement,
                       memberManagement: memberManagement,
                       calls: calls,
@@ -110,6 +111,7 @@ class HomeScreen extends StatelessWidget {
           Expanded(
             child: RepaintBoundary(
               child: _ChatPanel(
+                roomListStore: roomListStore,
                 roomManagement: roomManagement,
                 memberManagement: memberManagement,
                 calls: calls,
@@ -541,11 +543,13 @@ class _InviteCard extends StatelessWidget {
 
 class _CompactChatScreen extends StatelessWidget {
   const _CompactChatScreen({
+    this.roomListStore,
     this.roomManagement,
     this.memberManagement,
     this.calls,
   });
 
+  final RoomListStateStore? roomListStore;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
@@ -555,8 +559,17 @@ class _CompactChatScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: SignalBuilder(
-          builder: (context) =>
-              Text(BenchmarkFixture.room(selectedRoomId.value).name),
+          builder: (context) {
+            final roomId = selectedRoomId.value;
+            final store = roomListStore;
+            if (store != null) {
+              if (!store.roomIds.contains(roomId)) {
+                return const Text('Select a room');
+              }
+              return Text(store.roomSignal(roomId).value.name);
+            }
+            return Text(BenchmarkFixture.room(roomId).name);
+          },
         ),
         actions: <Widget>[
           IconButton(
@@ -574,6 +587,7 @@ class _CompactChatScreen extends StatelessWidget {
       ),
       body: _ChatPanel(
         showHeader: false,
+        roomListStore: roomListStore,
         roomManagement: roomManagement,
         memberManagement: memberManagement,
         calls: calls,
@@ -1176,12 +1190,14 @@ enum _ComposerFormatAction {
 class _ChatPanel extends StatefulWidget {
   const _ChatPanel({
     this.showHeader = true,
+    this.roomListStore,
     this.roomManagement,
     this.memberManagement,
     this.calls,
   });
 
   final bool showHeader;
+  final RoomListStateStore? roomListStore;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
@@ -1208,6 +1224,7 @@ class _ChatPanelState extends State<_ChatPanel> {
       children: <Widget>[
         if (widget.showHeader) ...<Widget>[
           _ChatHeader(
+            roomListStore: widget.roomListStore,
             roomManagement: widget.roomManagement,
             memberManagement: widget.memberManagement,
             calls: widget.calls,
@@ -1271,8 +1288,14 @@ class _TypingIndicator extends StatelessWidget {
 }
 
 class _ChatHeader extends StatelessWidget {
-  const _ChatHeader({this.roomManagement, this.memberManagement, this.calls});
+  const _ChatHeader({
+    this.roomListStore,
+    this.roomManagement,
+    this.memberManagement,
+    this.calls,
+  });
 
+  final RoomListStateStore? roomListStore;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
@@ -1288,7 +1311,18 @@ class _ChatHeader extends StatelessWidget {
           builder: (context) {
             final roomId = selectedRoomId.value;
             BenchmarkJitterInjector.injectBuildDelay();
-            final room = BenchmarkFixture.room(roomId);
+            final store = roomListStore;
+            final room = store == null
+                ? RoomListEntry.fromBenchmark(BenchmarkFixture.room(roomId))
+                : store.roomIds.contains(roomId)
+                ? store.roomSignal(roomId).value
+                : null;
+            if (room == null) {
+              return const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Select a room'),
+              );
+            }
             return Row(
               children: <Widget>[
                 CircleAvatar(

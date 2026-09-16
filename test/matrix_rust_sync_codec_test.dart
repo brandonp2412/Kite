@@ -38,6 +38,7 @@ void main() {
                 "sender": "@bob:kite.test",
                 "type": "m.room.message",
                 "origin_server_ts": 2000,
+                "unsigned": {"transaction_id": "kite-local-7"},
                 "content": {"msgtype": "m.text", "body": "two"}
               }
             ]
@@ -66,6 +67,7 @@ void main() {
       2000,
     ]);
     expect(alpha.timelineEvents.last.content['body'], 'two');
+    expect(alpha.timelineEvents.last.transactionId, 'kite-local-7');
 
     final empty = decoded.batch.rooms.last;
     expect(empty.summary!.streamPosition, 500);

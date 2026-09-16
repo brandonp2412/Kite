@@ -1559,7 +1559,6 @@ name = "kite_matrix_bridge"
 version = "0.1.0"
 dependencies = [
  "matrix-sdk",
- "matrix-sdk-crypto",
  "serde_json",
  "tokio",
 ]
