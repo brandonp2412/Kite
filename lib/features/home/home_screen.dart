@@ -43,6 +43,7 @@ class HomeScreen extends StatelessWidget {
     this.roomManagement,
     this.memberManagement,
     this.calls,
+    this.timeline,
   });
 
   final List<BenchmarkRoom>? benchmarkRooms;
@@ -51,6 +52,7 @@ class HomeScreen extends StatelessWidget {
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
+  final TimelineController? timeline;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -60,32 +62,37 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final isPhone = size.shortestSide < phoneBreakpoint;
+    final homeTimeline = timeline ?? timelineController;
     final roomEntries = roomListStore == null
         ? deterministicRoomListEntries(benchmarkRooms ?? BenchmarkFixture.rooms)
         : const <RoomListEntry>[];
 
     if (isPhone) {
-      return Scaffold(
-        body: SafeArea(
-          child: SizedBox.expand(
-            key: const Key('sidebar'),
-            child: _HomeSidebar(
-              rooms: roomEntries,
-              store: roomListStore,
-              inviteStore: inviteStore,
-              onRoomTap: (roomId) {
-                selectRoom(roomId);
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => _CompactChatScreen(
-                      roomListStore: roomListStore,
-                      roomManagement: roomManagement,
-                      memberManagement: memberManagement,
-                      calls: calls,
+      return _HomeTimelineControllerScope(
+        controller: homeTimeline,
+        child: Scaffold(
+          body: SafeArea(
+            child: SizedBox.expand(
+              key: const Key('sidebar'),
+              child: _HomeSidebar(
+                rooms: roomEntries,
+                store: roomListStore,
+                inviteStore: inviteStore,
+                onRoomTap: (roomId) {
+                  selectRoom(roomId);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _CompactChatScreen(
+                        timeline: homeTimeline,
+                        roomListStore: roomListStore,
+                        roomManagement: roomManagement,
+                        memberManagement: memberManagement,
+                        calls: calls,
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -95,34 +102,62 @@ class HomeScreen extends StatelessWidget {
     final adaptiveSidebarWidth = size.width < 1024
         ? tabletSidebarWidth
         : sidebarWidth;
-    return Scaffold(
-      body: Row(
-        children: <Widget>[
-          SizedBox(
-            key: const Key('sidebar'),
-            width: adaptiveSidebarWidth,
-            child: _HomeSidebar(
-              rooms: roomEntries,
-              store: roomListStore,
-              inviteStore: inviteStore,
-            ),
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: RepaintBoundary(
-              child: _ChatPanel(
-                roomListStore: roomListStore,
-                roomManagement: roomManagement,
-                memberManagement: memberManagement,
-                calls: calls,
+    return _HomeTimelineControllerScope(
+      controller: homeTimeline,
+      child: Scaffold(
+        body: Row(
+          children: <Widget>[
+            SizedBox(
+              key: const Key('sidebar'),
+              width: adaptiveSidebarWidth,
+              child: _HomeSidebar(
+                rooms: roomEntries,
+                store: roomListStore,
+                inviteStore: inviteStore,
               ),
             ),
-          ),
-        ],
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: RepaintBoundary(
+                child: _ChatPanel(
+                  roomListStore: roomListStore,
+                  roomManagement: roomManagement,
+                  memberManagement: memberManagement,
+                  calls: calls,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+class _HomeTimelineControllerScope extends InheritedWidget {
+  const _HomeTimelineControllerScope({
+    required this.controller,
+    required super.child,
+  });
+
+  final TimelineController controller;
+
+  static TimelineController of(BuildContext context) {
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<_HomeTimelineControllerScope>();
+    if (scope == null) {
+      throw StateError('Home timeline controller scope is missing.');
+    }
+    return scope.controller;
+  }
+
+  @override
+  bool updateShouldNotify(_HomeTimelineControllerScope oldWidget) =>
+      !identical(controller, oldWidget.controller);
+}
+
+TimelineController _homeTimelineController(BuildContext context) =>
+    _HomeTimelineControllerScope.of(context);
 
 class _HomeSidebar extends StatefulWidget {
   const _HomeSidebar({
@@ -543,12 +578,14 @@ class _InviteCard extends StatelessWidget {
 
 class _CompactChatScreen extends StatelessWidget {
   const _CompactChatScreen({
+    required this.timeline,
     this.roomListStore,
     this.roomManagement,
     this.memberManagement,
     this.calls,
   });
 
+  final TimelineController timeline;
   final RoomListStateStore? roomListStore;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
@@ -556,41 +593,44 @@ class _CompactChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: SignalBuilder(
-          builder: (context) {
-            final roomId = selectedRoomId.value;
-            final store = roomListStore;
-            if (store != null) {
-              if (!store.roomIds.contains(roomId)) {
-                return const Text('Select a room');
+    return _HomeTimelineControllerScope(
+      controller: timeline,
+      child: Scaffold(
+        appBar: AppBar(
+          title: SignalBuilder(
+            builder: (context) {
+              final roomId = selectedRoomId.value;
+              final store = roomListStore;
+              if (store != null) {
+                if (!store.roomIds.contains(roomId)) {
+                  return const Text('Select a room');
+                }
+                return Text(store.roomSignal(roomId).value.name);
               }
-              return Text(store.roomSignal(roomId).value.name);
-            }
-            return Text(BenchmarkFixture.room(roomId).name);
-          },
-        ),
-        actions: <Widget>[
-          IconButton(
-            key: const Key('compact-room-threads-action'),
-            tooltip: 'Threads',
-            onPressed: () => Navigator.of(context).push(
-              ThreadListRoute(
-                roomId: selectedRoomId.value,
-                reduceMotion: KiteMotion.prefersReducedMotion(context),
-              ),
-            ),
-            icon: const Icon(Icons.forum_outlined),
+              return Text(BenchmarkFixture.room(roomId).name);
+            },
           ),
-        ],
-      ),
-      body: _ChatPanel(
-        showHeader: false,
-        roomListStore: roomListStore,
-        roomManagement: roomManagement,
-        memberManagement: memberManagement,
-        calls: calls,
+          actions: <Widget>[
+            IconButton(
+              key: const Key('compact-room-threads-action'),
+              tooltip: 'Threads',
+              onPressed: () => Navigator.of(context).push(
+                ThreadListRoute(
+                  roomId: selectedRoomId.value,
+                  reduceMotion: KiteMotion.prefersReducedMotion(context),
+                ),
+              ),
+              icon: const Icon(Icons.forum_outlined),
+            ),
+          ],
+        ),
+        body: _ChatPanel(
+          showHeader: false,
+          roomListStore: roomListStore,
+          roomManagement: roomManagement,
+          memberManagement: memberManagement,
+          calls: calls,
+        ),
       ),
     );
   }
@@ -1258,7 +1298,9 @@ class _TypingIndicator extends StatelessWidget {
           child: SignalBuilder(
             builder: (context) {
               final roomId = selectedRoomId.value;
-              final users = timelineController.typingUsersFor(roomId).value;
+              final users = _homeTimelineController(context)
+                  .typingUsersFor(roomId)
+                  .value;
               final text = switch (users.length) {
                 0 => '',
                 1 => '${users.first} is typing…',
@@ -1373,7 +1415,8 @@ class _ChatHeader extends StatelessWidget {
                       MaterialPageRoute<void>(
                         builder: (_) => RoomContentGallery(
                           roomId: roomId,
-                          messages: timelineController.messagesFor(roomId),
+                          messages: _homeTimelineController(context)
+                              .messagesFor(roomId),
                         ),
                       ),
                     );
@@ -1456,7 +1499,9 @@ class _TimelineState extends State<_Timeline> {
   }
 
   Future<void> _jumpToUnread(String roomId) async {
-    final eventId = timelineController.unreadMarkerFor(roomId).peek();
+    final eventId = _homeTimelineController(context)
+        .unreadMarkerFor(roomId)
+        .peek();
     if (eventId == null || !_scrollController.hasClients) return;
 
     final retainedMarkerContext = _unreadMarkerKey.currentContext;
@@ -1483,7 +1528,9 @@ class _TimelineState extends State<_Timeline> {
       }
     }
 
-    final messages = timelineController.messagesFor(roomId).peek();
+    final messages = _homeTimelineController(context)
+        .messagesFor(roomId)
+        .peek();
     final targetIndex = messages.indexWhere((message) => message.id == eventId);
     if (targetIndex < 0) return;
     final reverseIndex = messages.length - 1 - targetIndex;
@@ -1515,7 +1562,9 @@ class _TimelineState extends State<_Timeline> {
     return SignalBuilder(
       builder: (context) {
         final roomId = selectedRoomId.value;
-        final sourceMessages = timelineController.messagesFor(roomId).value;
+        final sourceMessages = _homeTimelineController(context)
+            .messagesFor(roomId)
+            .value;
         if (_displayedRoomId != roomId) {
           _displayedRoomId = roomId;
           _displayedMessages = sourceMessages;
@@ -1542,7 +1591,7 @@ class _TimelineState extends State<_Timeline> {
           }
         }
         final messages = _displayedMessages;
-        final unreadMarkerEventId = timelineController
+        final unreadMarkerEventId = _homeTimelineController(context)
             .unreadMarkerFor(roomId)
             .value;
         return Stack(
@@ -1579,7 +1628,7 @@ class _TimelineState extends State<_Timeline> {
               bottom: KiteSpacing.md,
               child: SignalBuilder(
                 builder: (context) {
-                  final eventId = timelineController
+                  final eventId = _homeTimelineController(context)
                       .unreadMarkerFor(roomId)
                       .value;
                   return KeyedSubtree(
@@ -1723,7 +1772,7 @@ class _MessageRow extends StatelessWidget {
   void _openMedia(BuildContext context) {
     final model = TimelineMediaViewerModel.fromMessages(
       roomId: roomId,
-      messages: timelineController.messagesFor(roomId).peek(),
+      messages: _homeTimelineController(context).messagesFor(roomId).peek(),
       initialMessageId: message.id,
     );
     Navigator.of(context).push(
@@ -1762,7 +1811,7 @@ class _MessageRow extends StatelessWidget {
       builder: (sheetContext) => _MessageActionSheet(
         message: message,
         onReact: (emoji) {
-          timelineController.toggleReaction(message, emoji);
+          _homeTimelineController(context).toggleReaction(message, emoji);
           Navigator.of(sheetContext).pop();
         },
       ),
@@ -1794,7 +1843,7 @@ class _MessageRow extends StatelessWidget {
             ),
           );
       case _MessageAction.share:
-        await timelineController.shareMessage(roomId, message);
+        await _homeTimelineController(context).shareMessage(roomId, message);
         if (!context.mounted) return;
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -1823,7 +1872,8 @@ class _MessageRow extends StatelessWidget {
         if (!context.mounted || destinations == null || destinations.isEmpty) {
           return;
         }
-        final forwarded = timelineController.forwardText(message, destinations);
+        final forwarded = _homeTimelineController(context)
+            .forwardText(message, destinations);
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
@@ -1849,7 +1899,8 @@ class _MessageRow extends StatelessWidget {
           builder: (_) => _ReportMessageSheet(message: message),
         );
         if (!context.mounted || reason == null) return;
-        await timelineController.reportMessage(roomId, message, reason);
+        await _homeTimelineController(context)
+            .reportMessage(roomId, message, reason);
         if (!context.mounted) return;
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -1861,7 +1912,7 @@ class _MessageRow extends StatelessWidget {
             ),
           );
       case _MessageAction.endPoll:
-        await timelineController.endPoll(roomId, message);
+        await _homeTimelineController(context).endPoll(roomId, message);
       case _MessageAction.reactionPicker:
         final emoji = await showModalBottomSheet<String>(
           context: context,
@@ -1876,7 +1927,7 @@ class _MessageRow extends StatelessWidget {
           builder: (_) => const _ReactionPickerSheet(),
         );
         if (!context.mounted || emoji == null) return;
-        timelineController.toggleReaction(message, emoji);
+        _homeTimelineController(context).toggleReaction(message, emoji);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -1889,7 +1940,7 @@ class _MessageRow extends StatelessWidget {
         await route.completed;
         if (!context.mounted) return;
         if (confirmed == true) {
-          timelineController.redactText(message);
+          _homeTimelineController(context).redactText(message);
         }
     }
   }
@@ -1924,7 +1975,7 @@ class _MessageRow extends StatelessWidget {
             ),
           );
       case _MessageAction.endPoll:
-        await timelineController.endPoll(roomId, message);
+        await _homeTimelineController(context).endPoll(roomId, message);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -1936,7 +1987,9 @@ class _MessageRow extends StatelessWidget {
         ).push(route);
         await route.completed;
         if (!context.mounted) return;
-        if (confirmed == true) timelineController.redactText(message);
+        if (confirmed == true) {
+          _homeTimelineController(context).redactText(message);
+        }
       case _MessageAction.share:
       case _MessageAction.forward:
       case _MessageAction.report:
@@ -2082,8 +2135,9 @@ class _MessageRow extends StatelessWidget {
                                   ? () => _openMedia(context)
                                   : null,
                               onToggleAudio: attachment.kind.isAudio
-                                  ? () => timelineController
-                                        .toggleAudioPlayback(message)
+                                  ? () =>
+                                        _homeTimelineController(context)
+                                            .toggleAudioPlayback(message)
                                   : null,
                             ),
                           if (attachment != null &&
@@ -2101,10 +2155,8 @@ class _MessageRow extends StatelessWidget {
                                           TimelineLocationKind.liveLocation &&
                                       location.isLiveActive
                                   ? () => unawaited(
-                                      timelineController.stopLiveLocation(
-                                        roomId,
-                                        message,
-                                      ),
+                                      _homeTimelineController(context)
+                                          .stopLiveLocation(roomId, message),
                                     )
                                   : null,
                             ),
@@ -2116,11 +2168,8 @@ class _MessageRow extends StatelessWidget {
                               messageId: message.id,
                               poll: poll,
                               onVote: (optionId) => unawaited(
-                                timelineController.votePoll(
-                                  roomId,
-                                  message,
-                                  optionId,
-                                ),
+                                _homeTimelineController(context)
+                                    .votePoll(roomId, message, optionId),
                               ),
                             ),
                           if (poll != null && message.body.isNotEmpty)
@@ -2136,9 +2185,8 @@ class _MessageRow extends StatelessWidget {
                               key: Key('message-link-preview-${message.id}'),
                               preview: linkPreview,
                               onOpen: () async {
-                                await timelineController.openLink(
-                                  linkPreview.uri,
-                                );
+                                await _homeTimelineController(context)
+                                    .openLink(linkPreview.uri);
                               },
                             ),
                           ],
@@ -3282,7 +3330,8 @@ class _MessageDeliveryState extends StatelessWidget {
               child: InkWell(
                 key: Key('retry-${message.id}'),
                 borderRadius: BorderRadius.circular(KiteRadii.pill),
-                onTap: () => timelineController.retry(roomId, message),
+                onTap: () =>
+                    _homeTimelineController(context).retry(roomId, message),
                 child: Center(
                   child: Icon(
                     Icons.error_rounded,
@@ -3599,7 +3648,7 @@ class _ComposerState extends State<_Composer> {
               context,
               roomId: roomId,
               kind: kind,
-              controller: timelineController,
+              controller: _homeTimelineController(context),
             ),
           );
         });
@@ -3612,7 +3661,7 @@ class _ComposerState extends State<_Composer> {
             showComposerPollSheet(
               context,
               roomId: roomId,
-              controller: timelineController,
+              controller: _homeTimelineController(context),
             ),
           );
         });
@@ -3822,12 +3871,12 @@ class _ComposerState extends State<_Composer> {
     final contextMessage = _contextRoomId == roomId ? _contextMessage : null;
     if (_mode == _ComposerMode.edit && contextMessage != null) {
       if (body.isEmpty) return;
-      timelineController.editText(contextMessage, body);
+      _homeTimelineController(context).editText(contextMessage, body);
       _clearContext(restoreEditDraft: true);
     } else {
       if (body.isEmpty && attachment == null) return;
       if (attachment != null) {
-        timelineController.sendAttachment(
+        _homeTimelineController(context).sendAttachment(
           roomId,
           attachment,
           caption: body,
@@ -3836,7 +3885,7 @@ class _ComposerState extends State<_Composer> {
         _pendingAttachment = null;
         _pendingAttachmentRoomId = null;
       } else {
-        timelineController.sendText(
+        _homeTimelineController(context).sendText(
           roomId,
           body,
           replyTo: _mode == _ComposerMode.reply ? contextMessage : null,
