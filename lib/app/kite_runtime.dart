@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/auth/account_security_runtime.dart';
+import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
 import 'package:kite/features/auth/app_lock_gate.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
@@ -17,6 +18,7 @@ class KiteRuntime extends StatefulWidget {
     this.refreshNotificationPrivacy,
     this.accountSdkBoundary,
     this.authenticatedHomeBuilder,
+    this.beforeSignOut,
     this.sessionInvalidation,
     this.requireSessionVerification = false,
     this.home = const HomeScreen(),
@@ -26,6 +28,7 @@ class KiteRuntime extends StatefulWidget {
   final Future<void> Function()? refreshNotificationPrivacy;
   final MatrixAccountSdkBoundary? accountSdkBoundary;
   final AuthenticatedSessionBuilder? authenticatedHomeBuilder;
+  final Future<void> Function(AuthenticatedSession session)? beforeSignOut;
   final Listenable? sessionInvalidation;
   final bool requireSessionVerification;
   final Widget home;
@@ -119,14 +122,25 @@ class _KiteRuntimeState extends State<KiteRuntime> {
     AuthenticatedSession session,
   ) {
     final builder = widget.authenticatedHomeBuilder;
-    if (builder != null) return builder(context, session);
-    return const Scaffold(
-      body: Center(
-        child: Text(
-          'Matrix runtime is unavailable.',
-          key: Key('matrix-runtime-unavailable'),
-        ),
-      ),
+    final home = builder != null
+        ? builder(context, session)
+        : const Scaffold(
+            body: Center(
+              child: Text(
+                'Matrix runtime is unavailable.',
+                key: Key('matrix-runtime-unavailable'),
+              ),
+            ),
+          );
+    final accountSecurity = _accountSecurityRuntime;
+    if (accountSecurity == null) return home;
+    return AuthenticatedAccountScope(
+      session: session,
+      signOut: () async {
+        await widget.beforeSignOut?.call(session);
+        await accountSecurity.lifecycle.signOut();
+      },
+      child: home,
     );
   }
 

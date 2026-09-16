@@ -209,24 +209,83 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
   }
 
   @override
-  Future<void> logoutSession(MatrixSdkSessionDescriptor session) {
-    return Future<void>.error(
-      const MatrixSdkContractException(
-        'Remote Matrix logout is not exposed by the native smoke-path boundary',
-      ),
-    );
+  Future<void> logoutSession(MatrixSdkSessionDescriptor session) async {
+    final record = await _readSessionRecord();
+    if (record == null || !_sameSession(record.toDescriptor(), session)) {
+      throw StateError('Matrix session is not available for logout');
+    }
+    final configuration = _storeConfigurationForAccount(record.userId);
+    if (configuration.encryptionKeyId != encryptionKeyId) {
+      throw StateError(
+        'Matrix account store key does not match login store key',
+      );
+    }
+    final store = Directory(configuration.storePath);
+    if (!await store.exists()) {
+      throw StateError('Matrix account store is unavailable for logout');
+    }
+
+    final secret = await _resolveStoreSecret(encryptionKeyId);
+    MatrixRustClient? client;
+    try {
+      client = await _nativeBridge.openEncryptedClient(
+        homeserver: record.homeserver,
+        storePath: store.path,
+        storePassphrase: secret,
+      );
+      if (client is! MatrixRustLogoutClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support session logout',
+        );
+      }
+      await (client as MatrixRustLogoutClient).logout();
+    } finally {
+      await client?.close();
+    }
   }
 
   @override
   Future<void> clearSession() async {
     final pending = _pendingLogin;
     _pendingLogin = null;
+    Object? cleanupFailure;
+
+    Future<void> attempt(Future<void> Function() action) async {
+      try {
+        await action();
+      } catch (error) {
+        cleanupFailure ??= error;
+      }
+    }
+
     final pendingStagingRoot = pending?.stagingRoot;
     if (pendingStagingRoot != null) {
-      await _deleteOwnedStagingDirectory(pendingStagingRoot);
+      await attempt(() => _deleteOwnedStagingDirectory(pendingStagingRoot));
     }
+
+    final record = await _readSessionRecord();
+    if (record != null) {
+      final configuration = _storeConfigurationForAccount(record.userId);
+      if (configuration.encryptionKeyId != encryptionKeyId) {
+        cleanupFailure ??= StateError(
+          'Matrix account store key does not match login store key',
+        );
+      } else {
+        final store = Directory(configuration.storePath);
+        await attempt(() async {
+          if (await store.exists()) await store.delete(recursive: true);
+        });
+      }
+    }
+
     final file = _sessionFile;
-    if (await file.exists()) await file.delete();
+    await attempt(() async {
+      if (await file.exists()) await file.delete();
+    });
+
+    if (cleanupFailure != null) {
+      throw StateError('Matrix local session cleanup failed');
+    }
   }
 
   Future<_MatrixSessionRecord?> _readSessionRecord() async {

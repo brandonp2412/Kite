@@ -333,6 +333,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] About/version/licenses.
 - [ ] Developer settings only where they are genuinely useful; never leak Matrix complexity into normal settings.
 
+**Verification note (2026-09-17):** production sign-out is now reachable from a compact authenticated-home account menu without adding permanent dashboard chrome. Kite first stops and closes the active Matrix runtime, then invalidates the server session through the Matrix SDK and removes restore metadata plus that account's encrypted SDK store. Focused Flutter/Rust/ABI validation and a Linux release build pass. Account management/sign-out remains unchecked because the full quality gate is still blocked by pre-existing `origin/main` home-suite failures: adaptive tests expect the removed `Chats` header and room-list goldens are stale; both were reproduced unchanged on `2fdafbf`.
+
 ## Milestone 11 — Notifications and deep-link correctness
 
 - [x] FCM-compatible push path where applicable.

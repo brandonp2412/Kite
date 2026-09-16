@@ -24,7 +24,7 @@ use matrix_sdk::{
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 8;
+const KITE_MATRIX_ABI_VERSION: u32 = 9;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 pub struct KiteMatrixClient {
@@ -301,6 +301,30 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
     }
 
     ok_json(session_json(&session, matrix_client.homeserver().as_str()))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_logout(client: *mut KiteMatrixClient) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix sign-out is unavailable.");
+    }
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix sign-out is unavailable.");
+    };
+    if matrix_client.matrix_auth().session().is_none() {
+        return error_json(
+            "session_unavailable",
+            "There is no Matrix session to sign out.",
+        );
+    }
+    if client.runtime.block_on(matrix_client.logout()).is_err() {
+        return error_json(
+            "logout_failed",
+            "Could not sign out from the Matrix server.",
+        );
+    }
+    ok_json(Value::Null)
 }
 
 #[unsafe(no_mangle)]
@@ -740,7 +764,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 8);
+        assert_eq!(kite_matrix_abi_version(), 9);
     }
 
     #[test]
@@ -827,6 +851,7 @@ mod tests {
         let login = unsafe {
             kite_matrix_client_login_password(ptr::null_mut(), username.as_ptr(), password.as_ptr())
         };
+        let logout = unsafe { kite_matrix_client_logout(ptr::null_mut()) };
         let transaction_id = CString::new("kite-test-transaction").unwrap();
         let send = unsafe {
             kite_matrix_client_send_text(
@@ -840,7 +865,7 @@ mod tests {
         let members = unsafe { kite_matrix_client_room_members(ptr::null_mut(), room_id.as_ptr()) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
-        for result in [login, send] {
+        for result in [login, logout, send] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();
             assert!(decoded.contains("\"ok\":false"));

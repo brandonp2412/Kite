@@ -92,6 +92,9 @@ final class _ProductionKiteRuntimeState extends State<ProductionKiteRuntime> {
   Widget build(BuildContext context) {
     return KiteRuntime(
       accountSdkBoundary: widget.accountBoundary,
+      beforeSignOut: (session) async {
+        await widget.matrixRuntime.removeAccount(session.userId);
+      },
       sessionInvalidation: _sessionInvalidation,
       authenticatedHomeBuilder: (context, session) => _AuthenticatedMatrixHome(
         runtime: widget.matrixRuntime,

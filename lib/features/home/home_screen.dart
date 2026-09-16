@@ -10,6 +10,8 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/auth/authenticated_account_scope.dart';
+import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
@@ -281,8 +283,96 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     super.dispose();
   }
 
+  Future<void> _openAccountMenu(AuthenticatedAccountScope account) async {
+    final action = await showModalBottomSheet<_HomeAccountAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _HomeAccountSheet(session: account.session),
+    );
+    if (!mounted || action != _HomeAccountAction.signOut) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sign out from this device?'),
+        content: const Text(
+          'This signs out this Kite session and removes its local account data from this device.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('home-account-sign-out-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    try {
+      await account.signOut();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Kite could not safely prepare this account for sign out.',
+            ),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final account = AuthenticatedAccountScope.maybeOf(context);
+    final searchField = TextField(
+      key: const Key('home-search'),
+      controller: _searchController,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Search chats',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                key: const Key('home-search-clear'),
+                tooltip: 'Clear search',
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+                icon: const Icon(Icons.close_rounded),
+              ),
+        filled: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(KiteRadii.lg),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(KiteRadii.lg),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(KiteRadii.lg),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: KiteStroke.emphasis,
+          ),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: KiteSpacing.md,
+          vertical: KiteSpacing.md,
+        ),
+      ),
+      onChanged: (value) => setState(() => _searchQuery = value),
+    );
     return Column(
       children: <Widget>[
         Padding(
@@ -292,47 +382,23 @@ class _HomeSidebarState extends State<_HomeSidebar> {
             KiteSpacing.md,
             KiteSpacing.sm,
           ),
-          child: TextField(
-            key: const Key('home-search'),
-            controller: _searchController,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Search chats',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchQuery.isEmpty
-                  ? null
-                  : IconButton(
-                      key: const Key('home-search-clear'),
-                      tooltip: 'Clear search',
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                      icon: const Icon(Icons.close_rounded),
+          child: account == null
+              ? searchField
+              : Row(
+                  children: <Widget>[
+                    Expanded(child: searchField),
+                    const SizedBox(width: KiteSpacing.sm),
+                    IconButton(
+                      key: const Key('home-account-menu'),
+                      tooltip: 'Account',
+                      onPressed: () => _openAccountMenu(account),
+                      icon: CircleAvatar(
+                        radius: 18,
+                        child: Text(_accountInitial(account.session.userId)),
+                      ),
                     ),
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KiteRadii.lg),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KiteRadii.lg),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KiteRadii.lg),
-                borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.primary,
-                  width: KiteStroke.emphasis,
+                  ],
                 ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: KiteSpacing.md,
-                vertical: KiteSpacing.md,
-              ),
-            ),
-            onChanged: (value) => setState(() => _searchQuery = value),
-          ),
         ),
         Expanded(
           child: _RoomList(
@@ -344,6 +410,67 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       ],
     );
   }
+}
+
+enum _HomeAccountAction { signOut }
+
+class _HomeAccountSheet extends StatelessWidget {
+  const _HomeAccountSheet({required this.session});
+
+  final AuthenticatedSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.lg,
+          0,
+          KiteSpacing.lg,
+          KiteSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                child: Text(_accountInitial(session.userId)),
+              ),
+              title: Text(
+                session.userId,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                'Signed in on ${session.homeserver.uri.host}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Divider(height: KiteSpacing.lg),
+            ListTile(
+              key: const Key('home-account-sign-out'),
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.logout_rounded),
+              title: const Text('Sign out'),
+              onTap: () =>
+                  Navigator.of(context).pop(_HomeAccountAction.signOut),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _accountInitial(String userId) {
+  final trimmed = userId.trim();
+  if (trimmed.length > 1 && trimmed.startsWith('@')) {
+    return trimmed[1].toUpperCase();
+  }
+  return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
 }
 
 class _CompactChatScreen extends StatelessWidget {

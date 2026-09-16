@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 8;
+const int kiteMatrixNativeAbiVersion = 9;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -666,6 +666,10 @@ abstract interface class MatrixRustSessionClient {
   Future<void> persistSession();
 }
 
+abstract interface class MatrixRustLogoutClient {
+  Future<void> logout();
+}
+
 abstract interface class MatrixRustBridge {
   Future<MatrixRustClient> openEncryptedClient({
     required Uri homeserver,
@@ -841,6 +845,7 @@ final class MatrixRustNativeClient
     implements
         MatrixRustClient,
         MatrixRustSessionClient,
+        MatrixRustLogoutClient,
         MatrixRustRoomMembersClient {
   MatrixRustNativeClient._(this.libraryPath, this._address);
 
@@ -997,6 +1002,21 @@ final class MatrixRustNativeClient
           address: _requireAddress(),
           symbol: 'kite_matrix_client_persist_session',
           operation: 'session persistence',
+        ).call,
+      );
+      _decodeNativeEnvelope(payload);
+    });
+  }
+
+  @override
+  Future<void> logout() {
+    return _enqueue<void>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeSessionOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          symbol: 'kite_matrix_client_logout',
+          operation: 'session logout',
         ).call,
       );
       _decodeNativeEnvelope(payload);

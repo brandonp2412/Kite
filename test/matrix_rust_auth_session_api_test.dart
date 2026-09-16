@@ -101,24 +101,57 @@ void main() {
     expect(discovery.methods, isEmpty);
   });
 
+  test('native logout invalidates the persisted Matrix session', () async {
+    final root = await Directory.systemTemp.createTemp('kite-auth-logout-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final bridge = _FakeRustBridge();
+    final api = _api(root, bridge);
+    final session = await api.loginWithPassword(
+      homeserver: Uri.parse('https://matrix.example.org'),
+      username: 'alice',
+      password: 'secret',
+    );
+    await api.persistSession(session);
+
+    await api.logoutSession(session);
+
+    expect(bridge.logoutCalls, 1);
+    expect(await api.restoreSession(), isNotNull);
+  });
+
   test(
-    'clearing session removes restore metadata without exposing native secrets',
+    'clearing session removes metadata and the encrypted account store',
     () async {
       final root = await Directory.systemTemp.createTemp('kite-auth-clear-');
       addTearDown(() async {
         if (await root.exists()) await root.delete(recursive: true);
       });
-      final api = _api(root, _FakeRustBridge());
+      final bridge = _FakeRustBridge();
+      final api = _api(root, bridge);
       final session = await api.loginWithPassword(
         homeserver: Uri.parse('https://matrix.example.org'),
         username: 'alice',
         password: 'secret',
       );
       await api.persistSession(session);
+      final configuration = _configuration(root, session.userId);
+      expect(await Directory(configuration.storePath).exists(), isTrue);
+
       await api.clearSession();
 
       expect(await api.restoreSession(), isNull);
       expect(await File('${root.path}/session.json').exists(), isFalse);
+      expect(await Directory(configuration.storePath).exists(), isFalse);
+
+      final replacement = await api.loginWithPassword(
+        homeserver: Uri.parse('https://matrix.example.org'),
+        username: 'alice',
+        password: 'new-secret',
+      );
+      await api.persistSession(replacement);
+      expect(await Directory(configuration.storePath).exists(), isTrue);
     },
   );
 }
@@ -167,6 +200,7 @@ final class _FakeRustBridge
   final bool passwordAvailable;
   String? lastSecret;
   Uri? lastDiscoveryInput;
+  int logoutCalls = 0;
 
   @override
   Future<MatrixRustAuthenticationDiscovery> discoverAuthentication(
@@ -189,11 +223,15 @@ final class _FakeRustBridge
     final directory = Directory(storePath);
     await directory.create(recursive: true);
     await File('${directory.path}/native-session').writeAsString('encrypted');
-    return _FakeRustClient();
+    return _FakeRustClient(onLogout: () => logoutCalls += 1);
   }
 }
 
-final class _FakeRustClient implements MatrixRustClient {
+final class _FakeRustClient
+    implements MatrixRustClient, MatrixRustLogoutClient {
+  _FakeRustClient({required this.onLogout});
+
+  final void Function() onLogout;
   var _closed = false;
 
   @override
@@ -217,6 +255,11 @@ final class _FakeRustClient implements MatrixRustClient {
   @override
   Future<String> paginateBackwards({required String roomId}) {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<void> logout() async {
+    onLogout();
   }
 
   @override

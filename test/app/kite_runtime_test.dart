@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_runtime.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
+import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/native_matrix_account_sdk_boundary.dart';
 
@@ -52,10 +53,15 @@ final class _RuntimeNativeAuth implements MatrixNativeAuthSessionApi {
   int discoveryCalls = 0;
   int loginCalls = 0;
   int persistCalls = 0;
+  int logoutCalls = 0;
+  int clearCalls = 0;
+  final operations = <String>[];
   String? lastUsername;
 
   @override
   Future<void> clearSession() async {
+    clearCalls += 1;
+    operations.add('clear');
     restoredSession = null;
   }
 
@@ -90,6 +96,8 @@ final class _RuntimeNativeAuth implements MatrixNativeAuthSessionApi {
 
   @override
   Future<void> logoutSession(MatrixSdkSessionDescriptor session) async {
+    logoutCalls += 1;
+    operations.add('logout');
     restoredSession = null;
   }
 
@@ -271,6 +279,59 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('soft-logout-notice')), findsOneWidget);
       expect(find.byKey(const Key('runtime-restored-home')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'authenticated home exposes compact production sign out in safe teardown order',
+    (tester) async {
+      final native = _RuntimeNativeAuth(
+        restoredSession: MatrixSdkSessionDescriptor(
+          userId: '@alice:matrix.example.org',
+          deviceId: 'RESTORED',
+          homeserver: Uri.parse('https://matrix.example.org'),
+        ),
+      );
+      final appLock = AppLockController(
+        _RuntimeCredentials(const AppLockSettings.disabled()),
+        _RuntimeBiometrics(),
+      );
+      addTearDown(appLock.dispose);
+
+      await tester.pumpWidget(
+        KiteRuntime(
+          appLockController: appLock,
+          accountSdkBoundary: NativeMatrixAccountSdkBoundary(native),
+          beforeSignOut: (session) async {
+            expect(session.userId, '@alice:matrix.example.org');
+            native.operations.add('runtime-stop');
+          },
+          authenticatedHomeBuilder: (context, session) => const HomeScreen(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('home-account-menu')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('home-account-menu')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('@alice:matrix.example.org'), findsOneWidget);
+      expect(find.text('Signed in on matrix.example.org'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('home-account-sign-out')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Sign out from this device?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('home-account-sign-out-confirm')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(native.logoutCalls, 1);
+      expect(native.clearCalls, 1);
+      expect(native.operations, <String>['runtime-stop', 'logout', 'clear']);
+      expect(find.byKey(const Key('homeserver-field')), findsOneWidget);
+      expect(find.byKey(const Key('home-account-menu')), findsNothing);
     },
   );
 
