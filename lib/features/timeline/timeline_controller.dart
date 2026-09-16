@@ -404,6 +404,10 @@ final class DeterministicTimelineSharePort implements TimelineSharePort {
   }
 }
 
+typedef TimelineFixtureProvider = List<BenchmarkMessage> Function(
+  String roomId,
+);
+
 abstract interface class TimelineSendPort {
   Future<TimelineSendOutcome> sendText({
     required String roomId,
@@ -583,7 +587,9 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineLinkOpenPort? linkOpenPort,
     TimelineLocationPort? locationPort,
     TimelinePollPort? pollPort,
+    TimelineFixtureProvider? fixtureProvider,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
+       _fixtureProvider = fixtureProvider ?? BenchmarkFixture.messagesFor,
        _attachmentSendPort =
            attachmentSendPort ??
            const DeterministicTimelineAttachmentSendPort(),
@@ -597,6 +603,7 @@ class TimelineController implements TimelineLocationShareDelegate {
   }
 
   TimelineSendPort _sendPort;
+  TimelineFixtureProvider _fixtureProvider;
   TimelineAttachmentSendPort _attachmentSendPort;
   TimelineModerationPort _moderationPort;
   TimelineSharePort _sharePort;
@@ -687,7 +694,7 @@ class TimelineController implements TimelineLocationShareDelegate {
 
   Signal<List<TimelineMessage>> messagesFor(String roomId) {
     return _messages.putIfAbsent(roomId, () {
-      final fixture = BenchmarkFixture.messagesFor(roomId);
+      final fixture = _fixtureProvider(roomId);
       return signal(
         List<TimelineMessage>.unmodifiable(<TimelineMessage>[
           for (var index = 0; index < fixture.length; index++)
@@ -1105,8 +1112,10 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineLinkOpenPort? linkOpenPort,
     TimelineLocationPort? locationPort,
     TimelinePollPort? pollPort,
+    TimelineFixtureProvider? fixtureProvider,
   }) {
     if (sendPort != null) _sendPort = sendPort;
+    if (fixtureProvider != null) _fixtureProvider = fixtureProvider;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
     if (sharePort != null) _sharePort = sharePort;
