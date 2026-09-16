@@ -104,6 +104,19 @@ void main() {
         ('!room:example.org', 'kite-transaction-1', 'Sent from Kite'),
       ]);
 
+      await runtime.setRoomFavourite(
+        accountId: '@alice:example.org',
+        roomId: '!room:example.org',
+        isFavourite: true,
+      );
+      expect(boundary.favouriteWrites, <(String, bool)>[
+        ('!room:example.org', true),
+      ]);
+      expect(
+        cache.roomSummarySignal('!room:example.org').value?.isFavourite,
+        isTrue,
+      );
+
       await runtime.updateActivity(MatrixAppActivity.background);
       expect(boundary.stopCount, 1);
       await runtime.updateActivity(MatrixAppActivity.foreground);
@@ -132,6 +145,11 @@ void main() {
     await first.activate('@alice:example.org');
     firstBoundary.emit(_cachedBatch());
     await Future<void>.delayed(Duration.zero);
+    await first.setRoomFavourite(
+      accountId: '@alice:example.org',
+      roomId: '!cached:example.org',
+      isFavourite: true,
+    );
     await first.dispose();
 
     final secondBoundary = _FakeBoundary();
@@ -157,6 +175,10 @@ void main() {
       'Cached real message',
     );
     expect(cache.lastSyncCursor, 'cached-s1');
+    expect(
+      cache.roomSummarySignal('!cached:example.org').value?.isFavourite,
+      isTrue,
+    );
 
     await second.resumeActive();
     expect(secondBoundary.openedStore, isNotNull);
@@ -221,7 +243,10 @@ MatrixSyncBatch _cachedBatch() {
 }
 
 final class _FakeBoundary
-    implements MatrixSdkBoundary, MatrixSdkTextMessageSender {
+    implements
+        MatrixSdkBoundary,
+        MatrixSdkTextMessageSender,
+        MatrixSdkRoomFavouriteManager {
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
@@ -232,6 +257,7 @@ final class _FakeBoundary
   int closeCount = 0;
   final List<(String, String, String)> sentMessages =
       <(String, String, String)>[];
+  final List<(String, bool)> favouriteWrites = <(String, bool)>[];
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -267,6 +293,11 @@ final class _FakeBoundary
       events: const <MatrixTimelineEvent>[],
       reachedStart: true,
     );
+  }
+
+  @override
+  Future<void> setRoomFavourite(String roomId, bool isFavourite) async {
+    favouriteWrites.add((roomId, isFavourite));
   }
 
   @override

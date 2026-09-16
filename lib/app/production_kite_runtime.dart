@@ -227,6 +227,12 @@ final class _AuthenticatedMatrixHomeState
                 body: body,
               );
             }),
+            onRoomFavouriteChanged: (roomId, isFavourite) =>
+                widget.runtime.setRoomFavourite(
+                  accountId: widget.session.userId,
+                  roomId: roomId,
+                  isFavourite: isFavourite,
+                ),
             onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
               final paginationState = widget.runtime.paginationState(
                 accountId: widget.session.userId,

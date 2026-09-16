@@ -41,6 +41,41 @@ void main() {
   });
 
   test(
+    'favourite updates stay leaf-level and preserve cached room metadata',
+    () {
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          syncCursor: 'sync-1',
+          rooms: <MatrixRoomSummary>[
+            _summary(
+              roomId: '!alpha:kite.test',
+              displayName: 'Alpha',
+              position: 4,
+              second: 4,
+              lastEventId: r'$cached',
+            ),
+          ],
+        ),
+      );
+      final orderBefore = cache.roomOrder.value;
+      final before = cache.roomSummarySignal('!alpha:kite.test').value!;
+
+      expect(cache.updateRoomFavourite('!alpha:kite.test', true), isTrue);
+
+      final after = cache.roomSummarySignal('!alpha:kite.test').value!;
+      expect(after.isFavourite, isTrue);
+      expect(after.roomId, before.roomId);
+      expect(after.displayName, before.displayName);
+      expect(after.lastActivity, before.lastActivity);
+      expect(after.streamPosition, before.streamPosition);
+      expect(after.lastEventId, before.lastEventId);
+      expect(cache.lastSyncCursor, 'sync-1');
+      expect(identical(cache.roomOrder.value, orderBefore), isTrue);
+      expect(cache.updateRoomFavourite('!alpha:kite.test', true), isFalse);
+    },
+  );
+
+  test(
     'restoring a snapshot clears stale leaves without rewriting equal state',
     () {
       final alpha = _summary(

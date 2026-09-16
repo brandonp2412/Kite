@@ -24,7 +24,7 @@ use matrix_sdk::{
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 9;
+const KITE_MATRIX_ABI_VERSION: u32 = 10;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 pub struct KiteMatrixClient {
@@ -613,11 +613,13 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 .map(|event_id| event_id.to_string());
             let unread_count = update.unread_notifications.notification_count;
             let highlight_count = update.unread_notifications.highlight_count;
+            let is_favourite = room.as_ref().is_some_and(|room| room.is_favourite());
             json!({
                 "roomId": room_id.as_str(),
                 "displayName": display_name,
                 "unreadCount": unread_count,
                 "highlightCount": highlight_count,
+                "isFavourite": is_favourite,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,
@@ -634,6 +636,65 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         "cursor": response.next_batch,
         "rooms": rooms,
     }))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_set_room_favourite(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    is_favourite: u8,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room favourites are unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    if room_id.is_empty() || is_favourite > 1 {
+        return error_json(
+            "invalid_room",
+            "The Matrix room favourite state is invalid.",
+        );
+    }
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room favourites are unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    if client
+        .runtime
+        .block_on(room.set_is_favourite(is_favourite == 1, None))
+        .is_err()
+    {
+        return error_json(
+            "favourite_failed",
+            "The Matrix room favourite state could not be saved.",
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({"isFavourite": is_favourite == 1}))
 }
 
 #[unsafe(no_mangle)]
@@ -818,7 +879,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 9);
+        assert_eq!(kite_matrix_abi_version(), 10);
     }
 
     #[test]
@@ -916,10 +977,12 @@ mod tests {
             )
         };
         let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };
+        let favourite =
+            unsafe { kite_matrix_client_set_room_favourite(ptr::null_mut(), room_id.as_ptr(), 1) };
         let members = unsafe { kite_matrix_client_room_members(ptr::null_mut(), room_id.as_ptr()) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
-        for result in [login, logout, send] {
+        for result in [login, logout, send, favourite] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();
             assert!(decoded.contains("\"ok\":false"));

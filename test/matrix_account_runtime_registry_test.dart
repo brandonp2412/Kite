@@ -102,6 +102,42 @@ void main() {
   );
 
   test(
+    'active account routes favourite updates and rejects stale accounts',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      final cache = await registry.activate('@alice:example.org');
+      await registry.setRoomFavourite(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        isFavourite: true,
+      );
+
+      expect(
+        boundaries['@alice:example.org']!.favouriteWrites,
+        <(String, bool)>[('!alice:example.org', true)],
+      );
+      expect(
+        cache.roomSummarySignal('!alice:example.org').value?.isFavourite,
+        isTrue,
+      );
+
+      await registry.activate('@bob:example.org');
+      await expectLater(
+        registry.setRoomFavourite(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+          isFavourite: false,
+        ),
+        throwsStateError,
+      );
+      expect(boundaries['@alice:example.org']!.favouriteWrites, hasLength(1));
+    },
+  );
+
+  test(
     'invalid account stores fail before allocating an SDK boundary',
     () async {
       var boundaryFactoryCalls = 0;
@@ -1463,7 +1499,10 @@ MatrixAccountRuntimeRegistry _registry(
 }
 
 final class _FakeAccountBoundary
-    implements MatrixSdkBoundary, MatrixSdkTextMessageSender {
+    implements
+        MatrixSdkBoundary,
+        MatrixSdkTextMessageSender,
+        MatrixSdkRoomFavouriteManager {
   _FakeAccountBoundary({
     required this.accountId,
     this.failStart = false,
@@ -1505,6 +1544,12 @@ final class _FakeAccountBoundary
   final List<String> paginationCalls = <String>[];
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
+  final List<(String, bool)> favouriteWrites = <(String, bool)>[];
+
+  @override
+  Future<void> setRoomFavourite(String roomId, bool isFavourite) async {
+    favouriteWrites.add((roomId, isFavourite));
+  }
 
   @override
   Future<String> sendTextMessage({

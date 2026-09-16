@@ -188,10 +188,16 @@ void main() {
       deterministicRoomListEntries(BenchmarkFixture.rooms),
     );
     final aliceSignal = store.roomSignal('alice');
+    final favouriteWrites = <({String roomId, bool isFavourite})>[];
     await tester.pumpWidget(
       MaterialApp(
         theme: KiteTheme.light,
-        home: HomeScreen(roomListStore: store),
+        home: HomeScreen(
+          roomListStore: store,
+          onRoomFavouriteChanged: (roomId, isFavourite) async {
+            favouriteWrites.add((roomId: roomId, isFavourite: isFavourite));
+          },
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -208,6 +214,9 @@ void main() {
     await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
     await tester.pumpAndSettle();
     expect(aliceSignal.value.isFavourite, isTrue);
+    expect(favouriteWrites, <({String roomId, bool isFavourite})>[
+      (roomId: 'alice', isFavourite: true),
+    ]);
     expect(store.sectionIdFor('alice'), 'people');
     expect(find.text('Remove from favourites'), findsOneWidget);
 
@@ -216,6 +225,41 @@ void main() {
 
     expect(store.sectionIdFor('alice'), 'rooms');
     expect(store.roomSignal('alice'), same(aliceSignal));
+  });
+
+  testWidgets('failed favourite persistence rolls optimistic state back', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    final aliceSignal = store.roomSignal('alice');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(
+          roomListStore: store,
+          onRoomFavouriteChanged: (_, _) async {
+            throw StateError('deterministic favourite failure');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('room-alice')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
+    await tester.pumpAndSettle();
+
+    expect(aliceSignal.value.isFavourite, isFalse);
+    expect(find.text('Add to favourites'), findsOneWidget);
+    expect(find.text('Could not update favourite.'), findsOneWidget);
   });
 
   testWidgets('search is the only homepage chat filter', (tester) async {

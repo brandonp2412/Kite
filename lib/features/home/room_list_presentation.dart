@@ -88,6 +88,7 @@ final class RoomListEntry {
       latestSender: latestEvent?.senderDisplayName ?? latestEvent?.senderId,
       unreadCount: summary.unreadCount,
       hasMention: summary.highlightCount > 0,
+      isFavourite: summary.isFavourite,
     );
   }
 
@@ -377,12 +378,21 @@ final class RoomListStateStore {
     collapsedSectionIds.value = Set<String>.unmodifiable(next);
   }
 
+  void setFavourite(String roomId, bool isFavourite) {
+    final target = _rooms[roomId];
+    if (target == null) {
+      throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
+    }
+    if (target.value.isFavourite == isFavourite) return;
+    update(target.value.copyWith(isFavourite: isFavourite));
+  }
+
   void toggleFavourite(String roomId) {
     final target = _rooms[roomId];
     if (target == null) {
       throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
     }
-    update(target.value.copyWith(isFavourite: !target.value.isFavourite));
+    setFavourite(roomId, !target.value.isFavourite);
   }
 
   void moveRoomToSection(String roomId, String sectionId) {

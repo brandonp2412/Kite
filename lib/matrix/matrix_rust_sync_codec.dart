@@ -55,6 +55,7 @@ final class MatrixRustSyncCodec {
             unreadCount: _optionalNonNegativeInt(room['unreadCount']) ?? 0,
             highlightCount:
                 _optionalNonNegativeInt(room['highlightCount']) ?? 0,
+            isFavourite: _optionalBool(room['isFavourite']) ?? false,
           ),
           timelineEvents: events,
         ),
@@ -201,12 +202,14 @@ final class MatrixRustSyncCodec {
   }
 
   static bool _requiredBool(Map<String, Object?> map, String key) {
-    final value = map[key];
-    if (value is! bool) {
+    final value = _optionalBool(map[key]);
+    if (value == null) {
       throw FormatException('$key must be a boolean');
     }
     return value;
   }
+
+  static bool? _optionalBool(Object? value) => value is bool ? value : null;
 
   static DateTime _dateTimeFromMilliseconds(int value, String name) {
     try {

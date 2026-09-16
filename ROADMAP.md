@@ -164,6 +164,8 @@ Kite should not merely contain the same controls. It must have the same level of
 
 **Verification note (2026-09-17):** production Rust sync now carries Matrix notification/highlight counts and sender display names into the persisted presentation cache. Room-list unread counts and mention indicators are cache-first, survive restart, and update through leaf Signals without changing room-order identity. Latest-event previews now use event-aware labels for media/voice events and real message bodies for text-like events, while sender attribution prefers the SDK-backed display name with user-ID fallback. Focused codec/cache/store/home/timeline tests, Rust bridge tests, scoped analysis, and the full `tool/quality_gate.sh` pass.
 
+**Favourite-state progress (2026-09-17):** production Matrix favourites are now read from SDK sync, persisted through the native Matrix Rust SDK boundary, reflected optimistically from the room contextual menu with failure rollback, and retained in the presentation cache across restart without changing room-order identity. Focused Flutter/Rust tests, scoped analysis, release audit, ABI verification, and the 998-test Flutter suite pass. The checkbox remains intentionally unchecked because Glass currently has no Waydroid/ADB device, so the required locked jitter phase of `tool/quality_gate.sh` could not run.
+
 ## Milestone 4 — Timeline rendering and message state
 
 - [ ] Virtualised timeline capable of very large histories without retaining every rendered widget.

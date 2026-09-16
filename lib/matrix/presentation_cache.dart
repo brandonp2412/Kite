@@ -110,6 +110,24 @@ final class MatrixPresentationCache {
     return true;
   }
 
+  bool updateRoomFavourite(String roomId, bool isFavourite) {
+    _requireSafeIdentifier(roomId, 'room id');
+    final summarySignal = _roomSummaries[roomId];
+    final current = summarySignal?.value;
+    if (current == null || current.isFavourite == isFavourite) return false;
+    summarySignal!.value = MatrixRoomSummary(
+      roomId: current.roomId,
+      displayName: current.displayName,
+      lastActivity: current.lastActivity,
+      streamPosition: current.streamPosition,
+      lastEventId: current.lastEventId,
+      unreadCount: current.unreadCount,
+      highlightCount: current.highlightCount,
+      isFavourite: isFavourite,
+    );
+    return true;
+  }
+
   void applySync(MatrixSyncBatch syncBatch) {
     _validateSyncBatch(syncBatch);
     batch(() {
@@ -316,7 +334,8 @@ final class MatrixPresentationCache {
         left.streamPosition == right.streamPosition &&
         left.lastEventId == right.lastEventId &&
         left.unreadCount == right.unreadCount &&
-        left.highlightCount == right.highlightCount;
+        left.highlightCount == right.highlightCount &&
+        left.isFavourite == right.isFavourite;
   }
 
   static bool _sameTimeline(

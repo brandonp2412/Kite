@@ -79,6 +79,24 @@ final class MatrixAccountRuntimeRegistry {
     return _runtimes[normalizedAccountId]?.runtime.paginationState(roomId);
   }
 
+  Future<void> setRoomFavourite({
+    required String accountId,
+    required String roomId,
+    required bool isFavourite,
+  }) async {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      throw StateError('Cannot update a Matrix room for an inactive account');
+    }
+    await active.engine.setRoomFavourite(roomId, isFavourite);
+    final changed = active.cache.updateRoomFavourite(roomId, isFavourite);
+    if (changed && presentationStore != null) {
+      await _schedulePresentationWrite(normalizedAccountId, active.cache);
+    }
+  }
+
   Future<List<MatrixSdkRoomMember>> roomMembers({
     required String accountId,
     required String roomId,

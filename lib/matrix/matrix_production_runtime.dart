@@ -172,6 +172,18 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<void> setRoomFavourite({
+    required String accountId,
+    required String roomId,
+    required bool isFavourite,
+  }) {
+    return accounts.setRoomFavourite(
+      accountId: accountId,
+      roomId: roomId,
+      isFavourite: isFavourite,
+    );
+  }
+
   Future<List<MatrixSdkRoomMember>> roomMembers({
     required String accountId,
     required String roomId,

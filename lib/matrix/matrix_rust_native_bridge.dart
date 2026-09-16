@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 9;
+const int kiteMatrixNativeAbiVersion = 10;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -122,6 +122,16 @@ typedef _ClientPaginateNative = Pointer<Char> Function(
 typedef _ClientPaginateDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
+);
+typedef _ClientSetRoomFavouriteNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Uint8,
+);
+typedef _ClientSetRoomFavouriteDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  int,
 );
 typedef _DiscoverAuthenticationNative = Pointer<Char> Function(Pointer<Char>);
 typedef _DiscoverAuthenticationDart = Pointer<Char> Function(Pointer<Char>);
@@ -500,6 +510,48 @@ final class _MatrixNativeSyncOperation {
   }
 }
 
+final class _MatrixNativeSetRoomFavouriteOperation {
+  const _MatrixNativeSetRoomFavouriteOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.isFavourite,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final bool isFavourite;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final setFavourite = library
+        .lookupFunction<
+          _ClientSetRoomFavouriteNative,
+          _ClientSetRoomFavouriteDart
+        >('kite_matrix_client_set_room_favourite');
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        setFavourite(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          isFavourite ? 1 : 0,
+        ),
+        freeString,
+        'room favourite update',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomMembersOperation {
   const _MatrixNativeRoomMembersOperation({
     required this.libraryPath,
@@ -686,6 +738,13 @@ abstract interface class MatrixRustRoomMembersClient {
   Future<List<MatrixRustRoomMember>> roomMembers({required String roomId});
 }
 
+abstract interface class MatrixRustRoomFavouriteClient {
+  Future<void> setRoomFavourite({
+    required String roomId,
+    required bool isFavourite,
+  });
+}
+
 abstract interface class MatrixRustClient {
   bool get isClosed;
 
@@ -849,7 +908,8 @@ final class MatrixRustNativeClient
         MatrixRustClient,
         MatrixRustSessionClient,
         MatrixRustLogoutClient,
-        MatrixRustRoomMembersClient {
+        MatrixRustRoomMembersClient,
+        MatrixRustRoomFavouriteClient {
   MatrixRustNativeClient._(this.libraryPath, this._address);
 
   final String libraryPath;
@@ -1067,6 +1127,41 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<void> setRoomFavourite({
+    required String roomId,
+    required bool isFavourite,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeSetRoomFavouriteOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          isFavourite: isFavourite,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['isFavourite'] != isFavourite) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid favourite state.',
+        );
+      }
+    });
+  }
+
+  @override
   Future<List<MatrixRustRoomMember>> roomMembers({required String roomId}) {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
@@ -1203,7 +1298,8 @@ final class MatrixRustSdkBoundary
         MatrixSdkBoundary,
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
-        MatrixSdkRoomMemberDirectory {
+        MatrixSdkRoomMemberDirectory,
+        MatrixSdkRoomFavouriteManager {
   MatrixRustSdkBoundary({
     required this.bridge,
     required this.homeserver,
@@ -1308,6 +1404,22 @@ final class MatrixRustSdkBoundary
         body: body,
       );
       return result.eventId;
+    });
+  }
+
+  @override
+  Future<void> setRoomFavourite(String roomId, bool isFavourite) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomFavouriteClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room favourites',
+        );
+      }
+      await (client as MatrixRustRoomFavouriteClient).setRoomFavourite(
+        roomId: roomId,
+        isFavourite: isFavourite,
+      );
     });
   }
 

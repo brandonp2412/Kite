@@ -41,6 +41,10 @@ typedef TimelineHistoryRequest = Future<void> Function(
   int oldestVisibleIndex,
 );
 typedef RoomMembersLoader = Future<RoomMembersStore> Function(String roomId);
+typedef RoomFavouriteChange = Future<void> Function(
+  String roomId,
+  bool isFavourite,
+);
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -53,6 +57,7 @@ class HomeScreen extends StatelessWidget {
     this.calls,
     this.timeline,
     this.onTimelineHistoryRequested,
+    this.onRoomFavouriteChanged,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -65,6 +70,7 @@ class HomeScreen extends StatelessWidget {
   final KiteCallCoordinator? calls;
   final TimelineController? timeline;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final RoomFavouriteChange? onRoomFavouriteChanged;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -93,6 +99,7 @@ class HomeScreen extends StatelessWidget {
                 rooms: roomEntries,
                 store: roomListStore,
                 inviteStore: inviteStore,
+                onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onRoomTap: (roomId) {
                   selectRoom(roomId);
                   Navigator.of(context).push(
@@ -133,6 +140,7 @@ class HomeScreen extends StatelessWidget {
                 rooms: roomEntries,
                 store: roomListStore,
                 inviteStore: inviteStore,
+                onRoomFavouriteChanged: onRoomFavouriteChanged,
               ),
             ),
             const VerticalDivider(width: 1),
@@ -198,12 +206,14 @@ class _HomeSidebar extends StatefulWidget {
     required this.rooms,
     this.store,
     this.inviteStore,
+    this.onRoomFavouriteChanged,
     this.onRoomTap,
   });
 
   final List<RoomListEntry> rooms;
   final RoomListStateStore? store;
   final RoomInviteStore? inviteStore;
+  final RoomFavouriteChange? onRoomFavouriteChanged;
   final ValueChanged<String>? onRoomTap;
 
   @override
@@ -403,6 +413,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         Expanded(
           child: _RoomList(
             store: store,
+            onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
             onRoomTap: widget.onRoomTap,
             query: _searchQuery,
           ),
@@ -544,9 +555,15 @@ class _CompactChatScreen extends StatelessWidget {
 }
 
 class _RoomList extends StatelessWidget {
-  const _RoomList({required this.store, this.onRoomTap, this.query = ''});
+  const _RoomList({
+    required this.store,
+    this.onRoomFavouriteChanged,
+    this.onRoomTap,
+    this.query = '',
+  });
 
   final RoomListStateStore store;
+  final RoomFavouriteChange? onRoomFavouriteChanged;
   final ValueChanged<String>? onRoomTap;
   final String query;
 
@@ -594,7 +611,25 @@ class _RoomList extends StatelessWidget {
                           ? 'Remove from favourites'
                           : 'Add to favourites',
                     ),
-                    onTap: () => store.toggleFavourite(roomId),
+                    onTap: () async {
+                      final nextFavourite = !favourite;
+                      store.setFavourite(roomId, nextFavourite);
+                      final persist = onRoomFavouriteChanged;
+                      if (persist == null) return;
+                      try {
+                        await persist(roomId, nextFavourite);
+                      } catch (_) {
+                        store.setFavourite(roomId, favourite);
+                        if (!sheetContext.mounted) return;
+                        ScaffoldMessenger.of(sheetContext)
+                          ..hideCurrentSnackBar()
+                          ..showSnackBar(
+                            const SnackBar(
+                              content: Text('Could not update favourite.'),
+                            ),
+                          );
+                      }
+                    },
                   );
                 },
               ),

@@ -63,6 +63,10 @@ abstract interface class MatrixSdkRoomMemberDirectory {
   Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
 }
 
+abstract interface class MatrixSdkRoomFavouriteManager {
+  Future<void> setRoomFavourite(String roomId, bool isFavourite);
+}
+
 abstract interface class MatrixSdkPasswordAuthenticator {
   Future<MatrixSdkPasswordLoginResult> loginWithPassword({
     required String username,
@@ -214,6 +218,28 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       roomId: roomId,
       transactionId: transactionId,
       body: body,
+    );
+  }
+
+  Future<void> setRoomFavourite(String roomId, bool isFavourite) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomFavouriteManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room favourites',
+      );
+    }
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'must contain a non-empty Matrix room id without NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomFavouriteManager).setRoomFavourite(
+      normalizedRoomId,
+      isFavourite,
     );
   }
 

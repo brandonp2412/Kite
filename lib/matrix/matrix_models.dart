@@ -69,6 +69,7 @@ final class MatrixRoomSummary {
     this.lastEventId,
     this.unreadCount = 0,
     this.highlightCount = 0,
+    this.isFavourite = false,
   });
 
   final String roomId;
@@ -78,6 +79,7 @@ final class MatrixRoomSummary {
   final String? lastEventId;
   final int unreadCount;
   final int highlightCount;
+  final bool isFavourite;
 }
 
 final class MatrixRoomDelta {
