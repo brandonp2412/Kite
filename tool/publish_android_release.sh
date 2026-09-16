@@ -29,6 +29,7 @@ fi
 
 ln -sfn "$properties_file" android/key.properties
 
+tool/build_android_matrix_bridge.sh
 flutter pub get
 flutter analyze
 mapfile -t tests < <(find test -type f -name '*_test.dart' ! -name 'golden_*' | sort)
@@ -36,7 +37,9 @@ flutter test "${tests[@]}"
 
 flutter build apk --release --build-number "$build_number"
 mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/kite.apk
+tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/kite.apk arm64-v8a armeabi-v7a x86_64
 flutter build apk --release --split-per-abi --target-platform android-arm64 --build-number "$build_number"
+tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
 
 if [[ -z "${GH_TOKEN:-}" && -f "$HOME/.config/shell/private.env" ]]; then
   set -a
