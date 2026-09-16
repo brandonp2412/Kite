@@ -168,6 +168,8 @@ Kite should not merely contain the same controls. It must have the same level of
 
 **Muted-room progress (2026-09-17):** production sync now reads explicit room mute state from the Matrix Rust SDK notification-settings cache, persists it in Kite's presentation cache, and projects it into the existing restrained room-list mute decoration and quiet activity marker. Muted rooms with unread activity use the quiet marker rather than unread-count chrome while mentions remain visible. Focused Flutter tests, scoped analysis, `cargo check`, and all 7 Rust bridge tests pass; `tool/quality_gate.sh` also passed the release audit, Rust/ABI stages, and the 998-test Flutter suite with 3 intentional native-library skips before stopping at the required Waydroid jitter stage because Glass currently has no ADB device. The muted-room and muted-activity checkboxes remain unchecked until that locked device gate can run.
 
+**Active-call progress (2026-09-17):** production Rust sync now reads MatrixRTC room-call membership through the Matrix Rust SDK's `Room::has_active_room_call()`, carries that state through the Dart sync model, persists it in the presentation cache across restart, and projects it into the existing restrained room-list call decoration without changing room ordering. Focused codec/cache/store/home tests, room-row coverage, scoped analysis, `cargo check`, and all 7 Rust bridge tests pass. The active-call checkbox remains unchecked because Glass still has no ADB device for the required locked `tool/quality_gate.sh` jitter phase.
+
 ## Milestone 4 — Timeline rendering and message state
 
 - [ ] Virtualised timeline capable of very large histories without retaining every rendered widget.

@@ -69,6 +69,7 @@ final class MatrixRoomSummary {
     this.lastEventId,
     this.unreadCount = 0,
     this.highlightCount = 0,
+    this.hasActiveCall = false,
     this.isFavourite = false,
     this.isMuted = false,
   });
@@ -80,6 +81,7 @@ final class MatrixRoomSummary {
   final String? lastEventId;
   final int unreadCount;
   final int highlightCount;
+  final bool hasActiveCall;
   final bool isFavourite;
   final bool isMuted;
 }

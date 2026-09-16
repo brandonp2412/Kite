@@ -55,6 +55,7 @@ final class MatrixRustSyncCodec {
             unreadCount: _optionalNonNegativeInt(room['unreadCount']) ?? 0,
             highlightCount:
                 _optionalNonNegativeInt(room['highlightCount']) ?? 0,
+            hasActiveCall: _optionalBool(room['hasActiveCall']) ?? false,
             isFavourite: _optionalBool(room['isFavourite']) ?? false,
             isMuted: _optionalBool(room['isMuted']) ?? false,
           ),

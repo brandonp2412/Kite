@@ -53,6 +53,7 @@ void main() {
               position: 4,
               second: 4,
               lastEventId: r'$cached',
+              hasActiveCall: true,
               isMuted: true,
             ),
           ],
@@ -70,6 +71,7 @@ void main() {
       expect(after.lastActivity, before.lastActivity);
       expect(after.streamPosition, before.streamPosition);
       expect(after.lastEventId, before.lastEventId);
+      expect(after.hasActiveCall, isTrue);
       expect(after.isMuted, isTrue);
       expect(cache.lastSyncCursor, 'sync-1');
       expect(identical(cache.roomOrder.value, orderBefore), isTrue);
@@ -794,6 +796,7 @@ void main() {
               second: 9,
               lastEventId: r'$alpha-2',
               highlightCount: 1,
+              hasActiveCall: true,
             ),
           ),
         ],
@@ -807,6 +810,10 @@ void main() {
     expect(
       cache.roomSummarySignal('!alpha:kite.test').value?.highlightCount,
       1,
+    );
+    expect(
+      cache.roomSummarySignal('!alpha:kite.test').value?.hasActiveCall,
+      isTrue,
     );
     expect(identical(orderBefore, cache.roomOrder.value), isTrue);
     expect(cache.lastSyncCursor, 'metadata-only');
@@ -904,6 +911,7 @@ MatrixRoomSummary _summary({
   required int second,
   String? lastEventId,
   int highlightCount = 0,
+  bool hasActiveCall = false,
   bool isMuted = false,
 }) {
   return MatrixRoomSummary(
@@ -913,6 +921,7 @@ MatrixRoomSummary _summary({
     streamPosition: position,
     lastEventId: lastEventId,
     highlightCount: highlightCount,
+    hasActiveCall: hasActiveCall,
     isMuted: isMuted,
   );
 }

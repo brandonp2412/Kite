@@ -628,6 +628,9 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 .map(|event_id| event_id.to_string());
             let unread_count = update.unread_notifications.notification_count;
             let highlight_count = update.unread_notifications.highlight_count;
+            let has_active_call = room
+                .as_ref()
+                .is_some_and(|room| room.has_active_room_call());
             let is_favourite = room.as_ref().is_some_and(|room| room.is_favourite());
             let is_muted = muted_room_ids.contains(room_id);
             json!({
@@ -635,6 +638,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "displayName": display_name,
                 "unreadCount": unread_count,
                 "highlightCount": highlight_count,
+                "hasActiveCall": has_active_call,
                 "isFavourite": is_favourite,
                 "isMuted": is_muted,
                 "latestEventTimestamp": latest_event_timestamp,

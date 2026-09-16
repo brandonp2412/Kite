@@ -89,6 +89,7 @@ final class RoomListEntry {
       unreadCount: summary.unreadCount,
       hasMention: summary.highlightCount > 0,
       hasMutedActivity: summary.isMuted && summary.unreadCount > 0,
+      hasActiveCall: summary.hasActiveCall,
       isMuted: summary.isMuted,
       isFavourite: summary.isFavourite,
     );

@@ -24,6 +24,7 @@ void main() {
             "displayName": "Alpha",
             "unreadCount": 3,
             "highlightCount": 2,
+            "hasActiveCall": true,
             "isFavourite": true,
             "isMuted": true,
             "latestEventTimestamp": 2000,
@@ -64,6 +65,7 @@ void main() {
     expect(alpha.summary!.displayName, 'Alpha');
     expect(alpha.summary!.unreadCount, 3);
     expect(alpha.summary!.highlightCount, 2);
+    expect(alpha.summary!.hasActiveCall, isTrue);
     expect(alpha.summary!.isFavourite, isTrue);
     expect(alpha.summary!.isMuted, isTrue);
     expect(alpha.summary!.lastEventId, r'$event2');

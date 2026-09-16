@@ -21,6 +21,7 @@ void main() {
             lastEventId: r'$cached',
             unreadCount: 2,
             highlightCount: 1,
+            hasActiveCall: true,
             isFavourite: true,
             isMuted: true,
           ),
@@ -57,6 +58,10 @@ void main() {
     expect(selectedRoom.value, '!real:example.org');
     expect(
       binding.roomListStore.roomSignal('!real:example.org').value.hasMention,
+      isTrue,
+    );
+    expect(
+      binding.roomListStore.roomSignal('!real:example.org').value.hasActiveCall,
       isTrue,
     );
     expect(

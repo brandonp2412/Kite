@@ -123,6 +123,7 @@ final class MatrixPresentationCache {
       lastEventId: current.lastEventId,
       unreadCount: current.unreadCount,
       highlightCount: current.highlightCount,
+      hasActiveCall: current.hasActiveCall,
       isFavourite: isFavourite,
       isMuted: current.isMuted,
     );
@@ -336,6 +337,7 @@ final class MatrixPresentationCache {
         left.lastEventId == right.lastEventId &&
         left.unreadCount == right.unreadCount &&
         left.highlightCount == right.highlightCount &&
+        left.hasActiveCall == right.hasActiveCall &&
         left.isFavourite == right.isFavourite &&
         left.isMuted == right.isMuted;
   }

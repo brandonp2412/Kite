@@ -89,6 +89,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             if (room.lastEventId != null) 'lastEventId': room.lastEventId,
             'unreadCount': room.unreadCount,
             'highlightCount': room.highlightCount,
+            'hasActiveCall': room.hasActiveCall,
             'isFavourite': room.isFavourite,
             'isMuted': room.isMuted,
           },
@@ -170,6 +171,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final lastEventId = value['lastEventId'];
     final unreadCount = value['unreadCount'];
     final highlightCount = value['highlightCount'] ?? 0;
+    final hasActiveCall = value['hasActiveCall'] ?? false;
     final isFavourite = value['isFavourite'] ?? false;
     final isMuted = value['isMuted'] ?? false;
     if (roomId is! String ||
@@ -182,6 +184,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         unreadCount is! int ||
         highlightCount is! int ||
         highlightCount < 0 ||
+        hasActiveCall is! bool ||
         isFavourite is! bool ||
         isMuted is! bool) {
       return null;
@@ -197,6 +200,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       lastEventId: lastEventId as String?,
       unreadCount: unreadCount,
       highlightCount: highlightCount,
+      hasActiveCall: hasActiveCall,
       isFavourite: isFavourite,
       isMuted: isMuted,
     );
