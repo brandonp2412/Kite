@@ -9,11 +9,17 @@ import 'package:kite/features/rooms/room_members_screen.dart';
 import 'package:kite/features/rooms/room_settings_screen.dart';
 import 'package:signals/signals_flutter.dart';
 
+typedef RoomMembersStoreLoader = Future<RoomMembersStore> Function(
+  String roomId,
+);
+
 class RoomDetailsScreen extends StatefulWidget {
   const RoomDetailsScreen({
     required this.roomId,
     required this.roomName,
     this.store,
+    this.membersLoader,
+    this.memberModerationEnabled = true,
     this.management,
     this.memberManagement,
     this.calls,
@@ -26,6 +32,8 @@ class RoomDetailsScreen extends StatefulWidget {
   final String roomId;
   final String roomName;
   final RoomMembersStore? store;
+  final RoomMembersStoreLoader? membersLoader;
+  final bool memberModerationEnabled;
   final RoomManagementCoordinator? management;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
@@ -38,19 +46,38 @@ class RoomDetailsScreen extends StatefulWidget {
 }
 
 class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
-  late final RoomMembersStore _store;
+  RoomMembersStore? _store;
+  Future<RoomMembersStore>? _storeLoad;
   late final bool _ownsStore;
 
   @override
   void initState() {
     super.initState();
-    _ownsStore = widget.store == null;
-    _store = widget.store ?? RoomMembersFixture.forRoom(widget.roomId);
+    final suppliedStore = widget.store;
+    if (suppliedStore != null) {
+      _ownsStore = false;
+      _store = suppliedStore;
+      return;
+    }
+    _ownsStore = true;
+    final loader = widget.membersLoader;
+    if (loader == null) {
+      _store = RoomMembersFixture.forRoom(widget.roomId);
+      return;
+    }
+    _storeLoad = loader(widget.roomId).then((store) {
+      if (!mounted) {
+        store.dispose();
+      } else {
+        _store = store;
+      }
+      return store;
+    });
   }
 
   @override
   void dispose() {
-    if (_ownsStore) _store.dispose();
+    if (_ownsStore) _store?.dispose();
     super.dispose();
   }
 
@@ -91,53 +118,75 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
                   ),
               ],
       ),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              key: const Key('member-search'),
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search members',
-              ),
-              onChanged: (value) => _store.query.value = value,
-            ),
-          ),
-          Expanded(
-            child: SignalBuilder(
-              builder: (context) {
-                final members = _store.visibleMembers;
-                if (members.isEmpty) {
+      body: _storeLoad == null
+          ? _memberDirectory(_store!)
+          : FutureBuilder<RoomMembersStore>(
+              future: _storeLoad,
+              builder: (context, snapshot) {
+                final store = snapshot.data;
+                if (store != null) return _memberDirectory(store);
+                if (snapshot.hasError) {
                   return const Center(
-                    key: Key('member-search-empty'),
-                    child: Text('No members found'),
+                    key: Key('member-load-error'),
+                    child: Text('Could not load room members.'),
                   );
                 }
-                return ListView.separated(
-                  key: const Key('member-list'),
-                  padding: const EdgeInsets.only(bottom: 24),
-                  itemCount: members.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final member = members[index];
-                    return ListTile(
-                      key: Key('member-${member.userId}'),
-                      leading: CircleAvatar(
-                        child: Text(member.displayName.characters.first),
-                      ),
-                      title: Text(member.displayName),
-                      subtitle: Text(member.userId),
-                      trailing: _RolePill(role: member.role),
-                      onTap: () => _showMember(member.userId),
-                    );
-                  },
+                return const Center(
+                  key: Key('member-load-progress'),
+                  child: CircularProgressIndicator(),
                 );
               },
             ),
+    );
+  }
+
+  Widget _memberDirectory(RoomMembersStore store) {
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: TextField(
+            key: const Key('member-search'),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Search members',
+            ),
+            onChanged: (value) => store.query.value = value,
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: SignalBuilder(
+            builder: (context) {
+              final members = store.visibleMembers;
+              if (members.isEmpty) {
+                return const Center(
+                  key: Key('member-search-empty'),
+                  child: Text('No members found'),
+                );
+              }
+              return ListView.separated(
+                key: const Key('member-list'),
+                padding: const EdgeInsets.only(bottom: 24),
+                itemCount: members.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final member = members[index];
+                  return ListTile(
+                    key: Key('member-${member.userId}'),
+                    leading: CircleAvatar(
+                      child: Text(member.displayName.characters.first),
+                    ),
+                    title: Text(member.displayName),
+                    subtitle: Text(member.userId),
+                    trailing: _RolePill(role: member.role),
+                    onTap: () => _showMember(member.userId),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -173,10 +222,16 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
   }
 
   Future<void> _showMember(String userId) async {
+    final store = _store;
+    if (store == null) return;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) => _MemberSheet(store: _store, userId: userId),
+      builder: (context) => _MemberSheet(
+        store: store,
+        userId: userId,
+        moderationEnabled: widget.memberModerationEnabled,
+      ),
     );
   }
 }
@@ -202,10 +257,15 @@ class _RolePill extends StatelessWidget {
 }
 
 class _MemberSheet extends StatefulWidget {
-  const _MemberSheet({required this.store, required this.userId});
+  const _MemberSheet({
+    required this.store,
+    required this.userId,
+    required this.moderationEnabled,
+  });
 
   final RoomMembersStore store;
   final String userId;
+  final bool moderationEnabled;
 
   @override
   State<_MemberSheet> createState() => _MemberSheetState();
@@ -265,112 +325,113 @@ class _MemberSheetState extends State<_MemberSheet> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: member.membership == RoomMembership.banned
-                      ? <Widget>[
-                          FilledButton.tonalIcon(
-                            key: const Key('member-unban'),
-                            onPressed: canUnban
-                                ? () async {
-                                    if (await widget.store.unban(
-                                          widget.userId,
-                                        ) &&
-                                        context.mounted) {
-                                      Navigator.of(context).pop();
+                if (widget.moderationEnabled)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: member.membership == RoomMembership.banned
+                        ? <Widget>[
+                            FilledButton.tonalIcon(
+                              key: const Key('member-unban'),
+                              onPressed: canUnban
+                                  ? () async {
+                                      if (await widget.store.unban(
+                                            widget.userId,
+                                          ) &&
+                                          context.mounted) {
+                                        Navigator.of(context).pop();
+                                      }
                                     }
-                                  }
-                                : null,
-                            icon: const Icon(Icons.person_add_alt_outlined),
-                            label: const Text('Unban'),
-                          ),
-                        ]
-                      : _confirmingKick
-                      ? <Widget>[
-                          TextButton(
-                            key: const Key('member-kick-cancel'),
-                            onPressed: () =>
-                                setState(() => _confirmingKick = false),
-                            child: const Text('Cancel'),
-                          ),
-                          FilledButton.icon(
-                            key: const Key('member-kick-confirm'),
-                            onPressed: () async {
-                              if (await widget.store.kick(widget.userId) &&
-                                  context.mounted) {
-                                Navigator.of(context).pop();
-                              }
-                            },
-                            icon: const Icon(Icons.person_remove_outlined),
-                            label: Text('Remove ${member.displayName}'),
-                          ),
-                        ]
-                      : _confirmingBan
-                      ? <Widget>[
-                          TextButton(
-                            key: const Key('member-ban-cancel'),
-                            onPressed: () =>
-                                setState(() => _confirmingBan = false),
-                            child: const Text('Cancel'),
-                          ),
-                          FilledButton.icon(
-                            key: const Key('member-ban-confirm'),
-                            onPressed: () async {
-                              if (await widget.store.ban(widget.userId) &&
-                                  context.mounted) {
-                                setState(() => _confirmingBan = false);
-                              }
-                            },
-                            icon: const Icon(Icons.block_outlined),
-                            label: Text('Ban ${member.displayName}'),
-                          ),
-                        ]
-                      : <Widget>[
-                          FilledButton.tonalIcon(
-                            key: const Key('member-promote'),
-                            onPressed: canPromote
-                                ? () async {
-                                    await widget.store.setRole(
-                                      widget.userId,
-                                      nextRole,
-                                    );
-                                  }
-                                : null,
-                            icon: const Icon(Icons.arrow_upward),
-                            label: const Text('Promote'),
-                          ),
-                          FilledButton.tonalIcon(
-                            key: const Key('member-demote'),
-                            onPressed: canDemote
-                                ? () async {
-                                    await widget.store.setRole(
-                                      widget.userId,
-                                      previousRole,
-                                    );
-                                  }
-                                : null,
-                            icon: const Icon(Icons.arrow_downward),
-                            label: const Text('Demote'),
-                          ),
-                          FilledButton.tonalIcon(
-                            key: const Key('member-kick'),
-                            onPressed: canKick
-                                ? () => setState(() => _confirmingKick = true)
-                                : null,
-                            icon: const Icon(Icons.person_remove_outlined),
-                            label: const Text('Kick'),
-                          ),
-                          FilledButton.tonalIcon(
-                            key: const Key('member-ban'),
-                            onPressed: canBan
-                                ? () => setState(() => _confirmingBan = true)
-                                : null,
-                            icon: const Icon(Icons.block_outlined),
-                            label: const Text('Ban'),
-                          ),
-                        ],
-                ),
+                                  : null,
+                              icon: const Icon(Icons.person_add_alt_outlined),
+                              label: const Text('Unban'),
+                            ),
+                          ]
+                        : _confirmingKick
+                        ? <Widget>[
+                            TextButton(
+                              key: const Key('member-kick-cancel'),
+                              onPressed: () =>
+                                  setState(() => _confirmingKick = false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton.icon(
+                              key: const Key('member-kick-confirm'),
+                              onPressed: () async {
+                                if (await widget.store.kick(widget.userId) &&
+                                    context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
+                              },
+                              icon: const Icon(Icons.person_remove_outlined),
+                              label: Text('Remove ${member.displayName}'),
+                            ),
+                          ]
+                        : _confirmingBan
+                        ? <Widget>[
+                            TextButton(
+                              key: const Key('member-ban-cancel'),
+                              onPressed: () =>
+                                  setState(() => _confirmingBan = false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton.icon(
+                              key: const Key('member-ban-confirm'),
+                              onPressed: () async {
+                                if (await widget.store.ban(widget.userId) &&
+                                    context.mounted) {
+                                  setState(() => _confirmingBan = false);
+                                }
+                              },
+                              icon: const Icon(Icons.block_outlined),
+                              label: Text('Ban ${member.displayName}'),
+                            ),
+                          ]
+                        : <Widget>[
+                            FilledButton.tonalIcon(
+                              key: const Key('member-promote'),
+                              onPressed: canPromote
+                                  ? () async {
+                                      await widget.store.setRole(
+                                        widget.userId,
+                                        nextRole,
+                                      );
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.arrow_upward),
+                              label: const Text('Promote'),
+                            ),
+                            FilledButton.tonalIcon(
+                              key: const Key('member-demote'),
+                              onPressed: canDemote
+                                  ? () async {
+                                      await widget.store.setRole(
+                                        widget.userId,
+                                        previousRole,
+                                      );
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.arrow_downward),
+                              label: const Text('Demote'),
+                            ),
+                            FilledButton.tonalIcon(
+                              key: const Key('member-kick'),
+                              onPressed: canKick
+                                  ? () => setState(() => _confirmingKick = true)
+                                  : null,
+                              icon: const Icon(Icons.person_remove_outlined),
+                              label: const Text('Kick'),
+                            ),
+                            FilledButton.tonalIcon(
+                              key: const Key('member-ban'),
+                              onPressed: canBan
+                                  ? () => setState(() => _confirmingBan = true)
+                                  : null,
+                              icon: const Icon(Icons.block_outlined),
+                              label: const Text('Ban'),
+                            ),
+                          ],
+                  ),
               ],
             ),
           ),

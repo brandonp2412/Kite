@@ -41,6 +41,19 @@ void main() {
     expect(runtimeSource, contains('await _lifecycleBinding.detach()'));
   });
 
+  test(
+    'production room details injects the native Matrix member directory',
+    () {
+      expect(runtimeSource, contains('roomMembersLoader: _loadRoomMembers'));
+      expect(runtimeSource, contains('widget.runtime.roomMembers('));
+      expect(runtimeSource, contains('memberModerationEnabled: false'));
+      expect(
+        homeSource,
+        contains('roomMembersLoader: widget.roomMembersLoader'),
+      );
+    },
+  );
+
   test('production composer injects the real Matrix text sender', () {
     expect(runtimeSource, contains('sendPort: MatrixTimelineSendPort('));
     expect(runtimeSource, contains('widget.runtime.sendTextMessage('));

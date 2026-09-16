@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
@@ -475,6 +476,7 @@ class TimelineMessage {
     this.replyToMessageId,
     this.replyToSender,
     this.replyToBody,
+    this.transactionId,
     this.attachment,
     TimelineLocation? location,
     TimelinePoll? poll,
@@ -548,6 +550,7 @@ class TimelineMessage {
   final String? replyToMessageId;
   final String? replyToSender;
   final String? replyToBody;
+  final String? transactionId;
   final TimelineAttachment? attachment;
   final Signal<TimelineLocation?> locationState;
   final Signal<TimelinePoll?> pollState;
@@ -617,6 +620,8 @@ class TimelineController implements TimelineLocationShareDelegate {
   final Map<String, Signal<String?>> _unreadMarkerEventIds =
       <String, Signal<String?>>{};
   int _transactionCounter = 0;
+  int _matrixTransactionCounter = 0;
+  final String _matrixTransactionNamespace = _secureTransactionNamespace();
 
   Signal<String?> unreadMarkerFor(String roomId) {
     return _unreadMarkerEventIds.putIfAbsent(
@@ -740,6 +745,8 @@ class TimelineController implements TimelineLocationShareDelegate {
         (message) =>
             message.id.startsWith('kite-local-') &&
             !echoedTransactionIds.contains(message.id) &&
+            (message.transactionId == null ||
+                !echoedTransactionIds.contains(message.transactionId)) &&
             !projected.any((candidate) => candidate.id == message.id),
       ),
     );
@@ -758,9 +765,10 @@ class TimelineController implements TimelineLocationShareDelegate {
       throw ArgumentError.value(rawBody, 'rawBody', 'Message cannot be empty');
     }
 
-    final transactionId = 'kite-local-${_transactionCounter++}';
+    final localId = 'kite-local-${_transactionCounter++}';
     final message = TimelineMessage(
-      id: transactionId,
+      id: localId,
+      transactionId: _nextMatrixTransactionId(),
       sender: 'You',
       body: body,
       mine: true,
@@ -786,9 +794,10 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineMessage? replyTo,
   }) {
     final body = caption.trim();
-    final transactionId = 'kite-local-${_transactionCounter++}';
+    final localId = 'kite-local-${_transactionCounter++}';
     final message = TimelineMessage(
-      id: transactionId,
+      id: localId,
+      transactionId: _nextMatrixTransactionId(),
       sender: 'You',
       body: body,
       mine: true,
@@ -818,9 +827,10 @@ class TimelineController implements TimelineLocationShareDelegate {
 
   @override
   TimelineMessage sendLocation(String roomId, TimelineLocation location) {
-    final transactionId = 'kite-local-${_transactionCounter++}';
+    final localId = 'kite-local-${_transactionCounter++}';
     final message = TimelineMessage(
-      id: transactionId,
+      id: localId,
+      transactionId: _nextMatrixTransactionId(),
       sender: 'You',
       body: '',
       mine: true,
@@ -869,7 +879,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       );
     }
 
-    final transactionId = 'kite-local-${_transactionCounter++}';
+    final localId = 'kite-local-${_transactionCounter++}';
     final poll = TimelinePoll(
       question: normalizedQuestion,
       options: <TimelinePollOption>[
@@ -881,7 +891,8 @@ class TimelineController implements TimelineLocationShareDelegate {
       ],
     );
     final message = TimelineMessage(
-      id: transactionId,
+      id: localId,
+      transactionId: _nextMatrixTransactionId(),
       sender: 'You',
       body: '',
       mine: true,
@@ -1133,7 +1144,7 @@ class TimelineController implements TimelineLocationShareDelegate {
     if (poll == null) return;
     final outcome = await _pollPort.createPoll(
       roomId: roomId,
-      transactionId: message.id,
+      transactionId: message.transactionId ?? message.id,
       poll: poll,
     );
     message.sendState.value = switch (outcome) {
@@ -1147,7 +1158,7 @@ class TimelineController implements TimelineLocationShareDelegate {
     if (location == null) return;
     final outcome = await _locationPort.sendLocation(
       roomId: roomId,
-      transactionId: message.id,
+      transactionId: message.transactionId ?? message.id,
       location: location,
     );
     message.sendState.value = switch (outcome) {
@@ -1161,7 +1172,7 @@ class TimelineController implements TimelineLocationShareDelegate {
     if (attachment == null) return;
     final outcome = await _attachmentSendPort.sendAttachment(
       roomId: roomId,
-      transactionId: message.id,
+      transactionId: message.transactionId ?? message.id,
       attachment: attachment,
       caption: message.body,
     );
@@ -1174,7 +1185,7 @@ class TimelineController implements TimelineLocationShareDelegate {
   Future<void> _settle(String roomId, TimelineMessage message) async {
     final outcome = await _sendPort.sendText(
       roomId: roomId,
-      transactionId: message.id,
+      transactionId: message.transactionId ?? message.id,
       body: message.body,
     );
     message.sendState.value = switch (outcome) {
@@ -1182,6 +1193,15 @@ class TimelineController implements TimelineLocationShareDelegate {
       TimelineSendOutcome.failed => TimelineSendState.failed,
     };
   }
+
+  String _nextMatrixTransactionId() =>
+      'kite-txn-$_matrixTransactionNamespace-${_matrixTransactionCounter++}';
+}
+
+String _secureTransactionNamespace() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(12, (_) => random.nextInt(256));
+  return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
 }
 
 TimelineAttachment? _matrixAttachment(

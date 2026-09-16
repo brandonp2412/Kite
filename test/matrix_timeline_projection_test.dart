@@ -146,6 +146,26 @@ void main() {
     },
   );
 
+  test('Matrix transaction IDs stay unique across controller restarts', () {
+    final firstController = TimelineController(
+      sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+      fixtureProvider: (_) => const [],
+    );
+    final secondController = TimelineController(
+      sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+      fixtureProvider: (_) => const [],
+    );
+
+    final first = firstController.sendText('!alpha:example.org', 'First');
+    final second = secondController.sendText('!alpha:example.org', 'Second');
+
+    expect(first.id, 'kite-local-0');
+    expect(second.id, 'kite-local-0');
+    expect(first.transactionId, startsWith('kite-txn-'));
+    expect(second.transactionId, startsWith('kite-txn-'));
+    expect(first.transactionId, isNot(second.transactionId));
+  });
+
   test('Matrix transaction IDs reconcile optimistic local sends', () async {
     final controller = TimelineController(
       sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
@@ -165,7 +185,7 @@ void main() {
         senderId: '@me:example.org',
         msgtype: 'm.text',
         body: 'Sent for real',
-        transactionId: local.id,
+        transactionId: local.transactionId,
       ),
     ], currentUserId: '@me:example.org');
 

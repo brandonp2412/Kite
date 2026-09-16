@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
+import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/presentation_cache.dart';
@@ -197,9 +198,112 @@ void main() {
       expect(calls, hasLength(1));
       expect(
         calls.single,
-        startsWith('!real:example.org|kite-local-0|From production composer'),
+        allOf(
+          startsWith('!real:example.org|kite-txn-'),
+          endsWith('|From production composer'),
+        ),
       );
       expect(find.text('From production composer'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Matrix room details loads real member data without local moderation fallbacks',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            MatrixRoomSummary(
+              roomId: '!real:matrix.test',
+              displayName: 'Real room',
+              lastActivity: DateTime.utc(2026, 9, 16, 11),
+              streamPosition: 1,
+              lastEventId: r'$cached',
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!real:matrix.test': <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$cached',
+                body: 'Cached message',
+                streamPosition: 1,
+                roomId: '!real:matrix.test',
+              ),
+            ],
+          },
+        ),
+      );
+      final loadedRooms = <String>[];
+
+      await tester.pumpWidget(
+        KiteApp(
+          home: MatrixHomeScreen(
+            cache: cache,
+            currentUserId: '@me:matrix.test',
+            sendPort: MatrixTimelineSendPort(
+              ({
+                required roomId,
+                required transactionId,
+                required body,
+              }) async {},
+            ),
+            roomMembersLoader: (roomId) async {
+              loadedRooms.add(roomId);
+              return RoomMembersStore(
+                roomId: roomId,
+                currentUserId: '@me:matrix.test',
+                members: const <RoomMember>[
+                  RoomMember(
+                    userId: '@me:matrix.test',
+                    displayName: 'Me',
+                    membership: RoomMembership.joined,
+                    powerLevel: 100,
+                  ),
+                  RoomMember(
+                    userId: '@alice:matrix.test',
+                    displayName: 'Alice Real',
+                    membership: RoomMembership.joined,
+                    powerLevel: 50,
+                  ),
+                ],
+                powerLevels: const MatrixPowerLevels(
+                  users: <String, int>{
+                    '@me:matrix.test': 100,
+                    '@alice:matrix.test': 50,
+                  },
+                ),
+              );
+            },
+            memberModerationEnabled: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('room-details-button')));
+      await tester.pumpAndSettle();
+
+      expect(loadedRooms, <String>['!real:matrix.test']);
+      expect(
+        find.byKey(const Key('member-@alice:matrix.test')),
+        findsOneWidget,
+      );
+      expect(find.text('Alice Real'), findsOneWidget);
+      expect(find.textContaining('example.org'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('member-@alice:matrix.test')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('member-profile-sheet')), findsOneWidget);
+      expect(find.byKey(const Key('member-promote')), findsNothing);
+      expect(find.byKey(const Key('member-demote')), findsNothing);
+      expect(find.byKey(const Key('member-kick')), findsNothing);
+      expect(find.byKey(const Key('member-ban')), findsNothing);
     },
   );
 
@@ -274,7 +378,10 @@ void main() {
       expect(calls, hasLength(1));
       expect(
         calls.single,
-        startsWith('!mobile:example.org|kite-local-0|From compact composer'),
+        allOf(
+          startsWith('!mobile:example.org|kite-txn-'),
+          endsWith('|From compact composer'),
+        ),
       );
     },
   );
@@ -429,7 +536,10 @@ void main() {
       final sent = controller.sendText('!room:example.org', 'Sent');
       await Future<void>.delayed(Duration.zero);
       expect(sent.sendState.value, TimelineSendState.sent);
-      expect(calls.single, startsWith('!room:example.org|kite-local-0|Sent'));
+      expect(
+        calls.single,
+        allOf(startsWith('!room:example.org|kite-txn-'), endsWith('|Sent')),
+      );
 
       fail = true;
       final failed = controller.sendText('!room:example.org', 'Failed');
@@ -443,10 +553,11 @@ MatrixTimelineEvent _event({
   required String eventId,
   required String body,
   required int streamPosition,
+  String roomId = '!real:example.org',
 }) {
   return MatrixTimelineEvent(
     eventId: eventId,
-    roomId: '!real:example.org',
+    roomId: roomId,
     senderId: '@alice:example.org',
     type: 'm.room.message',
     originServerTimestamp: DateTime.utc(2026, 9, 16, 11, streamPosition),

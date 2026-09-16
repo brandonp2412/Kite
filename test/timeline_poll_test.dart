@@ -44,7 +44,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(message.sendState.value, TimelineSendState.sent);
-      expect(port.createdEventIds, <String>[message.id]);
+      expect(message.transactionId, startsWith('kite-txn-'));
+      expect(port.createdEventIds, <String>[message.transactionId!]);
       expect(await controller.votePoll('alice', message, 'option-0'), isTrue);
       expect(controller.messagesFor('alice').value, same(roomList));
       expect(message.poll?.selectedOptionId, 'option-0');

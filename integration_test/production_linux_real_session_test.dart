@@ -19,6 +19,12 @@ void main() {
   ) async {
     await app.main();
 
+    void expectSoftLogout() {
+      expect(find.byKey(const Key('soft-logout-notice')), findsOneWidget);
+      expect(find.byKey(const Key('auth-subtitle')), findsOneWidget);
+      expect(find.textContaining('Matrix session expired'), findsOneWidget);
+    }
+
     for (var i = 0; i < 80; i += 1) {
       await tester.pump(const Duration(milliseconds: 250));
       if (find.byKey(const Key('home-search')).evaluate().isNotEmpty ||
@@ -28,9 +34,7 @@ void main() {
     }
 
     if (find.byKey(const Key('soft-logout-notice')).evaluate().isNotEmpty) {
-      expect(find.byKey(const Key('soft-logout-notice')), findsOneWidget);
-      expect(find.byKey(const Key('auth-subtitle')), findsOneWidget);
-      expect(find.textContaining('Matrix session expired'), findsOneWidget);
+      expectSoftLogout();
       return;
     }
 
@@ -47,8 +51,32 @@ void main() {
     final messageList = find.byKey(const Key('message-list'));
     for (var i = 0; i < 40; i += 1) {
       await tester.pump(const Duration(milliseconds: 250));
-      if (messageList.evaluate().isNotEmpty) break;
+      if (messageList.evaluate().isNotEmpty ||
+          find.byKey(const Key('soft-logout-notice')).evaluate().isNotEmpty) {
+        break;
+      }
     }
+    if (find.byKey(const Key('soft-logout-notice')).evaluate().isNotEmpty) {
+      expectSoftLogout();
+      return;
+    }
+    expect(messageList, findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('room-details-button')));
+    for (var i = 0; i < 40; i += 1) {
+      await tester.pump(const Duration(milliseconds: 250));
+      if (find.byKey(const Key('member-list')).evaluate().isNotEmpty ||
+          find.byKey(const Key('member-load-error')).evaluate().isNotEmpty) {
+        break;
+      }
+    }
+    expect(find.byKey(const Key('member-load-error')), findsNothing);
+    expect(find.byKey(const Key('member-list')), findsOneWidget);
+    expect(find.text('@brandon:matrix.presley.nz'), findsOneWidget);
+    expect(find.text('@uptime:matrix.presley.nz'), findsOneWidget);
+    expect(find.textContaining('example.org'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     expect(messageList, findsOneWidget);
 
     if (expectedInboundMessage.isNotEmpty) {

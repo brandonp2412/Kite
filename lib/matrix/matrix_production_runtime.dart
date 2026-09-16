@@ -172,6 +172,13 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<List<MatrixSdkRoomMember>> roomMembers({
+    required String accountId,
+    required String roomId,
+  }) {
+    return accounts.roomMembers(accountId: accountId, roomId: roomId);
+  }
+
   Future<String> sendTextMessage({
     required String accountId,
     required String roomId,

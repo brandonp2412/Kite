@@ -79,6 +79,21 @@ final class MatrixAccountRuntimeRegistry {
     return _runtimes[normalizedAccountId]?.runtime.paginationState(roomId);
   }
 
+  Future<List<MatrixSdkRoomMember>> roomMembers({
+    required String accountId,
+    required String roomId,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<List<MatrixSdkRoomMember>>.error(
+        StateError('Cannot load Matrix room members for an inactive account'),
+      );
+    }
+    return active.engine.roomMembers(roomId);
+  }
+
   Future<String> sendTextMessage({
     required String accountId,
     required String roomId,

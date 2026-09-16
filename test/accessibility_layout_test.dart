@@ -68,9 +68,10 @@ void main() {
         .map((id) => CustomSemanticsAction.getAction(id)?.label)
         .toSet();
 
-    expect(incomingLabels, <String?>{'Reply', 'Copy text'});
+    expect(incomingLabels, <String?>{'Reply', 'Reply in thread', 'Copy text'});
     expect(mineLabels, <String?>{
       'Reply',
+      'Reply in thread',
       'Copy text',
       'Edit message',
       'Delete message',

@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 7;
+const int kiteMatrixNativeAbiVersion = 8;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -168,6 +168,18 @@ final class MatrixRustSendResult {
   const MatrixRustSendResult({required this.eventId});
 
   final String eventId;
+}
+
+final class MatrixRustRoomMember {
+  const MatrixRustRoomMember({
+    required this.userId,
+    required this.displayName,
+    required this.powerLevel,
+  });
+
+  final String userId;
+  final String displayName;
+  final int powerLevel;
 }
 
 final class MatrixRustNativeException implements Exception {
@@ -484,6 +496,52 @@ final class _MatrixNativeSyncOperation {
   }
 }
 
+final class _MatrixNativeRoomMembersOperation {
+  const _MatrixNativeRoomMembersOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+
+  Map<String, Object?> call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final roomMembers = library
+        .lookupFunction<_ClientPaginateNative, _ClientPaginateDart>(
+          'kite_matrix_client_room_members',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        roomMembers(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room member lookup',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid room member data.',
+        );
+      }
+      return Map<String, Object?>.from(decoded);
+    } finally {
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativePaginateOperation {
   const _MatrixNativePaginateOperation({
     required this.libraryPath,
@@ -614,6 +672,10 @@ abstract interface class MatrixRustBridge {
     required String storePath,
     required String storePassphrase,
   });
+}
+
+abstract interface class MatrixRustRoomMembersClient {
+  Future<List<MatrixRustRoomMember>> roomMembers({required String roomId});
 }
 
 abstract interface class MatrixRustClient {
@@ -776,7 +838,10 @@ final class MatrixRustNativeBridge
 }
 
 final class MatrixRustNativeClient
-    implements MatrixRustClient, MatrixRustSessionClient {
+    implements
+        MatrixRustClient,
+        MatrixRustSessionClient,
+        MatrixRustRoomMembersClient {
   MatrixRustNativeClient._(this.libraryPath, this._address);
 
   final String libraryPath;
@@ -984,6 +1049,69 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<List<MatrixRustRoomMember>> roomMembers({required String roomId}) {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<List<MatrixRustRoomMember>>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<List<MatrixRustRoomMember>>(() async {
+      final decoded = await Isolate.run<Map<String, Object?>>(
+        _MatrixNativeRoomMembersOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+        ).call,
+      );
+      if (decoded['roomId'] != normalizedRoomId ||
+          decoded['members'] is! List) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid room member data.',
+        );
+      }
+      final members = <MatrixRustRoomMember>[];
+      for (final value in decoded['members'] as List) {
+        if (value is! Map<String, dynamic>) {
+          throw const MatrixRustNativeException(
+            code: 'invalid_native_response',
+            publicMessage:
+                'The Matrix native bridge returned invalid room member data.',
+          );
+        }
+        final userId = value['userId'];
+        final displayName = value['displayName'];
+        final powerLevel = value['powerLevel'];
+        if (userId is! String ||
+            userId.isEmpty ||
+            displayName is! String ||
+            displayName.isEmpty ||
+            powerLevel is! int) {
+          throw const MatrixRustNativeException(
+            code: 'invalid_native_response',
+            publicMessage:
+                'The Matrix native bridge returned invalid room member data.',
+          );
+        }
+        members.add(
+          MatrixRustRoomMember(
+            userId: userId,
+            displayName: displayName,
+            powerLevel: powerLevel,
+          ),
+        );
+      }
+      return List<MatrixRustRoomMember>.unmodifiable(members);
+    });
+  }
+
+  @override
   Future<String> paginateBackwards({required String roomId}) {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
@@ -1056,7 +1184,8 @@ final class MatrixRustSdkBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkPasswordAuthenticator,
-        MatrixSdkTextMessageSender {
+        MatrixSdkTextMessageSender,
+        MatrixSdkRoomMemberDirectory {
   MatrixRustSdkBoundary({
     required this.bridge,
     required this.homeserver,
@@ -1161,6 +1290,29 @@ final class MatrixRustSdkBoundary
         body: body,
       );
       return result.eventId;
+    });
+  }
+
+  @override
+  Future<List<MatrixSdkRoomMember>> roomMembers(String roomId) {
+    return _enqueue<List<MatrixSdkRoomMember>>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomMembersClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room member lookup',
+        );
+      }
+      final memberClient = client as MatrixRustRoomMembersClient;
+      final members = await memberClient.roomMembers(roomId: roomId);
+      return List<MatrixSdkRoomMember>.unmodifiable(
+        members.map(
+          (member) => MatrixSdkRoomMember(
+            userId: member.userId,
+            displayName: member.displayName,
+            powerLevel: member.powerLevel,
+          ),
+        ),
+      );
     });
   }
 

@@ -40,12 +40,16 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.currentUserId,
     required this.sendPort,
     this.onTimelineHistoryRequested,
+    this.roomMembersLoader,
+    this.memberModerationEnabled = true,
   });
 
   final MatrixPresentationCache cache;
   final String currentUserId;
   final TimelineSendPort sendPort;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final RoomMembersLoader? roomMembersLoader;
+  final bool memberModerationEnabled;
 
   @override
   State<MatrixHomeScreen> createState() => _MatrixHomeScreenState();
@@ -93,6 +97,8 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       inviteStore: _binding.inviteStore,
       timeline: _binding.controller,
       onTimelineHistoryRequested: widget.onTimelineHistoryRequested,
+      roomMembersLoader: widget.roomMembersLoader,
+      memberModerationEnabled: widget.memberModerationEnabled,
     );
   }
 }

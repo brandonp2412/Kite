@@ -47,6 +47,22 @@ final class MatrixSdkPasswordLoginResult {
   final String deviceId;
 }
 
+final class MatrixSdkRoomMember {
+  const MatrixSdkRoomMember({
+    required this.userId,
+    required this.displayName,
+    required this.powerLevel,
+  });
+
+  final String userId;
+  final String displayName;
+  final int powerLevel;
+}
+
+abstract interface class MatrixSdkRoomMemberDirectory {
+  Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
+}
+
 abstract interface class MatrixSdkPasswordAuthenticator {
   Future<MatrixSdkPasswordLoginResult> loginWithPassword({
     required String username,
@@ -198,6 +214,27 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       roomId: roomId,
       transactionId: transactionId,
       body: body,
+    );
+  }
+
+  Future<List<MatrixSdkRoomMember>> roomMembers(String roomId) async {
+    final directory = _boundary;
+    if (directory is! MatrixSdkRoomMemberDirectory) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room member lookup',
+      );
+    }
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'must contain a non-empty Matrix room id without NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    return (directory as MatrixSdkRoomMemberDirectory).roomMembers(
+      normalizedRoomId,
     );
   }
 

@@ -14,6 +14,7 @@ import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
+import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/media/media_viewer.dart';
@@ -37,6 +38,7 @@ typedef TimelineHistoryRequest = Future<void> Function(
   String roomId,
   int oldestVisibleIndex,
 );
+typedef RoomMembersLoader = Future<RoomMembersStore> Function(String roomId);
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -49,6 +51,8 @@ class HomeScreen extends StatelessWidget {
     this.calls,
     this.timeline,
     this.onTimelineHistoryRequested,
+    this.roomMembersLoader,
+    this.memberModerationEnabled = true,
   });
 
   final List<BenchmarkRoom>? benchmarkRooms;
@@ -59,6 +63,8 @@ class HomeScreen extends StatelessWidget {
   final KiteCallCoordinator? calls;
   final TimelineController? timeline;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final RoomMembersLoader? roomMembersLoader;
+  final bool memberModerationEnabled;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -96,6 +102,8 @@ class HomeScreen extends StatelessWidget {
                         memberManagement: memberManagement,
                         calls: calls,
                         onTimelineHistoryRequested: onTimelineHistoryRequested,
+                        roomMembersLoader: roomMembersLoader,
+                        memberModerationEnabled: memberModerationEnabled,
                       ),
                     ),
                   );
@@ -134,6 +142,8 @@ class HomeScreen extends StatelessWidget {
                   memberManagement: memberManagement,
                   calls: calls,
                   onTimelineHistoryRequested: onTimelineHistoryRequested,
+                  roomMembersLoader: roomMembersLoader,
+                  memberModerationEnabled: memberModerationEnabled,
                 ),
               ),
             ),
@@ -344,6 +354,8 @@ class _CompactChatScreen extends StatelessWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.roomMembersLoader,
+    this.memberModerationEnabled = true,
   });
 
   final TimelineController timeline;
@@ -352,6 +364,8 @@ class _CompactChatScreen extends StatelessWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final RoomMembersLoader? roomMembersLoader;
+  final bool memberModerationEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -394,6 +408,8 @@ class _CompactChatScreen extends StatelessWidget {
           memberManagement: memberManagement,
           calls: calls,
           onTimelineHistoryRequested: onTimelineHistoryRequested,
+          roomMembersLoader: roomMembersLoader,
+          memberModerationEnabled: memberModerationEnabled,
         ),
       ),
     );
@@ -918,6 +934,8 @@ class _ChatPanel extends StatefulWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.roomMembersLoader,
+    this.memberModerationEnabled = true,
   });
 
   final bool showHeader;
@@ -926,6 +944,8 @@ class _ChatPanel extends StatefulWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final RoomMembersLoader? roomMembersLoader;
+  final bool memberModerationEnabled;
 
   @override
   State<_ChatPanel> createState() => _ChatPanelState();
@@ -953,6 +973,8 @@ class _ChatPanelState extends State<_ChatPanel> {
             roomManagement: widget.roomManagement,
             memberManagement: widget.memberManagement,
             calls: widget.calls,
+            roomMembersLoader: widget.roomMembersLoader,
+            memberModerationEnabled: widget.memberModerationEnabled,
           ),
           const Divider(height: 1),
         ],
@@ -1024,12 +1046,16 @@ class _ChatHeader extends StatelessWidget {
     this.roomManagement,
     this.memberManagement,
     this.calls,
+    this.roomMembersLoader,
+    this.memberModerationEnabled = true,
   });
 
   final RoomListStateStore? roomListStore;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
+  final RoomMembersLoader? roomMembersLoader;
+  final bool memberModerationEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1131,6 +1157,8 @@ class _ChatHeader extends StatelessWidget {
                           memberManagement: memberManagement,
                           calls: calls,
                           isDirect: room.isDirect,
+                          membersLoader: roomMembersLoader,
+                          memberModerationEnabled: memberModerationEnabled,
                         ),
                       ),
                     );

@@ -5,7 +5,7 @@ use std::ptr;
 use std::time::Duration;
 
 use matrix_sdk::{
-    Client, Error as MatrixError, HttpError,
+    Client, Error as MatrixError, HttpError, RoomMemberships,
     authentication::matrix::MatrixSession,
     config::SyncSettings,
     room::MessagesOptions,
@@ -18,13 +18,13 @@ use matrix_sdk::{
             },
             error::ErrorKind,
         },
-        events::room::message::RoomMessageEventContent,
+        events::room::{message::RoomMessageEventContent, power_levels::UserPowerLevel},
     },
 };
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 7;
+const KITE_MATRIX_ABI_VERSION: u32 = 8;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 pub struct KiteMatrixClient {
@@ -559,6 +559,77 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_room_members(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return ptr::null_mut();
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return ptr::null_mut();
+    };
+    if room_id.is_empty() {
+        return ptr::null_mut();
+    }
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return ptr::null_mut();
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return ptr::null_mut();
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let members = match client.runtime.block_on(room.members(RoomMemberships::JOIN)) {
+        Ok(members) => members,
+        Err(error) => return sync_error_json(&error),
+    };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    let members = members
+        .into_iter()
+        .map(|member| {
+            let power_level = match member.power_level() {
+                UserPowerLevel::Infinite => 100_i64,
+                UserPowerLevel::Int(value) => i64::from(value),
+                _ => 0_i64,
+            };
+            json!({
+                "userId": member.user_id().as_str(),
+                "displayName": member
+                    .display_name()
+                    .filter(|name| !name.trim().is_empty())
+                    .unwrap_or(member.user_id().as_str()),
+                "powerLevel": power_level,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "members": members,
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -669,7 +740,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 7);
+        assert_eq!(kite_matrix_abi_version(), 8);
     }
 
     #[test]
@@ -766,6 +837,7 @@ mod tests {
             )
         };
         let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };
+        let members = unsafe { kite_matrix_client_room_members(ptr::null_mut(), room_id.as_ptr()) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
         for result in [login, send] {
@@ -775,6 +847,7 @@ mod tests {
             unsafe { kite_matrix_string_free(result) };
         }
         assert!(sync.is_null());
+        assert!(members.is_null());
         assert!(pagination.is_null());
     }
 

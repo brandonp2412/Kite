@@ -5,6 +5,7 @@ import 'package:kite/app/kite_runtime.dart';
 import 'package:kite/app/platform_matrix_bootstrap_gateway.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
+import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
 import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
@@ -176,6 +177,32 @@ final class _AuthenticatedMatrixHomeState
     super.dispose();
   }
 
+  Future<RoomMembersStore> _loadRoomMembers(String roomId) async {
+    final snapshots = await widget.runtime.roomMembers(
+      accountId: widget.session.userId,
+      roomId: roomId,
+    );
+    final members = snapshots
+        .map(
+          (member) => RoomMember(
+            userId: member.userId,
+            displayName: member.displayName,
+            membership: RoomMembership.joined,
+            powerLevel: member.powerLevel,
+          ),
+        )
+        .toList(growable: false);
+    final powers = <String, int>{
+      for (final member in snapshots) member.userId: member.powerLevel,
+    };
+    return RoomMembersStore(
+      roomId: roomId,
+      currentUserId: widget.session.userId,
+      members: members,
+      powerLevels: MatrixPowerLevels(users: powers),
+    );
+  }
+
   void _retry() {
     setState(() {
       _activation = _activate();
@@ -216,6 +243,8 @@ final class _AuthenticatedMatrixHomeState
                 hasMoreHistory: paginationState?.value.hasMoreHistory ?? true,
               );
             },
+            roomMembersLoader: _loadRoomMembers,
+            memberModerationEnabled: false,
           );
         }
         if (snapshot.hasError) {
