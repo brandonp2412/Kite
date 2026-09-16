@@ -43,6 +43,9 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Build a Kite design-token layer for typography, spacing, radii, elevation, stroke widths, opacity, semantic colours, animation durations, and easing.
 - [ ] Audit Element X's Compound-based visual hierarchy screen-by-screen and reproduce the same quality level with Kite branding.
 - [ ] Match Element X's uncluttered information density: strong primary hierarchy, quiet secondary metadata, obvious selected/unread/mention states, and no gratuitous chrome.
+- [ ] Feature parity means capability parity, not exposing every feature at once. The home screen stays primarily a prominent search surface plus the chat list; secondary capabilities belong in contextual menus, sheets, or secondary screens rather than permanent dashboard chrome.
+- [ ] Do not add persistent filter bars, chip rows, cards, status blocks, action strips, or other homepage furniture merely to satisfy roadmap checkboxes. A feature can be complete without occupying permanent home-screen space.
+- [ ] Treat the current simplified Kite UI as the baseline. Do not mechanically copy Element X's chrome or resurrect removed clutter; match its restraint, hierarchy, and polish while keeping Kite simpler where that preserves discoverability.
 - [ ] Reproduce the polished avatar treatment and contextual colour/bloom concept without copying Element trademarks/assets.
 - [ ] Use high-quality avatars and media at their actual rendered resolution; never upscale tiny thumbnails into visible blur.
 - [ ] Keep touch targets at least platform-accessible size while preserving compact visual rhythm.
