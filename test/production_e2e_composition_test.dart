@@ -10,6 +10,9 @@ void main() {
   final homeSource = File(
     'lib/features/home/matrix_home_presentation.dart',
   ).readAsStringSync();
+  final androidManifestSource = File(
+    'android/app/src/main/AndroidManifest.xml',
+  ).readAsStringSync();
 
   test('production startup composes native Matrix authentication', () {
     expect(mainSource, contains('ProductionKiteRuntime.create()'));
@@ -39,6 +42,15 @@ void main() {
       isNot(contains('DeterministicTimelineSendPort')),
       reason:
           'The production Matrix presentation adapter must never select the deterministic sender.',
+    );
+  });
+
+  test('Android release can reach Matrix homeservers', () {
+    expect(
+      androidManifestSource,
+      contains('android.permission.INTERNET'),
+      reason:
+          'Release builds need INTERNET in the main manifest; debug/profile-only permission is insufficient.',
     );
   });
 }
