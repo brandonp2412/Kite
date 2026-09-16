@@ -529,6 +529,7 @@ void main() {
 
       expect(gateway.qrCodeData, 'OPAQUE-DEVICE-LOGIN-PAYLOAD');
       expect(authenticated?.userId, '@alice:matrix.example.org');
+      expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
       expect(find.textContaining('OPAQUE-DEVICE-LOGIN-PAYLOAD'), findsNothing);
     },
   );

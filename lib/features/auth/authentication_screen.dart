@@ -193,7 +193,16 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          if (methods == null) ...<Widget>[
+                          if (session != null) ...<Widget>[
+                            Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                'Signed in as ${session.userId}',
+                                key: const Key('authenticated-session'),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ] else if (methods == null) ...<Widget>[
                             TextField(
                               key: const Key('homeserver-field'),
                               controller: _homeserverController,
@@ -235,7 +244,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 label: const Text('Sign in with QR code'),
                               ),
                             ],
-                          ] else if (session == null) ...<Widget>[
+                          ] else ...<Widget>[
                             if (!widget.lockHomeserver)
                               TextButton.icon(
                                 key: const Key('change-homeserver'),
@@ -335,15 +344,6 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                   label: const Text('Create an account'),
                                 ),
                             ],
-                          ] else ...<Widget>[
-                            Semantics(
-                              liveRegion: true,
-                              child: Text(
-                                'Signed in as ${session.userId}',
-                                key: const Key('authenticated-session'),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
                           ],
                           const SizedBox(height: 12),
                           SizedBox(

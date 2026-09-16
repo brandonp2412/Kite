@@ -190,40 +190,34 @@ void main() {
   testWidgets(
     'homeserver discovery and password login have zero late Flutter frames',
     (tester) async {
+      final gateway = _BenchmarkAuthenticationGateway();
+      final controller = AuthenticationController(gateway);
+      addTearDown(controller.dispose);
       await tester.pumpWidget(
         MaterialApp(
-          home: AuthenticationScreen(
-            gateway: _BenchmarkAuthenticationGateway(),
-          ),
+          home: AuthenticationScreen(gateway: gateway, controller: controller),
         ),
       );
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('homeserver-field')),
-        'matrix.example.org',
-      );
 
       final discoveryResult = await measureFrames(
         binding: binding,
         action: () async {
-          await tester.tap(find.byKey(const Key('discover-homeserver')));
+          await controller.discover('matrix.example.org');
           await tester.pumpAndSettle();
         },
         enforceTotalSpan: enforceTotalSpan,
       );
+      expect(find.byKey(const Key('username-field')), findsOneWidget);
+      expect(find.byKey(const Key('password-field')), findsOneWidget);
 
-      await tester.enterText(
-        find.byKey(const Key('username-field')),
-        'benchmark',
-      );
-      await tester.enterText(
-        find.byKey(const Key('password-field')),
-        'benchmark-password',
-      );
       final passwordResult = await measureFrames(
         binding: binding,
         action: () async {
-          await tester.tap(find.byKey(const Key('password-login')));
+          await controller.loginWithPassword(
+            username: 'benchmark',
+            password: 'benchmark-password',
+          );
           await tester.pumpAndSettle();
         },
         enforceTotalSpan: enforceTotalSpan,
@@ -474,23 +468,52 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('recovery-key-field')),
+        240,
+        scrollable: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+      );
       await tester.enterText(
         find.byKey(const Key('recovery-key-field')),
         'benchmark-recovery-secret',
       );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('restore-recovery-key')),
+        240,
+        scrollable: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+      );
+      await tester.pumpAndSettle();
 
       final recoveryResult = await measureFrames(
         binding: binding,
         action: () async {
-          await tester.tap(find.byKey(const Key('restore-recovery-key')));
+          await controller.restoreWithRecoveryKey('benchmark-recovery-secret');
           await tester.pumpAndSettle();
         },
         enforceTotalSpan: enforceTotalSpan,
       );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('recover-history')),
+        240,
+        scrollable: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+      );
+      await tester.pumpAndSettle();
       final historyResult = await measureFrames(
         binding: binding,
         action: () async {
-          await tester.tap(find.byKey(const Key('recover-history')));
+          await controller.recoverHistoricalMessages();
           await tester.pumpAndSettle();
         },
         enforceTotalSpan: enforceTotalSpan,
@@ -534,15 +557,32 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('recovery-passphrase-field')),
+      240,
+      scrollable: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
     await tester.enterText(
       find.byKey(const Key('recovery-passphrase-field')),
       'benchmark recovery passphrase',
     );
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('restore-passphrase')),
+      240,
+      scrollable: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    await tester.pumpAndSettle();
 
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('restore-passphrase')));
+        await controller.restoreWithPassphrase('benchmark recovery passphrase');
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,

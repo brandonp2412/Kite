@@ -105,8 +105,8 @@ Kite should not merely contain the same controls. It must have the same level of
 
 ## Milestone 2 — Authentication, session verification, encryption, and app lock
 
-- [ ] Homeserver selection and discovery UI.
-- [ ] Password login where supported.
+- [x] Homeserver selection and discovery UI.
+- [x] Password login where supported.
 - [ ] OIDC/native authentication flow.
 - [ ] SSO/web authentication fallback where required.
 - [ ] QR sign-in/device-to-device login where supported upstream.
@@ -127,6 +127,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Session/device list, current-device identification, verification state, and remote sign-out.
 
 **Exit:** a user can install Kite on a clean device, securely sign in, verify it, recover encrypted history, lock the app, and manage sessions without needing Element X.
+
+**Verification note (2026-09-17):** homeserver selection/discovery and password login are production-backed through `MatrixAccountSdkGateway` into the native Matrix Rust SDK authentication boundary and encrypted account store. The authentication screen now settles to an explicit authenticated state after successful sign-in instead of leaving login controls mounted. Focused auth/controller/session and native-boundary tests pass, scoped analysis is clean, and the full `tool/quality_gate.sh` passes including the 991-test Flutter suite with 3 intentional native-library skips, the locked Waydroid PASS → expected FAIL → PASS jitter harness, and back-navigation profile gate. OIDC, SSO, QR login, registration, verification, and recovery remain unchecked because the current native production boundary still reports those capabilities unsupported.
 
 ## Milestone 3 — Home, room list, filters, Sections, invites, and Spaces
 
