@@ -90,6 +90,7 @@ final class RoomListEntry {
           : _fallbackPreview(latestEvent),
       latestSender: latestEvent?.senderId,
       unreadCount: summary.unreadCount,
+      hasMention: summary.highlightCount > 0,
     );
   }
 

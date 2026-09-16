@@ -756,6 +756,7 @@ void main() {
               position: 9,
               second: 9,
               lastEventId: r'$alpha-2',
+              highlightCount: 1,
             ),
           ),
         ],
@@ -765,6 +766,10 @@ void main() {
     expect(
       cache.roomSummarySignal('!alpha:kite.test').value?.displayName,
       'Alice renamed this room',
+    );
+    expect(
+      cache.roomSummarySignal('!alpha:kite.test').value?.highlightCount,
+      1,
     );
     expect(identical(orderBefore, cache.roomOrder.value), isTrue);
     expect(cache.lastSyncCursor, 'metadata-only');
@@ -861,6 +866,7 @@ MatrixRoomSummary _summary({
   required int position,
   required int second,
   String? lastEventId,
+  int highlightCount = 0,
 }) {
   return MatrixRoomSummary(
     roomId: roomId,
@@ -868,6 +874,7 @@ MatrixRoomSummary _summary({
     lastActivity: DateTime.utc(2026, 9, 14, 11, 20, second),
     streamPosition: position,
     lastEventId: lastEventId,
+    highlightCount: highlightCount,
   );
 }
 

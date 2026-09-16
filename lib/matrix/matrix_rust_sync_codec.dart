@@ -53,6 +53,8 @@ final class MatrixRustSyncCodec {
                 _optionalIdentifier(room['latestEventId'], 'latestEventId') ??
                 lastEvent?.eventId,
             unreadCount: _optionalNonNegativeInt(room['unreadCount']) ?? 0,
+            highlightCount:
+                _optionalNonNegativeInt(room['highlightCount']) ?? 0,
           ),
           timelineEvents: events,
         ),

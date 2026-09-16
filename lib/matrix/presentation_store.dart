@@ -88,6 +88,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             'streamPosition': room.streamPosition,
             if (room.lastEventId != null) 'lastEventId': room.lastEventId,
             'unreadCount': room.unreadCount,
+            'highlightCount': room.highlightCount,
           },
       ],
       'timelines': <String, Object?>{
@@ -164,6 +165,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final streamPosition = value['streamPosition'];
     final lastEventId = value['lastEventId'];
     final unreadCount = value['unreadCount'];
+    final highlightCount = value['highlightCount'] ?? 0;
     if (roomId is! String ||
         !_isSafeIdentifier(roomId) ||
         displayName is! String ||
@@ -171,7 +173,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         streamPosition is! int ||
         (lastEventId != null &&
             (lastEventId is! String || !_isSafeIdentifier(lastEventId))) ||
-        unreadCount is! int) {
+        unreadCount is! int ||
+        highlightCount is! int ||
+        highlightCount < 0) {
       return null;
     }
     return MatrixRoomSummary(
@@ -184,6 +188,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       streamPosition: streamPosition,
       lastEventId: lastEventId as String?,
       unreadCount: unreadCount,
+      highlightCount: highlightCount,
     );
   }
 

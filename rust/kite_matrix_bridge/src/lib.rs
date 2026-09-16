@@ -564,10 +564,12 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 .and_then(|event| event.event_id())
                 .map(|event_id| event_id.to_string());
             let unread_count = update.unread_notifications.notification_count;
+            let highlight_count = update.unread_notifications.highlight_count;
             json!({
                 "roomId": room_id.as_str(),
                 "displayName": display_name,
                 "unreadCount": unread_count,
+                "highlightCount": highlight_count,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,

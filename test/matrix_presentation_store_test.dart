@@ -26,6 +26,7 @@ void main() {
       expect(restored.rooms.single.roomId, '!room:example.org');
       expect(restored.rooms.single.displayName, 'Persisted room');
       expect(restored.rooms.single.unreadCount, 3);
+      expect(restored.rooms.single.highlightCount, 2);
       expect(restored.timelines['!room:example.org'], hasLength(1));
       final event = restored.timelines['!room:example.org']!.single;
       expect(event.eventId, r'$event:example.org');
@@ -324,6 +325,7 @@ MatrixPresentationSnapshot _snapshot({String cursor = 'sync-42'}) {
         streamPosition: 42,
         lastEventId: r'$event:example.org',
         unreadCount: 3,
+        highlightCount: 2,
       ),
     ],
     timelines: <String, List<MatrixTimelineEvent>>{

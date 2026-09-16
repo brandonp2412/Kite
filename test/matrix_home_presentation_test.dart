@@ -20,6 +20,7 @@ void main() {
             streamPosition: 1,
             lastEventId: r'$cached',
             unreadCount: 2,
+            highlightCount: 1,
           ),
         ],
         timelines: <String, List<MatrixTimelineEvent>>{
@@ -52,6 +53,10 @@ void main() {
       'Real room',
     );
     expect(selectedRoom.value, '!real:example.org');
+    expect(
+      binding.roomListStore.roomSignal('!real:example.org').value.hasMention,
+      isTrue,
+    );
     expect(
       controller.messagesFor('!real:example.org').value.single.body,
       'Cached before sync',

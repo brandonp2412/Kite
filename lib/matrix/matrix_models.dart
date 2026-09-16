@@ -66,6 +66,7 @@ final class MatrixRoomSummary {
     required this.streamPosition,
     this.lastEventId,
     this.unreadCount = 0,
+    this.highlightCount = 0,
   });
 
   final String roomId;
@@ -74,6 +75,7 @@ final class MatrixRoomSummary {
   final int streamPosition;
   final String? lastEventId;
   final int unreadCount;
+  final int highlightCount;
 }
 
 final class MatrixRoomDelta {

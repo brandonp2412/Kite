@@ -315,7 +315,8 @@ final class MatrixPresentationCache {
         left.lastActivity == right.lastActivity &&
         left.streamPosition == right.streamPosition &&
         left.lastEventId == right.lastEventId &&
-        left.unreadCount == right.unreadCount;
+        left.unreadCount == right.unreadCount &&
+        left.highlightCount == right.highlightCount;
   }
 
   static bool _sameTimeline(
