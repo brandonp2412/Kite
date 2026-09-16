@@ -9,14 +9,17 @@ use matrix_sdk::{
     config::SyncSettings,
     ruma::{
         OwnedTransactionId, RoomId, UInt,
-        api::client::filter::{FilterDefinition, RoomEventFilter, RoomFilter},
+        api::client::{
+            filter::{FilterDefinition, RoomEventFilter, RoomFilter},
+            session::get_login_types::v3::LoginType,
+        },
         events::room::message::RoomMessageEventContent,
     },
 };
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 6;
+const KITE_MATRIX_ABI_VERSION: u32 = 7;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 pub struct KiteMatrixClient {
@@ -44,6 +47,25 @@ fn json_to_c_string(value: &Value) -> *mut c_char {
         return ptr::null_mut();
     };
     serialized.into_raw()
+}
+
+fn ok_json(value: Value) -> *mut c_char {
+    json_to_c_string(&json!({"ok": true, "value": value}))
+}
+
+fn error_json(code: &str, public_message: &str) -> *mut c_char {
+    json_to_c_string(&json!({
+        "ok": false,
+        "error": {"code": code, "message": public_message},
+    }))
+}
+
+fn session_json(session: &MatrixSession, homeserver: &str) -> Value {
+    json!({
+        "userId": session.meta.user_id.as_str(),
+        "deviceId": session.meta.device_id.as_str(),
+        "homeserver": homeserver,
+    })
 }
 
 fn timeline_events_json<'a>(
@@ -113,40 +135,100 @@ pub unsafe extern "C" fn kite_matrix_client_new(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_discover_authentication(
+    homeserver: *const c_char,
+) -> *mut c_char {
+    let Some(homeserver) = (unsafe { required_utf8(homeserver) }) else {
+        return error_json("invalid_homeserver", "Enter a valid Matrix homeserver.");
+    };
+    if homeserver.trim().is_empty() {
+        return error_json("invalid_homeserver", "Enter a valid Matrix homeserver.");
+    }
+
+    let Ok(runtime) = Builder::new_current_thread().enable_all().build() else {
+        return error_json(
+            "native_runtime_failed",
+            "Matrix authentication is unavailable.",
+        );
+    };
+    let result = runtime.block_on(async {
+        let client = Client::builder()
+            .server_name_or_homeserver_url(homeserver)
+            .build()
+            .await
+            .map_err(|_| ())?;
+        let flows = client
+            .matrix_auth()
+            .get_login_types()
+            .await
+            .map_err(|_| ())?;
+        let password = flows
+            .flows
+            .iter()
+            .any(|flow| matches!(flow, LoginType::Password(_)));
+        Ok::<Value, ()>(json!({
+            "homeserver": client.homeserver().as_str(),
+            "password": password,
+        }))
+    });
+
+    match result {
+        Ok(value) => ok_json(value),
+        Err(()) => error_json(
+            "discovery_failed",
+            "Could not discover this Matrix homeserver.",
+        ),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_login_password(
     client: *mut KiteMatrixClient,
     username: *const c_char,
     password: *const c_char,
 ) -> *mut c_char {
     if client.is_null() {
-        return ptr::null_mut();
+        return error_json("client_closed", "Matrix authentication is unavailable.");
     }
     let Some(username) = (unsafe { required_utf8(username) }) else {
-        return ptr::null_mut();
+        return error_json(
+            "invalid_credentials",
+            "Enter a Matrix username and password.",
+        );
     };
     let Some(password) = (unsafe { required_utf8(password) }) else {
-        return ptr::null_mut();
+        return error_json(
+            "invalid_credentials",
+            "Enter a Matrix username and password.",
+        );
     };
-    if username.is_empty() || password.is_empty() {
-        return ptr::null_mut();
+    if username.trim().is_empty() || password.is_empty() {
+        return error_json(
+            "invalid_credentials",
+            "Enter a Matrix username and password.",
+        );
     }
 
     let client = unsafe { &mut *client };
     let Some(matrix_client) = client.client.as_ref() else {
-        return ptr::null_mut();
+        return error_json("client_closed", "Matrix authentication is unavailable.");
     };
     let Ok(response) = client.runtime.block_on(
         matrix_client
             .matrix_auth()
             .login_username(username, password)
             .initial_device_display_name("Kite")
+            .request_refresh_token()
             .send(),
     ) else {
-        return ptr::null_mut();
+        return error_json("authentication_rejected", "Matrix login was rejected.");
     };
     let session = MatrixSession::from(&response);
     let Ok(session_bytes) = serde_json::to_vec(&session) else {
-        return ptr::null_mut();
+        return error_json(
+            "session_persist_failed",
+            "Could not save the Matrix session.",
+        );
     };
     if client
         .runtime
@@ -157,13 +239,105 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
         )
         .is_err()
     {
-        return ptr::null_mut();
+        return error_json(
+            "session_persist_failed",
+            "Could not save the Matrix session.",
+        );
     }
 
-    json_to_c_string(&json!({
-        "userId": response.user_id.as_str(),
-        "deviceId": response.device_id.as_str(),
-    }))
+    ok_json(session_json(&session, matrix_client.homeserver().as_str()))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_persist_session(
+    client: *mut KiteMatrixClient,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json(
+            "client_closed",
+            "Matrix session persistence is unavailable.",
+        );
+    }
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json(
+            "client_closed",
+            "Matrix session persistence is unavailable.",
+        );
+    };
+    let Some(session) = matrix_client.matrix_auth().session() else {
+        return error_json("session_unavailable", "There is no Matrix session to save.");
+    };
+    let Ok(session_bytes) = serde_json::to_vec(&session) else {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the Matrix session.",
+        );
+    };
+    if client
+        .runtime
+        .block_on(
+            matrix_client
+                .state_store()
+                .set_custom_value(KITE_MATRIX_SESSION_STORE_KEY, session_bytes),
+        )
+        .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the Matrix session.",
+        );
+    }
+    ok_json(Value::Null)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_restore_session(
+    client: *mut KiteMatrixClient,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix session restore is unavailable.");
+    }
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix session restore is unavailable.");
+    };
+    if let Some(session) = matrix_client.matrix_auth().session() {
+        return ok_json(session_json(&session, matrix_client.homeserver().as_str()));
+    }
+    let stored = match client.runtime.block_on(
+        matrix_client
+            .state_store()
+            .get_custom_value(KITE_MATRIX_SESSION_STORE_KEY),
+    ) {
+        Ok(value) => value,
+        Err(_) => {
+            return error_json(
+                "session_restore_failed",
+                "Could not restore the Matrix session.",
+            );
+        }
+    };
+    let Some(stored) = stored else {
+        return ok_json(Value::Null);
+    };
+    let Ok(session) = serde_json::from_slice::<MatrixSession>(&stored) else {
+        return error_json(
+            "session_restore_failed",
+            "Could not restore the Matrix session.",
+        );
+    };
+    if client
+        .runtime
+        .block_on(matrix_client.restore_session(session.clone()))
+        .is_err()
+    {
+        return error_json(
+            "session_restore_failed",
+            "Could not restore the Matrix session.",
+        );
+    }
+    ok_json(session_json(&session, matrix_client.homeserver().as_str()))
 }
 
 #[unsafe(no_mangle)]
@@ -174,42 +348,43 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
     body: *const c_char,
 ) -> *mut c_char {
     if client.is_null() {
-        return ptr::null_mut();
+        return error_json("client_closed", "Matrix message sending is unavailable.");
     }
     let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
-        return ptr::null_mut();
+        return error_json("invalid_room", "The Matrix room is invalid.");
     };
     let Some(transaction_id) = (unsafe { required_utf8(transaction_id) }) else {
-        return ptr::null_mut();
+        return error_json(
+            "invalid_transaction",
+            "The Matrix transaction ID is invalid.",
+        );
     };
     let Some(body) = (unsafe { required_utf8(body) }) else {
-        return ptr::null_mut();
+        return error_json("invalid_message", "The Matrix message is invalid.");
     };
     if room_id.is_empty() || transaction_id.is_empty() || body.is_empty() {
-        return ptr::null_mut();
+        return error_json("invalid_message", "The Matrix message is invalid.");
     }
     let Ok(room_id) = RoomId::parse(room_id) else {
-        return ptr::null_mut();
+        return error_json("invalid_room", "The Matrix room is invalid.");
     };
 
     let client = unsafe { &mut *client };
     let Some(matrix_client) = client.client.as_ref() else {
-        return ptr::null_mut();
+        return error_json("client_closed", "Matrix message sending is unavailable.");
     };
     let Some(room) = matrix_client.get_room(&room_id) else {
-        return ptr::null_mut();
+        return error_json("room_unavailable", "This Matrix room is not available yet.");
     };
     let Ok(response) = client.runtime.block_on(async {
         room.send(RoomMessageEventContent::text_plain(body))
             .with_transaction_id(OwnedTransactionId::from(transaction_id))
             .await
     }) else {
-        return ptr::null_mut();
+        return error_json("send_failed", "The Matrix message could not be sent.");
     };
 
-    json_to_c_string(&json!({
-        "eventId": response.response.event_id.as_str(),
-    }))
+    ok_json(json!({"eventId": response.response.event_id.as_str()}))
 }
 
 #[unsafe(no_mangle)]
@@ -373,7 +548,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 6);
+        assert_eq!(kite_matrix_abi_version(), 7);
     }
 
     #[test]
@@ -472,10 +647,51 @@ mod tests {
         let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
-        assert!(login.is_null());
-        assert!(send.is_null());
+        for result in [login, send] {
+            assert!(!result.is_null());
+            let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();
+            assert!(decoded.contains("\"ok\":false"));
+            unsafe { kite_matrix_string_free(result) };
+        }
         assert!(sync.is_null());
         assert!(pagination.is_null());
+    }
+
+    #[test]
+    fn auth_session_primitives_return_safe_envelopes() {
+        let discovery = unsafe { kite_matrix_discover_authentication(ptr::null()) };
+        assert!(!discovery.is_null());
+        let discovery_json = unsafe { CStr::from_ptr(discovery) }.to_str().unwrap();
+        assert!(discovery_json.contains("\"code\":\"invalid_homeserver\""));
+        unsafe { kite_matrix_string_free(discovery) };
+
+        let homeserver = CString::new("http://localhost:8008").unwrap();
+        let store = temporary_store();
+        let store_text = CString::new(store.to_string_lossy().as_bytes()).unwrap();
+        let passphrase = CString::new("deterministic-test-store-secret").unwrap();
+        let client = unsafe {
+            kite_matrix_client_new(
+                homeserver.as_ptr(),
+                store_text.as_ptr(),
+                passphrase.as_ptr(),
+            )
+        };
+        assert!(!client.is_null());
+
+        let restored = unsafe { kite_matrix_client_restore_session(client) };
+        assert!(!restored.is_null());
+        let restored_json = unsafe { CStr::from_ptr(restored) }.to_str().unwrap();
+        assert_eq!(restored_json, r#"{"ok":true,"value":null}"#);
+        unsafe { kite_matrix_string_free(restored) };
+
+        let persisted = unsafe { kite_matrix_client_persist_session(client) };
+        assert!(!persisted.is_null());
+        let persisted_json = unsafe { CStr::from_ptr(persisted) }.to_str().unwrap();
+        assert!(persisted_json.contains("\"code\":\"session_unavailable\""));
+        unsafe { kite_matrix_string_free(persisted) };
+
+        unsafe { kite_matrix_client_free(client) };
+        fs::remove_dir_all(store).unwrap();
     }
 
     #[test]
