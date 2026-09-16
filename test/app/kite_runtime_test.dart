@@ -145,6 +145,41 @@ void main() {
     },
   );
 
+  testWidgets('authenticated runtime never falls back to fixture home', (
+    tester,
+  ) async {
+    final native = _RuntimeNativeAuth();
+    final appLock = AppLockController(
+      _RuntimeCredentials(const AppLockSettings.disabled()),
+      _RuntimeBiometrics(),
+    );
+    addTearDown(appLock.dispose);
+
+    await tester.pumpWidget(
+      KiteRuntime(
+        appLockController: appLock,
+        accountSdkBoundary: NativeMatrixAccountSdkBoundary(native),
+        home: const Text('fixture home', key: Key('runtime-fixture-home')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.enterText(find.byKey(const Key('password-field')), 'secret');
+    await tester.tap(find.byKey(const Key('password-login')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(const Key('runtime-fixture-home')), findsNothing);
+    expect(find.byKey(const Key('matrix-runtime-unavailable')), findsOneWidget);
+  });
+
   testWidgets(
     'password login persists session and hands it to runtime builder',
     (tester) async {

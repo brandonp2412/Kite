@@ -4,6 +4,7 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/auth/account_security_runtime.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
 import 'package:kite/features/auth/app_lock_gate.dart';
+import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/platform_app_lock_gateway.dart';
 import 'package:kite/features/auth/session_gate.dart';
 import 'package:kite/features/home/home_screen.dart';
@@ -101,6 +102,22 @@ class _KiteRuntimeState extends State<KiteRuntime> {
           );
   }
 
+  Widget _authenticatedHome(
+    BuildContext context,
+    AuthenticatedSession session,
+  ) {
+    final builder = widget.authenticatedHomeBuilder;
+    if (builder != null) return builder(context, session);
+    return const Scaffold(
+      body: Center(
+        child: Text(
+          'Matrix runtime is unavailable.',
+          key: Key('matrix-runtime-unavailable'),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final accountSecurity = _accountSecurityRuntime;
@@ -114,11 +131,13 @@ class _KiteRuntimeState extends State<KiteRuntime> {
         authenticationGateway: accountSecurity.gateway,
         verificationController: accountSecurity.verification,
         requireVerification: widget.requireSessionVerification,
-        authenticatedBuilder: (context) => _withAppLock(widget.home),
-        authenticatedSessionBuilder: (context, session) => _withAppLock(
-          widget.authenticatedHomeBuilder?.call(context, session) ??
-              widget.home,
+        authenticatedBuilder: (context) => _withAppLock(
+          const Scaffold(
+            body: Center(child: Text('Matrix runtime is unavailable.')),
+          ),
         ),
+        authenticatedSessionBuilder: (context, session) =>
+            _withAppLock(_authenticatedHome(context, session)),
       ),
     );
   }
