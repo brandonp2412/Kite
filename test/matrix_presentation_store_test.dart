@@ -30,6 +30,7 @@ void main() {
       expect(restored.timelines['!room:example.org'], hasLength(1));
       final event = restored.timelines['!room:example.org']!.single;
       expect(event.eventId, r'$event:example.org');
+      expect(event.senderDisplayName, 'Alice');
       expect(event.content, <String, Object?>{'body': 'offline-first'});
     });
 
@@ -334,6 +335,7 @@ MatrixPresentationSnapshot _snapshot({String cursor = 'sync-42'}) {
           eventId: r'$event:example.org',
           roomId: '!room:example.org',
           senderId: '@alice:example.org',
+          senderDisplayName: 'Alice',
           type: 'm.room.message',
           originServerTimestamp: DateTime.utc(2026, 9, 15, 4, 29),
           streamPosition: 42,

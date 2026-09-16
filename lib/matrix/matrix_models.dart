@@ -5,6 +5,7 @@ final class MatrixTimelineEvent {
     required this.eventId,
     required this.roomId,
     required this.senderId,
+    this.senderDisplayName,
     required this.type,
     required this.originServerTimestamp,
     required this.streamPosition,
@@ -15,6 +16,7 @@ final class MatrixTimelineEvent {
   final String eventId;
   final String roomId;
   final String senderId;
+  final String? senderDisplayName;
   final String type;
   final DateTime originServerTimestamp;
   final int streamPosition;

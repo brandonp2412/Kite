@@ -333,6 +333,7 @@ final class MatrixPresentationCache {
           a.originServerTimestamp != b.originServerTimestamp ||
           a.roomId != b.roomId ||
           a.senderId != b.senderId ||
+          a.senderDisplayName != b.senderDisplayName ||
           a.type != b.type ||
           !_sameJsonValue(a.content, b.content)) {
         return false;

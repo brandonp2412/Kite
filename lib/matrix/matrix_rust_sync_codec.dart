@@ -128,6 +128,7 @@ final class MatrixRustSyncCodec {
       eventId: _requiredIdentifier(event, 'event_id'),
       roomId: roomId,
       senderId: _requiredIdentifier(event, 'sender'),
+      senderDisplayName: _optionalDisplayName(event['sender_display_name']),
       type: _requiredIdentifier(event, 'type'),
       originServerTimestamp: _dateTimeFromMilliseconds(
         timestamp,
@@ -168,6 +169,16 @@ final class MatrixRustSyncCodec {
 
   static String? _optionalString(Object? value) {
     return value is String ? value : null;
+  }
+
+  static String? _optionalDisplayName(Object? value) {
+    final displayName = _optionalString(value)?.trim();
+    if (displayName == null ||
+        displayName.isEmpty ||
+        displayName.contains('\u0000')) {
+      return null;
+    }
+    return displayName;
   }
 
   static String _requiredIdentifier(Map<String, Object?> map, String key) {

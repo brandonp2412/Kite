@@ -79,16 +79,13 @@ final class RoomListEntry {
     MatrixRoomSummary summary,
     MatrixTimelineEvent? latestEvent,
   ) {
-    final body = latestEvent?.content['body'];
     return RoomListEntry(
       id: summary.roomId,
       name: summary.displayName,
-      latestEventBody: body is String && body.trim().isNotEmpty
-          ? body.trim()
-          : latestEvent == null
+      latestEventBody: latestEvent == null
           ? ''
-          : _fallbackPreview(latestEvent),
-      latestSender: latestEvent?.senderId,
+          : _latestEventPreview(latestEvent),
+      latestSender: latestEvent?.senderDisplayName ?? latestEvent?.senderId,
       unreadCount: summary.unreadCount,
       hasMention: summary.highlightCount > 0,
     );
@@ -459,16 +456,19 @@ bool _sameRoom(RoomListEntry left, RoomListEntry right) {
       listEquals(left.spaceIds, right.spaceIds);
 }
 
-String _fallbackPreview(MatrixTimelineEvent event) {
+String _latestEventPreview(MatrixTimelineEvent event) {
   if (event.type != 'm.room.message') return 'Room activity';
+  final body = event.content['body'];
+  final text = body is String ? body.trim() : '';
   return switch (event.content['msgtype']) {
     'm.image' => 'Image',
     'm.video' => 'Video',
+    'm.audio' when event.content.containsKey('org.matrix.msc3245.voice') =>
+      'Voice message',
     'm.audio' => 'Audio',
     'm.file' => 'File',
-    'm.notice' => 'Notice',
-    'm.emote' => 'Message',
-    _ => 'Message',
+    'm.text' || 'm.notice' || 'm.emote' => text.isEmpty ? 'Message' : text,
+    _ => text.isEmpty ? 'Message' : text,
   };
 }
 

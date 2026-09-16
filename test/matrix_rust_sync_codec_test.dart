@@ -37,6 +37,7 @@ void main() {
               {
                 "event_id": "$event2",
                 "sender": "@bob:kite.test",
+                "sender_display_name": "Bob",
                 "type": "m.room.message",
                 "origin_server_ts": 2000,
                 "unsigned": {"transaction_id": "kite-local-7"},
@@ -69,6 +70,7 @@ void main() {
       2000,
     ]);
     expect(alpha.timelineEvents.last.content['body'], 'two');
+    expect(alpha.timelineEvents.last.senderDisplayName, 'Bob');
     expect(alpha.timelineEvents.last.transactionId, 'kite-local-7');
 
     final empty = decoded.batch.rooms.last;

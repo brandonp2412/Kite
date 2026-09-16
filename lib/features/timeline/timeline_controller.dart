@@ -533,7 +533,7 @@ class TimelineMessage {
     final mediaBody = attachment == null ? body : _matrixMediaCaption(content);
     return TimelineMessage(
       id: event.eventId,
-      sender: event.senderId,
+      sender: event.senderDisplayName ?? event.senderId,
       body: mediaBody,
       mine: event.senderId == currentUserId,
       timeLabel:

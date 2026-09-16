@@ -99,6 +99,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
                 'eventId': event.eventId,
                 'roomId': event.roomId,
                 'senderId': event.senderId,
+                if (event.senderDisplayName != null)
+                  'senderDisplayName': event.senderDisplayName,
                 'type': event.type,
                 'originServerTimestampMs':
                     event.originServerTimestamp.millisecondsSinceEpoch,
@@ -199,6 +201,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final eventId = value['eventId'];
     final roomId = value['roomId'];
     final senderId = value['senderId'];
+    final senderDisplayName = value['senderDisplayName'];
     final type = value['type'];
     final timestampMs = value['originServerTimestampMs'];
     final streamPosition = value['streamPosition'];
@@ -210,6 +213,10 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         !_isSafeIdentifier(roomId) ||
         senderId is! String ||
         !_isSafeIdentifier(senderId) ||
+        (senderDisplayName != null &&
+            (senderDisplayName is! String ||
+                senderDisplayName.trim().isEmpty ||
+                senderDisplayName.contains('\u0000'))) ||
         type is! String ||
         !_isSafeIdentifier(type) ||
         timestampMs is! int ||
@@ -223,6 +230,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       eventId: eventId,
       roomId: roomId,
       senderId: senderId,
+      senderDisplayName: senderDisplayName as String?,
       type: type,
       originServerTimestamp: DateTime.fromMillisecondsSinceEpoch(
         timestampMs,

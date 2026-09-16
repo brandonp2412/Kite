@@ -134,7 +134,7 @@ Kite should not merely contain the same controls. It must have the same level of
 
 - [ ] Element X-quality home header/profile treatment.
 - [ ] Fast room list with stable scroll position during sync.
-- [ ] Correct latest-event previews and sender attribution.
+- [x] Correct latest-event previews and sender attribution.
 - [x] Unread counts.
 - [x] Mention indicators.
 - [ ] Activity indicators for muted-notification rooms.
@@ -162,7 +162,7 @@ Kite should not merely contain the same controls. It must have the same level of
 
 **Benchmarks:** launch-to-room-list, filter change, Space change, invite accept, room creation, returning from a room without scroll movement.
 
-**Verification note (2026-09-17):** production Rust sync now carries Matrix notification and highlight counts into the persisted presentation cache. Room-list unread counts and mention indicators are cache-first, survive restart, and update through leaf Signals without changing room-order identity. Focused codec/cache/store/home tests, Rust bridge tests, scoped analysis, and the full `tool/quality_gate.sh` pass.
+**Verification note (2026-09-17):** production Rust sync now carries Matrix notification/highlight counts and sender display names into the persisted presentation cache. Room-list unread counts and mention indicators are cache-first, survive restart, and update through leaf Signals without changing room-order identity. Latest-event previews now use event-aware labels for media/voice events and real message bodies for text-like events, while sender attribution prefers the SDK-backed display name with user-ID fallback. Focused codec/cache/store/home/timeline tests, Rust bridge tests, scoped analysis, and the full `tool/quality_gate.sh` pass.
 
 ## Milestone 4 — Timeline rendering and message state
 

@@ -28,6 +28,7 @@ void main() {
                   eventId: r'$one',
                   streamPosition: 1,
                   senderId: '@alice:example.org',
+                  senderDisplayName: 'Alice',
                   msgtype: 'm.text',
                   body: 'Synced from Matrix',
                 ),
@@ -42,11 +43,47 @@ void main() {
       expect(entries, hasLength(1));
       expect(entries.single.id, '!alpha:example.org');
       expect(entries.single.name, 'Alpha');
-      expect(entries.single.latestSender, '@alice:example.org');
+      expect(entries.single.latestSender, 'Alice');
       expect(entries.single.latestEventBody, 'Synced from Matrix');
       expect(entries.single.unreadCount, 3);
     },
   );
+
+  test('Matrix room projection uses event-aware media previews', () {
+    final cache = MatrixPresentationCache();
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 's1',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:example.org',
+            summary: MatrixRoomSummary(
+              roomId: '!alpha:example.org',
+              displayName: 'Alpha',
+              lastActivity: DateTime.utc(2026, 9, 16, 10, 30),
+              streamPosition: 1,
+              lastEventId: r'$image',
+            ),
+            timelineEvents: <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$image',
+                streamPosition: 1,
+                senderId: '@alice:example.org',
+                senderDisplayName: 'Alice',
+                msgtype: 'm.image',
+                body: 'IMG_0042.jpg',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final entry = matrixRoomListEntries(cache).single;
+
+    expect(entry.latestSender, 'Alice');
+    expect(entry.latestEventBody, 'Image');
+  });
 
   test(
     'room reconciliation keeps existing leaf signals while order changes',
@@ -88,6 +125,7 @@ void main() {
           eventId: r'$text',
           streamPosition: 1,
           senderId: '@alice:example.org',
+          senderDisplayName: 'Alice',
           msgtype: 'm.text',
           body: 'Hello from sync',
         ),
@@ -136,6 +174,7 @@ void main() {
       final messages = controller.messagesFor('!alpha:example.org').value;
 
       expect(messages, hasLength(4));
+      expect(messages[0].sender, 'Alice');
       expect(messages[0].body, 'Hello from sync');
       expect(messages[1].attachment?.kind, TimelineAttachmentKind.audio);
       expect(messages[1].attachment?.durationLabel, '1:05');
@@ -242,6 +281,7 @@ MatrixTimelineEvent _event({
   required String eventId,
   required int streamPosition,
   required String senderId,
+  String? senderDisplayName,
   required String msgtype,
   required String body,
   Map<String, Object?>? info,
@@ -252,6 +292,7 @@ MatrixTimelineEvent _event({
     eventId: eventId,
     roomId: '!alpha:example.org',
     senderId: senderId,
+    senderDisplayName: senderDisplayName,
     type: 'm.room.message',
     originServerTimestamp: DateTime.utc(2026, 9, 16, 10, streamPosition),
     streamPosition: streamPosition,

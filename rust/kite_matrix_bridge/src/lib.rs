@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString, c_char};
 use std::path::Path;
 use std::ptr;
@@ -10,7 +10,7 @@ use matrix_sdk::{
     config::SyncSettings,
     room::MessagesOptions,
     ruma::{
-        OwnedTransactionId, RoomId, UInt,
+        OwnedTransactionId, RoomId, UInt, UserId,
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
@@ -97,12 +97,60 @@ fn persist_session_if_access_token_changed(
 }
 
 fn timeline_events_json<'a>(
+    runtime: &Runtime,
+    room: Option<&matrix_sdk::Room>,
     events: impl IntoIterator<Item = &'a matrix_sdk::deserialized_responses::TimelineEvent>,
 ) -> Vec<Value> {
-    events
+    let mut events = events
         .into_iter()
         .filter_map(|event| serde_json::from_str(event.raw().json().get()).ok())
-        .collect()
+        .collect::<Vec<Value>>();
+    let Some(room) = room else {
+        return events;
+    };
+    let senders = events
+        .iter()
+        .filter_map(|event| event.get("sender").and_then(Value::as_str))
+        .map(str::to_owned)
+        .collect::<HashSet<_>>();
+    let display_names = runtime.block_on(async {
+        let mut display_names = HashMap::new();
+        for sender in senders {
+            let Ok(user_id) = UserId::parse(sender.as_str()) else {
+                continue;
+            };
+            let display_name = room
+                .get_member_no_sync(&user_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|member| member.display_name().map(str::to_owned))
+                .filter(|display_name| !display_name.trim().is_empty());
+            if let Some(display_name) = display_name {
+                display_names.insert(sender, display_name);
+            }
+        }
+        display_names
+    });
+    for event in &mut events {
+        let Some(sender) = event
+            .get("sender")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        let Some(display_name) = display_names.get(&sender) else {
+            continue;
+        };
+        if let Some(event) = event.as_object_mut() {
+            event.insert(
+                "sender_display_name".to_owned(),
+                Value::String(display_name.clone()),
+            );
+        }
+    }
+    events
 }
 
 fn sync_error_json(error: &MatrixError) -> *mut c_char {
@@ -573,7 +621,11 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,
-                "events": timeline_events_json(update.timeline.events.iter()),
+                "events": timeline_events_json(
+                    &client.runtime,
+                    room.as_ref(),
+                    update.timeline.events.iter(),
+                ),
             })
         })
         .collect::<Vec<_>>();
@@ -724,7 +776,7 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     json_to_c_string(&json!({
         "roomId": room_id.as_str(),
         "reachedStart": reached_start,
-        "events": timeline_events_json(messages.chunk.iter()),
+        "events": timeline_events_json(&client.runtime, Some(&room), messages.chunk.iter()),
     }))
 }
 
