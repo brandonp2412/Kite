@@ -658,6 +658,43 @@ mod tests {
     }
 
     #[test]
+    fn auth_session_primitives_return_safe_envelopes() {
+        let discovery = unsafe { kite_matrix_discover_authentication(ptr::null()) };
+        assert!(!discovery.is_null());
+        let discovery_json = unsafe { CStr::from_ptr(discovery) }.to_str().unwrap();
+        assert!(discovery_json.contains("\"code\":\"invalid_homeserver\""));
+        unsafe { kite_matrix_string_free(discovery) };
+
+        let homeserver = CString::new("http://localhost:8008").unwrap();
+        let store = temporary_store();
+        let store_text = CString::new(store.to_string_lossy().as_bytes()).unwrap();
+        let passphrase = CString::new("deterministic-test-store-secret").unwrap();
+        let client = unsafe {
+            kite_matrix_client_new(
+                homeserver.as_ptr(),
+                store_text.as_ptr(),
+                passphrase.as_ptr(),
+            )
+        };
+        assert!(!client.is_null());
+
+        let restored = unsafe { kite_matrix_client_restore_session(client) };
+        assert!(!restored.is_null());
+        let restored_json = unsafe { CStr::from_ptr(restored) }.to_str().unwrap();
+        assert_eq!(restored_json, r#"{"ok":true,"value":null}"#);
+        unsafe { kite_matrix_string_free(restored) };
+
+        let persisted = unsafe { kite_matrix_client_persist_session(client) };
+        assert!(!persisted.is_null());
+        let persisted_json = unsafe { CStr::from_ptr(persisted) }.to_str().unwrap();
+        assert!(persisted_json.contains("\"code\":\"session_unavailable\""));
+        unsafe { kite_matrix_string_free(persisted) };
+
+        unsafe { kite_matrix_client_free(client) };
+        fs::remove_dir_all(store).unwrap();
+    }
+
+    #[test]
     fn returned_json_strings_have_an_explicit_free_boundary() {
         let value = json!({"cursor": "s1", "rooms": []});
         let encoded = json_to_c_string(&value);
