@@ -184,6 +184,7 @@ void main() {
 
       expect(find.text('Real room'), findsWidgets);
       expect(find.text('Cached before send'), findsOneWidget);
+      expect(find.text('Design Lab'), findsNothing);
 
       await tester.enterText(
         find.byKey(const Key('composer-field')),

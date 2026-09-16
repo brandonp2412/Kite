@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/matrix/presentation_cache.dart';
@@ -87,6 +88,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
   Widget build(BuildContext context) {
     return HomeScreen(
       roomListStore: _binding.roomListStore,
+      inviteStore: _binding.inviteStore,
       timeline: _binding.controller,
     );
   }
@@ -107,7 +109,8 @@ final class MatrixHomePresentationBinding {
              fixtureProvider: (_) => const [],
            ),
        selectedRoom = selectedRoom ?? selectedRoomId,
-       roomListStore = RoomListStateStore(matrixRoomListEntries(cache)) {
+       roomListStore = RoomListStateStore(matrixRoomListEntries(cache)),
+       inviteStore = RoomInviteStore(const <RoomInvite>[]) {
     this.controller.reset(sendPort: sendPort, fixtureProvider: (_) => const []);
     _projectCache();
     _disposeProjection = effect(_projectCache);
@@ -118,6 +121,7 @@ final class MatrixHomePresentationBinding {
   final TimelineController controller;
   final Signal<String> selectedRoom;
   final RoomListStateStore roomListStore;
+  final RoomInviteStore inviteStore;
   late final void Function() _disposeProjection;
 
   void _projectCache() {
