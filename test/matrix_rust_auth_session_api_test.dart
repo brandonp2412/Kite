@@ -55,6 +55,36 @@ void main() {
     },
   );
 
+  test('soft-login reuses the existing encrypted account store', () async {
+    final root = await Directory.systemTemp.createTemp('kite-auth-reauth-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final bridge = _FakeRustBridge();
+    final api = _api(root, bridge);
+    final session = await api.loginWithPassword(
+      homeserver: Uri.parse('https://matrix.example.org'),
+      username: 'alice',
+      password: 'secret',
+    );
+    await api.persistSession(session);
+    final configuration = _configuration(root, session.userId);
+    final originalStore = Directory(configuration.storePath);
+    expect(await originalStore.exists(), isTrue);
+
+    final refreshed = await api.loginWithPassword(
+      homeserver: session.homeserver,
+      username: session.userId,
+      password: 'new-secret',
+    );
+    await api.persistSession(refreshed);
+
+    expect(refreshed.userId, session.userId);
+    expect(refreshed.deviceId, session.deviceId);
+    expect(await originalStore.exists(), isTrue);
+    expect(await api.restoreSession(), isNotNull);
+  });
+
   test('native discovery can reject password login after well-known', () async {
     final root = await Directory.systemTemp.createTemp('kite-auth-discovery-');
     addTearDown(() async {
@@ -174,7 +204,8 @@ final class _FakeRustClient implements MatrixRustClient {
     required String username,
     required String password,
   }) async {
-    if (username != 'alice' || password.isEmpty) {
+    if ((username != 'alice' && username != '@alice:example.org') ||
+        password.isEmpty) {
       throw StateError('login failed');
     }
     return const MatrixRustLoginResult(

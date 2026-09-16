@@ -16,6 +16,69 @@ const int kiteMatrixNativeAbiVersion = 7;
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
 
+enum _MatrixRustSyncFailureCode {
+  unknownPosition,
+  unknownToken,
+  sessionPersistence,
+  refreshToken,
+  authenticationRequired,
+  network,
+  api,
+  stateStore,
+  eventCacheStore,
+  other,
+}
+
+final class _MatrixRustSyncFailure implements Exception {
+  const _MatrixRustSyncFailure(this.code);
+
+  final _MatrixRustSyncFailureCode code;
+
+  bool get isPermanent =>
+      code == _MatrixRustSyncFailureCode.unknownPosition ||
+      code == _MatrixRustSyncFailureCode.unknownToken ||
+      code == _MatrixRustSyncFailureCode.sessionPersistence ||
+      code == _MatrixRustSyncFailureCode.refreshToken ||
+      code == _MatrixRustSyncFailureCode.authenticationRequired ||
+      code == _MatrixRustSyncFailureCode.stateStore ||
+      code == _MatrixRustSyncFailureCode.eventCacheStore;
+
+  bool get isSessionExpired =>
+      code == _MatrixRustSyncFailureCode.unknownToken ||
+      code == _MatrixRustSyncFailureCode.refreshToken ||
+      code == _MatrixRustSyncFailureCode.authenticationRequired;
+
+  @override
+  String toString() => 'Matrix Rust SDK sync failed (${code.name})';
+}
+
+_MatrixRustSyncFailure? _decodeMatrixRustSyncFailure(String payload) {
+  Object? decoded;
+  try {
+    decoded = jsonDecode(payload);
+  } on FormatException {
+    return null;
+  }
+  if (decoded is! Map) return null;
+  final error = decoded['error'];
+  if (error is! Map) return null;
+  final code = error['code'];
+  if (code is! String) return null;
+  return _MatrixRustSyncFailure(switch (code) {
+    'unknown_pos' => _MatrixRustSyncFailureCode.unknownPosition,
+    'unknown_token' => _MatrixRustSyncFailureCode.unknownToken,
+    'session_persist_failed' => _MatrixRustSyncFailureCode.sessionPersistence,
+    'refresh_token_failed' => _MatrixRustSyncFailureCode.refreshToken,
+    'authentication_required' =>
+      _MatrixRustSyncFailureCode.authenticationRequired,
+    'network_failed' => _MatrixRustSyncFailureCode.network,
+    'api_failed' => _MatrixRustSyncFailureCode.api,
+    'state_store_failed' => _MatrixRustSyncFailureCode.stateStore,
+    'event_cache_store_failed' => _MatrixRustSyncFailureCode.eventCacheStore,
+    _ => _MatrixRustSyncFailureCode.other,
+  });
+}
+
 Duration _matrixRustRetryDelayForAttempt(int attempt) {
   var seconds = 1;
   for (var index = 1; index < attempt; index += 1) {
@@ -1208,7 +1271,6 @@ final class MatrixRustSdkBoundary
     var firstRequest = true;
     var failureAttempt = 0;
     var syncToken = configuration.resumeFromCursor;
-    final isColdStart = syncToken == null;
     while (_syncRequested && identical(_client, client)) {
       final trace = logger?.trace(
         DiagnosticFlow.sync,
@@ -1216,14 +1278,25 @@ final class MatrixRustSdkBoundary
       );
       trace?.log(LogLevel.info, DiagnosticEvent.started);
       try {
+        final isColdRequest = firstRequest && syncToken == null;
         final payload = await client.syncOnce(
           timeout: firstRequest ? Duration.zero : _matrixRustSyncPollTimeout,
-          timelineEventLimit: firstRequest && isColdStart
+          timelineEventLimit: isColdRequest
               ? configuration.initialTimelineEventLimit
               : configuration.timelineEventLimit,
           since: syncToken,
         );
         if (!_syncRequested || !identical(_client, client)) return;
+        final syncFailure = _decodeMatrixRustSyncFailure(payload);
+        if (syncFailure != null) {
+          if (syncFailure.code == _MatrixRustSyncFailureCode.unknownPosition &&
+              syncToken != null) {
+            syncToken = null;
+            failureAttempt = 0;
+            continue;
+          }
+          throw syncFailure;
+        }
         final decoded = await _codecExecutor.decodeSync(payload);
         trace?.log(
           LogLevel.info,
@@ -1234,7 +1307,7 @@ final class MatrixRustSdkBoundary
         );
         final fullyPublished = await _publishSyncBatch(
           decoded.batch,
-          roomChunkSize: firstRequest && isColdStart
+          roomChunkSize: isColdRequest
               ? configuration.initialRoomListLimit
               : null,
         );
@@ -1245,7 +1318,9 @@ final class MatrixRustSdkBoundary
       } catch (error, stackTrace) {
         if (!_syncRequested || !identical(_client, client)) return;
         failureAttempt += 1;
-        final isPermanentPayloadFailure = error is FormatException;
+        final isPermanentPayloadFailure =
+            error is FormatException ||
+            (error is _MatrixRustSyncFailure && error.isPermanent);
         trace?.log(
           LogLevel.error,
           DiagnosticEvent.failed,
@@ -1263,10 +1338,14 @@ final class MatrixRustSdkBoundary
               ? CrashState.active
               : CrashState.retrying,
         );
+        final syncError =
+            error is _MatrixRustSyncFailure && error.isSessionExpired
+            ? const MatrixSessionExpiredException()
+            : error;
         _syncBatches.addError(
           isPermanentPayloadFailure
-              ? MatrixNonRetryableSyncException(error)
-              : error,
+              ? MatrixNonRetryableSyncException(syncError)
+              : syncError,
           stackTrace,
         );
         if (isPermanentPayloadFailure) {

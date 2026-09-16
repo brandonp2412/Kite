@@ -245,12 +245,15 @@ void main() {
         _RuntimeCredentials(const AppLockSettings.disabled()),
         _RuntimeBiometrics(),
       );
+      final sessionInvalidation = ValueNotifier<int>(0);
       addTearDown(appLock.dispose);
+      addTearDown(sessionInvalidation.dispose);
 
       await tester.pumpWidget(
         KiteRuntime(
           appLockController: appLock,
           accountSdkBoundary: NativeMatrixAccountSdkBoundary(native),
+          sessionInvalidation: sessionInvalidation,
           authenticatedHomeBuilder: (context, session) => Text(
             '${session.userId}/${session.deviceId}',
             key: const Key('runtime-restored-home'),
@@ -263,6 +266,11 @@ void main() {
       expect(find.byKey(const Key('runtime-restored-home')), findsOneWidget);
       expect(find.text('@alice:matrix.example.org/RESTORED'), findsOneWidget);
       expect(find.byKey(const Key('homeserver-field')), findsNothing);
+
+      sessionInvalidation.value += 1;
+      await tester.pump();
+      expect(find.byKey(const Key('soft-logout-notice')), findsOneWidget);
+      expect(find.byKey(const Key('runtime-restored-home')), findsNothing);
     },
   );
 

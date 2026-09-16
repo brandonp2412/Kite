@@ -46,8 +46,8 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
 
   static MatrixAppActivity mapLifecycleState(AppLifecycleState state) {
     return switch (state) {
-      AppLifecycleState.resumed => MatrixAppActivity.foreground,
-      AppLifecycleState.inactive ||
+      AppLifecycleState.resumed ||
+      AppLifecycleState.inactive => MatrixAppActivity.foreground,
       AppLifecycleState.hidden ||
       AppLifecycleState.paused ||
       AppLifecycleState.detached => MatrixAppActivity.background,

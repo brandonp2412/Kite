@@ -17,6 +17,7 @@ class KiteRuntime extends StatefulWidget {
     this.refreshNotificationPrivacy,
     this.accountSdkBoundary,
     this.authenticatedHomeBuilder,
+    this.sessionInvalidation,
     this.requireSessionVerification = false,
     this.home = const HomeScreen(),
   });
@@ -25,6 +26,7 @@ class KiteRuntime extends StatefulWidget {
   final Future<void> Function()? refreshNotificationPrivacy;
   final MatrixAccountSdkBoundary? accountSdkBoundary;
   final AuthenticatedSessionBuilder? authenticatedHomeBuilder;
+  final Listenable? sessionInvalidation;
   final bool requireSessionVerification;
   final Widget home;
 
@@ -42,6 +44,7 @@ class _KiteRuntimeState extends State<KiteRuntime> {
     super.initState();
     _configureAppLock();
     _configureAccountSecurity();
+    widget.sessionInvalidation?.addListener(_handleSessionInvalidation);
   }
 
   void _configureAppLock() {
@@ -80,10 +83,19 @@ class _KiteRuntimeState extends State<KiteRuntime> {
       _accountSecurityRuntime = null;
       _configureAccountSecurity();
     }
+    if (!identical(oldWidget.sessionInvalidation, widget.sessionInvalidation)) {
+      oldWidget.sessionInvalidation?.removeListener(_handleSessionInvalidation);
+      widget.sessionInvalidation?.addListener(_handleSessionInvalidation);
+    }
+  }
+
+  void _handleSessionInvalidation() {
+    _accountSecurityRuntime?.lifecycle.markSoftLoggedOut();
   }
 
   @override
   void dispose() {
+    widget.sessionInvalidation?.removeListener(_handleSessionInvalidation);
     _accountSecurityRuntime?.dispose();
     if (_ownsAppLockController) {
       _appLockController?.dispose();

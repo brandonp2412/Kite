@@ -444,6 +444,9 @@ void main() {
 
     await runtime.start();
     await binding.handleLifecycleState(AppLifecycleState.inactive);
+    expect(runtime.isSyncing, isTrue);
+    expect(engine.stopCalls, 0);
+
     await binding.handleLifecycleState(AppLifecycleState.hidden);
     await binding.handleLifecycleState(AppLifecycleState.paused);
     await binding.handleLifecycleState(AppLifecycleState.detached);

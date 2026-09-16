@@ -1216,8 +1216,13 @@ class _TimelineState extends State<_Timeline> {
   void _requestHistoryIfNearOldest(String roomId, int messageCount) {
     final request = widget.onTimelineHistoryRequested;
     if (request == null || !_scrollController.hasClients) return;
-    if (_scrollController.position.extentAfter > 520) return;
     final requestKey = '$roomId:$messageCount';
+    if (_scrollController.position.extentAfter > 520) {
+      if (_lastHistoryRequestKey == requestKey) {
+        _lastHistoryRequestKey = null;
+      }
+      return;
+    }
     if (_lastHistoryRequestKey == requestKey) return;
     _lastHistoryRequestKey = requestKey;
     unawaited(

@@ -6,12 +6,15 @@ import 'package:kite/app/platform_matrix_bootstrap_gateway.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
+import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 import 'package:kite/matrix/matrix_production_runtime.dart';
 import 'package:kite/matrix/matrix_rust_auth_session_api.dart';
 import 'package:kite/matrix/matrix_rust_native_bridge.dart';
+import 'package:kite/matrix/matrix_runtime_bindings.dart';
 import 'package:kite/matrix/native_matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_cache.dart';
+import 'package:signals/signals_flutter.dart';
 
 final class ProductionKiteRuntime extends StatefulWidget {
   const ProductionKiteRuntime._({
@@ -61,19 +64,40 @@ final class ProductionKiteRuntime extends StatefulWidget {
 }
 
 final class _ProductionKiteRuntimeState extends State<ProductionKiteRuntime> {
+  late final MatrixLifecycleBinding _lifecycleBinding;
+  late final ValueNotifier<int> _sessionInvalidation;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionInvalidation = ValueNotifier<int>(0);
+    _lifecycleBinding = MatrixLifecycleBinding(widget.matrixRuntime);
+    unawaited(_lifecycleBinding.attach());
+  }
+
   @override
   void dispose() {
-    unawaited(widget.matrixRuntime.dispose());
+    unawaited(_disposeRuntime());
+    _sessionInvalidation.dispose();
     super.dispose();
+  }
+
+  Future<void> _disposeRuntime() async {
+    await _lifecycleBinding.detach();
+    await widget.matrixRuntime.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return KiteRuntime(
       accountSdkBoundary: widget.accountBoundary,
+      sessionInvalidation: _sessionInvalidation,
       authenticatedHomeBuilder: (context, session) => _AuthenticatedMatrixHome(
         runtime: widget.matrixRuntime,
         session: session,
+        onSessionExpired: () {
+          _sessionInvalidation.value += 1;
+        },
       ),
     );
   }
@@ -83,10 +107,12 @@ final class _AuthenticatedMatrixHome extends StatefulWidget {
   const _AuthenticatedMatrixHome({
     required this.runtime,
     required this.session,
+    required this.onSessionExpired,
   });
 
   final MatrixProductionRuntime runtime;
   final AuthenticatedSession session;
+  final VoidCallback onSessionExpired;
 
   @override
   State<_AuthenticatedMatrixHome> createState() =>
@@ -96,6 +122,8 @@ final class _AuthenticatedMatrixHome extends StatefulWidget {
 final class _AuthenticatedMatrixHomeState
     extends State<_AuthenticatedMatrixHome> {
   late Future<MatrixPresentationCache> _activation;
+  void Function()? _disposeSyncFailureEffect;
+  var _sessionExpiryReported = false;
 
   @override
   void initState() {
@@ -119,7 +147,33 @@ final class _AuthenticatedMatrixHomeState
       accountId: widget.session.userId,
       homeserver: widget.session.homeserver.uri,
     );
-    return widget.runtime.activate(widget.session.userId);
+    final cache = await widget.runtime.activate(widget.session.userId);
+    _bindSyncFailure();
+    return cache;
+  }
+
+  void _bindSyncFailure() {
+    _disposeSyncFailureEffect?.call();
+    _sessionExpiryReported = false;
+    final syncState = widget.runtime.activeSyncState;
+    if (syncState == null) return;
+    _disposeSyncFailureEffect = effect(() {
+      final error = syncState.value.error;
+      final expired =
+          error is MatrixNonRetryableSyncException &&
+          error.cause is MatrixSessionExpiredException;
+      if (!expired || _sessionExpiryReported) return;
+      _sessionExpiryReported = true;
+      scheduleMicrotask(() {
+        if (mounted) widget.onSessionExpired();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _disposeSyncFailureEffect?.call();
+    super.dispose();
   }
 
   void _retry() {

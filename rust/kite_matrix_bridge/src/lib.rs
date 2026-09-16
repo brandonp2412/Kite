@@ -1,17 +1,22 @@
+use std::collections::HashMap;
 use std::ffi::{CStr, CString, c_char};
 use std::path::Path;
 use std::ptr;
 use std::time::Duration;
 
 use matrix_sdk::{
-    Client,
+    Client, Error as MatrixError, HttpError,
     authentication::matrix::MatrixSession,
     config::SyncSettings,
+    room::MessagesOptions,
     ruma::{
         OwnedTransactionId, RoomId, UInt,
-        api::client::{
-            filter::{FilterDefinition, RoomEventFilter, RoomFilter},
-            session::get_login_types::v3::LoginType,
+        api::{
+            client::{
+                filter::{FilterDefinition, RoomEventFilter, RoomFilter},
+                session::get_login_types::v3::LoginType,
+            },
+            error::ErrorKind,
         },
         events::room::message::RoomMessageEventContent,
     },
@@ -25,6 +30,7 @@ const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 pub struct KiteMatrixClient {
     client: Option<Client>,
     runtime: Runtime,
+    backwards_pagination_tokens: HashMap<String, String>,
 }
 
 #[unsafe(no_mangle)]
@@ -99,6 +105,26 @@ fn timeline_events_json<'a>(
         .collect()
 }
 
+fn sync_error_json(error: &MatrixError) -> *mut c_char {
+    let code = match error.client_api_error_kind() {
+        Some(ErrorKind::UnknownPos) => "unknown_pos",
+        Some(ErrorKind::UnknownToken(_)) => "unknown_token",
+        _ => match error {
+            MatrixError::Http(http) => match http.as_ref() {
+                HttpError::Reqwest(_) => "network_failed",
+                HttpError::RefreshToken(_) => "refresh_token_failed",
+                HttpError::Api(_) => "api_failed",
+                _ => "http_failed",
+            },
+            MatrixError::AuthenticationRequired => "authentication_required",
+            MatrixError::StateStore(_) => "state_store_failed",
+            MatrixError::EventCacheStore(_) => "event_cache_store_failed",
+            _ => "sync_failed",
+        },
+    };
+    json_to_c_string(&json!({"error": {"code": code}}))
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_new(
     homeserver: *const c_char,
@@ -154,6 +180,7 @@ pub unsafe extern "C" fn kite_matrix_client_new(
     Box::into_raw(Box::new(KiteMatrixClient {
         client: Some(client),
         runtime,
+        backwards_pagination_tokens: HashMap::new(),
     }))
 }
 
@@ -236,14 +263,19 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
     let Some(matrix_client) = client.client.as_ref() else {
         return error_json("client_closed", "Matrix authentication is unavailable.");
     };
-    let Ok(response) = client.runtime.block_on(
-        matrix_client
-            .matrix_auth()
-            .login_username(username, password)
-            .initial_device_display_name("Kite")
-            .request_refresh_token()
-            .send(),
-    ) else {
+    let existing_device_id = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.meta.device_id);
+    let mut login = matrix_client
+        .matrix_auth()
+        .login_username(username, password)
+        .initial_device_display_name("Kite")
+        .request_refresh_token();
+    if let Some(device_id) = existing_device_id.as_deref() {
+        login = login.device_id(device_id.as_str());
+    }
+    let Ok(response) = client.runtime.block_on(login.send()) else {
         return error_json("authentication_rejected", "Matrix login was rejected.");
     };
     let session = MatrixSession::from(&response);
@@ -399,6 +431,9 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
     let Some(room) = matrix_client.get_room(&room_id) else {
         return error_json("room_unavailable", "This Matrix room is not available yet.");
     };
+    if !room.are_members_synced() && client.runtime.block_on(room.sync_members()).is_err() {
+        return error_json("send_failed", "The Matrix message could not be sent.");
+    }
     let previous_access_token = matrix_client
         .matrix_auth()
         .session()
@@ -469,8 +504,9 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
-    let Ok(response) = client.runtime.block_on(matrix_client.sync_once(settings)) else {
-        return ptr::null_mut();
+    let response = match client.runtime.block_on(matrix_client.sync_once(settings)) {
+        Ok(response) => response,
+        Err(error) => return sync_error_json(&error),
     };
     if persist_session_if_access_token_changed(
         &client.runtime,
@@ -479,7 +515,9 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
     )
     .is_err()
     {
-        return ptr::null_mut();
+        return json_to_c_string(&json!({
+            "error": {"code": "session_persist_failed"},
+        }));
     }
 
     let rooms = response
@@ -545,23 +583,18 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     let Some(room) = matrix_client.get_room(&room_id) else {
         return ptr::null_mut();
     };
-    let event_cache = match client.runtime.block_on(room.event_cache()) {
-        Ok((event_cache, _drop_handles)) => event_cache,
-        Err(error) => {
-            return json_to_c_string(&json!({
-                "error": format!("event cache unavailable: {error}"),
-            }));
-        }
-    };
+    let from = client
+        .backwards_pagination_tokens
+        .get(room_id.as_str())
+        .cloned();
+    let mut options = MessagesOptions::backward().from(from.as_deref());
+    options.limit = UInt::from(100_u8);
     let previous_access_token = matrix_client
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
-    let outcome = match client
-        .runtime
-        .block_on(event_cache.pagination().run_backwards_once(20))
-    {
-        Ok(outcome) => outcome,
+    let messages = match client.runtime.block_on(room.messages(options)) {
+        Ok(messages) => messages,
         Err(error) => {
             return json_to_c_string(&json!({
                 "error": format!("pagination failed: {error}"),
@@ -580,10 +613,21 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
         }));
     }
 
+    let reached_start = messages.end.is_none()
+        || messages.chunk.is_empty()
+        || messages.end.as_deref() == from.as_deref();
+    if let Some(end) = messages.end.as_ref().filter(|end| !end.is_empty()) {
+        client
+            .backwards_pagination_tokens
+            .insert(room_id.to_string(), end.clone());
+    } else {
+        client.backwards_pagination_tokens.remove(room_id.as_str());
+    }
+
     json_to_c_string(&json!({
         "roomId": room_id.as_str(),
-        "reachedStart": outcome.reached_start,
-        "events": timeline_events_json(outcome.events.iter()),
+        "reachedStart": reached_start,
+        "events": timeline_events_json(messages.chunk.iter()),
     }))
 }
 

@@ -83,6 +83,45 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
       throw StateError('A Matrix login is already awaiting persistence');
     }
 
+    final existing = await _readSessionRecord();
+    if (existing != null &&
+        username.trim() == existing.userId &&
+        homeserver == existing.homeserver) {
+      final configuration = _storeConfigurationForAccount(existing.userId);
+      final existingStore = Directory(configuration.storePath);
+      if (configuration.encryptionKeyId == encryptionKeyId &&
+          await existingStore.exists()) {
+        final secret = await _resolveStoreSecret(encryptionKeyId);
+        MatrixRustClient? client;
+        try {
+          client = await _nativeBridge.openEncryptedClient(
+            homeserver: homeserver,
+            storePath: existingStore.path,
+            storePassphrase: secret,
+          );
+          final result = await client.loginWithPassword(
+            username: username,
+            password: password,
+          );
+          if (result.userId != existing.userId ||
+              result.deviceId != existing.deviceId) {
+            throw StateError(
+              'Matrix reauthentication changed the existing account or device',
+            );
+          }
+          final session = MatrixSdkSessionDescriptor(
+            userId: result.userId,
+            deviceId: result.deviceId,
+            homeserver: homeserver,
+          );
+          _pendingLogin = _PendingMatrixLogin.existing(session: session);
+          return session;
+        } finally {
+          await client?.close();
+        }
+      }
+    }
+
     final stagingRoot = Directory(
       '${_rootDirectory.path}/login-staging/${_stagingIdFactory()}',
     );
@@ -142,6 +181,12 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
       );
     }
 
+    if (pending.usesExistingStore) {
+      await _writeSessionRecord(_MatrixSessionRecord.fromDescriptor(session));
+      _pendingLogin = null;
+      return;
+    }
+
     final configuration = _storeConfigurationForAccount(session.userId);
     if (configuration.encryptionKeyId != encryptionKeyId) {
       throw StateError(
@@ -153,11 +198,11 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
       throw StateError('Matrix account store already exists');
     }
     await destination.parent.create(recursive: true);
-    await pending.storeDirectory.rename(destination.path);
+    await pending.storeDirectory!.rename(destination.path);
     try {
       await _writeSessionRecord(_MatrixSessionRecord.fromDescriptor(session));
       _pendingLogin = null;
-      await _deleteOwnedStagingDirectory(pending.stagingRoot);
+      await _deleteOwnedStagingDirectory(pending.stagingRoot!);
     } catch (_) {
       rethrow;
     }
@@ -176,8 +221,9 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
   Future<void> clearSession() async {
     final pending = _pendingLogin;
     _pendingLogin = null;
-    if (pending != null) {
-      await _deleteOwnedStagingDirectory(pending.stagingRoot);
+    final pendingStagingRoot = pending?.stagingRoot;
+    if (pendingStagingRoot != null) {
+      await _deleteOwnedStagingDirectory(pendingStagingRoot);
     }
     final file = _sessionFile;
     if (await file.exists()) await file.delete();
@@ -233,9 +279,15 @@ final class _PendingMatrixLogin {
     required this.storeDirectory,
   });
 
+  const _PendingMatrixLogin.existing({required this.session})
+    : stagingRoot = null,
+      storeDirectory = null;
+
   final MatrixSdkSessionDescriptor session;
-  final Directory stagingRoot;
-  final Directory storeDirectory;
+  final Directory? stagingRoot;
+  final Directory? storeDirectory;
+
+  bool get usesExistingStore => stagingRoot == null;
 }
 
 final class _MatrixSessionRecord {

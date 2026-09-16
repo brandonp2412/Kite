@@ -342,6 +342,72 @@ void main() {
     expect(find.text('Newer message'), findsOneWidget);
   });
 
+  testWidgets('long Matrix timelines request history only at the oldest edge', (
+    tester,
+  ) async {
+    final events = List<MatrixTimelineEvent>.generate(
+      60,
+      (index) => _event(
+        eventId: '\$event-$index',
+        body: 'Message $index',
+        streamPosition: index + 1,
+      ),
+    );
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!real:example.org',
+            displayName: 'Real room',
+            lastActivity: DateTime.utc(2026, 9, 16, 11),
+            streamPosition: 60,
+            lastEventId: r'$event-59',
+          ),
+        ],
+        timelines: <String, List<MatrixTimelineEvent>>{
+          '!real:example.org': events,
+        },
+      ),
+    );
+    var historyRequests = 0;
+
+    await tester.pumpWidget(
+      KiteApp(
+        home: MatrixHomeScreen(
+          cache: cache,
+          currentUserId: '@me:example.org',
+          sendPort: MatrixTimelineSendPort(
+            ({required roomId, required transactionId, required body}) async {},
+          ),
+          onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
+            historyRequests += 1;
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(historyRequests, 0);
+
+    final messageList = find.byKey(const Key('message-list'));
+    for (var attempt = 0; attempt < 20 && historyRequests == 0; attempt += 1) {
+      await tester.drag(messageList, const Offset(0, 500));
+      await tester.pump();
+    }
+
+    expect(historyRequests, 1);
+
+    await tester.drag(messageList, const Offset(0, -500));
+    await tester.pump();
+    for (var attempt = 0; attempt < 20 && historyRequests == 1; attempt += 1) {
+      await tester.drag(messageList, const Offset(0, 500));
+      await tester.pump();
+    }
+
+    expect(historyRequests, 2);
+  });
+
   test(
     'production send port settles optimistic messages from real sender',
     () async {

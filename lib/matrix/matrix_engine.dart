@@ -13,6 +13,13 @@ abstract interface class MatrixEngine {
   Future<MatrixPaginationPage> paginateBackwards(String roomId);
 }
 
+final class MatrixSessionExpiredException implements Exception {
+  const MatrixSessionExpiredException();
+
+  @override
+  String toString() => 'Matrix session expired';
+}
+
 final class MatrixNonRetryableSyncException implements Exception {
   const MatrixNonRetryableSyncException(this.cause);
 
