@@ -9,6 +9,7 @@ import 'package:kite/matrix/matrix_runtime_bindings.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_cache.dart';
+import 'package:signals/signals.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -477,6 +478,73 @@ void main() {
     expect(binding.isAttached, isFalse);
     expect(runtime.states, <MatrixAppActivity>[MatrixAppActivity.foreground]);
   });
+
+  test(
+    'session expiry binding reports a native expiry once per attachment',
+    () async {
+      final syncState = signal<MatrixSyncState>(
+        const MatrixSyncState.running(),
+      );
+      final binding = MatrixSessionExpiryBinding();
+      var expiries = 0;
+
+      binding.attach(syncState, () => expiries += 1);
+      expect(binding.isAttached, isTrue);
+
+      syncState.value = MatrixSyncState.failed(
+        const MatrixNonRetryableSyncException(MatrixSessionExpiredException()),
+        StackTrace.current,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(expiries, 1);
+
+      syncState.value = const MatrixSyncState.running();
+      syncState.value = MatrixSyncState.failed(
+        const MatrixNonRetryableSyncException(MatrixSessionExpiredException()),
+        StackTrace.current,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(expiries, 1);
+
+      binding.detach();
+      expect(binding.isAttached, isFalse);
+    },
+  );
+
+  test(
+    'session expiry binding drops stale expiry after account switch',
+    () async {
+      final previousSync = signal<MatrixSyncState>(
+        const MatrixSyncState.running(),
+      );
+      final currentSync = signal<MatrixSyncState>(
+        const MatrixSyncState.running(),
+      );
+      final binding = MatrixSessionExpiryBinding();
+      var previousExpiries = 0;
+      var currentExpiries = 0;
+
+      binding.attach(previousSync, () => previousExpiries += 1);
+      previousSync.value = MatrixSyncState.failed(
+        const MatrixNonRetryableSyncException(MatrixSessionExpiredException()),
+        StackTrace.current,
+      );
+      binding.attach(currentSync, () => currentExpiries += 1);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(previousExpiries, 0);
+      expect(currentExpiries, 0);
+
+      currentSync.value = MatrixSyncState.failed(
+        const MatrixNonRetryableSyncException(MatrixSessionExpiredException()),
+        StackTrace.current,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(currentExpiries, 1);
+
+      binding.detach();
+    },
+  );
 
   test(
     'connectivity binding forwards loss and recovery without cache reset',

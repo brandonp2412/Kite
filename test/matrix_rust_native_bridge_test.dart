@@ -566,6 +566,50 @@ void main() {
     },
   );
 
+  test('native boundary maps expired SDK sessions without retrying', () async {
+    final client = _SessionExpiredRustClient();
+    final retryDelays = <Duration>[];
+    final errors = <Object>[];
+    final errorSeen = Completer<void>();
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+      syncRetryDelay: (duration) async {
+        retryDelays.add(duration);
+      },
+    );
+    final subscription = boundary.syncBatches.listen(
+      (_) {},
+      onError: (Object error) {
+        errors.add(error);
+        if (!errorSeen.isCompleted) errorSeen.complete();
+      },
+    );
+    addTearDown(subscription.cancel);
+    addTearDown(boundary.close);
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:example.org',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      ),
+    );
+    await boundary.startSync(const MatrixSdkSyncConfiguration());
+    await errorSeen.future;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(errors, hasLength(1));
+    expect(errors.single, isA<MatrixNonRetryableSyncException>());
+    expect(
+      (errors.single as MatrixNonRetryableSyncException).cause,
+      isA<MatrixSessionExpiredException>(),
+    );
+    expect(client.syncCalls, 1);
+    expect(retryDelays, isEmpty);
+  });
+
   test(
     'malformed decoded sync stops instead of retrying the same payload forever',
     () async {
@@ -832,6 +876,51 @@ final class _FailingCloseRustClient implements MatrixRustClient {
     if (closeCalls == 1) {
       throw StateError('deterministic close failure');
     }
+    _closed = true;
+  }
+}
+
+final class _SessionExpiredRustClient implements MatrixRustClient {
+  int syncCalls = 0;
+  bool _closed = false;
+
+  @override
+  bool get isClosed => _closed;
+
+  @override
+  Future<MatrixRustLoginResult> loginWithPassword({
+    required String username,
+    required String password,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MatrixRustSendResult> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> syncOnce({
+    required Duration timeout,
+    required int timelineEventLimit,
+    String? since,
+  }) async {
+    syncCalls += 1;
+    return '{"error":{"code":"unknown_token"}}';
+  }
+
+  @override
+  Future<String> paginateBackwards({required String roomId}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> close() async {
     _closed = true;
   }
 }

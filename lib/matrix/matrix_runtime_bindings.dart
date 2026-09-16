@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
+import 'package:signals/signals.dart';
 
 final class MatrixLifecycleBinding with WidgetsBindingObserver {
   MatrixLifecycleBinding(this._runtime, {WidgetsBinding? binding})
@@ -52,6 +54,43 @@ final class MatrixLifecycleBinding with WidgetsBindingObserver {
       AppLifecycleState.paused ||
       AppLifecycleState.detached => MatrixAppActivity.background,
     };
+  }
+}
+
+final class MatrixSessionExpiryBinding {
+  void Function()? _disposeEffect;
+  var _generation = 0;
+  var _reported = false;
+
+  bool get isAttached => _disposeEffect != null;
+
+  void attach(
+    ReadonlySignal<MatrixSyncState>? syncState,
+    VoidCallback onExpired,
+  ) {
+    detach();
+    _reported = false;
+    if (syncState == null) return;
+
+    final generation = _generation;
+    _disposeEffect = effect(() {
+      final error = syncState.value.error;
+      final expired =
+          error is MatrixNonRetryableSyncException &&
+          error.cause is MatrixSessionExpiredException;
+      if (!expired || _reported) return;
+      _reported = true;
+      scheduleMicrotask(() {
+        if (generation == _generation) onExpired();
+      });
+    });
+  }
+
+  void detach() {
+    _generation += 1;
+    _reported = false;
+    _disposeEffect?.call();
+    _disposeEffect = null;
   }
 }
 

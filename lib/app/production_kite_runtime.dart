@@ -7,7 +7,6 @@ import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
-import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 import 'package:kite/matrix/matrix_production_runtime.dart';
 import 'package:kite/matrix/matrix_rust_auth_session_api.dart';
@@ -15,7 +14,6 @@ import 'package:kite/matrix/matrix_rust_native_bridge.dart';
 import 'package:kite/matrix/matrix_runtime_bindings.dart';
 import 'package:kite/matrix/native_matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_cache.dart';
-import 'package:signals/signals_flutter.dart';
 
 final class ProductionKiteRuntime extends StatefulWidget {
   const ProductionKiteRuntime._({
@@ -126,13 +124,14 @@ final class _AuthenticatedMatrixHome extends StatefulWidget {
 final class _AuthenticatedMatrixHomeState
     extends State<_AuthenticatedMatrixHome> {
   late Future<MatrixPresentationCache> _activation;
-  void Function()? _disposeSyncFailureEffect;
-  var _sessionExpiryReported = false;
+  final MatrixSessionExpiryBinding _sessionExpiryBinding =
+      MatrixSessionExpiryBinding();
+  var _activationGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    _activation = _activate();
+    _activation = _startActivation();
   }
 
   @override
@@ -143,40 +142,34 @@ final class _AuthenticatedMatrixHomeState
         identical(oldWidget.runtime, widget.runtime)) {
       return;
     }
-    _activation = _activate();
+    _activation = _startActivation();
   }
 
-  Future<MatrixPresentationCache> _activate() async {
+  Future<MatrixPresentationCache> _startActivation() {
+    _sessionExpiryBinding.detach();
+    _activationGeneration += 1;
+    return _activate(_activationGeneration);
+  }
+
+  Future<MatrixPresentationCache> _activate(int generation) async {
     widget.runtime.registerAuthenticatedAccount(
       accountId: widget.session.userId,
       homeserver: widget.session.homeserver.uri,
     );
     final cache = await widget.runtime.activate(widget.session.userId);
-    _bindSyncFailure();
+    if (mounted && generation == _activationGeneration) {
+      _sessionExpiryBinding.attach(
+        widget.runtime.activeSyncState,
+        widget.onSessionExpired,
+      );
+    }
     return cache;
-  }
-
-  void _bindSyncFailure() {
-    _disposeSyncFailureEffect?.call();
-    _sessionExpiryReported = false;
-    final syncState = widget.runtime.activeSyncState;
-    if (syncState == null) return;
-    _disposeSyncFailureEffect = effect(() {
-      final error = syncState.value.error;
-      final expired =
-          error is MatrixNonRetryableSyncException &&
-          error.cause is MatrixSessionExpiredException;
-      if (!expired || _sessionExpiryReported) return;
-      _sessionExpiryReported = true;
-      scheduleMicrotask(() {
-        if (mounted) widget.onSessionExpired();
-      });
-    });
   }
 
   @override
   void dispose() {
-    _disposeSyncFailureEffect?.call();
+    _activationGeneration += 1;
+    _sessionExpiryBinding.detach();
     super.dispose();
   }
 
@@ -208,7 +201,7 @@ final class _AuthenticatedMatrixHomeState
 
   void _retry() {
     setState(() {
-      _activation = _activate();
+      _activation = _startActivation();
     });
   }
 

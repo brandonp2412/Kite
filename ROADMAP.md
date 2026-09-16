@@ -111,7 +111,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] SSO/web authentication fallback where required.
 - [ ] QR sign-in/device-to-device login where supported upstream.
 - [ ] Account registration flow where supported by the homeserver.
-- [ ] Session restore and soft-logout handling.
+- [x] Session restore and soft-logout handling.
 - [ ] Mandatory device verification flow equivalent to Element X.
 - [ ] QR verification.
 - [ ] Emoji/SAS verification.
@@ -128,7 +128,7 @@ Kite should not merely contain the same controls. It must have the same level of
 
 **Exit:** a user can install Kite on a clean device, securely sign in, verify it, recover encrypted history, lock the app, and manage sessions without needing Element X.
 
-**Verification note (2026-09-17):** homeserver selection/discovery and password login are production-backed through `MatrixAccountSdkGateway` into the native Matrix Rust SDK authentication boundary and encrypted account store. The authentication screen now settles to an explicit authenticated state after successful sign-in instead of leaving login controls mounted. Focused auth/controller/session and native-boundary tests pass, scoped analysis is clean, and the full `tool/quality_gate.sh` passes including the 991-test Flutter suite with 3 intentional native-library skips, the locked Waydroid PASS → expected FAIL → PASS jitter harness, and back-navigation profile gate. OIDC, SSO, QR login, registration, verification, and recovery remain unchecked because the current native production boundary still reports those capabilities unsupported.
+**Verification note (2026-09-17):** homeserver selection/discovery, password login, session restore, and soft logout are production-backed through `MatrixAccountSdkGateway` into the native Matrix Rust SDK authentication boundary and encrypted account store. The authentication screen now settles to an explicit authenticated state after successful sign-in instead of leaving login controls mounted. Native sync terminal-auth failures are mapped to an expired-session state without retry loops, production runtime invalidation returns the user to same-account reauthentication, and stale expiry callbacks are discarded across account/runtime changes. Focused auth/controller/session/native-boundary tests and scoped analysis pass, and the full `tool/quality_gate.sh` passes including Rust/ABI verification, the deterministic Flutter suite, the locked Waydroid PASS → expected FAIL → PASS jitter harness, and back-navigation profile gate. OIDC, SSO, QR login, registration, verification, and recovery remain unchecked because the current native production boundary still reports those capabilities unsupported.
 
 ## Milestone 3 — Home, room list, filters, Sections, invites, and Spaces
 
