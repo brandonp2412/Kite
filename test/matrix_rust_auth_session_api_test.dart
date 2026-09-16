@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 import 'package:kite/matrix/matrix_rust_auth_session_api.dart';
 import 'package:kite/matrix/matrix_rust_native_bridge.dart';
@@ -21,6 +22,14 @@ void main() {
         Uri.parse('https://example.org'),
       );
       expect(discovery.homeserver, Uri.parse('https://matrix.example.org'));
+      expect(
+        discovery.methods,
+        contains(MatrixSdkAuthenticationMethod.password),
+      );
+      expect(
+        bridge.lastDiscoveryInput,
+        Uri.parse('https://matrix.example.org'),
+      );
 
       final session = await api.loginWithPassword(
         homeserver: discovery.homeserver,
@@ -46,6 +55,22 @@ void main() {
     },
   );
 
+  test('native discovery can reject password login after well-known', () async {
+    final root = await Directory.systemTemp.createTemp('kite-auth-discovery-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final bridge = _FakeRustBridge(passwordAvailable: false);
+    final api = _api(root, bridge);
+
+    final discovery = await api.discoverAuthentication(
+      Uri.parse('https://example.org'),
+    );
+
+    expect(bridge.lastDiscoveryInput, Uri.parse('https://matrix.example.org'));
+    expect(discovery.methods, isEmpty);
+  });
+
   test(
     'clearing session removes restore metadata without exposing native secrets',
     () async {
@@ -68,11 +93,12 @@ void main() {
   );
 }
 
-MatrixRustAuthSessionApi _api(Directory root, MatrixRustBridge bridge) {
+MatrixRustAuthSessionApi _api(Directory root, _FakeRustBridge bridge) {
   return MatrixRustAuthSessionApi(
     homeserverDiscovery: const MatrixHomeserverDiscovery(
       _FakeWellKnownClient(),
     ),
+    authenticationBridge: bridge,
     nativeBridge: bridge,
     rootDirectory: root,
     resolveStoreSecret: (_) async => 'stable-store-secret',
@@ -104,8 +130,24 @@ final class _FakeWellKnownClient implements MatrixWellKnownClient {
   }
 }
 
-final class _FakeRustBridge implements MatrixRustBridge {
+final class _FakeRustBridge
+    implements MatrixRustBridge, MatrixRustAuthenticationBridge {
+  _FakeRustBridge({this.passwordAvailable = true});
+
+  final bool passwordAvailable;
   String? lastSecret;
+  Uri? lastDiscoveryInput;
+
+  @override
+  Future<MatrixRustAuthenticationDiscovery> discoverAuthentication(
+    Uri homeserver,
+  ) async {
+    lastDiscoveryInput = homeserver;
+    return MatrixRustAuthenticationDiscovery(
+      homeserver: homeserver,
+      passwordAvailable: passwordAvailable,
+    );
+  }
 
   @override
   Future<MatrixRustClient> openEncryptedClient({

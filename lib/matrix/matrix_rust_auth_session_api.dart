@@ -11,6 +11,7 @@ import 'package:kite/matrix/native_matrix_account_sdk_boundary.dart';
 final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
   factory MatrixRustAuthSessionApi({
     required MatrixHomeserverDiscovery homeserverDiscovery,
+    required MatrixRustAuthenticationBridge authenticationBridge,
     required MatrixRustBridge nativeBridge,
     required Directory rootDirectory,
     required MatrixSdkStoreSecretResolver resolveStoreSecret,
@@ -20,6 +21,7 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
   }) {
     return MatrixRustAuthSessionApi._(
       homeserverDiscovery,
+      authenticationBridge,
       nativeBridge,
       rootDirectory,
       resolveStoreSecret,
@@ -30,6 +32,7 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
 
   MatrixRustAuthSessionApi._(
     this._homeserverDiscovery,
+    this._authenticationBridge,
     this._nativeBridge,
     this._rootDirectory,
     this._resolveStoreSecret,
@@ -40,6 +43,7 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
   static const String encryptionKeyId = 'kite-matrix-store-v1';
 
   final MatrixHomeserverDiscovery _homeserverDiscovery;
+  final MatrixRustAuthenticationBridge _authenticationBridge;
   final MatrixRustBridge _nativeBridge;
   final Directory _rootDirectory;
   final MatrixSdkStoreSecretResolver _resolveStoreSecret;
@@ -58,10 +62,13 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
     final discovered = await _homeserverDiscovery.discover(
       homeserver.toString(),
     );
+    final native = await _authenticationBridge.discoverAuthentication(
+      discovered.homeserverBaseUrl,
+    );
     return MatrixSdkAuthenticationDiscovery(
-      homeserver: discovered.homeserverBaseUrl,
-      methods: const <MatrixSdkAuthenticationMethod>{
-        MatrixSdkAuthenticationMethod.password,
+      homeserver: native.homeserver,
+      methods: <MatrixSdkAuthenticationMethod>{
+        if (native.passwordAvailable) MatrixSdkAuthenticationMethod.password,
       },
     );
   }
