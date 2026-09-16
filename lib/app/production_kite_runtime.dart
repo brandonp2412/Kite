@@ -40,6 +40,7 @@ final class ProductionKiteRuntime extends StatefulWidget {
       homeserverDiscovery: const MatrixHomeserverDiscovery(
         IoMatrixWellKnownClient(),
       ),
+      authenticationBridge: nativeBridge,
       nativeBridge: nativeBridge,
       rootDirectory: root,
       resolveStoreSecret: gateway.resolveStoreSecret,
