@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
 
@@ -7,10 +8,11 @@ import 'package:kite/diagnostics/crash_reporting.dart';
 import 'package:kite/diagnostics/structured_logging.dart';
 import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
+import 'package:kite/matrix/matrix_outbox.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 5;
+const int kiteMatrixNativeAbiVersion = 6;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -59,6 +61,32 @@ typedef _ClientPaginateDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
 );
+typedef _DiscoverAuthenticationNative = Pointer<Char> Function(Pointer<Char>);
+typedef _DiscoverAuthenticationDart = Pointer<Char> Function(Pointer<Char>);
+typedef _ClientLoginPasswordNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientLoginPasswordDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientSessionOperationNative = Pointer<Char> Function(Pointer<Void>);
+typedef _ClientSessionOperationDart = Pointer<Char> Function(Pointer<Void>);
+typedef _ClientSendTextNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientSendTextDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
 typedef _StringFreeNative = Void Function(Pointer<Char> value);
 typedef _StringFreeDart = void Function(Pointer<Char> value);
 typedef _ClientFreeNative = Void Function(Pointer<Void> client);
@@ -66,6 +94,283 @@ typedef _ClientFreeDart = void Function(Pointer<Void> client);
 
 typedef MatrixSdkStoreSecretResolver = Future<String> Function(String keyId);
 typedef MatrixRustSyncDelay = Future<void> Function(Duration duration);
+
+final class MatrixRustNativeException implements Exception {
+  const MatrixRustNativeException({
+    required this.code,
+    required this.publicMessage,
+  });
+
+  final String code;
+  final String publicMessage;
+
+  @override
+  String toString() =>
+      'MatrixRustNativeException(code: $code, detail: <redacted>)';
+}
+
+final class MatrixRustAuthenticationDiscovery {
+  const MatrixRustAuthenticationDiscovery({
+    required this.homeserver,
+    required this.passwordAvailable,
+  });
+
+  final Uri homeserver;
+  final bool passwordAvailable;
+}
+
+final class MatrixRustSessionDescriptor {
+  const MatrixRustSessionDescriptor({
+    required this.userId,
+    required this.deviceId,
+    required this.homeserver,
+  });
+
+  final String userId;
+  final String deviceId;
+  final Uri homeserver;
+}
+
+abstract interface class MatrixRustAuthenticationBridge {
+  Future<MatrixRustAuthenticationDiscovery> discoverAuthentication(
+    Uri homeserver,
+  );
+}
+
+abstract interface class MatrixRustAuthenticationClient {
+  Future<MatrixRustSessionDescriptor> loginWithPassword({
+    required String username,
+    required String password,
+  });
+
+  Future<MatrixRustSessionDescriptor?> restoreSession();
+
+  Future<void> persistSession();
+
+  Future<void> clearPersistedSession();
+}
+
+abstract interface class MatrixRustTextSendClient {
+  Future<MatrixSendReceipt> sendText({
+    required String roomId,
+    required String body,
+    required String transactionId,
+  });
+}
+
+Object? _decodeNativeEnvelope(String payload) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(payload);
+  } on FormatException {
+    throw const MatrixRustNativeException(
+      code: 'invalid_native_response',
+      publicMessage: 'The Matrix native bridge returned an invalid response.',
+    );
+  }
+  if (decoded is! Map<String, Object?>) {
+    throw const MatrixRustNativeException(
+      code: 'invalid_native_response',
+      publicMessage: 'The Matrix native bridge returned an invalid response.',
+    );
+  }
+  if (decoded['ok'] == true) return decoded['value'];
+  final error = decoded['error'];
+  if (error is Map<String, Object?>) {
+    final code = error['code'];
+    final message = error['message'];
+    if (code is String && message is String) {
+      throw MatrixRustNativeException(code: code, publicMessage: message);
+    }
+  }
+  throw const MatrixRustNativeException(
+    code: 'native_operation_failed',
+    publicMessage: 'The Matrix native operation failed.',
+  );
+}
+
+String _readNativeJsonResult(
+  Pointer<Char> value,
+  _StringFreeDart freeString,
+  String operation,
+) {
+  if (value == nullptr) {
+    throw StateError('Matrix Rust SDK $operation returned no result');
+  }
+  try {
+    return value.cast<Utf8>().toDartString();
+  } finally {
+    freeString(value);
+  }
+}
+
+final class _MatrixNativeDiscoverAuthenticationOperation {
+  const _MatrixNativeDiscoverAuthenticationOperation({
+    required this.libraryPath,
+    required this.homeserver,
+  });
+
+  final String libraryPath;
+  final String homeserver;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final abiVersion = library
+        .lookupFunction<_AbiVersionNative, _AbiVersionDart>(
+          'kite_matrix_abi_version',
+        );
+    if (abiVersion() != kiteMatrixNativeAbiVersion) {
+      throw StateError('Unsupported Kite Matrix native ABI');
+    }
+    final discover = library
+        .lookupFunction<
+          _DiscoverAuthenticationNative,
+          _DiscoverAuthenticationDart
+        >('kite_matrix_discover_authentication');
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final homeserverUtf8 = homeserver.toNativeUtf8(allocator: calloc);
+    try {
+      return _readNativeJsonResult(
+        discover(homeserverUtf8.cast<Char>()),
+        freeString,
+        'authentication discovery',
+      );
+    } finally {
+      calloc.free(homeserverUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeLoginPasswordOperation {
+  const _MatrixNativeLoginPasswordOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.username,
+    required this.password,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String username;
+  final String password;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final login = library
+        .lookupFunction<_ClientLoginPasswordNative, _ClientLoginPasswordDart>(
+          'kite_matrix_client_login_password',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final usernameUtf8 = username.toNativeUtf8(allocator: calloc);
+    final passwordUtf8 = password.toNativeUtf8(allocator: calloc);
+    final passwordBytes = passwordUtf8.cast<Uint8>();
+    var passwordLength = 0;
+    while (passwordBytes[passwordLength] != 0) {
+      passwordLength += 1;
+    }
+    final passwordBuffer = passwordBytes.asTypedList(passwordLength + 1);
+    try {
+      return _readNativeJsonResult(
+        login(
+          Pointer<Void>.fromAddress(address),
+          usernameUtf8.cast<Char>(),
+          passwordUtf8.cast<Char>(),
+        ),
+        freeString,
+        'password login',
+      );
+    } finally {
+      passwordBuffer.fillRange(0, passwordBuffer.length, 0);
+      calloc.free(passwordUtf8);
+      calloc.free(usernameUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeSessionOperation {
+  const _MatrixNativeSessionOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.symbol,
+    required this.operation,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String symbol;
+  final String operation;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final sessionOperation = library
+        .lookupFunction<
+          _ClientSessionOperationNative,
+          _ClientSessionOperationDart
+        >(symbol);
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    return _readNativeJsonResult(
+      sessionOperation(Pointer<Void>.fromAddress(address)),
+      freeString,
+      operation,
+    );
+  }
+}
+
+final class _MatrixNativeSendTextOperation {
+  const _MatrixNativeSendTextOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.body,
+    required this.transactionId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String body;
+  final String transactionId;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final sendText = library
+        .lookupFunction<_ClientSendTextNative, _ClientSendTextDart>(
+          'kite_matrix_client_send_text',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final bodyUtf8 = body.toNativeUtf8(allocator: calloc);
+    final transactionIdUtf8 = transactionId.toNativeUtf8(allocator: calloc);
+    try {
+      return _readNativeJsonResult(
+        sendText(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          bodyUtf8.cast<Char>(),
+          transactionIdUtf8.cast<Char>(),
+        ),
+        freeString,
+        'plain-text send',
+      );
+    } finally {
+      calloc.free(transactionIdUtf8);
+      calloc.free(bodyUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
 
 final class _MatrixNativeSyncOperation {
   const _MatrixNativeSyncOperation({
@@ -242,10 +547,60 @@ abstract interface class MatrixRustClient {
   Future<void> close();
 }
 
-final class MatrixRustNativeBridge implements MatrixRustBridge {
+final class MatrixRustNativeBridge
+    implements MatrixRustBridge, MatrixRustAuthenticationBridge {
   const MatrixRustNativeBridge({required this.libraryPath});
 
   final String libraryPath;
+
+  @override
+  Future<MatrixRustAuthenticationDiscovery> discoverAuthentication(
+    Uri homeserver,
+  ) async {
+    final homeserverText = homeserver.toString().trim();
+    if (homeserverText.isEmpty || homeserverText.contains('\u0000')) {
+      throw ArgumentError.value(
+        homeserver,
+        'homeserver',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    final payload = await Isolate.run<String>(
+      _MatrixNativeDiscoverAuthenticationOperation(
+        libraryPath: libraryPath,
+        homeserver: homeserverText,
+      ).call,
+    );
+    final value = _decodeNativeEnvelope(payload);
+    if (value is! Map<String, Object?>) {
+      throw const MatrixRustNativeException(
+        code: 'invalid_native_response',
+        publicMessage:
+            'The Matrix native bridge returned invalid discovery data.',
+      );
+    }
+    final discoveredHomeserver = value['homeserver'];
+    final passwordAvailable = value['password'];
+    if (discoveredHomeserver is! String || passwordAvailable is! bool) {
+      throw const MatrixRustNativeException(
+        code: 'invalid_native_response',
+        publicMessage:
+            'The Matrix native bridge returned invalid discovery data.',
+      );
+    }
+    final parsedHomeserver = Uri.tryParse(discoveredHomeserver);
+    if (parsedHomeserver == null || !parsedHomeserver.hasScheme) {
+      throw const MatrixRustNativeException(
+        code: 'invalid_native_response',
+        publicMessage:
+            'The Matrix native bridge returned invalid discovery data.',
+      );
+    }
+    return MatrixRustAuthenticationDiscovery(
+      homeserver: parsedHomeserver,
+      passwordAvailable: passwordAvailable,
+    );
+  }
 
   @override
   Future<MatrixRustNativeClient> openEncryptedClient({
@@ -329,7 +684,11 @@ final class MatrixRustNativeBridge implements MatrixRustBridge {
   }
 }
 
-final class MatrixRustNativeClient implements MatrixRustClient {
+final class MatrixRustNativeClient
+    implements
+        MatrixRustClient,
+        MatrixRustAuthenticationClient,
+        MatrixRustTextSendClient {
   MatrixRustNativeClient._(this.libraryPath, this._address);
 
   final String libraryPath;
@@ -338,6 +697,121 @@ final class MatrixRustNativeClient implements MatrixRustClient {
 
   @override
   bool get isClosed => _address == 0;
+
+  @override
+  Future<MatrixRustSessionDescriptor> loginWithPassword({
+    required String username,
+    required String password,
+  }) {
+    final normalizedUsername = username.trim();
+    if (normalizedUsername.isEmpty ||
+        normalizedUsername.contains('\u0000') ||
+        password.isEmpty ||
+        password.contains('\u0000')) {
+      return Future<MatrixRustSessionDescriptor>.error(
+        ArgumentError(
+          'Matrix username and password must be non-empty and C-safe',
+        ),
+      );
+    }
+    return _enqueue<MatrixRustSessionDescriptor>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeLoginPasswordOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          username: normalizedUsername,
+          password: password,
+        ).call,
+      );
+      return _decodeSessionDescriptor(_decodeNativeEnvelope(payload));
+    });
+  }
+
+  @override
+  Future<MatrixRustSessionDescriptor?> restoreSession() {
+    return _enqueue<MatrixRustSessionDescriptor?>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeSessionOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          symbol: 'kite_matrix_client_restore_session',
+          operation: 'session restore',
+        ).call,
+      );
+      final value = _decodeNativeEnvelope(payload);
+      return value == null ? null : _decodeSessionDescriptor(value);
+    });
+  }
+
+  @override
+  Future<void> persistSession() {
+    return _enqueue<void>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeSessionOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          symbol: 'kite_matrix_client_persist_session',
+          operation: 'session persistence',
+        ).call,
+      );
+      _decodeNativeEnvelope(payload);
+    });
+  }
+
+  @override
+  Future<void> clearPersistedSession() {
+    return _enqueue<void>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeSessionOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          symbol: 'kite_matrix_client_clear_session',
+          operation: 'session clear',
+        ).call,
+      );
+      _decodeNativeEnvelope(payload);
+    });
+  }
+
+  @override
+  Future<MatrixSendReceipt> sendText({
+    required String roomId,
+    required String body,
+    required String transactionId,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedTransactionId = transactionId.trim();
+    if (normalizedRoomId.isEmpty ||
+        normalizedRoomId.contains('\u0000') ||
+        body.contains('\u0000') ||
+        normalizedTransactionId.isEmpty ||
+        normalizedTransactionId.contains('\u0000')) {
+      return Future<MatrixSendReceipt>.error(
+        ArgumentError(
+          'Matrix send arguments must be non-empty where required and C-safe',
+        ),
+      );
+    }
+    return _enqueue<MatrixSendReceipt>(() async {
+      final payload = await Isolate.run<String>(
+        _MatrixNativeSendTextOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          body: body,
+          transactionId: normalizedTransactionId,
+        ).call,
+      );
+      final value = _decodeNativeEnvelope(payload);
+      if (value is! Map<String, Object?> || value['eventId'] is! String) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid send data.',
+        );
+      }
+      return MatrixSendReceipt(eventId: value['eventId']! as String);
+    });
+  }
 
   @override
   Future<String> syncOnce({
@@ -422,6 +896,39 @@ final class MatrixRustNativeClient implements MatrixRustClient {
     });
   }
 
+  static MatrixRustSessionDescriptor _decodeSessionDescriptor(Object? value) {
+    if (value is! Map<String, Object?>) {
+      throw const MatrixRustNativeException(
+        code: 'invalid_native_response',
+        publicMessage:
+            'The Matrix native bridge returned invalid session data.',
+      );
+    }
+    final userId = value['userId'];
+    final deviceId = value['deviceId'];
+    final homeserver = value['homeserver'];
+    if (userId is! String || deviceId is! String || homeserver is! String) {
+      throw const MatrixRustNativeException(
+        code: 'invalid_native_response',
+        publicMessage:
+            'The Matrix native bridge returned invalid session data.',
+      );
+    }
+    final homeserverUri = Uri.tryParse(homeserver);
+    if (homeserverUri == null || !homeserverUri.hasScheme) {
+      throw const MatrixRustNativeException(
+        code: 'invalid_native_response',
+        publicMessage:
+            'The Matrix native bridge returned invalid session data.',
+      );
+    }
+    return MatrixRustSessionDescriptor(
+      userId: userId,
+      deviceId: deviceId,
+      homeserver: homeserverUri,
+    );
+  }
+
   int _requireAddress() {
     final address = _address;
     if (address == 0) {
@@ -450,6 +957,43 @@ final class MatrixRustNativeClient implements MatrixRustClient {
     );
     _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return completer.future;
+  }
+}
+
+final class MatrixRustSendTransport implements MatrixSendTransport {
+  const MatrixRustSendTransport(this.client);
+
+  final MatrixRustTextSendClient client;
+
+  @override
+  Future<MatrixSendReceipt> send(MatrixOutboxItem item) async {
+    if (item.eventType != 'm.room.message') {
+      throw const MatrixSendFailure(
+        code: 'unsupported_event_type',
+        retryable: false,
+      );
+    }
+    final body = item.content['body'];
+    final msgtype = item.content['msgtype'];
+    if (body is! String || (msgtype != null && msgtype != 'm.text')) {
+      throw const MatrixSendFailure(
+        code: 'unsupported_message_content',
+        retryable: false,
+      );
+    }
+    try {
+      return await client.sendText(
+        roomId: item.roomId,
+        body: body,
+        transactionId: item.transactionId,
+      );
+    } on MatrixRustNativeException catch (error) {
+      throw MatrixSendFailure(
+        code: error.code,
+        retryable:
+            error.code == 'send_failed' || error.code == 'room_unavailable',
+      );
+    }
   }
 }
 

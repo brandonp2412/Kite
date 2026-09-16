@@ -9,5 +9,6 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 matrix-sdk = { version = "0.18.0", features = ["bundled-sqlite"] }
+matrix-sdk-crypto = "0.18.0"
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread"] }
