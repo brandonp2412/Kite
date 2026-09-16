@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/kite_app_icon.png" alt="Kite app icon" width="220" />
+  <img src="assets/branding/kite_readme_icon.svg" alt="Kite app icon" width="220" />
 </p>
 
 <h1 align="center">Kite</h1>
