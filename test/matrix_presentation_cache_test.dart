@@ -53,6 +53,7 @@ void main() {
               position: 4,
               second: 4,
               lastEventId: r'$cached',
+              isMuted: true,
             ),
           ],
         ),
@@ -69,6 +70,7 @@ void main() {
       expect(after.lastActivity, before.lastActivity);
       expect(after.streamPosition, before.streamPosition);
       expect(after.lastEventId, before.lastEventId);
+      expect(after.isMuted, isTrue);
       expect(cache.lastSyncCursor, 'sync-1');
       expect(identical(cache.roomOrder.value, orderBefore), isTrue);
       expect(cache.updateRoomFavourite('!alpha:kite.test', true), isFalse);
@@ -902,6 +904,7 @@ MatrixRoomSummary _summary({
   required int second,
   String? lastEventId,
   int highlightCount = 0,
+  bool isMuted = false,
 }) {
   return MatrixRoomSummary(
     roomId: roomId,
@@ -910,6 +913,7 @@ MatrixRoomSummary _summary({
     streamPosition: position,
     lastEventId: lastEventId,
     highlightCount: highlightCount,
+    isMuted: isMuted,
   );
 }
 

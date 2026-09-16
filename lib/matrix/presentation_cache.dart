@@ -124,6 +124,7 @@ final class MatrixPresentationCache {
       unreadCount: current.unreadCount,
       highlightCount: current.highlightCount,
       isFavourite: isFavourite,
+      isMuted: current.isMuted,
     );
     return true;
   }
@@ -335,7 +336,8 @@ final class MatrixPresentationCache {
         left.lastEventId == right.lastEventId &&
         left.unreadCount == right.unreadCount &&
         left.highlightCount == right.highlightCount &&
-        left.isFavourite == right.isFavourite;
+        left.isFavourite == right.isFavourite &&
+        left.isMuted == right.isMuted;
   }
 
   static bool _sameTimeline(

@@ -22,6 +22,7 @@ void main() {
             unreadCount: 2,
             highlightCount: 1,
             isFavourite: true,
+            isMuted: true,
           ),
         ],
         timelines: <String, List<MatrixTimelineEvent>>{
@@ -60,6 +61,17 @@ void main() {
     );
     expect(
       binding.roomListStore.roomSignal('!real:example.org').value.isFavourite,
+      isTrue,
+    );
+    expect(
+      binding.roomListStore.roomSignal('!real:example.org').value.isMuted,
+      isTrue,
+    );
+    expect(
+      binding.roomListStore
+          .roomSignal('!real:example.org')
+          .value
+          .hasMutedActivity,
       isTrue,
     );
     expect(

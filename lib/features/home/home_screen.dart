@@ -955,6 +955,17 @@ class _RoomIndicators extends StatelessWidget {
           ),
         ),
       );
+    } else if (room.hasMutedActivity) {
+      primary = Container(
+        key: Key('room-muted-activity-${room.id}'),
+        width: 9,
+        height: 9,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurfaceVariant
+              .withValues(alpha: 0.72),
+          shape: BoxShape.circle,
+        ),
+      );
     } else if (room.unreadCount > 0) {
       primary = Container(
         key: Key('room-unread-${room.id}'),
@@ -974,17 +985,6 @@ class _RoomIndicators extends StatelessWidget {
                 : Colors.black,
             fontWeight: FontWeight.w800,
           ),
-        ),
-      );
-    } else if (room.hasMutedActivity) {
-      primary = Container(
-        key: Key('room-muted-activity-${room.id}'),
-        width: 9,
-        height: 9,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.onSurfaceVariant
-              .withValues(alpha: 0.72),
-          shape: BoxShape.circle,
         ),
       );
     } else {

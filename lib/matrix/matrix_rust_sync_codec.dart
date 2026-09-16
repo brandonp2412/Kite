@@ -56,6 +56,7 @@ final class MatrixRustSyncCodec {
             highlightCount:
                 _optionalNonNegativeInt(room['highlightCount']) ?? 0,
             isFavourite: _optionalBool(room['isFavourite']) ?? false,
+            isMuted: _optionalBool(room['isMuted']) ?? false,
           ),
           timelineEvents: events,
         ),

@@ -90,6 +90,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             'unreadCount': room.unreadCount,
             'highlightCount': room.highlightCount,
             'isFavourite': room.isFavourite,
+            'isMuted': room.isMuted,
           },
       ],
       'timelines': <String, Object?>{
@@ -170,6 +171,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final unreadCount = value['unreadCount'];
     final highlightCount = value['highlightCount'] ?? 0;
     final isFavourite = value['isFavourite'] ?? false;
+    final isMuted = value['isMuted'] ?? false;
     if (roomId is! String ||
         !_isSafeIdentifier(roomId) ||
         displayName is! String ||
@@ -180,7 +182,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         unreadCount is! int ||
         highlightCount is! int ||
         highlightCount < 0 ||
-        isFavourite is! bool) {
+        isFavourite is! bool ||
+        isMuted is! bool) {
       return null;
     }
     return MatrixRoomSummary(
@@ -195,6 +198,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       unreadCount: unreadCount,
       highlightCount: highlightCount,
       isFavourite: isFavourite,
+      isMuted: isMuted,
     );
   }
 

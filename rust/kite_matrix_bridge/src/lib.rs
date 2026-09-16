@@ -8,6 +8,7 @@ use matrix_sdk::{
     Client, Error as MatrixError, HttpError, RoomMemberships,
     authentication::matrix::MatrixSession,
     config::SyncSettings,
+    notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
         OwnedTransactionId, RoomId, UInt, UserId,
@@ -592,6 +593,20 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         }));
     }
 
+    let muted_room_ids = client.runtime.block_on(async {
+        let settings = matrix_client.notification_settings().await;
+        let mut muted = HashSet::new();
+        for room_id in response.rooms.joined.keys() {
+            if settings
+                .get_user_defined_room_notification_mode(room_id)
+                .await
+                == Some(RoomNotificationMode::Mute)
+            {
+                muted.insert(room_id.clone());
+            }
+        }
+        muted
+    });
     let rooms = response
         .rooms
         .joined
@@ -614,12 +629,14 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             let unread_count = update.unread_notifications.notification_count;
             let highlight_count = update.unread_notifications.highlight_count;
             let is_favourite = room.as_ref().is_some_and(|room| room.is_favourite());
+            let is_muted = muted_room_ids.contains(room_id);
             json!({
                 "roomId": room_id.as_str(),
                 "displayName": display_name,
                 "unreadCount": unread_count,
                 "highlightCount": highlight_count,
                 "isFavourite": is_favourite,
+                "isMuted": is_muted,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,

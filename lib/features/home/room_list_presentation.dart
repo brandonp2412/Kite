@@ -88,6 +88,8 @@ final class RoomListEntry {
       latestSender: latestEvent?.senderDisplayName ?? latestEvent?.senderId,
       unreadCount: summary.unreadCount,
       hasMention: summary.highlightCount > 0,
+      hasMutedActivity: summary.isMuted && summary.unreadCount > 0,
+      isMuted: summary.isMuted,
       isFavourite: summary.isFavourite,
     );
   }

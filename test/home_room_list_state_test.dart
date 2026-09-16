@@ -146,6 +146,47 @@ void main() {
     );
   });
 
+  testWidgets(
+    'muted rooms use a quiet activity marker instead of unread chrome',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final store = RoomListStateStore(const <RoomListEntry>[
+        RoomListEntry(
+          id: '!muted:example.org',
+          name: 'Muted room',
+          latestEventBody: 'New activity',
+          unreadCount: 5,
+          hasMutedActivity: true,
+          isMuted: true,
+        ),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: HomeScreen(roomListStore: store),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('room-muted-activity-!muted:example.org')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('room-unread-!muted:example.org')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('room-muted-!muted:example.org')),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('room rows render sender attribution and status decorations', (
     tester,
   ) async {

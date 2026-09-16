@@ -166,6 +166,8 @@ Kite should not merely contain the same controls. It must have the same level of
 
 **Favourite-state progress (2026-09-17):** production Matrix favourites are now read from SDK sync, persisted through the native Matrix Rust SDK boundary, reflected optimistically from the room contextual menu with failure rollback, and retained in the presentation cache across restart without changing room-order identity. Focused Flutter/Rust tests, scoped analysis, release audit, ABI verification, and the 998-test Flutter suite pass. The checkbox remains intentionally unchecked because Glass currently has no Waydroid/ADB device, so the required locked jitter phase of `tool/quality_gate.sh` could not run.
 
+**Muted-room progress (2026-09-17):** production sync now reads explicit room mute state from the Matrix Rust SDK notification-settings cache, persists it in Kite's presentation cache, and projects it into the existing restrained room-list mute decoration and quiet activity marker. Muted rooms with unread activity use the quiet marker rather than unread-count chrome while mentions remain visible. Focused Flutter tests, scoped analysis, `cargo check`, and all 7 Rust bridge tests pass; `tool/quality_gate.sh` also passed the release audit, Rust/ABI stages, and the 998-test Flutter suite with 3 intentional native-library skips before stopping at the required Waydroid jitter stage because Glass currently has no ADB device. The muted-room and muted-activity checkboxes remain unchecked until that locked device gate can run.
+
 ## Milestone 4 — Timeline rendering and message state
 
 - [ ] Virtualised timeline capable of very large histories without retaining every rendered widget.
