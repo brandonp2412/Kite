@@ -233,6 +233,9 @@ final class _AuthenticatedMatrixHomeState
                   roomId: roomId,
                   isFavourite: isFavourite,
                 ),
+            onMarkAllRoomsRead: () => widget.runtime.markAllRoomsRead(
+              accountId: widget.session.userId,
+            ),
             onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
               final paginationState = widget.runtime.paginationState(
                 accountId: widget.session.userId,

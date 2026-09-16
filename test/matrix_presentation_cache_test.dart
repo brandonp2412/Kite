@@ -79,6 +79,40 @@ void main() {
     },
   );
 
+  test('read updates clear unread leaves without changing room order', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        syncCursor: 'sync-1',
+        rooms: <MatrixRoomSummary>[
+          _summary(
+            roomId: '!alpha:kite.test',
+            displayName: 'Alpha',
+            position: 4,
+            second: 4,
+            lastEventId: r'$cached',
+            unreadCount: 3,
+            highlightCount: 2,
+            hasActiveCall: true,
+            isMuted: true,
+          ),
+        ],
+      ),
+    );
+    final orderBefore = cache.roomOrder.value;
+
+    expect(cache.updateRoomRead('!alpha:kite.test'), isTrue);
+
+    final after = cache.roomSummarySignal('!alpha:kite.test').value!;
+    expect(after.unreadCount, 0);
+    expect(after.highlightCount, 0);
+    expect(after.lastEventId, r'$cached');
+    expect(after.hasActiveCall, isTrue);
+    expect(after.isMuted, isTrue);
+    expect(cache.lastSyncCursor, 'sync-1');
+    expect(identical(cache.roomOrder.value, orderBefore), isTrue);
+    expect(cache.updateRoomRead('!alpha:kite.test'), isFalse);
+  });
+
   test(
     'restoring a snapshot clears stale leaves without rewriting equal state',
     () {
@@ -910,6 +944,7 @@ MatrixRoomSummary _summary({
   required int position,
   required int second,
   String? lastEventId,
+  int unreadCount = 0,
   int highlightCount = 0,
   bool hasActiveCall = false,
   bool isMuted = false,
@@ -920,6 +955,7 @@ MatrixRoomSummary _summary({
     lastActivity: DateTime.utc(2026, 9, 14, 11, 20, second),
     streamPosition: position,
     lastEventId: lastEventId,
+    unreadCount: unreadCount,
     highlightCount: highlightCount,
     hasActiveCall: hasActiveCall,
     isMuted: isMuted,

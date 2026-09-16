@@ -41,6 +41,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.sendPort,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
+    this.onMarkAllRoomsRead,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -50,6 +51,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final TimelineSendPort sendPort;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
+  final MarkAllRoomsRead? onMarkAllRoomsRead;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -100,6 +102,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       timeline: _binding.controller,
       onTimelineHistoryRequested: widget.onTimelineHistoryRequested,
       onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
+      onMarkAllRoomsRead: widget.onMarkAllRoomsRead,
       roomMembersLoader: widget.roomMembersLoader,
       memberModerationEnabled: widget.memberModerationEnabled,
     );

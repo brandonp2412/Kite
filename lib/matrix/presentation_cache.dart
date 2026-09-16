@@ -130,6 +130,29 @@ final class MatrixPresentationCache {
     return true;
   }
 
+  bool updateRoomRead(String roomId) {
+    _requireSafeIdentifier(roomId, 'room id');
+    final summarySignal = _roomSummaries[roomId];
+    final current = summarySignal?.value;
+    if (current == null ||
+        (current.unreadCount == 0 && current.highlightCount == 0)) {
+      return false;
+    }
+    summarySignal!.value = MatrixRoomSummary(
+      roomId: current.roomId,
+      displayName: current.displayName,
+      lastActivity: current.lastActivity,
+      streamPosition: current.streamPosition,
+      lastEventId: current.lastEventId,
+      unreadCount: 0,
+      highlightCount: 0,
+      hasActiveCall: current.hasActiveCall,
+      isFavourite: current.isFavourite,
+      isMuted: current.isMuted,
+    );
+    return true;
+  }
+
   void applySync(MatrixSyncBatch syncBatch) {
     _validateSyncBatch(syncBatch);
     batch(() {

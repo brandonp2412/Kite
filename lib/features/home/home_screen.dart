@@ -45,6 +45,7 @@ typedef RoomFavouriteChange = Future<void> Function(
   String roomId,
   bool isFavourite,
 );
+typedef MarkAllRoomsRead = Future<void> Function();
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -58,6 +59,7 @@ class HomeScreen extends StatelessWidget {
     this.timeline,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
+    this.onMarkAllRoomsRead,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -71,6 +73,7 @@ class HomeScreen extends StatelessWidget {
   final TimelineController? timeline;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
+  final MarkAllRoomsRead? onMarkAllRoomsRead;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -100,6 +103,7 @@ class HomeScreen extends StatelessWidget {
                 store: roomListStore,
                 inviteStore: inviteStore,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
+                onMarkAllRoomsRead: onMarkAllRoomsRead,
                 onRoomTap: (roomId) {
                   selectRoom(roomId);
                   Navigator.of(context).push(
@@ -141,6 +145,7 @@ class HomeScreen extends StatelessWidget {
                 store: roomListStore,
                 inviteStore: inviteStore,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
+                onMarkAllRoomsRead: onMarkAllRoomsRead,
               ),
             ),
             const VerticalDivider(width: 1),
@@ -207,6 +212,7 @@ class _HomeSidebar extends StatefulWidget {
     this.store,
     this.inviteStore,
     this.onRoomFavouriteChanged,
+    this.onMarkAllRoomsRead,
     this.onRoomTap,
   });
 
@@ -214,6 +220,7 @@ class _HomeSidebar extends StatefulWidget {
   final RoomListStateStore? store;
   final RoomInviteStore? inviteStore;
   final RoomFavouriteChange? onRoomFavouriteChanged;
+  final MarkAllRoomsRead? onMarkAllRoomsRead;
   final ValueChanged<String>? onRoomTap;
 
   @override
@@ -297,9 +304,26 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     final action = await showModalBottomSheet<_HomeAccountAction>(
       context: context,
       showDragHandle: true,
-      builder: (_) => _HomeAccountSheet(session: account.session),
+      builder: (_) => _HomeAccountSheet(
+        session: account.session,
+        canMarkAllRead: widget.onMarkAllRoomsRead != null,
+      ),
     );
-    if (!mounted || action != _HomeAccountAction.signOut) return;
+    if (!mounted || action == null) return;
+    if (action == _HomeAccountAction.markAllRead) {
+      try {
+        await widget.onMarkAllRoomsRead!();
+        if (mounted) store.markAllRead();
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(content: Text('Could not mark every chat as read.')),
+          );
+      }
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -423,12 +447,16 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   }
 }
 
-enum _HomeAccountAction { signOut }
+enum _HomeAccountAction { markAllRead, signOut }
 
 class _HomeAccountSheet extends StatelessWidget {
-  const _HomeAccountSheet({required this.session});
+  const _HomeAccountSheet({
+    required this.session,
+    required this.canMarkAllRead,
+  });
 
   final AuthenticatedSession session;
+  final bool canMarkAllRead;
 
   @override
   Widget build(BuildContext context) {
@@ -461,6 +489,15 @@ class _HomeAccountSheet extends StatelessWidget {
               ),
             ),
             const Divider(height: KiteSpacing.lg),
+            if (canMarkAllRead)
+              ListTile(
+                key: const Key('home-account-mark-all-read'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.done_all_rounded),
+                title: const Text('Mark all as read'),
+                onTap: () =>
+                    Navigator.of(context).pop(_HomeAccountAction.markAllRead),
+              ),
             ListTile(
               key: const Key('home-account-sign-out'),
               contentPadding: EdgeInsets.zero,

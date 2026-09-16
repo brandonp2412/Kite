@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 10;
+const int kiteMatrixNativeAbiVersion = 11;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -132,6 +132,16 @@ typedef _ClientSetRoomFavouriteDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
   int,
+);
+typedef _ClientMarkRoomReadNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientMarkRoomReadDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
 );
 typedef _DiscoverAuthenticationNative = Pointer<Char> Function(Pointer<Char>);
 typedef _DiscoverAuthenticationDart = Pointer<Char> Function(Pointer<Char>);
@@ -552,6 +562,49 @@ final class _MatrixNativeSetRoomFavouriteOperation {
   }
 }
 
+final class _MatrixNativeMarkRoomReadOperation {
+  const _MatrixNativeMarkRoomReadOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.eventId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String eventId;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final markRead = library
+        .lookupFunction<_ClientMarkRoomReadNative, _ClientMarkRoomReadDart>(
+          'kite_matrix_client_mark_room_read',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final eventIdUtf8 = eventId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        markRead(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          eventIdUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room read receipt',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(eventIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomMembersOperation {
   const _MatrixNativeRoomMembersOperation({
     required this.libraryPath,
@@ -745,6 +798,10 @@ abstract interface class MatrixRustRoomFavouriteClient {
   });
 }
 
+abstract interface class MatrixRustRoomReadClient {
+  Future<void> markRoomRead({required String roomId, required String eventId});
+}
+
 abstract interface class MatrixRustClient {
   bool get isClosed;
 
@@ -909,7 +966,8 @@ final class MatrixRustNativeClient
         MatrixRustSessionClient,
         MatrixRustLogoutClient,
         MatrixRustRoomMembersClient,
-        MatrixRustRoomFavouriteClient {
+        MatrixRustRoomFavouriteClient,
+        MatrixRustRoomReadClient {
   MatrixRustNativeClient._(this.libraryPath, this._address);
 
   final String libraryPath;
@@ -1162,6 +1220,49 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<void> markRoomRead({required String roomId, required String eventId}) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedEventId = eventId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedEventId.isEmpty || normalizedEventId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          eventId,
+          'eventId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeMarkRoomReadOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          eventId: normalizedEventId,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['roomId'] != normalizedRoomId ||
+          decoded['eventId'] != normalizedEventId) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid read receipt state.',
+        );
+      }
+    });
+  }
+
+  @override
   Future<List<MatrixRustRoomMember>> roomMembers({required String roomId}) {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
@@ -1299,7 +1400,8 @@ final class MatrixRustSdkBoundary
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
         MatrixSdkRoomMemberDirectory,
-        MatrixSdkRoomFavouriteManager {
+        MatrixSdkRoomFavouriteManager,
+        MatrixSdkRoomReadManager {
   MatrixRustSdkBoundary({
     required this.bridge,
     required this.homeserver,
@@ -1419,6 +1521,22 @@ final class MatrixRustSdkBoundary
       await (client as MatrixRustRoomFavouriteClient).setRoomFavourite(
         roomId: roomId,
         isFavourite: isFavourite,
+      );
+    });
+  }
+
+  @override
+  Future<void> markRoomRead(String roomId, String eventId) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomReadClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support read receipts',
+        );
+      }
+      await (client as MatrixRustRoomReadClient).markRoomRead(
+        roomId: roomId,
+        eventId: eventId,
       );
     });
   }

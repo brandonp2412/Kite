@@ -11,21 +11,25 @@ use matrix_sdk::{
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
-        OwnedTransactionId, RoomId, UInt, UserId,
+        EventId, OwnedTransactionId, RoomId, UInt, UserId,
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
+                receipt::create_receipt,
                 session::get_login_types::v3::LoginType,
             },
             error::ErrorKind,
         },
-        events::room::{message::RoomMessageEventContent, power_levels::UserPowerLevel},
+        events::{
+            receipt::ReceiptThread,
+            room::{message::RoomMessageEventContent, power_levels::UserPowerLevel},
+        },
     },
 };
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 10;
+const KITE_MATRIX_ABI_VERSION: u32 = 11;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 pub struct KiteMatrixClient {
@@ -719,6 +723,72 @@ pub unsafe extern "C" fn kite_matrix_client_set_room_favourite(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_mark_room_read(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    event_id: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix read receipts are unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(event_id) = (unsafe { required_utf8(event_id) }) else {
+        return error_json("invalid_event", "The Matrix event is invalid.");
+    };
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Ok(event_id) = EventId::parse(event_id) else {
+        return error_json("invalid_event", "The Matrix event is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix read receipts are unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    if client
+        .runtime
+        .block_on(room.send_single_receipt(
+            create_receipt::v3::ReceiptType::Read,
+            ReceiptThread::Unthreaded,
+            event_id.clone(),
+        ))
+        .is_err()
+    {
+        return error_json(
+            "receipt_failed",
+            "The Matrix read receipt could not be saved.",
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "eventId": event_id.as_str(),
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_room_members(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -900,7 +970,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 10);
+        assert_eq!(kite_matrix_abi_version(), 11);
     }
 
     #[test]
@@ -1000,10 +1070,14 @@ mod tests {
         let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };
         let favourite =
             unsafe { kite_matrix_client_set_room_favourite(ptr::null_mut(), room_id.as_ptr(), 1) };
+        let event_id = CString::new("$event:kite.test").unwrap();
+        let read = unsafe {
+            kite_matrix_client_mark_room_read(ptr::null_mut(), room_id.as_ptr(), event_id.as_ptr())
+        };
         let members = unsafe { kite_matrix_client_room_members(ptr::null_mut(), room_id.as_ptr()) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
-        for result in [login, logout, send, favourite] {
+        for result in [login, logout, send, favourite, read] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();
             assert!(decoded.contains("\"ok\":false"));

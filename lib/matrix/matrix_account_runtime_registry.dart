@@ -97,6 +97,55 @@ final class MatrixAccountRuntimeRegistry {
     }
   }
 
+  Future<void> markAllRoomsRead({required String accountId}) async {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      throw StateError(
+        'Cannot update Matrix read receipts for an inactive account',
+      );
+    }
+
+    final targets = <({String roomId, String eventId})>[];
+    for (final roomId in active.cache.roomOrder.value) {
+      final summary = active.cache.roomSummarySignal(roomId).value;
+      if (summary == null ||
+          (summary.unreadCount == 0 && summary.highlightCount == 0)) {
+        continue;
+      }
+      final timeline = active.cache.timelineSignal(roomId).value;
+      final eventId =
+          summary.lastEventId ??
+          (timeline.isEmpty ? null : timeline.last.eventId);
+      if (eventId == null) {
+        throw StateError(
+          'Cannot mark a Matrix room read without a latest event',
+        );
+      }
+      targets.add((roomId: roomId, eventId: eventId));
+    }
+
+    Object? firstFailure;
+    StackTrace? firstFailureStackTrace;
+    var changed = false;
+    for (final target in targets) {
+      try {
+        await active.engine.markRoomRead(target.roomId, target.eventId);
+        changed = active.cache.updateRoomRead(target.roomId) || changed;
+      } catch (error, stackTrace) {
+        firstFailure ??= error;
+        firstFailureStackTrace ??= stackTrace;
+      }
+    }
+    if (changed && presentationStore != null) {
+      await _schedulePresentationWrite(normalizedAccountId, active.cache);
+    }
+    if (firstFailure != null) {
+      Error.throwWithStackTrace(firstFailure, firstFailureStackTrace!);
+    }
+  }
+
   Future<List<MatrixSdkRoomMember>> roomMembers({
     required String accountId,
     required String roomId,

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_runtime.dart';
 import 'package:kite/features/auth/app_lock_controller.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/native_matrix_account_sdk_boundary.dart';
 
@@ -332,6 +333,75 @@ void main() {
       expect(native.operations, <String>['runtime-stop', 'logout', 'clear']);
       expect(find.byKey(const Key('homeserver-field')), findsOneWidget);
       expect(find.byKey(const Key('home-account-menu')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'authenticated home keeps read-all contextual and clears local unread state after persistence',
+    (tester) async {
+      final native = _RuntimeNativeAuth(
+        restoredSession: MatrixSdkSessionDescriptor(
+          userId: '@alice:matrix.example.org',
+          deviceId: 'RESTORED',
+          homeserver: Uri.parse('https://matrix.example.org'),
+        ),
+      );
+      final appLock = AppLockController(
+        _RuntimeCredentials(const AppLockSettings.disabled()),
+        _RuntimeBiometrics(),
+      );
+      addTearDown(appLock.dispose);
+      final store = RoomListStateStore(const <RoomListEntry>[
+        RoomListEntry(
+          id: '!unread:matrix.example.org',
+          name: 'Unread room',
+          latestEventBody: 'Latest message',
+          unreadCount: 3,
+          hasMention: true,
+        ),
+      ]);
+      var persistCalls = 0;
+
+      await tester.pumpWidget(
+        KiteRuntime(
+          appLockController: appLock,
+          accountSdkBoundary: NativeMatrixAccountSdkBoundary(native),
+          authenticatedHomeBuilder: (context, session) => HomeScreen(
+            roomListStore: store,
+            onMarkAllRoomsRead: () async {
+              persistCalls += 1;
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('home-account-mark-all-read')), findsNothing);
+      expect(
+        store.roomSignal('!unread:matrix.example.org').value.unreadCount,
+        3,
+      );
+
+      await tester.tap(find.byKey(const Key('home-account-menu')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('home-account-mark-all-read')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('home-account-mark-all-read')));
+      await tester.pumpAndSettle();
+
+      expect(persistCalls, 1);
+      expect(
+        store.roomSignal('!unread:matrix.example.org').value.unreadCount,
+        0,
+      );
+      expect(
+        store.roomSignal('!unread:matrix.example.org').value.hasMention,
+        isFalse,
+      );
     },
   );
 

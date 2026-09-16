@@ -67,6 +67,10 @@ abstract interface class MatrixSdkRoomFavouriteManager {
   Future<void> setRoomFavourite(String roomId, bool isFavourite);
 }
 
+abstract interface class MatrixSdkRoomReadManager {
+  Future<void> markRoomRead(String roomId, String eventId);
+}
+
 abstract interface class MatrixSdkPasswordAuthenticator {
   Future<MatrixSdkPasswordLoginResult> loginWithPassword({
     required String username,
@@ -240,6 +244,36 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await (manager as MatrixSdkRoomFavouriteManager).setRoomFavourite(
       normalizedRoomId,
       isFavourite,
+    );
+  }
+
+  Future<void> markRoomRead(String roomId, String eventId) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomReadManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support read receipts',
+      );
+    }
+    final normalizedRoomId = roomId.trim();
+    final normalizedEventId = eventId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'must contain a non-empty Matrix room id without NUL bytes',
+      );
+    }
+    if (normalizedEventId.isEmpty || normalizedEventId.contains('\u0000')) {
+      throw ArgumentError.value(
+        eventId,
+        'eventId',
+        'must contain a non-empty Matrix event id without NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomReadManager).markRoomRead(
+      normalizedRoomId,
+      normalizedEventId,
     );
   }
 

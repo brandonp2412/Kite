@@ -184,6 +184,10 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<void> markAllRoomsRead({required String accountId}) {
+    return accounts.markAllRoomsRead(accountId: accountId);
+  }
+
   Future<List<MatrixSdkRoomMember>> roomMembers({
     required String accountId,
     required String roomId,

@@ -62,6 +62,8 @@ void main() {
                 ),
                 streamPosition: 1000,
                 lastEventId: r'$event1',
+                unreadCount: 2,
+                highlightCount: 1,
               ),
               timelineEvents: <MatrixTimelineEvent>[
                 MatrixTimelineEvent(
@@ -115,6 +117,19 @@ void main() {
       expect(
         cache.roomSummarySignal('!room:example.org').value?.isFavourite,
         isTrue,
+      );
+
+      await runtime.markAllRoomsRead(accountId: '@alice:example.org');
+      expect(boundary.readReceipts, <(String, String)>[
+        ('!room:example.org', r'$event1'),
+      ]);
+      expect(
+        cache.roomSummarySignal('!room:example.org').value?.unreadCount,
+        0,
+      );
+      expect(
+        cache.roomSummarySignal('!room:example.org').value?.highlightCount,
+        0,
       );
 
       await runtime.updateActivity(MatrixAppActivity.background);
@@ -246,7 +261,8 @@ final class _FakeBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
-        MatrixSdkRoomFavouriteManager {
+        MatrixSdkRoomFavouriteManager,
+        MatrixSdkRoomReadManager {
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
@@ -258,6 +274,7 @@ final class _FakeBoundary
   final List<(String, String, String)> sentMessages =
       <(String, String, String)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
+  final List<(String, String)> readReceipts = <(String, String)>[];
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -298,6 +315,11 @@ final class _FakeBoundary
   @override
   Future<void> setRoomFavourite(String roomId, bool isFavourite) async {
     favouriteWrites.add((roomId, isFavourite));
+  }
+
+  @override
+  Future<void> markRoomRead(String roomId, String eventId) async {
+    readReceipts.add((roomId, eventId));
   }
 
   @override
