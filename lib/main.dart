@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:kite/app/kite_runtime.dart';
+import 'package:kite/app/kite_app.dart';
+import 'package:kite/app/production_kite_runtime.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/media/media_cache_policy.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   KiteMediaCachePolicy.apply();
   KiteTheme.warmUp();
-  runApp(const KiteRuntime());
+  try {
+    runApp(await ProductionKiteRuntime.create());
+  } catch (_) {
+    runApp(
+      const KiteApp(
+        home: Scaffold(
+          body: Center(child: Text('Matrix runtime is unavailable.')),
+        ),
+      ),
+    );
+  }
 }
