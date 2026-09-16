@@ -15,6 +15,12 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "nz.presley.kite"
+
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDir("../../build/kite_matrix_bridge/jniLibs")
+        }
+    }
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
