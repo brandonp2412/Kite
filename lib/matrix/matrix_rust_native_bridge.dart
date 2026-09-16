@@ -452,7 +452,15 @@ final class _MatrixNativePaginateOperation {
         throw StateError('Matrix Rust SDK back-pagination failed');
       }
       try {
-        return value.cast<Utf8>().toDartString();
+        final payload = value.cast<Utf8>().toDartString();
+        final decoded = jsonDecode(payload);
+        if (decoded is Map<String, dynamic>) {
+          final error = decoded['error'];
+          if (error is String) {
+            throw StateError('Matrix Rust SDK back-pagination failed: $error');
+          }
+        }
+        return payload;
       } finally {
         freeString(value);
       }

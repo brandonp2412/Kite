@@ -68,6 +68,28 @@ fn session_json(session: &MatrixSession, homeserver: &str) -> Value {
     })
 }
 
+fn persist_session_if_access_token_changed(
+    runtime: &Runtime,
+    client: &Client,
+    previous_access_token: Option<&str>,
+) -> Result<(), ()> {
+    let Some(session) = client.matrix_auth().session() else {
+        return Err(());
+    };
+    if previous_access_token == Some(session.tokens.access_token.as_str()) {
+        return Ok(());
+    }
+    let session_bytes = serde_json::to_vec(&session).map_err(|_| ())?;
+    runtime
+        .block_on(
+            client
+                .state_store()
+                .set_custom_value(KITE_MATRIX_SESSION_STORE_KEY, session_bytes),
+        )
+        .map(|_| ())
+        .map_err(|_| ())
+}
+
 fn timeline_events_json<'a>(
     events: impl IntoIterator<Item = &'a matrix_sdk::deserialized_responses::TimelineEvent>,
 ) -> Vec<Value> {
@@ -101,6 +123,7 @@ pub unsafe extern "C" fn kite_matrix_client_new(
     };
     let builder = Client::builder()
         .homeserver_url(homeserver)
+        .handle_refresh_tokens()
         .sqlite_store(Path::new(store_path), Some(store_passphrase));
     let Ok(client) = runtime.block_on(builder.build()) else {
         return ptr::null_mut();
@@ -376,6 +399,10 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
     let Some(room) = matrix_client.get_room(&room_id) else {
         return error_json("room_unavailable", "This Matrix room is not available yet.");
     };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
     let Ok(response) = client.runtime.block_on(async {
         room.send(RoomMessageEventContent::text_plain(body))
             .with_transaction_id(OwnedTransactionId::from(transaction_id))
@@ -383,6 +410,18 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
     }) else {
         return error_json("send_failed", "The Matrix message could not be sent.");
     };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
 
     ok_json(json!({"eventId": response.response.event_id.as_str()}))
 }
@@ -426,9 +465,22 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         }
         settings = settings.token(since);
     }
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
     let Ok(response) = client.runtime.block_on(matrix_client.sync_once(settings)) else {
         return ptr::null_mut();
     };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return ptr::null_mut();
+    }
 
     let rooms = response
         .rooms
@@ -493,15 +545,40 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     let Some(room) = matrix_client.get_room(&room_id) else {
         return ptr::null_mut();
     };
-    let Ok((event_cache, _drop_handles)) = client.runtime.block_on(room.event_cache()) else {
-        return ptr::null_mut();
+    let event_cache = match client.runtime.block_on(room.event_cache()) {
+        Ok((event_cache, _drop_handles)) => event_cache,
+        Err(error) => {
+            return json_to_c_string(&json!({
+                "error": format!("event cache unavailable: {error}"),
+            }));
+        }
     };
-    let Ok(outcome) = client
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let outcome = match client
         .runtime
         .block_on(event_cache.pagination().run_backwards_once(20))
-    else {
-        return ptr::null_mut();
+    {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            return json_to_c_string(&json!({
+                "error": format!("pagination failed: {error}"),
+            }));
+        }
     };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return json_to_c_string(&json!({
+            "error": "session persistence failed after token refresh",
+        }));
+    }
 
     json_to_c_string(&json!({
         "roomId": room_id.as_str(),

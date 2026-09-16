@@ -134,7 +134,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: (_) {},
-        applyPagination: (_) {},
+        applyPagination: (_) => true,
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -205,7 +205,7 @@ void main() {
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
       applyBatch: (_) {},
-      applyPagination: (_) {},
+      applyPagination: (_) => true,
       initialActivity: MatrixAppActivity.foreground,
       initialNetworkState: MatrixNetworkState.online,
     );
@@ -232,7 +232,10 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: (_) {},
-        applyPagination: appliedPages.add,
+        applyPagination: (page) {
+          appliedPages.add(page);
+          return true;
+        },
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -270,7 +273,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: (_) {},
-        applyPagination: (_) {},
+        applyPagination: (_) => true,
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -299,7 +302,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: (_) {},
-        applyPagination: (_) {},
+        applyPagination: (_) => true,
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );

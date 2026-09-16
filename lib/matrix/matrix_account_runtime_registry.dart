@@ -456,10 +456,11 @@ final class MatrixAccountRuntimeRegistry {
           }
         },
         applyPagination: (page) {
-          cache.applyPagination(page);
-          if (presentationStore != null) {
+          final changed = cache.applyPagination(page);
+          if (changed && presentationStore != null) {
             unawaited(_schedulePresentationWrite(accountId, cache));
           }
+          return changed;
         },
         initialActivity: _activity,
         initialNetworkState: _networkState,

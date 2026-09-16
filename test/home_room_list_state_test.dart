@@ -4,7 +4,6 @@ import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
-import 'package:kite/features/threads/thread_controller.dart';
 
 void main() {
   test('room-list store updates one stable room signal', () {
@@ -177,72 +176,53 @@ void main() {
     expect(find.text('4'), findsOne);
   });
 
-  testWidgets(
-    'section headers collapse and move rooms without replacing state',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(390, 844);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.view.resetPhysicalSize);
-
-      final store = RoomListStateStore(
-        deterministicRoomListEntries(BenchmarkFixture.rooms),
-      );
-      final aliceSignal = store.roomSignal('alice');
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: KiteTheme.light,
-          home: HomeScreen(roomListStore: store),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('room-section-favourites')), findsOneWidget);
-      expect(find.byKey(const Key('room-section-people')), findsOneWidget);
-      expect(
-        find.byKey(const Key('room-section-unread-favourites')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const Key('room-room-3')), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('room-section-toggle-favourites')));
-      await tester.pump();
-      expect(store.collapsedSectionIds.value, contains('favourites'));
-      expect(find.byKey(const Key('room-room-3')), findsNothing);
-
-      await tester.longPress(find.byKey(const Key('room-alice')));
-      await tester.pumpAndSettle();
-      expect(find.text('Room options'), findsOneWidget);
-      expect(find.text('Move to section'), findsOneWidget);
-      expect(find.text('Add to favourites'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
-      await tester.pumpAndSettle();
-      expect(aliceSignal.value.isFavourite, isTrue);
-      expect(store.sectionIdFor('alice'), 'people');
-      expect(find.text('Remove from favourites'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('room-section-move-alice-rooms')));
-      await tester.pumpAndSettle();
-
-      expect(store.sectionIdFor('alice'), 'rooms');
-      expect(store.roomSignal('alice'), same(aliceSignal));
-    },
-  );
-
-  testWidgets('filter controls and read-all action drive visible room state', (
+  testWidgets('room options move chats without replacing room state', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
-    threadController.reset();
-    addTearDown(threadController.reset);
-    threadController.updateRoomUnreadThreadCount(
-      roomId: 'bob',
-      unreadThreadCount: 2,
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
     );
+    final aliceSignal = store.roomSignal('alice');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(roomListStore: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
+    expect(find.byKey(const Key('room-section-people')), findsNothing);
+
+    await tester.longPress(find.byKey(const Key('room-alice')));
+    await tester.pumpAndSettle();
+    expect(find.text('Room options'), findsOneWidget);
+    expect(find.text('Move to section'), findsOneWidget);
+    expect(find.text('Add to favourites'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
+    await tester.pumpAndSettle();
+    expect(aliceSignal.value.isFavourite, isTrue);
+    expect(store.sectionIdFor('alice'), 'people');
+    expect(find.text('Remove from favourites'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('room-section-move-alice-rooms')));
+    await tester.pumpAndSettle();
+
+    expect(store.sectionIdFor('alice'), 'rooms');
+    expect(store.roomSignal('alice'), same(aliceSignal));
+  });
+
+  testWidgets('search is the only homepage chat filter', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
 
     final store = RoomListStateStore(
       deterministicRoomListEntries(BenchmarkFixture.rooms),
@@ -255,37 +235,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('space-filter-all')), findsOneWidget);
-    expect(find.byKey(const Key('space-filter-kite-space')), findsOneWidget);
-    expect(find.byKey(const Key('space-filter-people-space')), findsOneWidget);
+    expect(find.byKey(const Key('home-search')), findsOneWidget);
+    expect(find.byKey(const Key('space-filter-row')), findsNothing);
+    expect(find.byKey(const Key('room-filter-row')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('space-filter-people-space')));
-    await tester.pumpAndSettle();
-    expect(store.selectedSpaceId.value, 'people-space');
-    expect(find.byKey(const Key('room-alice')), findsOne);
-    expect(find.byKey(const Key('room-bob')), findsOne);
+    await tester.enterText(find.byKey(const Key('home-search')), 'Alice');
+    await tester.pump();
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
+    expect(find.byKey(const Key('room-bob')), findsNothing);
     expect(find.byKey(const Key('room-kite')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('space-filter-all')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('room-filter-people')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('room-alice')), findsOne);
-    expect(find.byKey(const Key('room-bob')), findsOne);
-    expect(find.byKey(const Key('room-kite')), findsNothing);
-
-    await tester.tap(find.byKey(const Key('room-filter-unreads')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('room-kite')), findsOne);
-    expect(find.byKey(const Key('room-bob')), findsOne);
-    expect(find.byKey(const Key('room-room-3')), findsOne);
-    expect(store.roomSignal('bob').value.unreadThreadCount, 2);
-
-    await tester.tap(find.byKey(const Key('home-read-all')));
-    await tester.pumpAndSettle();
-    expect(threadController.unreadThreadCountForRoom('bob').value, 0);
-    expect(store.roomSignal('bob').value.unreadThreadCount, 0);
-    expect(store.visibleRoomIds.value, isEmpty);
-    expect(find.byKey(const Key('room-kite')), findsNothing);
+    await tester.tap(find.byKey(const Key('home-search-clear')));
+    await tester.pump();
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
+    expect(find.byKey(const Key('room-bob')), findsOneWidget);
+    expect(find.byKey(const Key('room-kite')), findsOneWidget);
   });
 }

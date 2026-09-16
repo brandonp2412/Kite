@@ -7,7 +7,7 @@ import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 
 void main() {
-  testWidgets('filter transition preserves header and filter-row geometry', (
+  testWidgets('search transition preserves search and list geometry', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -26,24 +26,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final profile = find.byKey(const Key('home-profile'));
-    final filterRow = find.byKey(const Key('room-filter-row'));
+    final search = find.byKey(const Key('home-search'));
     final list = find.byKey(const Key('room-list'));
-    final profileRect = tester.getRect(profile);
-    final filterRect = tester.getRect(filterRow);
+    final searchRect = tester.getRect(search);
     final listRect = tester.getRect(list);
 
-    await tester.tap(find.byKey(const Key('room-filter-people')));
-    await tester.pump(const Duration(milliseconds: 60));
+    await tester.enterText(search, 'Alice');
     await tester.pumpAndSettle();
 
-    expect(tester.getRect(profile), profileRect);
-    expect(tester.getRect(filterRow), filterRect);
+    expect(tester.getRect(search), searchRect);
     expect(tester.getRect(list).top, listRect.top);
-    expect(store.selectedFilter.value, RoomListFilter.people);
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
+    expect(find.byKey(const Key('room-kite')), findsNothing);
   });
 
-  testWidgets('space transition keeps sidebar geometry fixed at 120 Hz', (
+  testWidgets('search clear keeps sidebar geometry fixed at 120 Hz', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -65,33 +62,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final profile = find.byKey(const Key('home-profile'));
-    final spaceRow = find.byKey(const Key('space-filter-row'));
-    final filterRow = find.byKey(const Key('room-filter-row'));
+    final search = find.byKey(const Key('home-search'));
     final list = find.byKey(const Key('room-list'));
-    final profileRect = tester.getRect(profile);
-    final spaceRect = tester.getRect(spaceRow);
-    final filterRect = tester.getRect(filterRow);
+    final searchRect = tester.getRect(search);
     final listRect = tester.getRect(list);
 
-    await tester.tap(find.byKey(const Key('space-filter-kite-space')));
+    await tester.enterText(search, 'Alice');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('home-search-clear')));
     for (var index = 0; index < PerformanceContract.motionSamples; index++) {
       await tester.pump(PerformanceContract.motionFrame);
-      expect(tester.getRect(profile), profileRect);
-      expect(tester.getRect(spaceRow), spaceRect);
-      expect(tester.getRect(filterRow), filterRect);
+      expect(tester.getRect(search), searchRect);
       expect(tester.getRect(list), listRect);
       expect(tester.takeException(), isNull);
     }
 
-    expect(store.selectedSpaceId.value, 'kite-space');
     expect(find.byKey(const Key('room-kite')), findsOneWidget);
-    expect(find.byKey(const Key('room-room-3')), findsOneWidget);
-    expect(find.byKey(const Key('room-alice')), findsNothing);
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
   });
 
   testWidgets(
-    'section collapse and move sheet preserve stable chrome at 120 Hz',
+    'room options sheet preserves stable chat-list geometry at 120 Hz',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
@@ -113,19 +104,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final list = find.byKey(const Key('room-list'));
-      final header = find.byKey(const Key('room-section-favourites'));
       final listRect = tester.getRect(list);
-      final headerRect = tester.getRect(header);
-
-      await tester.tap(find.byKey(const Key('room-section-toggle-favourites')));
-      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
-        await tester.pump(PerformanceContract.motionFrame);
-        expect(tester.getRect(list), listRect);
-        expect(tester.getRect(header).top, headerRect.top);
-        expect(tester.getRect(header).width, headerRect.width);
-        expect(tester.takeException(), isNull);
-      }
-      expect(store.collapsedSectionIds.value, contains('favourites'));
 
       await tester.longPress(find.byKey(const Key('room-alice')));
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {

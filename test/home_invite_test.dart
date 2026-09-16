@@ -61,7 +61,7 @@ void main() {
     },
   );
 
-  testWidgets('invite card exposes context and accepts through the port', (
+  testWidgets('homepage keeps invite cards out of the chat list', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -69,8 +69,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
 
-    final port = _ControlledInvitePort();
-    final inviteStore = RoomInviteStore(deterministicRoomInvites, port: port);
+    final inviteStore = RoomInviteStore(deterministicRoomInvites);
     final roomStore = RoomListStateStore(
       deterministicRoomListEntries(BenchmarkFixture.rooms),
     );
@@ -82,24 +81,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Design Lab'), findsOneWidget);
-    expect(find.textContaining('Maya invited you'), findsOneWidget);
-    expect(find.text('Polish, motion, and visual review'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('invite-accept-design-lab-invite')));
-    await tester.pump();
-    expect(
-      find.byKey(const Key('invite-progress-design-lab-invite')),
-      findsOneWidget,
-    );
-    expect(
-      inviteStore.stateSignal('design-lab-invite').value,
-      RoomInviteActionState.accepting,
-    );
-
-    port.acceptCompleter.complete();
-    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-search')), findsOneWidget);
+    expect(find.byKey(const Key('room-list')), findsOneWidget);
+    expect(find.text('Design Lab'), findsNothing);
     expect(find.byKey(const Key('room-invites')), findsNothing);
-    expect(inviteStore.visibleInviteIds.value, isEmpty);
+    expect(inviteStore.visibleInviteIds, isNotNull);
   });
 }

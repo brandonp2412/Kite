@@ -377,7 +377,7 @@ void main() {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: applied.add,
-        applyPagination: (_) {},
+        applyPagination: (_) => true,
         initialActivity: MatrixAppActivity.foreground,
         initialNetworkState: MatrixNetworkState.online,
       );
@@ -413,7 +413,7 @@ void main() {
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
       applyBatch: (_) {},
-      applyPagination: (_) {},
+      applyPagination: (_) => true,
       initialActivity: MatrixAppActivity.foreground,
       initialNetworkState: MatrixNetworkState.online,
     );
@@ -436,7 +436,7 @@ void main() {
     final runtime = MatrixRuntimeCoordinator(
       engine: engine,
       applyBatch: applied.add,
-      applyPagination: (_) {},
+      applyPagination: (_) => true,
       initialActivity: MatrixAppActivity.foreground,
       initialNetworkState: MatrixNetworkState.online,
     );
@@ -600,7 +600,7 @@ void main() {
       final engine = _FakeMatrixEngine();
       final controller = MatrixBackPaginationController(
         engine: engine,
-        applyPage: (_) {},
+        applyPage: (_) => true,
         edgeThreshold: 5,
       );
 
@@ -655,7 +655,7 @@ void main() {
       final engine = _FakeMatrixEngine();
       final controller = MatrixBackPaginationController(
         engine: engine,
-        applyPage: (_) {},
+        applyPage: (_) => true,
       );
 
       final failed = controller.maybePaginate(

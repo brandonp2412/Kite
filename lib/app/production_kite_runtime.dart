@@ -150,6 +150,18 @@ final class _AuthenticatedMatrixHomeState
                 body: body,
               );
             }),
+            onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
+              final paginationState = widget.runtime.paginationState(
+                accountId: widget.session.userId,
+                roomId: roomId,
+              );
+              await widget.runtime.onTimelineViewportChanged(
+                accountId: widget.session.userId,
+                roomId: roomId,
+                oldestVisibleIndex: oldestVisibleIndex,
+                hasMoreHistory: paginationState?.value.hasMoreHistory ?? true,
+              );
+            },
           );
         }
         if (snapshot.hasError) {
@@ -168,7 +180,9 @@ final class _AuthenticatedMatrixHomeState
             ),
           );
         }
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return const Scaffold(
+          body: SafeArea(child: Center(child: CircularProgressIndicator())),
+        );
       },
     );
   }

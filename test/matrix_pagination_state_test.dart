@@ -14,7 +14,10 @@ void main() {
       final pages = <MatrixPaginationPage>[];
       final controller = MatrixBackPaginationController(
         engine: engine,
-        applyPage: pages.add,
+        applyPage: (page) {
+          pages.add(page);
+          return true;
+        },
         edgeThreshold: 4,
       );
       final state = controller.stateSignal('!room:kite.test');
@@ -54,7 +57,10 @@ void main() {
       final appliedPages = signal(0);
       final controller = MatrixBackPaginationController(
         engine: engine,
-        applyPage: (_) => appliedPages.value += 1,
+        applyPage: (_) {
+          appliedPages.value += 1;
+          return true;
+        },
       );
       final state = controller.stateSignal('!room:kite.test');
       var effectRuns = 0;
@@ -84,11 +90,46 @@ void main() {
     },
   );
 
+  test('pagination skips duplicate-only pages until cache changes', () async {
+    final engine = _PaginationFakeMatrixEngine();
+    var appliedPages = 0;
+    final controller = MatrixBackPaginationController(
+      engine: engine,
+      applyPage: (_) {
+        appliedPages += 1;
+        return appliedPages > 1;
+      },
+    );
+    final state = controller.stateSignal('!room:kite.test');
+
+    final pagination = controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    engine.completePagination();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(engine.paginationCalls, <String>[
+      '!room:kite.test',
+      '!room:kite.test',
+    ]);
+    expect(state.value.phase, MatrixPaginationPhase.loading);
+
+    engine.completePagination();
+    await pagination;
+
+    expect(appliedPages, 2);
+    expect(state.value.phase, MatrixPaginationPhase.idle);
+    expect(state.value.reachedStart, isFalse);
+    await engine.close();
+  });
+
   test('pagination failure is observable, clearable, and retryable', () async {
     final engine = _PaginationFakeMatrixEngine();
     final controller = MatrixBackPaginationController(
       engine: engine,
-      applyPage: (_) {},
+      applyPage: (_) => true,
     );
     final state = controller.stateSignal('!room:kite.test');
 
@@ -130,7 +171,7 @@ void main() {
     final engine = _PaginationFakeMatrixEngine(syncFailure: failure);
     final controller = MatrixBackPaginationController(
       engine: engine,
-      applyPage: (_) {},
+      applyPage: (_) => true,
     );
     final state = controller.stateSignal('!room:kite.test');
 
@@ -158,7 +199,7 @@ void main() {
       final engine = _PaginationFakeMatrixEngine();
       final controller = MatrixBackPaginationController(
         engine: engine,
-        applyPage: (_) {},
+        applyPage: (_) => true,
         edgeThreshold: 3,
       );
       final state = controller.stateSignal('!room:kite.test');
@@ -185,7 +226,10 @@ void main() {
     final pages = <MatrixPaginationPage>[];
     final controller = MatrixBackPaginationController(
       engine: engine,
-      applyPage: pages.add,
+      applyPage: (page) {
+        pages.add(page);
+        return true;
+      },
     );
     final state = controller.stateSignal('!room:kite.test');
 
@@ -226,7 +270,7 @@ void main() {
     final engine = _PaginationFakeMatrixEngine();
     final controller = MatrixBackPaginationController(
       engine: engine,
-      applyPage: (_) {},
+      applyPage: (_) => true,
     );
     final state = controller.stateSignal('!room:kite.test');
 
@@ -249,7 +293,10 @@ void main() {
     final pages = <MatrixPaginationPage>[];
     final controller = MatrixBackPaginationController(
       engine: engine,
-      applyPage: pages.add,
+      applyPage: (page) {
+        pages.add(page);
+        return true;
+      },
     );
     final state = controller.stateSignal('!room:kite.test');
 

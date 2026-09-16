@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/home/spaces_controller.dart';
+import 'package:kite/features/home/spaces_screen.dart';
 
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
@@ -13,7 +14,7 @@ void main() {
   tearDown(() => spacesController.reset());
 
   testWidgets(
-    'Spaces route and join state preserve deterministic geometry at 120 Hz',
+    'Spaces screen and join state preserve deterministic geometry at 120 Hz',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
@@ -25,28 +26,19 @@ void main() {
       addTearDown(display.resetRefreshRate);
 
       spacesController.reset();
-      await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+      await tester.pumpWidget(
+        const KiteApp(themeMode: ThemeMode.light, home: SpacesScreen()),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('home-spaces')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('home-spaces')));
-      await tester.pump();
-      await tester.pump(PerformanceContract.motionFrame);
       final screen = find.byKey(const Key('spaces-screen'));
       expect(screen, findsOneWidget);
-      final screenSize = _rectOf(tester, screen).size;
-      double? previousLeft;
+      final screenRect = _rectOf(tester, screen);
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
-        final rect = _rectOf(tester, screen);
-        expect(rect.size, screenSize);
-        if (previousLeft != null) {
-          expect(rect.left, lessThanOrEqualTo(previousLeft + 0.01));
-        }
-        previousLeft = rect.left;
+        expect(_rectOf(tester, screen), screenRect);
         expect(tester.takeException(), isNull);
       }
-      await tester.pumpAndSettle();
 
       final header = find.byKey(const Key('spaces-header'));
       final headerRect = _rectOf(tester, header);

@@ -100,14 +100,14 @@ final class MatrixPresentationCache {
     });
   }
 
-  void applyPagination(MatrixPaginationPage page) {
+  bool applyPagination(MatrixPaginationPage page) {
     _validatePaginationPage(page);
-    if (page.events.isEmpty) return;
+    if (page.events.isEmpty) return false;
     final timeline = timelineSignal(page.roomId);
     final merged = _mergeEvents(timeline.value, page.events);
-    if (!_sameTimeline(timeline.value, merged)) {
-      timeline.value = merged;
-    }
+    if (_sameTimeline(timeline.value, merged)) return false;
+    timeline.value = merged;
+    return true;
   }
 
   void applySync(MatrixSyncBatch syncBatch) {

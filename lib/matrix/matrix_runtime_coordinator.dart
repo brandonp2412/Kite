@@ -22,7 +22,7 @@ final class MatrixRuntimeCoordinator
   MatrixRuntimeCoordinator({
     required MatrixEngine engine,
     required void Function(MatrixSyncBatch) applyBatch,
-    required void Function(MatrixPaginationPage) applyPagination,
+    required bool Function(MatrixPaginationPage) applyPagination,
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
   }) : _sync = MatrixSyncCoordinator(engine: engine, applyBatch: applyBatch),

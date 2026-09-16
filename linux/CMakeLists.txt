@@ -53,12 +53,31 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+find_program(CARGO_EXECUTABLE cargo)
+if(NOT CARGO_EXECUTABLE)
+  message(FATAL_ERROR "cargo is required to build Kite's Matrix bridge")
+endif()
+
+set(KITE_REPO_ROOT "${CMAKE_SOURCE_DIR}/..")
+set(KITE_MATRIX_BRIDGE_MANIFEST
+  "${KITE_REPO_ROOT}/rust/kite_matrix_bridge/Cargo.toml")
+set(KITE_MATRIX_BRIDGE_LIBRARY
+  "${KITE_REPO_ROOT}/rust/kite_matrix_bridge/target/release/libkite_matrix_bridge.so")
+add_custom_target(kite_matrix_bridge ALL
+  COMMAND "${CARGO_EXECUTABLE}" build
+    --manifest-path "${KITE_MATRIX_BRIDGE_MANIFEST}"
+    --locked
+    --release
+  WORKING_DIRECTORY "${KITE_REPO_ROOT}"
+  COMMENT "Building Kite Matrix Rust bridge"
+  VERBATIM
+)
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
 # Run the Flutter tool portions of the build. This must not be removed.
-add_dependencies(${BINARY_NAME} flutter_assemble)
+add_dependencies(${BINARY_NAME} flutter_assemble kite_matrix_bridge)
 
 # Only the install-generated bundle's copy of the executable will launch
 # correctly, since the resources must in the right relative locations. To avoid
@@ -98,6 +117,9 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+install(FILES "${KITE_MATRIX_BRIDGE_LIBRARY}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})

@@ -279,6 +279,69 @@ void main() {
     },
   );
 
+  testWidgets('short Matrix timelines request and render older history', (
+    tester,
+  ) async {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!real:example.org',
+            displayName: 'Real room',
+            lastActivity: DateTime.utc(2026, 9, 16, 11),
+            streamPosition: 2,
+            lastEventId: r'$newer',
+          ),
+        ],
+        timelines: <String, List<MatrixTimelineEvent>>{
+          '!real:example.org': <MatrixTimelineEvent>[
+            _event(
+              eventId: r'$newer',
+              body: 'Newer message',
+              streamPosition: 2,
+            ),
+          ],
+        },
+      ),
+    );
+    var historyRequests = 0;
+
+    await tester.pumpWidget(
+      KiteApp(
+        home: MatrixHomeScreen(
+          cache: cache,
+          currentUserId: '@me:example.org',
+          sendPort: MatrixTimelineSendPort(
+            ({required roomId, required transactionId, required body}) async {},
+          ),
+          onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
+            historyRequests += 1;
+            if (historyRequests != 1) return;
+            cache.applyPagination(
+              MatrixPaginationPage(
+                roomId: roomId,
+                events: <MatrixTimelineEvent>[
+                  _event(
+                    eventId: r'$older',
+                    body: 'Older message',
+                    streamPosition: 1,
+                  ),
+                ],
+                reachedStart: true,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(historyRequests, greaterThanOrEqualTo(1));
+    expect(find.text('Older message'), findsOneWidget);
+    expect(find.text('Newer message'), findsOneWidget);
+  });
+
   test(
     'production send port settles optimistic messages from real sender',
     () async {

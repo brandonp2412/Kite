@@ -25,7 +25,7 @@ Rect _rectOf(WidgetTester tester, Finder finder) {
 }
 
 void main() {
-  testWidgets('invite pending state preserves surrounding geometry at 120 Hz', (
+  testWidgets('background invite state does not move simplified home chrome', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -49,30 +49,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final inviteCard = find.byKey(
-      const ValueKey<String>('invite-design-lab-invite'),
-    );
+    final search = find.byKey(const Key('home-search'));
     final roomList = find.byKey(const Key('room-list'));
-    final spaceRow = find.byKey(const Key('space-filter-row'));
-    final inviteRect = _rectOf(tester, inviteCard);
+    final searchRect = _rectOf(tester, search);
     final listRect = _rectOf(tester, roomList);
-    final spaceRect = _rectOf(tester, spaceRow);
 
-    await tester.tap(find.byKey(const Key('invite-accept-design-lab-invite')));
-
+    final acceptance = inviteStore.accept('design-lab-invite');
     for (var index = 0; index < PerformanceContract.motionSamples; index++) {
       await tester.pump(PerformanceContract.motionFrame);
-      expect(_rectOf(tester, inviteCard), inviteRect);
+      expect(_rectOf(tester, search), searchRect);
       expect(_rectOf(tester, roomList), listRect);
-      expect(_rectOf(tester, spaceRow), spaceRect);
+      expect(find.byKey(const Key('room-invites')), findsNothing);
       expect(tester.takeException(), isNull);
     }
 
     expect(
-      find.byKey(const Key('invite-progress-design-lab-invite')),
-      findsOneWidget,
+      inviteStore.stateSignal('design-lab-invite').value,
+      RoomInviteActionState.accepting,
     );
     port.acceptCompleter.complete();
+    await acceptance;
     await tester.pumpAndSettle();
   });
 }

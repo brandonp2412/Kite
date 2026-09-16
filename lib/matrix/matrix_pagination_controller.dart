@@ -39,7 +39,7 @@ final class MatrixBackPaginationController {
   });
 
   final MatrixEngine engine;
-  final void Function(MatrixPaginationPage) applyPage;
+  final bool Function(MatrixPaginationPage) applyPage;
   final int edgeThreshold;
   final Map<String, Future<void>> _inFlight = <String, Future<void>>{};
   final Map<String, Signal<MatrixPaginationState>> _states =
@@ -117,17 +117,23 @@ final class MatrixBackPaginationController {
     int generation,
   ) async {
     try {
-      final page = await engine.paginateBackwards(roomId);
-      if (generation != _generation) return;
-      if (page.roomId != roomId) {
-        throw StateError('Matrix pagination room mismatch');
+      while (true) {
+        final page = await engine.paginateBackwards(roomId);
+        if (generation != _generation) return;
+        if (page.roomId != roomId) {
+          throw StateError('Matrix pagination room mismatch');
+        }
+        var changed = false;
+        batch(() {
+          changed = applyPage(page);
+          if (changed || page.reachedStart) {
+            state.value = MatrixPaginationState.idle(
+              reachedStart: page.reachedStart,
+            );
+          }
+        });
+        if (changed || page.reachedStart) return;
       }
-      batch(() {
-        applyPage(page);
-        state.value = MatrixPaginationState.idle(
-          reachedStart: page.reachedStart,
-        );
-      });
     } catch (error, stackTrace) {
       if (generation != _generation) return;
       state.value = MatrixPaginationState.failed(

@@ -16,7 +16,6 @@ import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
-import 'package:kite/features/home/spaces_screen.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
@@ -34,6 +33,11 @@ import 'package:kite/features/timeline/timeline_poll_sheet.dart';
 import 'package:kite/l10n/kite_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
+typedef TimelineHistoryRequest = Future<void> Function(
+  String roomId,
+  int oldestVisibleIndex,
+);
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
@@ -44,6 +48,7 @@ class HomeScreen extends StatelessWidget {
     this.memberManagement,
     this.calls,
     this.timeline,
+    this.onTimelineHistoryRequested,
   });
 
   final List<BenchmarkRoom>? benchmarkRooms;
@@ -53,6 +58,7 @@ class HomeScreen extends StatelessWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineController? timeline;
+  final TimelineHistoryRequest? onTimelineHistoryRequested;
 
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
@@ -70,6 +76,7 @@ class HomeScreen extends StatelessWidget {
     if (isPhone) {
       return _HomeTimelineControllerScope(
         controller: homeTimeline,
+        roomListStore: roomListStore,
         child: Scaffold(
           body: SafeArea(
             child: SizedBox.expand(
@@ -88,6 +95,7 @@ class HomeScreen extends StatelessWidget {
                         roomManagement: roomManagement,
                         memberManagement: memberManagement,
                         calls: calls,
+                        onTimelineHistoryRequested: onTimelineHistoryRequested,
                       ),
                     ),
                   );
@@ -104,6 +112,7 @@ class HomeScreen extends StatelessWidget {
         : sidebarWidth;
     return _HomeTimelineControllerScope(
       controller: homeTimeline,
+      roomListStore: roomListStore,
       child: Scaffold(
         body: Row(
           children: <Widget>[
@@ -124,6 +133,7 @@ class HomeScreen extends StatelessWidget {
                   roomManagement: roomManagement,
                   memberManagement: memberManagement,
                   calls: calls,
+                  onTimelineHistoryRequested: onTimelineHistoryRequested,
                 ),
               ),
             ),
@@ -137,10 +147,12 @@ class HomeScreen extends StatelessWidget {
 class _HomeTimelineControllerScope extends InheritedWidget {
   const _HomeTimelineControllerScope({
     required this.controller,
+    required this.roomListStore,
     required super.child,
   });
 
   final TimelineController controller;
+  final RoomListStateStore? roomListStore;
 
   static TimelineController of(BuildContext context) {
     final scope = context
@@ -151,13 +163,23 @@ class _HomeTimelineControllerScope extends InheritedWidget {
     return scope.controller;
   }
 
+  static RoomListStateStore? roomListStoreOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_HomeTimelineControllerScope>()
+        ?.roomListStore;
+  }
+
   @override
   bool updateShouldNotify(_HomeTimelineControllerScope oldWidget) =>
-      !identical(controller, oldWidget.controller);
+      !identical(controller, oldWidget.controller) ||
+      !identical(roomListStore, oldWidget.roomListStore);
 }
 
 TimelineController _homeTimelineController(BuildContext context) =>
     _HomeTimelineControllerScope.of(context);
+
+RoomListStateStore? _homeRoomListStore(BuildContext context) =>
+    _HomeTimelineControllerScope.roomListStoreOf(context);
 
 class _HomeSidebar extends StatefulWidget {
   const _HomeSidebar({
@@ -179,7 +201,9 @@ class _HomeSidebar extends StatefulWidget {
 class _HomeSidebarState extends State<_HomeSidebar> {
   RoomListStateStore? _ownedStore;
   RoomInviteStore? _ownedInviteStore;
+  final TextEditingController _searchController = TextEditingController();
   final List<void Function()> _disposeThreadUnreadEffects = <void Function()>[];
+  String _searchQuery = '';
 
   RoomListStateStore get store => widget.store ?? _ownedStore!;
   RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore!;
@@ -242,6 +266,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     _clearThreadUnreadEffects();
     super.dispose();
   }
@@ -250,328 +275,63 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
-        _HomeHeader(store: store),
-        _SpaceFilterBar(store: store),
-        _RoomFilterBar(store: store),
-        _InviteSection(store: inviteStore),
-        Expanded(
-          child: _RoomList(store: store, onRoomTap: widget.onRoomTap),
-        ),
-      ],
-    );
-  }
-}
-
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({required this.store});
-
-  final RoomListStateStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: 72,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          KiteSpacing.md,
-          KiteSpacing.sm,
-          KiteSpacing.sm,
-          KiteSpacing.xs,
-        ),
-        child: Row(
-          children: <Widget>[
-            Semantics(
-              image: true,
-              label: 'Profile',
-              child: CircleAvatar(
-                key: const Key('home-profile'),
-                radius: 20,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.person_rounded,
-                  size: 22,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ),
-            const SizedBox(width: KiteSpacing.sm),
-            Expanded(
-              child: Text(
-                AppLocalizations.of(context).chatsTitle,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.4,
-                ),
-              ),
-            ),
-            IconButton(
-              key: const Key('home-spaces'),
-              tooltip: 'Spaces',
-              onPressed: () => Navigator.of(context).push(
-                SpacesRoute(
-                  reduceMotion: KiteMotion.prefersReducedMotion(context),
-                ),
-              ),
-              icon: const Icon(Icons.grid_view_rounded),
-            ),
-            IconButton(
-              key: const Key('home-read-all'),
-              tooltip: 'Mark all as read',
-              onPressed: () {
-                for (final roomId in store.roomIds) {
-                  threadController.markRoomThreadsRead(roomId);
-                }
-                store.markAllRead();
-              },
-              icon: const Icon(Icons.done_all_rounded),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SpaceFilterBar extends StatelessWidget {
-  const _SpaceFilterBar({required this.store});
-
-  final RoomListStateStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: 56,
-      child: SignalBuilder(
-        builder: (context) {
-          final selectedSpaceId = store.selectedSpaceId.value;
-          return ListView.separated(
-            key: const Key('space-filter-row'),
-            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
-            scrollDirection: Axis.horizontal,
-            itemCount: deterministicJoinedSpaces.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
-            itemBuilder: (context, index) {
-              final space = index == 0
-                  ? null
-                  : deterministicJoinedSpaces[index - 1];
-              final id = space?.id;
-              final selected = selectedSpaceId == id;
-              final label = space?.name ?? 'All';
-              return ChoiceChip(
-                key: Key('space-filter-${id ?? 'all'}'),
-                selected: selected,
-                showCheckmark: false,
-                avatar: CircleAvatar(
-                  radius: 12,
-                  backgroundColor: selected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.surfaceContainerHighest,
-                  foregroundColor: selected
-                      ? theme.colorScheme.onPrimary
-                      : theme.colorScheme.onSurfaceVariant,
-                  child: Text(
-                    space == null ? '•' : space.name.characters.first,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                label: Text(label),
-                onSelected: (_) => store.selectSpace(id),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _RoomFilterBar extends StatelessWidget {
-  const _RoomFilterBar({required this.store});
-
-  final RoomListStateStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: SignalBuilder(
-        builder: (context) {
-          final selected = store.selectedFilter.value;
-          return ListView.separated(
-            key: const Key('room-filter-row'),
-            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
-            scrollDirection: Axis.horizontal,
-            itemCount: RoomListFilter.values.length,
-            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
-            itemBuilder: (context, index) {
-              final filter = RoomListFilter.values[index];
-              return ChoiceChip(
-                key: Key('room-filter-${filter.name}'),
-                label: Text(filter.label),
-                selected: selected == filter,
-                showCheckmark: false,
-                onSelected: (_) => store.selectFilter(filter),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _InviteSection extends StatelessWidget {
-  const _InviteSection({required this.store});
-
-  final RoomInviteStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    return SignalBuilder(
-      builder: (context) {
-        final inviteIds = store.visibleInviteIds.value;
-        if (inviteIds.isEmpty) return const SizedBox.shrink();
-        return Padding(
+        Padding(
           padding: const EdgeInsets.fromLTRB(
             KiteSpacing.md,
-            KiteSpacing.xs,
+            KiteSpacing.md,
             KiteSpacing.md,
             KiteSpacing.sm,
           ),
-          child: Column(
-            key: const Key('room-invites'),
-            children: <Widget>[
-              for (final inviteId in inviteIds)
-                _InviteCard(
-                  key: ValueKey<String>('invite-$inviteId'),
-                  invite: store.invite(inviteId),
-                  state: store.stateSignal(inviteId),
-                  onAccept: () => store.accept(inviteId),
-                  onDecline: () => store.decline(inviteId),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _InviteCard extends StatelessWidget {
-  const _InviteCard({
-    super.key,
-    required this.invite,
-    required this.state,
-    required this.onAccept,
-    required this.onDecline,
-  });
-
-  final RoomInvite invite;
-  final ReadonlySignal<RoomInviteActionState> state;
-  final Future<void> Function() onAccept;
-  final Future<void> Function() onDecline;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(KiteRadii.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(KiteSpacing.sm),
-        child: Row(
-          children: <Widget>[
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: theme.colorScheme.secondaryContainer,
-              foregroundColor: theme.colorScheme.onSecondaryContainer,
-              child: Text(
-                invite.roomName.characters.first,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: KiteSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    invite.roomName,
-                    key: Key('invite-title-${invite.id}'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '${invite.inviterName} invited you · ${invite.memberCount} members',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (invite.description case final description?)
-                    Text(
-                      description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: KiteSpacing.xs),
-            SignalBuilder(
-              builder: (context) {
-                final actionState = state.value;
-                final pending =
-                    actionState == RoomInviteActionState.accepting ||
-                    actionState == RoomInviteActionState.declining;
-                if (pending) {
-                  return SizedBox.square(
-                    key: Key('invite-progress-${invite.id}'),
-                    dimension: 48,
-                    child: const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                }
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    IconButton(
-                      key: Key('invite-decline-${invite.id}'),
-                      tooltip: 'Decline invite',
-                      onPressed: onDecline,
+          child: TextField(
+            key: const Key('home-search'),
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Search chats',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      key: const Key('home-search-clear'),
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
                       icon: const Icon(Icons.close_rounded),
                     ),
-                    IconButton.filled(
-                      key: Key('invite-accept-${invite.id}'),
-                      tooltip: 'Accept invite',
-                      onPressed: onAccept,
-                      icon: const Icon(Icons.check_rounded),
-                    ),
-                  ],
-                );
-              },
+              filled: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(KiteRadii.lg),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(KiteRadii.lg),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(KiteRadii.lg),
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: KiteStroke.emphasis,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: KiteSpacing.md,
+                vertical: KiteSpacing.md,
+              ),
             ),
-          ],
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
         ),
-      ),
+        Expanded(
+          child: _RoomList(
+            store: store,
+            onRoomTap: widget.onRoomTap,
+            query: _searchQuery,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -583,6 +343,7 @@ class _CompactChatScreen extends StatelessWidget {
     this.roomManagement,
     this.memberManagement,
     this.calls,
+    this.onTimelineHistoryRequested,
   });
 
   final TimelineController timeline;
@@ -590,11 +351,13 @@ class _CompactChatScreen extends StatelessWidget {
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
+  final TimelineHistoryRequest? onTimelineHistoryRequested;
 
   @override
   Widget build(BuildContext context) {
     return _HomeTimelineControllerScope(
       controller: timeline,
+      roomListStore: roomListStore,
       child: Scaffold(
         appBar: AppBar(
           title: SignalBuilder(
@@ -630,6 +393,7 @@ class _CompactChatScreen extends StatelessWidget {
           roomManagement: roomManagement,
           memberManagement: memberManagement,
           calls: calls,
+          onTimelineHistoryRequested: onTimelineHistoryRequested,
         ),
       ),
     );
@@ -637,10 +401,11 @@ class _CompactChatScreen extends StatelessWidget {
 }
 
 class _RoomList extends StatelessWidget {
-  const _RoomList({required this.store, this.onRoomTap});
+  const _RoomList({required this.store, this.onRoomTap, this.query = ''});
 
   final RoomListStateStore store;
   final ValueChanged<String>? onRoomTap;
+  final String query;
 
   Future<void> _showMoveSectionSheet(BuildContext context, String roomId) {
     final currentSectionId = store.sectionIdFor(roomId);
@@ -763,115 +528,33 @@ class _RoomList extends StatelessWidget {
       policy: ReadingOrderTraversalPolicy(),
       child: SignalBuilder(
         builder: (context) {
-          final ids = store.visibleRoomIds.value;
-          final sectionsVisible =
-              store.selectedFilter.value == RoomListFilter.all &&
-              store.selectedSpaceId.value == null;
-          if (!sectionsVisible) {
-            return ListView.builder(
-              key: const Key('room-list'),
-              itemCount: ids.length,
-              itemExtent: rowExtent,
-              itemBuilder: (context, index) =>
-                  _roomRow(context, ids[index], rowExtent),
-            );
-          }
-
-          store.sectionLayoutRevision.value;
-          final collapsed = store.collapsedSectionIds.value;
-          final items = <Object>[];
-          for (final section in store.sections) {
-            final sectionRoomIds = store.visibleRoomIdsForSection(section.id);
-            if (sectionRoomIds.isEmpty) continue;
-            items.add(section);
-            if (!collapsed.contains(section.id)) items.addAll(sectionRoomIds);
+          final normalizedQuery = query.trim().toLowerCase();
+          final ids = store.roomIds
+              .where((roomId) {
+                if (normalizedQuery.isEmpty) return true;
+                final room = store.roomSignal(roomId).value;
+                return room.name.toLowerCase().contains(normalizedQuery) ||
+                    room.latestEventBody.toLowerCase().contains(
+                      normalizedQuery,
+                    ) ||
+                    (room.latestSender?.toLowerCase().contains(
+                          normalizedQuery,
+                        ) ??
+                        false);
+              })
+              .toList(growable: false);
+          if (ids.isEmpty) {
+            return const Center(child: Text('No chats found'));
           }
           return ListView.builder(
             key: const Key('room-list'),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              if (item is RoomListSection) {
-                return _RoomSectionHeader(section: item, store: store);
-              }
-              return _roomRow(context, item as String, rowExtent);
-            },
+            itemCount: ids.length,
+            itemExtent: rowExtent,
+            itemBuilder: (context, index) =>
+                _roomRow(context, ids[index], rowExtent),
           );
         },
       ),
-    );
-  }
-}
-
-class _RoomSectionHeader extends StatelessWidget {
-  const _RoomSectionHeader({required this.section, required this.store});
-
-  final RoomListSection section;
-  final RoomListStateStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    return SignalBuilder(
-      builder: (context) {
-        store.sectionLayoutRevision.value;
-        final collapsed = store.collapsedSectionIds.value.contains(section.id);
-        final unreadCount = store.sectionUnreadCount(section.id);
-        final colors = Theme.of(context).colorScheme;
-        return SizedBox(
-          key: Key('room-section-${section.id}'),
-          height: 44,
-          child: Material(
-            color: context.kiteColors.canvas,
-            child: InkWell(
-              key: Key('room-section-toggle-${section.id}'),
-              onTap: () => store.toggleSectionCollapsed(section.id),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
-                child: Row(
-                  children: <Widget>[
-                    AnimatedRotation(
-                      turns: collapsed ? -0.25 : 0,
-                      duration: KiteMotion.resolve(context, KiteMotion.fast),
-                      curve: KiteMotion.standardCurve,
-                      child: const Icon(Icons.expand_more_rounded, size: 20),
-                    ),
-                    const SizedBox(width: KiteSpacing.xs),
-                    Expanded(
-                      child: Text(
-                        section.name,
-                        style: Theme.of(context).textTheme.labelLarge
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    if (unreadCount > 0)
-                      Container(
-                        key: Key('room-section-unread-${section.id}'),
-                        constraints: const BoxConstraints(minWidth: 24),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.secondaryContainer,
-                          borderRadius: BorderRadius.circular(KiteRadii.pill),
-                        ),
-                        child: Text(
-                          '$unreadCount',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: colors.onSecondaryContainer,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -1234,6 +917,7 @@ class _ChatPanel extends StatefulWidget {
     this.roomManagement,
     this.memberManagement,
     this.calls,
+    this.onTimelineHistoryRequested,
   });
 
   final bool showHeader;
@@ -1241,6 +925,7 @@ class _ChatPanel extends StatefulWidget {
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
+  final TimelineHistoryRequest? onTimelineHistoryRequested;
 
   @override
   State<_ChatPanel> createState() => _ChatPanelState();
@@ -1272,7 +957,11 @@ class _ChatPanelState extends State<_ChatPanel> {
           const Divider(height: 1),
         ],
         Expanded(
-          child: _Timeline(onReply: _reply, onEdit: _edit),
+          child: _Timeline(
+            onReply: _reply,
+            onEdit: _edit,
+            onTimelineHistoryRequested: widget.onTimelineHistoryRequested,
+          ),
         ),
         const _TypingIndicator(),
         const Divider(height: 1),
@@ -1458,10 +1147,15 @@ class _ChatHeader extends StatelessWidget {
 }
 
 class _Timeline extends StatefulWidget {
-  const _Timeline({required this.onReply, required this.onEdit});
+  const _Timeline({
+    required this.onReply,
+    required this.onEdit,
+    this.onTimelineHistoryRequested,
+  });
 
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
+  final TimelineHistoryRequest? onTimelineHistoryRequested;
 
   @override
   State<_Timeline> createState() => _TimelineState();
@@ -1473,18 +1167,27 @@ class _TimelineState extends State<_Timeline> {
   String? _displayedRoomId;
   List<TimelineMessage> _displayedMessages = const <TimelineMessage>[];
   List<TimelineMessage>? _pendingTailMessages;
+  String? _lastHistoryRequestKey;
+  bool _historyProbeScheduled = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_flushPendingAtTail);
+    _scrollController.addListener(_handleScroll);
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_flushPendingAtTail);
+    _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    _flushPendingAtTail();
+    final roomId = _displayedRoomId;
+    if (!mounted || roomId == null) return;
+    _requestHistoryIfNearOldest(roomId, _displayedMessages.length);
   }
 
   void _flushPendingAtTail() {
@@ -1496,6 +1199,34 @@ class _TimelineState extends State<_Timeline> {
       _displayedMessages = pending;
       _pendingTailMessages = null;
     });
+  }
+
+  void _scheduleHistoryProbe(String roomId, int messageCount) {
+    if (_historyProbeScheduled || widget.onTimelineHistoryRequested == null) {
+      return;
+    }
+    _historyProbeScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _historyProbeScheduled = false;
+      if (!mounted || !_scrollController.hasClients) return;
+      _requestHistoryIfNearOldest(roomId, messageCount);
+    });
+  }
+
+  void _requestHistoryIfNearOldest(String roomId, int messageCount) {
+    final request = widget.onTimelineHistoryRequested;
+    if (request == null || !_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter > 520) return;
+    final requestKey = '$roomId:$messageCount';
+    if (_lastHistoryRequestKey == requestKey) return;
+    _lastHistoryRequestKey = requestKey;
+    unawaited(
+      request(roomId, 0).catchError((Object _) {
+        if (mounted && _lastHistoryRequestKey == requestKey) {
+          _lastHistoryRequestKey = null;
+        }
+      }),
+    );
   }
 
   Future<void> _jumpToUnread(String roomId) async {
@@ -1591,37 +1322,47 @@ class _TimelineState extends State<_Timeline> {
           }
         }
         final messages = _displayedMessages;
+        _scheduleHistoryProbe(roomId, messages.length);
         final unreadMarkerEventId = _homeTimelineController(context)
             .unreadMarkerFor(roomId)
             .value;
         return Stack(
           key: const Key('timeline-stack'),
           children: <Widget>[
-            ListView.builder(
-              key: const Key('message-list'),
-              controller: _scrollController,
-              reverse: true,
-              scrollCacheExtent: unreadMarkerEventId == null
-                  ? null
-                  : const ScrollCacheExtent.viewport(1.8),
-              padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final message = messages[messages.length - 1 - index];
-                final row = _MessageRow(
-                  key: ValueKey<String>(message.id),
-                  roomId: roomId,
-                  message: message,
-                  semanticsOrder: (messages.length - 1 - index).toDouble(),
-                  onReply: widget.onReply,
-                  onEdit: widget.onEdit,
-                );
-                if (message.id != unreadMarkerEventId) return row;
-                return _UnreadMarkerOverlay(
-                  markerKey: _unreadMarkerKey,
-                  child: row,
-                );
+            NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification ||
+                    notification is ScrollEndNotification) {
+                  _requestHistoryIfNearOldest(roomId, messages.length);
+                }
+                return false;
               },
+              child: ListView.builder(
+                key: const Key('message-list'),
+                controller: _scrollController,
+                reverse: true,
+                scrollCacheExtent: unreadMarkerEventId == null
+                    ? null
+                    : const ScrollCacheExtent.viewport(1.8),
+                padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
+                itemCount: messages.length,
+                itemBuilder: (context, index) {
+                  final message = messages[messages.length - 1 - index];
+                  final row = _MessageRow(
+                    key: ValueKey<String>(message.id),
+                    roomId: roomId,
+                    message: message,
+                    semanticsOrder: (messages.length - 1 - index).toDouble(),
+                    onReply: widget.onReply,
+                    onEdit: widget.onEdit,
+                  );
+                  if (message.id != unreadMarkerEventId) return row;
+                  return _UnreadMarkerOverlay(
+                    markerKey: _unreadMarkerKey,
+                    child: row,
+                  );
+                },
+              ),
             ),
             Positioned(
               right: KiteSpacing.md,
@@ -1866,8 +1607,11 @@ class _MessageRow extends StatelessWidget {
               top: Radius.circular(KiteRadii.lg),
             ),
           ),
-          builder: (_) =>
-              _ForwardMessageSheet(currentRoomId: roomId, message: message),
+          builder: (_) => _ForwardMessageSheet(
+            currentRoomId: roomId,
+            message: message,
+            rooms: _forwardDestinationRooms(context),
+          ),
         );
         if (!context.mounted || destinations == null || destinations.isEmpty) {
           return;
@@ -2698,14 +2442,26 @@ class _MessageActionSheet extends StatelessWidget {
   }
 }
 
+List<RoomListEntry> _forwardDestinationRooms(BuildContext context) {
+  final store = _homeRoomListStore(context);
+  if (store == null) {
+    return deterministicRoomListEntries(BenchmarkFixture.rooms);
+  }
+  return List<RoomListEntry>.unmodifiable(<RoomListEntry>[
+    for (final roomId in store.roomIds) store.roomSignal(roomId).peek(),
+  ]);
+}
+
 class _ForwardMessageSheet extends StatefulWidget {
   const _ForwardMessageSheet({
     required this.currentRoomId,
     required this.message,
+    required this.rooms,
   });
 
   final String currentRoomId;
   final TimelineMessage message;
+  final List<RoomListEntry> rooms;
 
   @override
   State<_ForwardMessageSheet> createState() => _ForwardMessageSheetState();
@@ -2726,13 +2482,14 @@ class _ForwardMessageSheetState extends State<_ForwardMessageSheet> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final normalizedQuery = _query.trim().toLowerCase();
-    final rooms = BenchmarkFixture.rooms
+    final rooms = widget.rooms
         .where((room) => room.id != widget.currentRoomId)
         .where(
           (room) =>
               normalizedQuery.isEmpty ||
               room.name.toLowerCase().contains(normalizedQuery) ||
-              room.subtitle.toLowerCase().contains(normalizedQuery),
+              room.latestEventBody.toLowerCase().contains(normalizedQuery) ||
+              (room.latestSender ?? '').toLowerCase().contains(normalizedQuery),
         )
         .toList(growable: false);
     return SafeArea(
