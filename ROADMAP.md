@@ -215,6 +215,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] RTL message detection and rendering.
 - [ ] Date separators and timestamp rules.
 
+**Reply progress (2026-09-18):** the existing reply composer now preserves the target event through the production send stack and emits a proper Matrix `m.in_reply_to` relation through the audited Rust SDK path instead of degrading to plain text. Synced Matrix reply relations project back into Kite reply previews using cached target sender/body metadata while preserving timeline order and existing message identity. The native boundary is ABI 21; Rust formatting/check/tests, focused timeline motion/projection/runtime/native tests, full analysis, native-library smoke coverage, and an Android release APK with all three rebuilt JNI ABIs pass. Reply-related checkboxes remain unchecked until the required locked Waydroid quality gate can run on an available ADB device.
+
 **Jitter contract:** incoming messages, read receipts, typing indicators, send-state changes, reaction updates, pagination, and media completion must not move unrelated visible events.
 
 ## Milestone 5 — Composer, rich text, sending, and message actions

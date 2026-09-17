@@ -35,6 +35,7 @@ class _ControlledSendPort implements TimelineSendPort {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     final completer = Completer<TimelineSendOutcome>();
     attempts.add(completer);

@@ -267,6 +267,7 @@ final class _FakeRustClient
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     throw UnimplementedError();
   }

@@ -414,6 +414,7 @@ abstract interface class TimelineSendPort {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   });
 }
 
@@ -430,6 +431,7 @@ class DeterministicTimelineSendPort implements TimelineSendPort {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) async {
     await Future<void>.delayed(latency);
     if (body == '[deterministic-fail-once]' && _failedOnce.add(transactionId)) {
@@ -517,6 +519,7 @@ class TimelineMessage {
   static TimelineMessage? fromMatrixEvent(
     MatrixTimelineEvent event, {
     required String currentUserId,
+    TimelineMessage? replyTarget,
   }) {
     if (event.type != 'm.room.message') return null;
     final content = event.content;
@@ -531,6 +534,7 @@ class TimelineMessage {
 
     final localTime = event.originServerTimestamp.toLocal();
     final mediaBody = attachment == null ? body : _matrixMediaCaption(content);
+    final replyToMessageId = _matrixReplyToEventId(content);
     return TimelineMessage(
       id: event.eventId,
       sender: event.senderDisplayName ?? event.senderId,
@@ -538,6 +542,9 @@ class TimelineMessage {
       mine: event.senderId == currentUserId,
       timeLabel:
           '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
+      replyToMessageId: replyToMessageId,
+      replyToSender: replyToMessageId == null ? null : replyTarget?.sender,
+      replyToBody: replyToMessageId == null ? null : replyTarget?.body,
       attachment: attachment,
     );
   }
@@ -723,22 +730,28 @@ class TimelineController implements TimelineLocationShareDelegate {
       for (final message in current) message.id: message,
     };
     final projected = <TimelineMessage>[];
+    final projectedById = <String, TimelineMessage>{};
     final echoedTransactionIds = <String>{};
     for (final event in events) {
       if (event.roomId != roomId) continue;
       final transactionId = event.transactionId;
       if (transactionId != null) echoedTransactionIds.add(transactionId);
+      final replyToEventId = _matrixReplyToEventId(event.content);
       final mapped = TimelineMessage.fromMatrixEvent(
         event,
         currentUserId: currentUserId,
+        replyTarget: replyToEventId == null
+            ? null
+            : projectedById[replyToEventId] ?? existingById[replyToEventId],
       );
       if (mapped == null) continue;
       final existing = existingById[mapped.id];
-      projected.add(
-        existing != null && _sameMatrixProjection(existing, mapped)
-            ? existing
-            : mapped,
-      );
+      final projection =
+          existing != null && _sameMatrixProjection(existing, mapped)
+          ? existing
+          : mapped;
+      projected.add(projection);
+      projectedById[projection.id] = projection;
     }
     projected.addAll(
       current.where(
@@ -1187,6 +1200,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       roomId: roomId,
       transactionId: message.transactionId ?? message.id,
       body: message.body,
+      replyToEventId: message.replyToMessageId,
     );
     message.sendState.value = switch (outcome) {
       TimelineSendOutcome.sent => TimelineSendState.sent,
@@ -1202,6 +1216,17 @@ String _secureTransactionNamespace() {
   final random = Random.secure();
   final bytes = List<int>.generate(12, (_) => random.nextInt(256));
   return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+}
+
+String? _matrixReplyToEventId(Map<String, Object?> content) {
+  final relatesTo = content['m.relates_to'];
+  if (relatesTo is! Map) return null;
+  final inReplyTo = relatesTo['m.in_reply_to'];
+  if (inReplyTo is! Map) return null;
+  final eventId = inReplyTo['event_id'];
+  if (eventId is! String) return null;
+  final normalized = eventId.trim();
+  return normalized.isEmpty ? null : normalized;
 }
 
 TimelineAttachment? _matrixAttachment(
@@ -1304,6 +1329,9 @@ bool _sameMatrixProjection(TimelineMessage left, TimelineMessage right) {
       left.body == right.body &&
       left.mine == right.mine &&
       left.timeLabel == right.timeLabel &&
+      left.replyToMessageId == right.replyToMessageId &&
+      left.replyToSender == right.replyToSender &&
+      left.replyToBody == right.replyToBody &&
       leftAttachment?.id == rightAttachment?.id &&
       leftAttachment?.kind == rightAttachment?.kind &&
       leftAttachment?.name == rightAttachment?.name &&

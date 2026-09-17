@@ -250,6 +250,7 @@ abstract interface class MatrixSdkTextMessageSender {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   });
 }
 
@@ -377,6 +378,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) async {
     final sender = _boundary;
     if (sender is! MatrixSdkTextMessageSender) {
@@ -385,10 +387,21 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       );
     }
     await _ensureOpen();
+    final normalizedReplyToEventId = replyToEventId?.trim();
+    if (normalizedReplyToEventId != null &&
+        (normalizedReplyToEventId.isEmpty ||
+            normalizedReplyToEventId.contains('\u0000'))) {
+      throw ArgumentError.value(
+        replyToEventId,
+        'replyToEventId',
+        'must not be empty or contain NUL bytes',
+      );
+    }
     return (sender as MatrixSdkTextMessageSender).sendTextMessage(
       roomId: roomId,
       transactionId: transactionId,
       body: body,
+      replyToEventId: normalizedReplyToEventId,
     );
   }
 

@@ -513,6 +513,7 @@ final class MatrixAccountRuntimeRegistry {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
@@ -526,6 +527,7 @@ final class MatrixAccountRuntimeRegistry {
       roomId: roomId,
       transactionId: transactionId,
       body: body,
+      replyToEventId: replyToEventId,
     );
   }
 

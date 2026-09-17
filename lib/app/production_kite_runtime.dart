@@ -384,18 +384,31 @@ final class _AuthenticatedMatrixHomeState
           return MatrixHomeScreen(
             cache: cache,
             currentUserId: widget.session.userId,
-            sendPort: MatrixTimelineSendPort(({
-              required roomId,
-              required transactionId,
-              required body,
-            }) async {
-              await widget.runtime.sendTextMessage(
-                accountId: widget.session.userId,
-                roomId: roomId,
-                transactionId: transactionId,
-                body: body,
-              );
-            }),
+            sendPort: MatrixTimelineSendPort(
+              ({required roomId, required transactionId, required body}) async {
+                await widget.runtime.sendTextMessage(
+                  accountId: widget.session.userId,
+                  roomId: roomId,
+                  transactionId: transactionId,
+                  body: body,
+                );
+              },
+              sendReply:
+                  ({
+                    required roomId,
+                    required transactionId,
+                    required body,
+                    required replyToEventId,
+                  }) async {
+                    await widget.runtime.sendTextMessage(
+                      accountId: widget.session.userId,
+                      roomId: roomId,
+                      transactionId: transactionId,
+                      body: body,
+                      replyToEventId: replyToEventId,
+                    );
+                  },
+            ),
             onRoomFavouriteChanged: (roomId, isFavourite) =>
                 widget.runtime.setRoomFavourite(
                   accountId: widget.session.userId,

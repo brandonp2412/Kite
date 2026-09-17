@@ -2012,6 +2012,7 @@ final class _FakeAccountBoundary
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) async {
     sentTextMessages.add((roomId, transactionId, body));
     return r'$sent-' + sentTextMessages.length.toString();

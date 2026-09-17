@@ -12,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 20;
+const int kiteMatrixNativeAbiVersion = 21;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -279,9 +279,11 @@ typedef _ClientSendTextNative = Pointer<Char> Function(
   Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
+  Pointer<Char>,
 );
 typedef _ClientSendTextDart = Pointer<Char> Function(
   Pointer<Void>,
+  Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
@@ -544,6 +546,7 @@ final class _MatrixNativeSendTextOperation {
     required this.roomId,
     required this.transactionId,
     required this.body,
+    required this.replyToEventId,
   });
 
   final String libraryPath;
@@ -551,6 +554,7 @@ final class _MatrixNativeSendTextOperation {
   final String roomId;
   final String transactionId;
   final String body;
+  final String? replyToEventId;
 
   Object? call() {
     final library = DynamicLibrary.open(libraryPath);
@@ -565,16 +569,21 @@ final class _MatrixNativeSendTextOperation {
     final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
     final transactionIdUtf8 = transactionId.toNativeUtf8(allocator: calloc);
     final bodyUtf8 = body.toNativeUtf8(allocator: calloc);
+    final replyToEventIdUtf8 = replyToEventId?.toNativeUtf8(allocator: calloc);
     try {
       final value = send(
         Pointer<Void>.fromAddress(address),
         roomIdUtf8.cast<Char>(),
         transactionIdUtf8.cast<Char>(),
         bodyUtf8.cast<Char>(),
+        replyToEventIdUtf8 == null
+            ? Pointer<Char>.fromAddress(0)
+            : replyToEventIdUtf8.cast<Char>(),
       );
       final payload = _readNativeString(value, freeString, 'text send');
       return _decodeNativeEnvelope(payload);
     } finally {
+      if (replyToEventIdUtf8 != null) calloc.free(replyToEventIdUtf8);
       calloc.free(bodyUtf8);
       calloc.free(transactionIdUtf8);
       calloc.free(roomIdUtf8);
@@ -1577,6 +1586,7 @@ abstract interface class MatrixRustClient {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   });
 
   Future<String> syncOnce({
@@ -1809,6 +1819,7 @@ final class MatrixRustNativeClient
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     final normalizedRoomId = roomId.trim();
     final normalizedTransactionId = transactionId.trim();
@@ -1840,6 +1851,18 @@ final class MatrixRustNativeClient
         ),
       );
     }
+    final normalizedReplyToEventId = replyToEventId?.trim();
+    if (normalizedReplyToEventId != null &&
+        (normalizedReplyToEventId.isEmpty ||
+            normalizedReplyToEventId.contains('\u0000'))) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          replyToEventId,
+          'replyToEventId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
     return _enqueue<MatrixRustSendResult>(() async {
       final decoded = await Isolate.run<Object?>(
         _MatrixNativeSendTextOperation(
@@ -1848,6 +1871,7 @@ final class MatrixRustNativeClient
           roomId: normalizedRoomId,
           transactionId: normalizedTransactionId,
           body: body,
+          replyToEventId: normalizedReplyToEventId,
         ).call,
       );
       if (decoded is! Map<String, dynamic>) {
@@ -2801,12 +2825,14 @@ final class MatrixRustSdkBoundary
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     return _enqueue<String>(() async {
       final result = await _requireClient().sendText(
         roomId: roomId,
         transactionId: transactionId,
         body: body,
+        replyToEventId: replyToEventId,
       );
       return result.eventId;
     });

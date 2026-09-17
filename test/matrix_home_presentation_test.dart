@@ -9,6 +9,48 @@ import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
 void main() {
+  test('Matrix timeline send port preserves reply targets', () async {
+    final plainBodies = <String>[];
+    final replies = <({String body, String eventId})>[];
+    final port = MatrixTimelineSendPort(
+      ({required roomId, required transactionId, required body}) async {
+        plainBodies.add(body);
+      },
+      sendReply:
+          ({
+            required roomId,
+            required transactionId,
+            required body,
+            required replyToEventId,
+          }) async {
+            replies.add((body: body, eventId: replyToEventId));
+          },
+    );
+
+    expect(
+      await port.sendText(
+        roomId: '!room:example.org',
+        transactionId: 'txn-1',
+        body: 'Plain',
+      ),
+      TimelineSendOutcome.sent,
+    );
+    expect(
+      await port.sendText(
+        roomId: '!room:example.org',
+        transactionId: 'txn-2',
+        body: 'Reply',
+        replyToEventId: r'$original',
+      ),
+      TimelineSendOutcome.sent,
+    );
+
+    expect(plainBodies, <String>['Plain']);
+    expect(replies, <({String body, String eventId})>[
+      (body: 'Reply', eventId: r'$original'),
+    ]);
+  });
+
   testWidgets('empty Matrix home shows loading until the first sync batch', (
     tester,
   ) async {

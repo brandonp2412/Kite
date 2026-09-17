@@ -185,6 +185,79 @@ void main() {
     },
   );
 
+  test(
+    'Matrix replies project target metadata without changing message order',
+    () {
+      final controller = TimelineController(
+        sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+        fixtureProvider: (_) => const [],
+      );
+      controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+        _event(
+          eventId: r'$original',
+          streamPosition: 1,
+          senderId: '@alice:example.org',
+          senderDisplayName: 'Alice',
+          msgtype: 'm.text',
+          body: 'Original message',
+        ),
+        _event(
+          eventId: r'$reply',
+          streamPosition: 2,
+          senderId: '@bob:example.org',
+          senderDisplayName: 'Bob',
+          msgtype: 'm.text',
+          body: 'Reply body',
+          extra: const <String, Object?>{
+            'm.relates_to': <String, Object?>{
+              'm.in_reply_to': <String, Object?>{'event_id': r'$original'},
+            },
+          },
+        ),
+      ], currentUserId: '@me:example.org');
+
+      final messages = controller.messagesFor('!alpha:example.org').value;
+      expect(messages.map((message) => message.id), <String>[
+        r'$original',
+        r'$reply',
+      ]);
+      expect(messages[1].replyToMessageId, r'$original');
+      expect(messages[1].replyToSender, 'Alice');
+      expect(messages[1].replyToBody, 'Original message');
+    },
+  );
+
+  test('reply sends preserve Matrix target event ID', () async {
+    final sendPort = _RecordingSendPort();
+    final controller = TimelineController(
+      sendPort: sendPort,
+      fixtureProvider: (_) => const [],
+    );
+    controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+      _event(
+        eventId: r'$original',
+        streamPosition: 1,
+        senderId: '@alice:example.org',
+        senderDisplayName: 'Alice',
+        msgtype: 'm.text',
+        body: 'Original message',
+      ),
+    ], currentUserId: '@me:example.org');
+    final original = controller.messagesFor('!alpha:example.org').value.single;
+
+    final local = controller.sendText(
+      '!alpha:example.org',
+      'Reply body',
+      replyTo: original,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(local.replyToMessageId, r'$original');
+    expect(sendPort.calls, hasLength(1));
+    expect(sendPort.calls.single.replyToEventId, r'$original');
+    expect(sendPort.calls.single.body, 'Reply body');
+  });
+
   test('Matrix transaction IDs stay unique across controller restarts', () {
     final firstController = TimelineController(
       sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
@@ -275,6 +348,37 @@ void main() {
       expect(messages[2], same(local));
     },
   );
+}
+
+final class _RecordingSendPort implements TimelineSendPort {
+  final List<
+    ({String roomId, String transactionId, String body, String? replyToEventId})
+  >
+  calls =
+      <
+        ({
+          String roomId,
+          String transactionId,
+          String body,
+          String? replyToEventId,
+        })
+      >[];
+
+  @override
+  Future<TimelineSendOutcome> sendText({
+    required String roomId,
+    required String transactionId,
+    required String body,
+    String? replyToEventId,
+  }) async {
+    calls.add((
+      roomId: roomId,
+      transactionId: transactionId,
+      body: body,
+      replyToEventId: replyToEventId,
+    ));
+    return TimelineSendOutcome.sent;
+  }
 }
 
 MatrixTimelineEvent _event({

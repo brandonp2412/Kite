@@ -32,20 +32,38 @@ typedef MatrixPlainTextSender = Future<void> Function({
   required String transactionId,
   required String body,
 });
+typedef MatrixReplyTextSender = Future<void> Function({
+  required String roomId,
+  required String transactionId,
+  required String body,
+  required String replyToEventId,
+});
 
 final class MatrixTimelineSendPort implements TimelineSendPort {
-  const MatrixTimelineSendPort(this._send);
+  const MatrixTimelineSendPort(this._send, {this.sendReply});
 
   final MatrixPlainTextSender _send;
+  final MatrixReplyTextSender? sendReply;
 
   @override
   Future<TimelineSendOutcome> sendText({
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) async {
     try {
-      await _send(roomId: roomId, transactionId: transactionId, body: body);
+      final replySender = sendReply;
+      if (replyToEventId != null && replySender != null) {
+        await replySender(
+          roomId: roomId,
+          transactionId: transactionId,
+          body: body,
+          replyToEventId: replyToEventId,
+        );
+      } else {
+        await _send(roomId: roomId, transactionId: transactionId, body: body);
+      }
       return TimelineSendOutcome.sent;
     } catch (_) {
       return TimelineSendOutcome.failed;

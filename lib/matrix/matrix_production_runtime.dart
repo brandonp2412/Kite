@@ -462,12 +462,14 @@ final class MatrixProductionRuntime
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     return accounts.sendTextMessage(
       accountId: accountId,
       roomId: roomId,
       transactionId: transactionId,
       body: body,
+      replyToEventId: replyToEventId,
     );
   }
 

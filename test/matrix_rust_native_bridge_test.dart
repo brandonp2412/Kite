@@ -82,6 +82,7 @@ void main() {
         roomId: '!room:kite.test',
         transactionId: 'kite-transaction-1',
         body: 'Hello Matrix',
+        replyToEventId: r'$original',
       );
       final created = await boundary.createRoom(
         MatrixSdkRoomCreationRequest(
@@ -201,6 +202,7 @@ void main() {
       expect(client.sendCalls, <(String, String, String)>[
         ('!room:kite.test', 'kite-transaction-1', 'Hello Matrix'),
       ]);
+      expect(client.sendReplyTargets, <String?>[r'$original']);
       expect(client.roomSettingCalls, <(String, String, String?)>[
         ('!room:kite.test', 'get', null),
         ('!room:kite.test', 'set_name', 'Renamed'),
@@ -1011,6 +1013,7 @@ final class _FailingCloseRustClient implements MatrixRustClient {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     throw UnimplementedError();
   }
@@ -1059,6 +1062,7 @@ final class _SessionExpiredRustClient implements MatrixRustClient {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     throw UnimplementedError();
   }
@@ -1110,6 +1114,7 @@ final class _RecoveringRustClient implements MatrixRustClient {
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) {
     throw UnimplementedError();
   }
@@ -1161,6 +1166,7 @@ final class _FakeRustClient
   final List<String?> syncTokens = <String?>[];
   final List<String> paginationCalls = <String>[];
   final List<(String, String, String)> sendCalls = <(String, String, String)>[];
+  final List<String?> sendReplyTargets = <String?>[];
   final List<(String, String)> loginCalls = <(String, String)>[];
   final List<MatrixSdkRoomCreationRequest> createRequests =
       <MatrixSdkRoomCreationRequest>[];
@@ -1357,8 +1363,10 @@ final class _FakeRustClient
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) async {
     sendCalls.add((roomId, transactionId, body));
+    sendReplyTargets.add(replyToEventId);
     return const MatrixRustSendResult(eventId: r'$sent');
   }
 

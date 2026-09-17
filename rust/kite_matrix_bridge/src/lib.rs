@@ -13,8 +13,8 @@ use matrix_sdk::{
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
-        EventId, Int, OwnedMxcUri, OwnedTransactionId, OwnedUserId, RoomAliasId, RoomId, UInt,
-        UserId,
+        EventId, Int, OwnedEventId, OwnedMxcUri, OwnedTransactionId, OwnedUserId, RoomAliasId,
+        RoomId, UInt, UserId,
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
@@ -29,12 +29,13 @@ use matrix_sdk::{
         events::{
             InitialStateEvent,
             receipt::ReceiptThread,
+            relation::Reply,
             room::{
                 MediaSource,
                 encryption::RoomEncryptionEventContent,
                 history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
                 join_rules::{JoinRule, RoomJoinRulesEventContent},
-                message::RoomMessageEventContent,
+                message::{Relation, RoomMessageEventContent},
                 power_levels::UserPowerLevel,
             },
         },
@@ -44,7 +45,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 20;
+const KITE_MATRIX_ABI_VERSION: u32 = 21;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -502,11 +503,23 @@ pub unsafe extern "C" fn kite_matrix_client_restore_session(
 }
 
 #[unsafe(no_mangle)]
+fn text_message_content(
+    body: &str,
+    reply_to_event_id: Option<OwnedEventId>,
+) -> RoomMessageEventContent {
+    let mut content = RoomMessageEventContent::text_plain(body);
+    if let Some(event_id) = reply_to_event_id {
+        content.relates_to = Some(Relation::Reply(Reply::with_event_id(event_id)));
+    }
+    content
+}
+
 pub unsafe extern "C" fn kite_matrix_client_send_text(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
     transaction_id: *const c_char,
     body: *const c_char,
+    reply_to_event_id: *const c_char,
 ) -> *mut c_char {
     if client.is_null() {
         return error_json("client_closed", "Matrix message sending is unavailable.");
@@ -523,11 +536,21 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
     let Some(body) = (unsafe { required_utf8(body) }) else {
         return error_json("invalid_message", "The Matrix message is invalid.");
     };
+    let reply_to_event_id = unsafe { required_utf8(reply_to_event_id) };
     if room_id.is_empty() || transaction_id.is_empty() || body.is_empty() {
         return error_json("invalid_message", "The Matrix message is invalid.");
     }
     let Ok(room_id) = RoomId::parse(room_id) else {
         return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let reply_to_event_id = match reply_to_event_id {
+        Some(event_id) => match EventId::parse(event_id) {
+            Ok(event_id) => Some(event_id),
+            Err(_) => {
+                return error_json("invalid_reply", "The Matrix reply target is invalid.");
+            }
+        },
+        None => None,
     };
 
     let client = unsafe { &mut *client };
@@ -544,8 +567,9 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
+    let content = text_message_content(body, reply_to_event_id);
     let Ok(response) = client.runtime.block_on(async {
-        room.send(RoomMessageEventContent::text_plain(body))
+        room.send(content)
             .with_transaction_id(OwnedTransactionId::from(transaction_id))
             .await
     }) else {
@@ -2182,7 +2206,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 20);
+        assert_eq!(kite_matrix_abi_version(), 21);
     }
 
     #[test]
@@ -2261,6 +2285,18 @@ mod tests {
     }
 
     #[test]
+    fn reply_content_preserves_matrix_relation() {
+        let reply_to = EventId::parse("$original:kite.test").unwrap();
+        let content = text_message_content("Reply body", Some(reply_to));
+        let serialized = serde_json::to_value(content).unwrap();
+        assert_eq!(serialized["body"], "Reply body");
+        assert_eq!(
+            serialized["m.relates_to"]["m.in_reply_to"]["event_id"],
+            "$original:kite.test"
+        );
+    }
+
+    #[test]
     fn sync_and_pagination_reject_missing_clients() {
         let room_id = CString::new("!room:kite.test").unwrap();
         let body = CString::new("hello").unwrap();
@@ -2277,6 +2313,7 @@ mod tests {
                 room_id.as_ptr(),
                 transaction_id.as_ptr(),
                 body.as_ptr(),
+                ptr::null(),
             )
         };
         let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };

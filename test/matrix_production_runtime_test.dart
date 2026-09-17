@@ -158,11 +158,13 @@ void main() {
         roomId: '!room:example.org',
         transactionId: 'kite-transaction-1',
         body: 'Sent from Kite',
+        replyToEventId: r'$original',
       );
       expect(eventId, r'$sent');
       expect(boundary.sentMessages, <(String, String, String)>[
         ('!room:example.org', 'kite-transaction-1', 'Sent from Kite'),
       ]);
+      expect(boundary.sentReplyTargets, <String?>[r'$original']);
 
       await runtime.setRoomFavourite(
         accountId: '@alice:example.org',
@@ -333,6 +335,7 @@ final class _FakeBoundary
   int closeCount = 0;
   final List<(String, String, String)> sentMessages =
       <(String, String, String)>[];
+  final List<String?> sentReplyTargets = <String?>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
@@ -453,8 +456,10 @@ final class _FakeBoundary
     required String roomId,
     required String transactionId,
     required String body,
+    String? replyToEventId,
   }) async {
     sentMessages.add((roomId, transactionId, body));
+    sentReplyTargets.add(replyToEventId);
     return r'$sent';
   }
 
