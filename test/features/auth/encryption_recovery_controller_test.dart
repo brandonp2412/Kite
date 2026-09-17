@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
 
 final class _FakeEncryptionRecoveryGateway
-    implements EncryptionRecoveryGateway {
+    implements EncryptionRecoveryGateway, RoomKeyBackupImportGateway {
   EncryptionRecoveryStatus current = const EncryptionRecoveryStatus(
     backupState: EncryptedBackupState.needsRecovery,
     historicalRecoveryState: HistoricalRecoveryState.available,
@@ -14,6 +14,8 @@ final class _FakeEncryptionRecoveryGateway
   EncryptionRecoveryStatus? overrideResult;
   String? recoveryKey;
   String? passphrase;
+  String? importedPath;
+  String? importedPassphrase;
   int createCalls = 0;
   int historicalRecoveryCalls = 0;
   Completer<EncryptionRecoveryStatus>? deferredStatus;
@@ -28,6 +30,17 @@ final class _FakeEncryptionRecoveryGateway
       hasUnverifiedSessions: false,
     );
     return overrideResult ?? current;
+  }
+
+  @override
+  Future<RoomKeyBackupImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) async {
+    if (failure case final error?) throw error;
+    importedPath = path;
+    importedPassphrase = passphrase;
+    return const RoomKeyBackupImportResult(importedCount: 185, totalCount: 185);
   }
 
   @override
@@ -178,6 +191,54 @@ void main() {
     expect(gateway.passphrase, isNull);
   });
 
+  test(
+    'Element room-key backup is imported with its export passphrase',
+    () async {
+      final gateway = _FakeEncryptionRecoveryGateway();
+      final controller = EncryptionRecoveryController(gateway);
+      addTearDown(controller.dispose);
+
+      expect(
+        await controller.importRoomKeyBackup(
+          path: '/tmp/element-e2e-keys.txt',
+          passphrase: 'export-passphrase',
+        ),
+        isTrue,
+      );
+      expect(gateway.importedPath, '/tmp/element-e2e-keys.txt');
+      expect(gateway.importedPassphrase, 'export-passphrase');
+      expect(controller.roomKeyImportResult.value?.importedCount, 185);
+      expect(controller.roomKeyImportResult.value?.totalCount, 185);
+    },
+  );
+
+  test('room-key backup import validates file and passphrase', () async {
+    final gateway = _FakeEncryptionRecoveryGateway();
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+
+    expect(
+      await controller.importRoomKeyBackup(path: '', passphrase: 'secret'),
+      isFalse,
+    );
+    expect(
+      controller.errorMessage.value,
+      'Choose your Element room-key backup file.',
+    );
+
+    expect(
+      await controller.importRoomKeyBackup(
+        path: '/tmp/backup.txt',
+        passphrase: '',
+      ),
+      isFalse,
+    );
+    expect(
+      controller.errorMessage.value,
+      'Enter the passphrase for that room-key backup.',
+    );
+  });
+
   test('historical recovery is an SDK-owned operation', () async {
     final gateway = _FakeEncryptionRecoveryGateway();
     final controller = EncryptionRecoveryController(gateway);
@@ -258,5 +319,18 @@ void main() {
     expect(controller.errorMessage.value, isNot(contains('RECOVERY')));
     expect(controller.errorMessage.value, isNot(contains('SECRET')));
     expect(controller.errorMessage.value, isNot(contains('access_token')));
+
+    expect(
+      await controller.importRoomKeyBackup(
+        path: '/tmp/room-keys.txt',
+        passphrase: 'SECRET',
+      ),
+      isFalse,
+    );
+    expect(
+      controller.errorMessage.value,
+      'Kite could not decrypt that room-key backup. Check its export passphrase.',
+    );
+    expect(controller.errorMessage.value, isNot(contains('SECRET')));
   });
 }

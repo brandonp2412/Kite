@@ -4,6 +4,16 @@ enum EncryptedBackupState { unknown, unavailable, ready, needsRecovery }
 
 enum HistoricalRecoveryState { idle, available, recovering, complete }
 
+final class RoomKeyBackupImportResult {
+  const RoomKeyBackupImportResult({
+    required this.importedCount,
+    required this.totalCount,
+  });
+
+  final int importedCount;
+  final int totalCount;
+}
+
 final class EncryptionRecoveryStatus {
   const EncryptionRecoveryStatus({
     required this.backupState,
@@ -47,6 +57,15 @@ abstract interface class EncryptionRecoveryGateway {
   Future<EncryptionRecoveryStatus> recoverHistoricalMessages();
 }
 
+abstract interface class RoomKeyBackupImportGateway {
+  /// Imports an Element-style encrypted room-key export into the SDK crypto
+  /// store. Neither the backup contents nor its passphrase may be retained.
+  Future<RoomKeyBackupImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  });
+}
+
 final class EncryptionRecoveryController {
   EncryptionRecoveryController(this._gateway);
 
@@ -54,6 +73,7 @@ final class EncryptionRecoveryController {
   int _accountGeneration = 0;
 
   final status = signal<EncryptionRecoveryStatus?>(null);
+  final roomKeyImportResult = signal<RoomKeyBackupImportResult?>(null);
   final isBusy = signal(false);
   final errorMessage = signal<String?>(null);
 
@@ -63,6 +83,7 @@ final class EncryptionRecoveryController {
   bool resetForAccountChange() {
     _accountGeneration += 1;
     status.value = null;
+    roomKeyImportResult.value = null;
     isBusy.value = false;
     errorMessage.value = null;
     return true;
@@ -123,6 +144,48 @@ final class EncryptionRecoveryController {
     );
   }
 
+  Future<bool> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) async {
+    if (path.trim().isEmpty) {
+      errorMessage.value = 'Choose your Element room-key backup file.';
+      return false;
+    }
+    if (passphrase.isEmpty) {
+      errorMessage.value = 'Enter the passphrase for that room-key backup.';
+      return false;
+    }
+    if (isBusy.value) return false;
+
+    final generation = _accountGeneration;
+    isBusy.value = true;
+    errorMessage.value = null;
+    roomKeyImportResult.value = null;
+    final importer = _gateway;
+    if (importer is! RoomKeyBackupImportGateway) {
+      isBusy.value = false;
+      errorMessage.value = 'Room-key backup import is not available.';
+      return false;
+    }
+    try {
+      final result = await (importer as RoomKeyBackupImportGateway)
+          .importRoomKeyBackup(path: path, passphrase: passphrase);
+      if (generation != _accountGeneration) return false;
+      roomKeyImportResult.value = result;
+      return true;
+    } catch (_) {
+      if (generation == _accountGeneration) {
+        errorMessage.value = 'Kite could not decrypt that room-key backup. Check its export passphrase.';
+      }
+      return false;
+    } finally {
+      if (generation == _accountGeneration) {
+        isBusy.value = false;
+      }
+    }
+  }
+
   Future<bool> _run(
     Future<EncryptionRecoveryStatus> Function() action, {
     bool Function(EncryptionRecoveryStatus status)? validateStatus,
@@ -156,6 +219,7 @@ final class EncryptionRecoveryController {
 
   void dispose() {
     status.dispose();
+    roomKeyImportResult.dispose();
     isBusy.dispose();
     errorMessage.dispose();
   }

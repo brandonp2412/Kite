@@ -20,6 +20,7 @@ final class MatrixAccountSdkGateway
         SessionLifecycleGateway,
         DeviceVerificationGateway,
         EncryptionRecoveryGateway,
+        RoomKeyBackupImportGateway,
         EncryptionTrustGateway,
         SessionDeviceGateway,
         AccountManagementGateway,
@@ -271,6 +272,26 @@ final class MatrixAccountSdkGateway
     return _runAudited(
       MatrixAccountSdkCapability.historicalMessageRecovery,
       () async => _recoveryStatus(await _boundary.recoverHistoricalMessages()),
+    );
+  }
+
+  @override
+  Future<RoomKeyBackupImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) {
+    return _runAudited(
+      MatrixAccountSdkCapability.historicalMessageRecovery,
+      () async {
+        final result = await _boundary.importRoomKeyBackup(
+          path: path,
+          passphrase: passphrase,
+        );
+        return RoomKeyBackupImportResult(
+          importedCount: result.importedCount,
+          totalCount: result.totalCount,
+        );
+      },
     );
   }
 

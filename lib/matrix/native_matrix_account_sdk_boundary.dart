@@ -25,6 +25,11 @@ abstract interface class MatrixNativeRecoveryApi {
   Future<MatrixSdkRecoveryStatus> restoreBackup(String secret);
 
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages();
+
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  });
 }
 
 abstract interface class MatrixNativeDeviceApi {
@@ -203,6 +208,14 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
   @override
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages() =>
       _recovery?.recoverHistoricalMessages() ??
+      _unsupported(MatrixAccountSdkCapability.historicalMessageRecovery);
+
+  @override
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) =>
+      _recovery?.importRoomKeyBackup(path: path, passphrase: passphrase) ??
       _unsupported(MatrixAccountSdkCapability.historicalMessageRecovery);
 
   @override

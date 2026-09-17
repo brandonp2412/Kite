@@ -307,6 +307,11 @@ abstract interface class MatrixAccountSdkBoundary {
 
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages();
 
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  });
+
   Future<MatrixSdkRoomEncryptionTrust> loadRoomEncryptionTrust(String roomId);
 
   Future<MatrixSdkRoomEncryptionTrust> setEncryptedHistorySharing({

@@ -112,6 +112,21 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.recoverEncryptedHistory();
   }
 
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String accountId,
+    required String path,
+    required String passphrase,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot import Matrix room keys for an inactive account',
+    );
+    return active.engine.importRoomKeyBackup(
+      path: path,
+      passphrase: passphrase,
+    );
+  }
+
   ReadonlySignal<MatrixPaginationState>? activePaginationState({
     required String accountId,
     required String roomId,

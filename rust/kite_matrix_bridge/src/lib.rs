@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString, c_char};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr;
 use std::time::Duration;
 
@@ -50,7 +50,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 25;
+const KITE_MATRIX_ABI_VERSION: u32 = 26;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -600,6 +600,62 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
         _ => error_json(
             "invalid_recovery_action",
             "Matrix encryption recovery is unavailable.",
+        ),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_import_room_keys(
+    client: *mut KiteMatrixClient,
+    path: *const c_char,
+    passphrase: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room-key import is unavailable.");
+    }
+    let Some(path) = (unsafe { required_utf8(path) }) else {
+        return error_json(
+            "room_key_import_path_required",
+            "Choose a Matrix room-key backup file.",
+        );
+    };
+    let Some(passphrase) = (unsafe { required_utf8(passphrase) }) else {
+        return error_json(
+            "room_key_import_passphrase_required",
+            "Enter the room-key backup passphrase.",
+        );
+    };
+    if path.is_empty() || passphrase.is_empty() {
+        return error_json(
+            "room_key_import_invalid_input",
+            "Choose a room-key backup and enter its passphrase.",
+        );
+    }
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room-key import is unavailable.");
+    };
+    if matrix_client.matrix_auth().session().is_none() {
+        return error_json(
+            "session_unavailable",
+            "Matrix room-key import requires an authenticated session.",
+        );
+    }
+
+    let result = client.runtime.block_on(
+        matrix_client
+            .encryption()
+            .import_room_keys(PathBuf::from(path), passphrase),
+    );
+    match result {
+        Ok(imported) => ok_json(json!({
+            "importedCount": imported.imported_count,
+            "totalCount": imported.total_count,
+        })),
+        Err(_) => error_json(
+            "room_key_import_failed",
+            "The room-key backup could not be decrypted. Check its export passphrase.",
         ),
     }
 }
@@ -2553,7 +2609,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 25);
+        assert_eq!(kite_matrix_abi_version(), 26);
     }
 
     #[test]

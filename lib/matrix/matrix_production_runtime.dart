@@ -126,6 +126,16 @@ final class MatrixProductionRuntime
     required String accountId,
   }) => accounts.recoverEncryptedHistory(accountId: accountId);
 
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String accountId,
+    required String path,
+    required String passphrase,
+  }) => accounts.importRoomKeyBackup(
+    accountId: accountId,
+    path: path,
+    passphrase: passphrase,
+  );
+
   void registerAuthenticatedAccount({
     required String accountId,
     required Uri homeserver,

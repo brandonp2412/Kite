@@ -16,6 +16,8 @@ final class _FakeAccountBoundary implements MatrixAccountSdkBoundary {
   int ssoCalls = 0;
   String? receivedPassword;
   String? receivedRecoveryKey;
+  String? receivedRoomKeyBackupPath;
+  String? receivedRoomKeyBackupPassphrase;
   String? receivedVerificationQrCode;
   String? receivedDeviceToken;
   String? receivedEncryptedPayload;
@@ -92,6 +94,19 @@ final class _FakeAccountBoundary implements MatrixAccountSdkBoundary {
       backupState: MatrixSdkBackupState.ready,
       historicalRecoveryState: MatrixSdkHistoricalRecoveryState.available,
       hasUnverifiedSessions: false,
+    );
+  }
+
+  @override
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) async {
+    receivedRoomKeyBackupPath = path;
+    receivedRoomKeyBackupPassphrase = passphrase;
+    return const MatrixSdkRoomKeyImportResult(
+      importedCount: 185,
+      totalCount: 185,
     );
   }
 
@@ -291,6 +306,7 @@ void main() {
       MatrixAccountSdkCapability.auditedEncryption,
       MatrixAccountSdkCapability.qrVerification,
       MatrixAccountSdkCapability.encryptedBackup,
+      MatrixAccountSdkCapability.historicalMessageRecovery,
     });
     final gateway = MatrixAccountSdkGateway(boundary);
 
@@ -310,6 +326,15 @@ void main() {
       isNot(contains('opaque-verification-secret')),
     );
     expect(recovery.backupState.name, 'ready');
+
+    final imported = await gateway.importRoomKeyBackup(
+      path: '/tmp/element-room-keys.txt',
+      passphrase: 'export-passphrase',
+    );
+    expect(boundary.receivedRoomKeyBackupPath, '/tmp/element-room-keys.txt');
+    expect(boundary.receivedRoomKeyBackupPassphrase, 'export-passphrase');
+    expect(imported.importedCount, 185);
+    expect(imported.totalCount, 185);
   });
 
   test(

@@ -12,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 25;
+const int kiteMatrixNativeAbiVersion = 26;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -1188,6 +1188,62 @@ final class _MatrixNativeRecoveryOperation {
   }
 }
 
+final class _MatrixNativeRoomKeyImportOperation {
+  const _MatrixNativeRoomKeyImportOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.path,
+    required this.passphrase,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String path;
+  final String passphrase;
+
+  Map<String, Object?> call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final importRoomKeys = library
+        .lookupFunction<_ClientRecoveryNative, _ClientRecoveryDart>(
+          'kite_matrix_client_import_room_keys',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final pathUtf8 = path.toNativeUtf8(allocator: calloc);
+    final passphraseUtf8 = passphrase.toNativeUtf8(allocator: calloc);
+    final passphraseByteLength = utf8.encode(passphrase).length + 1;
+    try {
+      final payload = _readNativeString(
+        importRoomKeys(
+          Pointer<Void>.fromAddress(address),
+          pathUtf8.cast<Char>(),
+          passphraseUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room-key import',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid room-key import data.',
+        );
+      }
+      return Map<String, Object?>.from(decoded);
+    } finally {
+      final secretBytes = passphraseUtf8.cast<Uint8>().asTypedList(
+        passphraseByteLength,
+      );
+      secretBytes.fillRange(0, secretBytes.length, 0);
+      calloc.free(passphraseUtf8);
+      calloc.free(pathUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeUploadMediaOperation {
   const _MatrixNativeUploadMediaOperation({
     required this.libraryPath,
@@ -1640,6 +1696,11 @@ abstract interface class MatrixRustEncryptionRecoveryClient {
   Future<Map<String, Object?>> recoverEncryption(String secret);
 
   Future<Map<String, Object?>> recoverEncryptedHistory();
+
+  Future<Map<String, Object?>> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  });
 }
 
 abstract interface class MatrixRustRoomSettingsClient {
@@ -2033,6 +2094,41 @@ final class MatrixRustNativeClient
   @override
   Future<Map<String, Object?>> recoverEncryptedHistory() {
     return _recovery(action: 'recover_history');
+  }
+
+  @override
+  Future<Map<String, Object?>> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) {
+    if (path.isEmpty || path.contains('\u0000')) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          path,
+          'path',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (passphrase.isEmpty || passphrase.contains('\u0000')) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'passphrase',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<Map<String, Object?>>(
+      () => Isolate.run<Map<String, Object?>>(
+        _MatrixNativeRoomKeyImportOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          path: path,
+          passphrase: passphrase,
+        ).call,
+      ),
+    );
   }
 
   Future<Map<String, Object?>> _recovery({
@@ -3072,6 +3168,37 @@ final class MatrixRustSdkBoundary
   @override
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory() {
     return _encryptionRecovery((client) => client.recoverEncryptedHistory());
+  }
+
+  @override
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) {
+    return _enqueue<MatrixSdkRoomKeyImportResult>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustEncryptionRecoveryClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support encryption recovery',
+        );
+      }
+      final data = await (client as MatrixRustEncryptionRecoveryClient)
+          .importRoomKeyBackup(path: path, passphrase: passphrase);
+      final importedCount = data['importedCount'];
+      final totalCount = data['totalCount'];
+      if (importedCount is! int ||
+          totalCount is! int ||
+          importedCount < 0 ||
+          totalCount < importedCount) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid room-key import data',
+        );
+      }
+      return MatrixSdkRoomKeyImportResult(
+        importedCount: importedCount,
+        totalCount: totalCount,
+      );
+    });
   }
 
   Future<MatrixSdkEncryptionRecoveryStatus> _encryptionRecovery(

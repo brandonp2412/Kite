@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
@@ -9,11 +10,13 @@ class EncryptionRecoveryScreen extends StatefulWidget {
   const EncryptionRecoveryScreen({
     required this.controller,
     this.loadOnInit = true,
+    this.selectRoomKeyBackup,
     super.key,
   });
 
   final EncryptionRecoveryController controller;
   final bool loadOnInit;
+  final Future<XFile?> Function()? selectRoomKeyBackup;
 
   @override
   State<EncryptionRecoveryScreen> createState() =>
@@ -23,12 +26,15 @@ class EncryptionRecoveryScreen extends StatefulWidget {
 class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
   late final TextEditingController _recoveryKeyController;
   late final TextEditingController _passphraseController;
+  late final TextEditingController _roomKeyBackupPassphraseController;
+  XFile? _selectedRoomKeyBackup;
 
   @override
   void initState() {
     super.initState();
     _recoveryKeyController = TextEditingController();
     _passphraseController = TextEditingController();
+    _roomKeyBackupPassphraseController = TextEditingController();
     if (widget.loadOnInit) {
       unawaited(widget.controller.refresh());
     }
@@ -39,6 +45,7 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
     _clearSecrets();
     _recoveryKeyController.dispose();
     _passphraseController.dispose();
+    _roomKeyBackupPassphraseController.dispose();
     super.dispose();
   }
 
@@ -59,6 +66,27 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
     await widget.controller.restoreWithPassphrase(passphrase);
   }
 
+  Future<void> _selectRoomKeyBackup() async {
+    final selected = await (widget.selectRoomKeyBackup?.call() ?? openFile());
+    if (!mounted || selected == null) return;
+    setState(() {
+      _selectedRoomKeyBackup = selected;
+    });
+  }
+
+  Future<void> _importRoomKeyBackup() async {
+    final passphrase = _roomKeyBackupPassphraseController.text;
+    _roomKeyBackupPassphraseController.clear();
+    final imported = await widget.controller.importRoomKeyBackup(
+      path: _selectedRoomKeyBackup?.path ?? '',
+      passphrase: passphrase,
+    );
+    if (!mounted || !imported) return;
+    setState(() {
+      _selectedRoomKeyBackup = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,147 +96,218 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
         child: SignalBuilder(
           builder: (context) {
             final status = widget.controller.status.value;
+            final importResult = widget.controller.roomKeyImportResult.value;
             final busy = widget.controller.isBusy.value;
             final error = widget.controller.errorMessage.value;
 
-            return ListView(
+            return SingleChildScrollView(
               key: const Key('encryption-recovery-list'),
               padding: const EdgeInsets.only(bottom: KiteSpacing.xl),
-              children: <Widget>[
-                const _SectionTitle(label: 'Encrypted backup'),
-                _StatusCard(status: status),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KiteSpacing.md,
-                  ),
-                  child: FilledButton.tonalIcon(
-                    key: const Key('create-encrypted-backup'),
-                    onPressed: busy
-                        ? null
-                        : widget.controller.createEncryptedBackup,
-                    icon: const Icon(Icons.cloud_upload_outlined),
-                    label: const Text('Enable encrypted backup'),
-                  ),
-                ),
-                const Divider(height: KiteSpacing.xl),
-                const _SectionTitle(label: 'Restore access'),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    KiteSpacing.md,
-                    0,
-                    KiteSpacing.md,
-                    KiteSpacing.md,
-                  ),
-                  child: Text(
-                    'Recovery secrets are passed directly to the Matrix SDK and are never stored by Kite.',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KiteSpacing.md,
-                  ),
-                  child: TextField(
-                    key: const Key('recovery-key-field'),
-                    controller: _recoveryKeyController,
-                    enabled: !busy,
-                    obscureText: true,
-                    enableSuggestions: false,
-                    autocorrect: false,
-                    keyboardType: TextInputType.visiblePassword,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const <String>[],
-                    decoration: const InputDecoration(
-                      labelText: 'Recovery key',
-                    ),
-                    onSubmitted: busy ? null : (_) => _restoreWithRecoveryKey(),
-                  ),
-                ),
-                const SizedBox(height: KiteSpacing.sm),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KiteSpacing.md,
-                  ),
-                  child: FilledButton(
-                    key: const Key('restore-recovery-key'),
-                    onPressed: busy ? null : _restoreWithRecoveryKey,
-                    child: const Text('Restore with recovery key'),
-                  ),
-                ),
-                const SizedBox(height: KiteSpacing.lg),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KiteSpacing.md,
-                  ),
-                  child: TextField(
-                    key: const Key('recovery-passphrase-field'),
-                    controller: _passphraseController,
-                    enabled: !busy,
-                    obscureText: true,
-                    enableSuggestions: false,
-                    autocorrect: false,
-                    keyboardType: TextInputType.visiblePassword,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const <String>[],
-                    decoration: const InputDecoration(
-                      labelText: 'Recovery passphrase',
-                    ),
-                    onSubmitted: busy ? null : (_) => _restoreWithPassphrase(),
-                  ),
-                ),
-                const SizedBox(height: KiteSpacing.sm),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KiteSpacing.md,
-                  ),
-                  child: OutlinedButton(
-                    key: const Key('restore-passphrase'),
-                    onPressed: busy ? null : _restoreWithPassphrase,
-                    child: const Text('Restore with passphrase'),
-                  ),
-                ),
-                const Divider(height: KiteSpacing.xl),
-                const _SectionTitle(label: 'Message history'),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KiteSpacing.md,
-                  ),
-                  child: OutlinedButton.icon(
-                    key: const Key('recover-history'),
-                    onPressed:
-                        busy ||
-                            status?.historicalRecoveryState !=
-                                HistoricalRecoveryState.available
-                        ? null
-                        : widget.controller.recoverHistoricalMessages,
-                    icon: const Icon(Icons.history_rounded),
-                    label: const Text('Recover encrypted history'),
-                  ),
-                ),
-                SizedBox(
-                  key: const Key('encryption-recovery-status-slot'),
-                  height: 64,
-                  child: Padding(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const _SectionTitle(label: 'Encrypted backup'),
+                  _StatusCard(status: status),
+                  Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: KiteSpacing.md,
                     ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          error ?? '',
-                          key: const Key('encryption-recovery-error'),
-                          style: KiteTypography.metadata.copyWith(
-                            color: error == null
-                                ? null
-                                : Theme.of(context).colorScheme.error,
+                    child: FilledButton.tonalIcon(
+                      key: const Key('create-encrypted-backup'),
+                      onPressed: busy
+                          ? null
+                          : widget.controller.createEncryptedBackup,
+                      icon: const Icon(Icons.cloud_upload_outlined),
+                      label: const Text('Enable encrypted backup'),
+                    ),
+                  ),
+                  const Divider(height: KiteSpacing.xl),
+                  const _SectionTitle(label: 'Restore access'),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      KiteSpacing.md,
+                      0,
+                      KiteSpacing.md,
+                      KiteSpacing.md,
+                    ),
+                    child: Text(
+                      'Recovery secrets are passed directly to the Matrix SDK and are never stored by Kite.',
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: TextField(
+                      key: const Key('recovery-key-field'),
+                      controller: _recoveryKeyController,
+                      enabled: !busy,
+                      obscureText: true,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      keyboardType: TextInputType.visiblePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const <String>[],
+                      decoration: const InputDecoration(
+                        labelText: 'Recovery key',
+                      ),
+                      onSubmitted: busy
+                          ? null
+                          : (_) => _restoreWithRecoveryKey(),
+                    ),
+                  ),
+                  const SizedBox(height: KiteSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: FilledButton(
+                      key: const Key('restore-recovery-key'),
+                      onPressed: busy ? null : _restoreWithRecoveryKey,
+                      child: const Text('Restore with recovery key'),
+                    ),
+                  ),
+                  const SizedBox(height: KiteSpacing.lg),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: TextField(
+                      key: const Key('recovery-passphrase-field'),
+                      controller: _passphraseController,
+                      enabled: !busy,
+                      obscureText: true,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      keyboardType: TextInputType.visiblePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const <String>[],
+                      decoration: const InputDecoration(
+                        labelText: 'Recovery passphrase',
+                      ),
+                      onSubmitted: busy
+                          ? null
+                          : (_) => _restoreWithPassphrase(),
+                    ),
+                  ),
+                  const SizedBox(height: KiteSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: OutlinedButton(
+                      key: const Key('restore-passphrase'),
+                      onPressed: busy ? null : _restoreWithPassphrase,
+                      child: const Text('Restore with passphrase'),
+                    ),
+                  ),
+                  const Divider(height: KiteSpacing.xl),
+                  const _SectionTitle(label: 'Element room-key backup'),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      KiteSpacing.md,
+                      0,
+                      KiteSpacing.md,
+                      KiteSpacing.md,
+                    ),
+                    child: Text(
+                      'Use this for an encrypted E2EE key export from Element. Choose the export file, then enter the passphrase you used when exporting it.',
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: OutlinedButton.icon(
+                      key: const Key('select-room-key-backup'),
+                      onPressed: busy ? null : _selectRoomKeyBackup,
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: Text(
+                        _selectedRoomKeyBackup?.name ??
+                            'Choose room-key backup',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: KiteSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: TextField(
+                      key: const Key('room-key-backup-passphrase-field'),
+                      controller: _roomKeyBackupPassphraseController,
+                      enabled: !busy,
+                      obscureText: true,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      keyboardType: TextInputType.visiblePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const <String>[],
+                      decoration: const InputDecoration(
+                        labelText: 'Export passphrase',
+                      ),
+                      onSubmitted: busy ? null : (_) => _importRoomKeyBackup(),
+                    ),
+                  ),
+                  const SizedBox(height: KiteSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: FilledButton.icon(
+                      key: const Key('import-room-key-backup'),
+                      onPressed: busy ? null : _importRoomKeyBackup,
+                      icon: const Icon(Icons.key_rounded),
+                      label: const Text('Import room-key backup'),
+                    ),
+                  ),
+                  const Divider(height: KiteSpacing.xl),
+                  const _SectionTitle(label: 'Message history'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KiteSpacing.md,
+                    ),
+                    child: OutlinedButton.icon(
+                      key: const Key('recover-history'),
+                      onPressed:
+                          busy ||
+                              status?.historicalRecoveryState !=
+                                  HistoricalRecoveryState.available
+                          ? null
+                          : widget.controller.recoverHistoricalMessages,
+                      icon: const Icon(Icons.history_rounded),
+                      label: const Text('Recover encrypted history'),
+                    ),
+                  ),
+                  SizedBox(
+                    key: const Key('encryption-recovery-status-slot'),
+                    height: 64,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: KiteSpacing.md,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            error ??
+                                (importResult == null
+                                    ? ''
+                                    : 'Imported ${importResult.importedCount} of ${importResult.totalCount} room keys.'),
+                            key: const Key('encryption-recovery-error'),
+                            style: KiteTypography.metadata.copyWith(
+                              color: error == null
+                                  ? null
+                                  : Theme.of(context).colorScheme.error,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),

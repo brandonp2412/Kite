@@ -41,6 +41,8 @@ final class _AuthApi implements MatrixNativeAuthSessionApi {
 final class _RecoveryApi implements MatrixNativeRecoveryApi {
   int createCalls = 0;
   String? restoredSecret;
+  String? importedPath;
+  String? importedPassphrase;
   int historyCalls = 0;
 
   static const status = MatrixSdkRecoveryStatus(
@@ -53,6 +55,19 @@ final class _RecoveryApi implements MatrixNativeRecoveryApi {
   Future<MatrixSdkRecoveryStatus> createEncryptedBackup() async {
     createCalls += 1;
     return status;
+  }
+
+  @override
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) async {
+    importedPath = path;
+    importedPassphrase = passphrase;
+    return const MatrixSdkRoomKeyImportResult(
+      importedCount: 12,
+      totalCount: 14,
+    );
   }
 
   @override
@@ -195,6 +210,15 @@ void main() {
     expect(recovery.restoredSecret, 'opaque-secret');
     await boundary.restoreBackupWithPassphrase('opaque passphrase');
     expect(recovery.restoredSecret, 'opaque passphrase');
+
+    final imported = await boundary.importRoomKeyBackup(
+      path: '/tmp/element-keys.txt',
+      passphrase: 'export-passphrase',
+    );
+    expect(imported.importedCount, 12);
+    expect(imported.totalCount, 14);
+    expect(recovery.importedPath, '/tmp/element-keys.txt');
+    expect(recovery.importedPassphrase, 'export-passphrase');
 
     final history = await boundary.recoverHistoricalMessages();
     expect(

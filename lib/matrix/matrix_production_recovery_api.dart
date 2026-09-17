@@ -44,6 +44,18 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
     );
   }
 
+  @override
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) {
+    return _runtime.importRoomKeyBackup(
+      accountId: _activeAccountId(),
+      path: path,
+      passphrase: passphrase,
+    );
+  }
+
   String _activeAccountId() {
     final accountId = _runtime.activeAccountId.value;
     if (accountId == null) {

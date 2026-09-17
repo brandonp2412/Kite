@@ -73,6 +73,16 @@ final class MatrixSdkEncryptionRecoveryStatus {
   final bool backupExistsOnServer;
 }
 
+final class MatrixSdkRoomKeyImportResult {
+  const MatrixSdkRoomKeyImportResult({
+    required this.importedCount,
+    required this.totalCount,
+  });
+
+  final int importedCount;
+  final int totalCount;
+}
+
 final class MatrixSdkRoomMember {
   const MatrixSdkRoomMember({
     required this.userId,
@@ -301,6 +311,11 @@ abstract interface class MatrixSdkEncryptionRecoveryManager {
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption(String secret);
 
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory();
+
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  });
 }
 
 abstract interface class MatrixSdkTextMessageSender {
@@ -489,6 +504,37 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await _ensureOpen();
     return (manager as MatrixSdkEncryptionRecoveryManager)
         .recoverEncryptedHistory();
+  }
+
+  Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkEncryptionRecoveryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support encryption recovery',
+      );
+    }
+    if (path.isEmpty || path.contains('\u0000')) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    if (passphrase.isEmpty || passphrase.contains('\u0000')) {
+      throw ArgumentError.value(
+        '<redacted>',
+        'passphrase',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkEncryptionRecoveryManager).importRoomKeyBackup(
+      path: path,
+      passphrase: passphrase,
+    );
   }
 
   Future<String> sendTextMessage({
