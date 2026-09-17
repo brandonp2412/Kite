@@ -67,6 +67,10 @@ abstract interface class MatrixSdkRoomFavouriteManager {
   Future<void> setRoomFavourite(String roomId, bool isFavourite);
 }
 
+abstract interface class MatrixSdkRoomInviteManager {
+  Future<void> respondToRoomInvite(String roomId, bool accept);
+}
+
 abstract interface class MatrixSdkRoomReadManager {
   Future<void> markRoomRead(String roomId, String eventId);
 }
@@ -244,6 +248,28 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await (manager as MatrixSdkRoomFavouriteManager).setRoomFavourite(
       normalizedRoomId,
       isFavourite,
+    );
+  }
+
+  Future<void> respondToRoomInvite(String roomId, bool accept) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomInviteManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room invites',
+      );
+    }
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'must contain a non-empty Matrix room id without NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomInviteManager).respondToRoomInvite(
+      normalizedRoomId,
+      accept,
     );
   }
 

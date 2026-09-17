@@ -64,6 +64,43 @@ final class MatrixRustSyncCodec {
       );
     }
 
+    final invites = <MatrixRoomInvite>[];
+    for (final rawInvite in _asList(
+      root['invites'] ?? const <Object?>[],
+      'invites',
+    )) {
+      final invite = _asMap(rawInvite, 'invite');
+      final roomId = _requiredIdentifier(invite, 'roomId');
+      final inviterId = _requiredIdentifier(invite, 'inviterId');
+      final roomName = _optionalDisplayName(invite['roomName']) ?? roomId;
+      final inviterDisplayName =
+          _optionalDisplayName(invite['inviterDisplayName']) ?? inviterId;
+      final description = _optionalDisplayName(invite['description']);
+      invites.add(
+        MatrixRoomInvite(
+          roomId: roomId,
+          roomName: roomName,
+          inviterId: inviterId,
+          inviterDisplayName: inviterDisplayName,
+          memberCount: _optionalNonNegativeInt(invite['memberCount']) ?? 0,
+          description: description,
+        ),
+      );
+    }
+    invites.sort((left, right) {
+      final name = left.roomName.compareTo(right.roomName);
+      if (name != 0) return name;
+      return left.roomId.compareTo(right.roomId);
+    });
+
+    final removedInviteRoomIds = <String>[
+      for (final value in _asList(
+        root['removedInviteRoomIds'] ?? const <Object?>[],
+        'removedInviteRoomIds',
+      ))
+        _requiredIdentifier(<String, Object?>{'roomId': value}, 'roomId'),
+    ];
+
     rooms.sort((left, right) {
       final leftSummary = left.summary!;
       final rightSummary = right.summary!;
@@ -82,6 +119,9 @@ final class MatrixRustSyncCodec {
       batch: MatrixSyncBatch(
         cursor: cursor,
         rooms: List<MatrixRoomDelta>.unmodifiable(rooms),
+        invites: List<MatrixRoomInvite>.unmodifiable(invites),
+        removedInviteRoomIds: List<String>.unmodifiable(removedInviteRoomIds),
+        replaceInvites: _optionalBool(root['replaceInvites']) ?? false,
       ),
     );
   }

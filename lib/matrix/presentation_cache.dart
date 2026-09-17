@@ -9,6 +9,9 @@ final class MatrixPresentationCache {
   }
 
   final Signal<List<String>> roomOrder = signal<List<String>>(const <String>[]);
+  final Signal<List<MatrixRoomInvite>> invites = signal<List<MatrixRoomInvite>>(
+    const <MatrixRoomInvite>[],
+  );
   final Map<String, Signal<MatrixRoomSummary?>> _roomSummaries =
       <String, Signal<MatrixRoomSummary?>>{};
   final Map<String, Signal<List<MatrixTimelineEvent>>> _timelines =
@@ -33,6 +36,7 @@ final class MatrixPresentationCache {
       rooms: <MatrixRoomSummary>[
         for (final roomId in orderedRoomIds) ?_roomSummaries[roomId]?.value,
       ],
+      invites: invites.value,
       timelines: <String, List<MatrixTimelineEvent>>{
         for (final roomId in persistedRoomIds)
           if (_timelines[roomId]?.value.isNotEmpty ?? false)
@@ -63,6 +67,9 @@ final class MatrixPresentationCache {
     _validateSnapshot(snapshot);
     batch(() {
       lastSyncCursor = snapshot.syncCursor;
+      if (!_sameInvites(invites.value, snapshot.invites)) {
+        invites.value = List<MatrixRoomInvite>.unmodifiable(snapshot.invites);
+      }
 
       final restoredRoomIds = snapshot.rooms
           .map((summary) => summary.roomId)
@@ -107,6 +114,16 @@ final class MatrixPresentationCache {
     final merged = _mergeEvents(timeline.value, page.events);
     if (_sameTimeline(timeline.value, merged)) return false;
     timeline.value = merged;
+    return true;
+  }
+
+  bool removeInvite(String roomId) {
+    _requireSafeIdentifier(roomId, 'invite room id');
+    final next = invites.value
+        .where((invite) => invite.roomId != roomId)
+        .toList(growable: false);
+    if (next.length == invites.value.length) return false;
+    invites.value = List<MatrixRoomInvite>.unmodifiable(next);
     return true;
   }
 
@@ -156,6 +173,7 @@ final class MatrixPresentationCache {
   void applySync(MatrixSyncBatch syncBatch) {
     _validateSyncBatch(syncBatch);
     batch(() {
+      _reconcileInvites(syncBatch);
       var roomOrderDirty = false;
       for (final room in syncBatch.rooms) {
         final summary = room.summary;
@@ -190,6 +208,28 @@ final class MatrixPresentationCache {
     });
   }
 
+  void _reconcileInvites(MatrixSyncBatch syncBatch) {
+    final byRoomId = <String, MatrixRoomInvite>{
+      if (!syncBatch.replaceInvites)
+        for (final invite in invites.value) invite.roomId: invite,
+    };
+    for (final roomId in syncBatch.removedInviteRoomIds) {
+      byRoomId.remove(roomId);
+    }
+    for (final invite in syncBatch.invites) {
+      byRoomId[invite.roomId] = invite;
+    }
+    final next = byRoomId.values.toList(growable: false)
+      ..sort((left, right) {
+        final name = left.roomName.compareTo(right.roomName);
+        if (name != 0) return name;
+        return left.roomId.compareTo(right.roomId);
+      });
+    if (!_sameInvites(invites.value, next)) {
+      invites.value = List<MatrixRoomInvite>.unmodifiable(next);
+    }
+  }
+
   void _refreshRoomOrder() {
     final next =
         _roomSummaries.entries
@@ -215,6 +255,13 @@ final class MatrixPresentationCache {
     final cursor = snapshot.syncCursor;
     if (cursor != null) {
       _requireSafeIdentifier(cursor, 'snapshot sync cursor');
+    }
+    final inviteRoomIds = <String>{};
+    for (final invite in snapshot.invites) {
+      _validateInvite(invite, 'snapshot invite');
+      if (!inviteRoomIds.add(invite.roomId)) {
+        throw ArgumentError('snapshot must not contain duplicate invites');
+      }
     }
     final roomIds = <String>{};
     for (final summary in snapshot.rooms) {
@@ -243,6 +290,28 @@ final class MatrixPresentationCache {
 
   static void _validateSyncBatch(MatrixSyncBatch syncBatch) {
     _requireSafeIdentifier(syncBatch.cursor, 'sync cursor');
+    final inviteRoomIds = <String>{};
+    for (final invite in syncBatch.invites) {
+      _validateInvite(invite, 'sync invite');
+      if (!inviteRoomIds.add(invite.roomId)) {
+        throw ArgumentError.value(
+          syncBatch,
+          'syncBatch',
+          'must not contain duplicate invite rooms',
+        );
+      }
+    }
+    final removedInviteRoomIds = <String>{};
+    for (final roomId in syncBatch.removedInviteRoomIds) {
+      _requireSafeIdentifier(roomId, 'removed invite room id');
+      if (!removedInviteRoomIds.add(roomId)) {
+        throw ArgumentError.value(
+          syncBatch,
+          'syncBatch',
+          'must not contain duplicate removed invite rooms',
+        );
+      }
+    }
     for (final room in syncBatch.rooms) {
       _requireSafeIdentifier(room.roomId, 'sync room id');
       final summary = room.summary;
@@ -259,6 +328,21 @@ final class MatrixPresentationCache {
         argument: syncBatch,
         argumentName: 'syncBatch',
       );
+    }
+  }
+
+  static void _validateInvite(MatrixRoomInvite invite, String name) {
+    _requireSafeIdentifier(invite.roomId, '$name room id');
+    _requireSafeIdentifier(invite.inviterId, '$name inviter id');
+    if (invite.roomName.trim().isEmpty ||
+        invite.roomName.contains('\u0000') ||
+        invite.inviterDisplayName.trim().isEmpty ||
+        invite.inviterDisplayName.contains('\u0000') ||
+        invite.memberCount < 0 ||
+        (invite.description != null &&
+            (invite.description!.trim().isEmpty ||
+                invite.description!.contains('\u0000')))) {
+      throw ArgumentError('$name contains invalid metadata');
     }
   }
 
@@ -363,6 +447,27 @@ final class MatrixPresentationCache {
         left.hasActiveCall == right.hasActiveCall &&
         left.isFavourite == right.isFavourite &&
         left.isMuted == right.isMuted;
+  }
+
+  static bool _sameInvites(
+    List<MatrixRoomInvite> left,
+    List<MatrixRoomInvite> right,
+  ) {
+    if (identical(left, right)) return true;
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      final a = left[index];
+      final b = right[index];
+      if (a.roomId != b.roomId ||
+          a.roomName != b.roomName ||
+          a.inviterId != b.inviterId ||
+          a.inviterDisplayName != b.inviterDisplayName ||
+          a.memberCount != b.memberCount ||
+          a.description != b.description) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static bool _sameTimeline(

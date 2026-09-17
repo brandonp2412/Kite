@@ -86,6 +86,67 @@ void main() {
     expect(controller.messagesFor('kite').value, isEmpty);
   });
 
+  test('cached invites project through the production invite port', () async {
+    final calls = <(String, bool)>[];
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: const <MatrixRoomSummary>[],
+        invites: const <MatrixRoomInvite>[
+          MatrixRoomInvite(
+            roomId: '!invite:example.org',
+            roomName: 'Invite room',
+            inviterId: '@alice:example.org',
+            inviterDisplayName: 'Alice',
+            memberCount: 5,
+            description: 'Production invite',
+          ),
+        ],
+      ),
+    );
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+      invitePort: MatrixRoomInvitePort((roomId, accept) async {
+        calls.add((roomId, accept));
+      }),
+    );
+    addTearDown(binding.dispose);
+
+    expect(binding.inviteStore.visibleInviteIds.value, <String>[
+      '!invite:example.org',
+    ]);
+    expect(
+      binding.inviteStore.invite('!invite:example.org').inviterName,
+      'Alice',
+    );
+
+    await binding.inviteStore.accept('!invite:example.org');
+    expect(calls, <(String, bool)>[('!invite:example.org', true)]);
+    expect(binding.inviteStore.visibleInviteIds.value, isEmpty);
+
+    cache.applySync(
+      const MatrixSyncBatch(
+        cursor: 'unrelated-sync',
+        rooms: <MatrixRoomDelta>[],
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(binding.inviteStore.visibleInviteIds.value, isEmpty);
+
+    cache.applySync(
+      const MatrixSyncBatch(
+        cursor: 'after-accept',
+        rooms: <MatrixRoomDelta>[],
+        removedInviteRoomIds: <String>['!invite:example.org'],
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(cache.invites.value, isEmpty);
+  });
+
   test('incremental cache updates reconcile rooms and timelines', () async {
     final cache = MatrixPresentationCache();
     final controller = TimelineController();

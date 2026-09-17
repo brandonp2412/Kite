@@ -86,6 +86,24 @@ final class MatrixRoomSummary {
   final bool isMuted;
 }
 
+final class MatrixRoomInvite {
+  const MatrixRoomInvite({
+    required this.roomId,
+    required this.roomName,
+    required this.inviterId,
+    required this.inviterDisplayName,
+    required this.memberCount,
+    this.description,
+  });
+
+  final String roomId;
+  final String roomName;
+  final String inviterId;
+  final String inviterDisplayName;
+  final int memberCount;
+  final String? description;
+}
+
 final class MatrixRoomDelta {
   const MatrixRoomDelta({
     required this.roomId,
@@ -102,11 +120,17 @@ final class MatrixSyncBatch {
   const MatrixSyncBatch({
     required this.cursor,
     required this.rooms,
+    this.invites = const <MatrixRoomInvite>[],
+    this.removedInviteRoomIds = const <String>[],
+    this.replaceInvites = false,
     this.commitCursor = true,
   });
 
   final String cursor;
   final List<MatrixRoomDelta> rooms;
+  final List<MatrixRoomInvite> invites;
+  final List<String> removedInviteRoomIds;
+  final bool replaceInvites;
   final bool commitCursor;
 }
 
@@ -125,10 +149,12 @@ final class MatrixPaginationPage {
 final class MatrixPresentationSnapshot {
   MatrixPresentationSnapshot({
     required List<MatrixRoomSummary> rooms,
+    List<MatrixRoomInvite> invites = const <MatrixRoomInvite>[],
     Map<String, List<MatrixTimelineEvent>> timelines =
         const <String, List<MatrixTimelineEvent>>{},
     this.syncCursor,
   }) : rooms = List<MatrixRoomSummary>.unmodifiable(rooms),
+       invites = List<MatrixRoomInvite>.unmodifiable(invites),
        timelines = UnmodifiableMapView<String, List<MatrixTimelineEvent>>(
          <String, List<MatrixTimelineEvent>>{
            for (final entry in timelines.entries)
@@ -137,6 +163,7 @@ final class MatrixPresentationSnapshot {
        );
 
   final List<MatrixRoomSummary> rooms;
+  final List<MatrixRoomInvite> invites;
   final Map<String, List<MatrixTimelineEvent>> timelines;
   final String? syncCursor;
 }

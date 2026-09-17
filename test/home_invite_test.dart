@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_theme.dart';
+import 'package:kite/features/auth/authenticated_account_scope.dart';
+import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
@@ -58,6 +60,59 @@ void main() {
         RoomInviteActionState.failed,
       );
       expect(failingStore.visibleInviteIds.value, <String>[inviteId]);
+    },
+  );
+
+  testWidgets(
+    'account sheet exposes invite cards and actions off the home surface',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final inviteStore = RoomInviteStore(deterministicRoomInvites);
+      final roomStore = RoomListStateStore(
+        deterministicRoomListEntries(BenchmarkFixture.rooms),
+      );
+      final session = AuthenticatedSession(
+        userId: '@me:example.org',
+        deviceId: 'KITE',
+        homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: AuthenticatedAccountScope(
+            session: session,
+            signOut: () async {},
+            child: HomeScreen(
+              roomListStore: roomStore,
+              inviteStore: inviteStore,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Design Lab'), findsNothing);
+      await tester.tap(find.byKey(const Key('home-account-menu')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('home-account-invites')), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('home-account-invites')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('room-invites-sheet')), findsOneWidget);
+      expect(find.text('Design Lab'), findsOneWidget);
+      expect(find.textContaining('Invited by Maya'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('invite-accept-design-lab-invite')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No pending invites'), findsOneWidget);
+      expect(inviteStore.visibleInviteIds.value, isEmpty);
     },
   );
 

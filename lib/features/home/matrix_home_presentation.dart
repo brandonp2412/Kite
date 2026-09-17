@@ -7,6 +7,23 @@ import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
+typedef MatrixRoomInviteResponse = Future<void> Function(
+  String roomId,
+  bool accept,
+);
+
+final class MatrixRoomInvitePort implements RoomInvitePort {
+  const MatrixRoomInvitePort(this._respond);
+
+  final MatrixRoomInviteResponse _respond;
+
+  @override
+  Future<void> accept(String inviteId) => _respond(inviteId, true);
+
+  @override
+  Future<void> decline(String inviteId) => _respond(inviteId, false);
+}
+
 typedef MatrixPlainTextSender = Future<void> Function({
   required String roomId,
   required String transactionId,
@@ -42,6 +59,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
+    this.onRoomInviteResponse,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -52,6 +70,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
+  final MatrixRoomInviteResponse? onRoomInviteResponse;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -85,6 +104,9 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       cache: widget.cache,
       currentUserId: widget.currentUserId,
       sendPort: widget.sendPort,
+      invitePort: widget.onRoomInviteResponse == null
+          ? null
+          : MatrixRoomInvitePort(widget.onRoomInviteResponse!),
     );
   }
 
@@ -116,6 +138,7 @@ final class MatrixHomePresentationBinding {
     required TimelineSendPort sendPort,
     TimelineController? controller,
     Signal<String>? selectedRoom,
+    RoomInvitePort? invitePort,
   }) : currentUserId = _normalizeUserId(currentUserId),
        controller =
            controller ??
@@ -125,7 +148,10 @@ final class MatrixHomePresentationBinding {
            ),
        selectedRoom = selectedRoom ?? selectedRoomId,
        roomListStore = RoomListStateStore(matrixRoomListEntries(cache)),
-       inviteStore = RoomInviteStore(const <RoomInvite>[]) {
+       inviteStore = RoomInviteStore(
+         _matrixRoomInvites(cache),
+         port: invitePort ?? const DeterministicRoomInvitePort(),
+       ) {
     this.controller.reset(sendPort: sendPort, fixtureProvider: (_) => const []);
     _projectCache();
     _disposeProjection = effect(_projectCache);
@@ -142,6 +168,7 @@ final class MatrixHomePresentationBinding {
   void _projectCache() {
     final roomIds = cache.roomOrder.value;
     roomListStore.reconcile(matrixRoomListEntries(cache));
+    inviteStore.reconcile(_matrixRoomInvites(cache));
     for (final roomId in roomIds) {
       controller.applyMatrixEvents(
         roomId,
@@ -155,6 +182,20 @@ final class MatrixHomePresentationBinding {
   }
 
   void dispose() => _disposeProjection();
+
+  static List<RoomInvite> _matrixRoomInvites(MatrixPresentationCache cache) {
+    return List<RoomInvite>.unmodifiable(
+      cache.invites.value.map(
+        (invite) => RoomInvite(
+          id: invite.roomId,
+          roomName: invite.roomName,
+          inviterName: invite.inviterDisplayName,
+          memberCount: invite.memberCount,
+          description: invite.description,
+        ),
+      ),
+    );
+  }
 
   static String _normalizeUserId(String userId) {
     final normalized = userId.trim();

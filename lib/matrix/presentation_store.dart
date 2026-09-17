@@ -79,6 +79,17 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     return <String, Object?>{
       'version': _schemaVersion,
       if (snapshot.syncCursor != null) 'syncCursor': snapshot.syncCursor,
+      'invites': <Object?>[
+        for (final invite in snapshot.invites)
+          <String, Object?>{
+            'roomId': invite.roomId,
+            'roomName': invite.roomName,
+            'inviterId': invite.inviterId,
+            'inviterDisplayName': invite.inviterDisplayName,
+            'memberCount': invite.memberCount,
+            if (invite.description != null) 'description': invite.description,
+          },
+      ],
       'rooms': <Object?>[
         for (final room in snapshot.rooms)
           <String, Object?>{
@@ -128,9 +139,20 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             syncCursor.contains('\u0000'))) {
       return null;
     }
+    final rawInvites = document['invites'] ?? const <Object?>[];
     final rawRooms = document['rooms'];
     final rawTimelines = document['timelines'];
-    if (rawRooms is! List || rawTimelines is! Map) return null;
+    if (rawInvites is! List || rawRooms is! List || rawTimelines is! Map) {
+      return null;
+    }
+
+    final invites = <MatrixRoomInvite>[];
+    for (final rawInvite in rawInvites) {
+      if (rawInvite is! Map) return null;
+      final invite = _decodeInvite(Map<String, dynamic>.from(rawInvite));
+      if (invite == null) return null;
+      invites.add(invite);
+    }
 
     final rooms = <MatrixRoomSummary>[];
     for (final rawRoom in rawRooms) {
@@ -158,8 +180,44 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
 
     return MatrixPresentationSnapshot(
       rooms: rooms,
+      invites: invites,
       timelines: timelines,
       syncCursor: syncCursor as String?,
+    );
+  }
+
+  static MatrixRoomInvite? _decodeInvite(Map<String, dynamic> value) {
+    final roomId = value['roomId'];
+    final roomName = value['roomName'];
+    final inviterId = value['inviterId'];
+    final inviterDisplayName = value['inviterDisplayName'];
+    final memberCount = value['memberCount'];
+    final description = value['description'];
+    if (roomId is! String ||
+        !_isSafeIdentifier(roomId) ||
+        roomName is! String ||
+        roomName.trim().isEmpty ||
+        roomName.contains('\u0000') ||
+        inviterId is! String ||
+        !_isSafeIdentifier(inviterId) ||
+        inviterDisplayName is! String ||
+        inviterDisplayName.trim().isEmpty ||
+        inviterDisplayName.contains('\u0000') ||
+        memberCount is! int ||
+        memberCount < 0 ||
+        (description != null &&
+            (description is! String ||
+                description.trim().isEmpty ||
+                description.contains('\u0000')))) {
+      return null;
+    }
+    return MatrixRoomInvite(
+      roomId: roomId,
+      roomName: roomName,
+      inviterId: inviterId,
+      inviterDisplayName: inviterDisplayName,
+      memberCount: memberCount,
+      description: description as String?,
     );
   }
 

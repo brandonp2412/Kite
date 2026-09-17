@@ -29,7 +29,7 @@ use matrix_sdk::{
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 11;
+const KITE_MATRIX_ABI_VERSION: u32 = 12;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 pub struct KiteMatrixClient {
@@ -568,6 +568,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
     let mut settings = SyncSettings::default()
         .timeout(Duration::from_millis(timeout_ms))
         .filter(filter.into());
+    let replace_invites = since.is_null();
     if !since.is_null() {
         let Some(since) = (unsafe { required_utf8(since) }) else {
             return ptr::null_mut();
@@ -611,6 +612,42 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         }
         muted
     });
+    let invites = response
+        .rooms
+        .invited
+        .keys()
+        .filter_map(|room_id| {
+            let room = matrix_client.get_room(room_id)?;
+            let display_name = room
+                .cached_display_name()
+                .map(|name| name.to_string())
+                .unwrap_or_else(|| room_id.as_str().to_owned());
+            let invite = client.runtime.block_on(room.invite_details()).ok()?;
+            let inviter_display_name = invite
+                .inviter
+                .as_ref()
+                .and_then(|member| member.display_name())
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or(invite.inviter_id.as_str())
+                .to_owned();
+            Some(json!({
+                "roomId": room_id.as_str(),
+                "roomName": display_name,
+                "inviterId": invite.inviter_id.as_str(),
+                "inviterDisplayName": inviter_display_name,
+                "memberCount": room.active_members_count(),
+                "description": room.topic().filter(|topic| !topic.trim().is_empty()),
+            }))
+        })
+        .collect::<Vec<_>>();
+    let removed_invite_room_ids = response
+        .rooms
+        .joined
+        .keys()
+        .chain(response.rooms.left.keys())
+        .map(|room_id| room_id.as_str())
+        .collect::<Vec<_>>();
+
     let rooms = response
         .rooms
         .joined
@@ -660,6 +697,76 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
     json_to_c_string(&json!({
         "cursor": response.next_batch,
         "rooms": rooms,
+        "invites": invites,
+        "removedInviteRoomIds": removed_invite_room_ids,
+        "replaceInvites": replace_invites,
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_respond_to_invite(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    accept: u8,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room invites are unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    if accept > 1 {
+        return error_json(
+            "invalid_invite_action",
+            "The Matrix invite action is invalid.",
+        );
+    }
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room invites are unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room invite is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let result = if accept == 1 {
+        client.runtime.block_on(room.join())
+    } else {
+        client.runtime.block_on(room.leave())
+    };
+    if result.is_err() {
+        return error_json(
+            "invite_action_failed",
+            if accept == 1 {
+                "The Matrix room invite could not be accepted."
+            } else {
+                "The Matrix room invite could not be declined."
+            },
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "accepted": accept == 1,
     }))
 }
 
@@ -970,7 +1077,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 11);
+        assert_eq!(kite_matrix_abi_version(), 12);
     }
 
     #[test]

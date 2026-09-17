@@ -184,6 +184,18 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<void> respondToRoomInvite({
+    required String accountId,
+    required String roomId,
+    required bool accept,
+  }) {
+    return accounts.respondToRoomInvite(
+      accountId: accountId,
+      roomId: roomId,
+      accept: accept,
+    );
+  }
+
   Future<void> markAllRoomsRead({required String accountId}) {
     return accounts.markAllRoomsRead(accountId: accountId);
   }

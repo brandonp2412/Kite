@@ -22,6 +22,11 @@ void main() {
 
       expect(restored, isNotNull);
       expect(restored!.syncCursor, 'sync-42');
+      expect(restored.invites, hasLength(1));
+      expect(restored.invites.single.roomId, '!invite:example.org');
+      expect(restored.invites.single.roomName, 'Persisted invite');
+      expect(restored.invites.single.inviterDisplayName, 'Bob');
+      expect(restored.invites.single.memberCount, 7);
       expect(restored.rooms, hasLength(1));
       expect(restored.rooms.single.roomId, '!room:example.org');
       expect(restored.rooms.single.displayName, 'Persisted room');
@@ -321,6 +326,16 @@ void main() {
 MatrixPresentationSnapshot _snapshot({String cursor = 'sync-42'}) {
   return MatrixPresentationSnapshot(
     syncCursor: cursor,
+    invites: const <MatrixRoomInvite>[
+      MatrixRoomInvite(
+        roomId: '!invite:example.org',
+        roomName: 'Persisted invite',
+        inviterId: '@bob:example.org',
+        inviterDisplayName: 'Bob',
+        memberCount: 7,
+        description: 'Cached before reconnect',
+      ),
+    ],
     rooms: <MatrixRoomSummary>[
       MatrixRoomSummary(
         roomId: '!room:example.org',

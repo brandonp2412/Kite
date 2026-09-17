@@ -73,6 +73,7 @@ final class RoomInviteStore {
   final RoomInvitePort _port;
   final Map<String, RoomInvite> _invites;
   final Map<String, Signal<RoomInviteActionState>> _states;
+  final Set<String> _locallyDismissedInviteIds = <String>{};
   final Signal<List<String>> visibleInviteIds;
 
   RoomInvite invite(String inviteId) {
@@ -81,6 +82,42 @@ final class RoomInviteStore {
       throw ArgumentError.value(inviteId, 'inviteId', 'Unknown invite.');
     }
     return invite;
+  }
+
+  void reconcile(List<RoomInvite> invites) {
+    final sourceIds = <String>{};
+    for (final invite in invites) {
+      if (!sourceIds.add(invite.id)) {
+        throw ArgumentError.value(
+          invites,
+          'invites',
+          'Invite IDs must be unique.',
+        );
+      }
+    }
+    _locallyDismissedInviteIds.removeWhere(
+      (inviteId) => !sourceIds.contains(inviteId),
+    );
+
+    final nextVisibleIds = <String>[];
+    for (final invite in invites) {
+      _invites[invite.id] = invite;
+      _states.putIfAbsent(invite.id, () => signal(RoomInviteActionState.idle));
+      if (!_locallyDismissedInviteIds.contains(invite.id)) {
+        nextVisibleIds.add(invite.id);
+      }
+    }
+    final removedIds = _invites.keys
+        .where((id) => !sourceIds.contains(id))
+        .toList(growable: false);
+    for (final id in removedIds) {
+      _invites.remove(id);
+      _states.remove(id);
+    }
+    final nextVisible = List<String>.unmodifiable(nextVisibleIds);
+    if (!_sameIds(visibleInviteIds.peek(), nextVisible)) {
+      visibleInviteIds.value = nextVisible;
+    }
   }
 
   Signal<RoomInviteActionState> stateSignal(String inviteId) {
@@ -103,6 +140,15 @@ final class RoomInviteStore {
     action: _port.decline,
   );
 
+  static bool _sameIds(List<String> left, List<String> right) {
+    if (identical(left, right)) return true;
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
+  }
+
   Future<void> _act(
     String inviteId, {
     required RoomInviteActionState pending,
@@ -116,6 +162,7 @@ final class RoomInviteStore {
     state.value = pending;
     try {
       await action(inviteId);
+      _locallyDismissedInviteIds.add(inviteId);
       visibleInviteIds.value = List<String>.unmodifiable(
         visibleInviteIds.value.where((id) => id != inviteId),
       );

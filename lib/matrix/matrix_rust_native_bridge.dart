@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 11;
+const int kiteMatrixNativeAbiVersion = 12;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -129,6 +129,16 @@ typedef _ClientSetRoomFavouriteNative = Pointer<Char> Function(
   Uint8,
 );
 typedef _ClientSetRoomFavouriteDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  int,
+);
+typedef _ClientRespondInviteNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Uint8,
+);
+typedef _ClientRespondInviteDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
   int,
@@ -562,6 +572,47 @@ final class _MatrixNativeSetRoomFavouriteOperation {
   }
 }
 
+final class _MatrixNativeRespondInviteOperation {
+  const _MatrixNativeRespondInviteOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.accept,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final bool accept;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final respond = library
+        .lookupFunction<_ClientRespondInviteNative, _ClientRespondInviteDart>(
+          'kite_matrix_client_respond_to_invite',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        respond(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          accept ? 1 : 0,
+        ),
+        freeString,
+        accept ? 'room invite acceptance' : 'room invite decline',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeMarkRoomReadOperation {
   const _MatrixNativeMarkRoomReadOperation({
     required this.libraryPath,
@@ -798,6 +849,10 @@ abstract interface class MatrixRustRoomFavouriteClient {
   });
 }
 
+abstract interface class MatrixRustRoomInviteClient {
+  Future<void> respondToInvite({required String roomId, required bool accept});
+}
+
 abstract interface class MatrixRustRoomReadClient {
   Future<void> markRoomRead({required String roomId, required String eventId});
 }
@@ -967,6 +1022,7 @@ final class MatrixRustNativeClient
         MatrixRustLogoutClient,
         MatrixRustRoomMembersClient,
         MatrixRustRoomFavouriteClient,
+        MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
   MatrixRustNativeClient._(this.libraryPath, this._address);
 
@@ -1220,6 +1276,39 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<void> respondToInvite({required String roomId, required bool accept}) {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeRespondInviteOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          accept: accept,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['roomId'] != normalizedRoomId ||
+          decoded['accepted'] != accept) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid invite state.',
+        );
+      }
+    });
+  }
+
+  @override
   Future<void> markRoomRead({required String roomId, required String eventId}) {
     final normalizedRoomId = roomId.trim();
     final normalizedEventId = eventId.trim();
@@ -1401,6 +1490,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkRoomMemberDirectory,
         MatrixSdkRoomFavouriteManager,
+        MatrixSdkRoomInviteManager,
         MatrixSdkRoomReadManager {
   MatrixRustSdkBoundary({
     required this.bridge,
@@ -1521,6 +1611,22 @@ final class MatrixRustSdkBoundary
       await (client as MatrixRustRoomFavouriteClient).setRoomFavourite(
         roomId: roomId,
         isFavourite: isFavourite,
+      );
+    });
+  }
+
+  @override
+  Future<void> respondToRoomInvite(String roomId, bool accept) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomInviteClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room invites',
+        );
+      }
+      await (client as MatrixRustRoomInviteClient).respondToInvite(
+        roomId: roomId,
+        accept: accept,
       );
     });
   }
@@ -1789,6 +1895,13 @@ final class MatrixRustSdkBoundary
           rooms: List<MatrixRoomDelta>.unmodifiable(
             syncBatch.rooms.sublist(start, end),
           ),
+          invites: isFinalChunk
+              ? syncBatch.invites
+              : const <MatrixRoomInvite>[],
+          removedInviteRoomIds: isFinalChunk
+              ? syncBatch.removedInviteRoomIds
+              : const <String>[],
+          replaceInvites: isFinalChunk && syncBatch.replaceInvites,
           commitCursor: isFinalChunk,
         ),
       );

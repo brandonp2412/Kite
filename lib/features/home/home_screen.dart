@@ -307,9 +307,14 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       builder: (_) => _HomeAccountSheet(
         session: account.session,
         canMarkAllRead: widget.onMarkAllRoomsRead != null,
+        inviteCount: inviteStore.visibleInviteIds.value.length,
       ),
     );
     if (!mounted || action == null) return;
+    if (action == _HomeAccountAction.invites) {
+      await _openInvitesSheet();
+      return;
+    }
     if (action == _HomeAccountAction.markAllRead) {
       try {
         await widget.onMarkAllRoomsRead!();
@@ -361,6 +366,15 @@ class _HomeSidebarState extends State<_HomeSidebar> {
           ),
         );
     }
+  }
+
+  Future<void> _openInvitesSheet() {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => _RoomInvitesSheet(store: inviteStore),
+    );
   }
 
   @override
@@ -447,16 +461,18 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   }
 }
 
-enum _HomeAccountAction { markAllRead, signOut }
+enum _HomeAccountAction { invites, markAllRead, signOut }
 
 class _HomeAccountSheet extends StatelessWidget {
   const _HomeAccountSheet({
     required this.session,
     required this.canMarkAllRead,
+    required this.inviteCount,
   });
 
   final AuthenticatedSession session;
   final bool canMarkAllRead;
+  final int inviteCount;
 
   @override
   Widget build(BuildContext context) {
@@ -489,6 +505,16 @@ class _HomeAccountSheet extends StatelessWidget {
               ),
             ),
             const Divider(height: KiteSpacing.lg),
+            if (inviteCount > 0)
+              ListTile(
+                key: const Key('home-account-invites'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.mail_outline_rounded),
+                title: const Text('Invites'),
+                trailing: Text('$inviteCount'),
+                onTap: () =>
+                    Navigator.of(context).pop(_HomeAccountAction.invites),
+              ),
             if (canMarkAllRead)
               ListTile(
                 key: const Key('home-account-mark-all-read'),
@@ -507,6 +533,154 @@ class _HomeAccountSheet extends StatelessWidget {
                   Navigator.of(context).pop(_HomeAccountAction.signOut),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomInvitesSheet extends StatelessWidget {
+  const _RoomInvitesSheet({required this.store});
+
+  final RoomInviteStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        key: const Key('room-invites-sheet'),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KiteSpacing.lg,
+            0,
+            KiteSpacing.lg,
+            KiteSpacing.lg,
+          ),
+          child: SignalBuilder(
+            builder: (context) {
+              final ids = store.visibleInviteIds.value;
+              if (ids.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: KiteSpacing.xl),
+                  child: Center(child: Text('No pending invites')),
+                );
+              }
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text('Invites', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: KiteSpacing.sm),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: ids.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: KiteSpacing.sm),
+                      itemBuilder: (context, index) {
+                        final inviteId = ids[index];
+                        final invite = store.invite(inviteId);
+                        final state = store.stateSignal(inviteId).value;
+                        final pending =
+                            state == RoomInviteActionState.accepting ||
+                            state == RoomInviteActionState.declining;
+                        final memberLabel = invite.memberCount == 1
+                            ? '1 member'
+                            : '${invite.memberCount} members';
+                        final details = <String>[
+                          'Invited by ${invite.inviterName}',
+                          memberLabel,
+                          if (invite.description != null) invite.description!,
+                        ];
+                        return Card(
+                          key: Key('invite-$inviteId'),
+                          margin: EdgeInsets.zero,
+                          child: Padding(
+                            padding: const EdgeInsets.all(KiteSpacing.md),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                Text(
+                                  invite.roomName,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: KiteSpacing.xs),
+                                Text(
+                                  details.join(' · '),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                if (state == RoomInviteActionState.failed)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: KiteSpacing.sm,
+                                    ),
+                                    child: Text(
+                                      'Could not update this invite. Try again.',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme.colorScheme.error,
+                                          ),
+                                    ),
+                                  ),
+                                const SizedBox(height: KiteSpacing.md),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: <Widget>[
+                                    TextButton(
+                                      key: Key('invite-decline-$inviteId'),
+                                      onPressed: pending
+                                          ? null
+                                          : () => store.decline(inviteId),
+                                      child:
+                                          state ==
+                                              RoomInviteActionState.declining
+                                          ? const SizedBox.square(
+                                              dimension: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Text('Decline'),
+                                    ),
+                                    const SizedBox(width: KiteSpacing.sm),
+                                    FilledButton(
+                                      key: Key('invite-accept-$inviteId'),
+                                      onPressed: pending
+                                          ? null
+                                          : () => store.accept(inviteId),
+                                      child:
+                                          state ==
+                                              RoomInviteActionState.accepting
+                                          ? const SizedBox.square(
+                                              dimension: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Text('Accept'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

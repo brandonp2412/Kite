@@ -97,6 +97,24 @@ final class MatrixAccountRuntimeRegistry {
     }
   }
 
+  Future<void> respondToRoomInvite({
+    required String accountId,
+    required String roomId,
+    required bool accept,
+  }) async {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      throw StateError('Cannot update a Matrix invite for an inactive account');
+    }
+    await active.engine.respondToRoomInvite(roomId, accept);
+    final changed = active.cache.removeInvite(roomId);
+    if (changed && presentationStore != null) {
+      await _schedulePresentationWrite(normalizedAccountId, active.cache);
+    }
+  }
+
   Future<void> markAllRoomsRead({required String accountId}) async {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();

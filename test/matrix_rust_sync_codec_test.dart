@@ -84,6 +84,49 @@ void main() {
     expect(empty.summary!.lastActivity.millisecondsSinceEpoch, 500);
   });
 
+  test('sync decodes and incrementally reconciles room invites', () {
+    final codec = MatrixRustSyncCodec();
+    final initial = codec.decodeSync(r'''
+      {
+        "cursor": "invite-cold",
+        "rooms": [],
+        "invites": [{
+          "roomId": "!invite:kite.test",
+          "roomName": "Kite Lab",
+          "inviterId": "@alice:kite.test",
+          "inviterDisplayName": "Alice",
+          "memberCount": 4,
+          "description": "SDK invite"
+        }],
+        "removedInviteRoomIds": [],
+        "replaceInvites": true
+      }
+    ''');
+
+    expect(initial.batch.replaceInvites, isTrue);
+    expect(initial.batch.invites, hasLength(1));
+    expect(initial.batch.invites.single.roomName, 'Kite Lab');
+    expect(initial.batch.invites.single.inviterDisplayName, 'Alice');
+    expect(initial.batch.invites.single.memberCount, 4);
+
+    final cache = MatrixPresentationCache();
+    cache.applySync(initial.batch);
+    expect(cache.invites.value.single.roomId, '!invite:kite.test');
+    expect(cache.roomOrder.value, isEmpty);
+
+    final removed = codec.decodeSync(r'''
+      {
+        "cursor": "invite-joined",
+        "rooms": [],
+        "invites": [],
+        "removedInviteRoomIds": ["!invite:kite.test"],
+        "replaceInvites": false
+      }
+    ''');
+    cache.applySync(removed.batch);
+    expect(cache.invites.value, isEmpty);
+  });
+
   test('pagination continues the same monotonic event positions', () {
     final codec = MatrixRustSyncCodec();
     final sync = codec.decodeSync(r'''
