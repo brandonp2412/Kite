@@ -177,6 +177,17 @@ final class MatrixPresentationCache {
     batch(() {
       _reconcileInvites(syncBatch);
       var roomOrderDirty = false;
+      for (final roomId in syncBatch.removedRoomIds) {
+        final summary = _roomSummaries[roomId];
+        if (summary?.value != null) {
+          summary!.value = null;
+          roomOrderDirty = true;
+        }
+        final timeline = _timelines[roomId];
+        if (timeline != null && timeline.value.isNotEmpty) {
+          timeline.value = const <MatrixTimelineEvent>[];
+        }
+      }
       for (final room in syncBatch.rooms) {
         final summary = room.summary;
         if (summary != null) {
@@ -311,6 +322,17 @@ final class MatrixPresentationCache {
           syncBatch,
           'syncBatch',
           'must not contain duplicate removed invite rooms',
+        );
+      }
+    }
+    final removedRoomIds = <String>{};
+    for (final roomId in syncBatch.removedRoomIds) {
+      _requireSafeIdentifier(roomId, 'removed room id');
+      if (!removedRoomIds.add(roomId)) {
+        throw ArgumentError.value(
+          syncBatch,
+          'syncBatch',
+          'must not contain duplicate removed rooms',
         );
       }
     }

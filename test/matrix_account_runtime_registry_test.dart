@@ -138,6 +138,64 @@ void main() {
   );
 
   test(
+    'active account routes room lifecycle actions and rejects stale accounts',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.reportRoom(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        reason: 'spam room',
+      );
+      await registry.reportUser(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        userId: '@bob:example.org',
+        reason: 'spam user',
+      );
+      await registry.leaveRoom(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+      );
+      await registry.forgetRoom(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+      );
+
+      expect(
+        boundaries['@alice:example.org']!.roomLifecycleActions,
+        <(String, String, String?, String?)>[
+          ('!alice:example.org', 'report_room', null, 'spam room'),
+          (
+            '!alice:example.org',
+            'report_user',
+            '@bob:example.org',
+            'spam user',
+          ),
+          ('!alice:example.org', 'leave', null, null),
+          ('!alice:example.org', 'forget', null, null),
+        ],
+      );
+
+      await registry.activate('@bob:example.org');
+      await expectLater(
+        registry.leaveRoom(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+        ),
+        throwsStateError,
+      );
+      expect(
+        boundaries['@alice:example.org']!.roomLifecycleActions,
+        hasLength(4),
+      );
+    },
+  );
+
+  test(
     'active account routes room member invitations and rejects stale accounts',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -1607,6 +1665,7 @@ final class _FakeAccountBoundary
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
         MatrixSdkRoomFavouriteManager,
+        MatrixSdkRoomLifecycleManager,
         MatrixSdkRoomMemberInviter,
         MatrixSdkRoomMemberModerator {
   _FakeAccountBoundary({
@@ -1651,9 +1710,35 @@ final class _FakeAccountBoundary
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
+  final List<(String, String, String?, String?)> roomLifecycleActions =
+      <(String, String, String?, String?)>[];
   final List<(String, String)> memberInvites = <(String, String)>[];
   final List<(String, String, String, int, String?)> memberModerations =
       <(String, String, String, int, String?)>[];
+
+  @override
+  Future<void> reportRoom(String roomId, {String? reason}) async {
+    roomLifecycleActions.add((roomId, 'report_room', null, reason));
+  }
+
+  @override
+  Future<void> reportUser(
+    String roomId,
+    String userId, {
+    String? reason,
+  }) async {
+    roomLifecycleActions.add((roomId, 'report_user', userId, reason));
+  }
+
+  @override
+  Future<void> leaveRoom(String roomId) async {
+    roomLifecycleActions.add((roomId, 'leave', null, null));
+  }
+
+  @override
+  Future<void> forgetRoom(String roomId) async {
+    roomLifecycleActions.add((roomId, 'forget', null, null));
+  }
 
   @override
   Future<void> inviteRoomMember(String roomId, String userId) async {

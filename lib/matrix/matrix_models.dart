@@ -124,6 +124,7 @@ final class MatrixSyncBatch {
     required this.rooms,
     this.invites = const <MatrixRoomInvite>[],
     this.removedInviteRoomIds = const <String>[],
+    this.removedRoomIds = const <String>[],
     this.replaceInvites = false,
     this.commitCursor = true,
   });
@@ -132,6 +133,7 @@ final class MatrixSyncBatch {
   final List<MatrixRoomDelta> rooms;
   final List<MatrixRoomInvite> invites;
   final List<String> removedInviteRoomIds;
+  final List<String> removedRoomIds;
   final bool replaceInvites;
   final bool commitCursor;
 }

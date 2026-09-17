@@ -210,6 +210,25 @@ final class _AuthenticatedMatrixHomeState
           accountId: widget.session.userId,
           request: request,
         ),
+        reportRoom: (roomId, reason) => widget.runtime.reportRoom(
+          accountId: widget.session.userId,
+          roomId: roomId,
+          reason: reason,
+        ),
+        reportUser: (roomId, userId, reason) => widget.runtime.reportUser(
+          accountId: widget.session.userId,
+          roomId: roomId,
+          userId: userId,
+          reason: reason,
+        ),
+        leaveRoom: (roomId) => widget.runtime.leaveRoom(
+          accountId: widget.session.userId,
+          roomId: roomId,
+        ),
+        forgetRoom: (roomId) => widget.runtime.forgetRoom(
+          accountId: widget.session.userId,
+          roomId: roomId,
+        ),
       ),
       directMetadata: const MatrixDirectRoomMetadataPort(),
     );
@@ -326,7 +345,7 @@ final class _AuthenticatedMatrixHomeState
               );
             },
             roomMembersLoader: _loadRoomMembers,
-            memberModerationEnabled: false,
+            memberModerationEnabled: true,
           );
         }
         if (snapshot.hasError) {

@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 15;
+const int kiteMatrixNativeAbiVersion = 16;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -197,6 +197,20 @@ typedef _ClientModerateRoomMemberDart = Pointer<Char> Function(
   Pointer<Char>,
   Pointer<Char>,
   int,
+  Pointer<Char>,
+);
+typedef _ClientManageRoomNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientManageRoomDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
   Pointer<Char>,
 );
 typedef _DiscoverAuthenticationNative = Pointer<Char> Function(Pointer<Char>);
@@ -922,6 +936,59 @@ final class _MatrixNativeModerateRoomMemberOperation {
   }
 }
 
+final class _MatrixNativeManageRoomOperation {
+  const _MatrixNativeManageRoomOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.action,
+    required this.userId,
+    required this.reason,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String action;
+  final String userId;
+  final String reason;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final manage = library
+        .lookupFunction<_ClientManageRoomNative, _ClientManageRoomDart>(
+          'kite_matrix_client_manage_room',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final actionUtf8 = action.toNativeUtf8(allocator: calloc);
+    final userIdUtf8 = userId.toNativeUtf8(allocator: calloc);
+    final reasonUtf8 = reason.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        manage(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          actionUtf8.cast<Char>(),
+          userIdUtf8.cast<Char>(),
+          reasonUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room management',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(reasonUtf8);
+      calloc.free(userIdUtf8);
+      calloc.free(actionUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomMembersOperation {
   const _MatrixNativeRoomMembersOperation({
     required this.libraryPath,
@@ -1137,6 +1204,15 @@ abstract interface class MatrixRustRoomMemberModeratorClient {
   });
 }
 
+abstract interface class MatrixRustRoomLifecycleClient {
+  Future<void> manageRoom({
+    required String roomId,
+    required String action,
+    String? userId,
+    String? reason,
+  });
+}
+
 abstract interface class MatrixRustRoomFavouriteClient {
   Future<void> setRoomFavourite({
     required String roomId,
@@ -1319,6 +1395,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomMembersClient,
         MatrixRustRoomMemberInviterClient,
         MatrixRustRoomMemberModeratorClient,
+        MatrixRustRoomLifecycleClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
@@ -1957,6 +2034,83 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<void> manageRoom({
+    required String roomId,
+    required String action,
+    String? userId,
+    String? reason,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedAction = action.trim();
+    final normalizedUserId = userId?.trim() ?? '';
+    final normalizedReason = reason?.trim() ?? '';
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (!const <String>{
+      'report_room',
+      'report_user',
+      'leave',
+      'forget',
+    }.contains(normalizedAction)) {
+      return Future<void>.error(
+        ArgumentError.value(
+          action,
+          'action',
+          'must be a supported room action',
+        ),
+      );
+    }
+    if (normalizedUserId.contains('\u0000') ||
+        (normalizedAction == 'report_user' && normalizedUserId.isEmpty)) {
+      return Future<void>.error(
+        ArgumentError.value(
+          normalizedUserId.isEmpty ? normalizedUserId : '<redacted>',
+          'userId',
+          'must identify a valid Matrix user without NUL bytes',
+        ),
+      );
+    }
+    if (normalizedReason.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'reason',
+          'must not contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeManageRoomOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          action: normalizedAction,
+          userId: normalizedUserId,
+          reason: normalizedReason,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['roomId'] != normalizedRoomId ||
+          decoded['action'] != normalizedAction ||
+          (normalizedAction == 'report_user' &&
+              decoded['userId'] != normalizedUserId)) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid room management state.',
+        );
+      }
+    });
+  }
+
+  @override
   Future<String> paginateBackwards({required String roomId}) {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
@@ -2031,6 +2185,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
         MatrixSdkRoomCreator,
+        MatrixSdkRoomLifecycleManager,
         MatrixSdkRoomMemberDirectory,
         MatrixSdkRoomMemberInviter,
         MatrixSdkRoomMemberModerator,
@@ -2320,6 +2475,53 @@ final class MatrixRustSdkBoundary
     return _moderateRoomMember(roomId: roomId, userId: userId, action: 'unban');
   }
 
+  @override
+  Future<void> reportRoom(String roomId, {String? reason}) {
+    return _manageRoom(roomId: roomId, action: 'report_room', reason: reason);
+  }
+
+  @override
+  Future<void> reportUser(String roomId, String userId, {String? reason}) {
+    return _manageRoom(
+      roomId: roomId,
+      action: 'report_user',
+      userId: userId,
+      reason: reason,
+    );
+  }
+
+  @override
+  Future<void> leaveRoom(String roomId) {
+    return _manageRoom(roomId: roomId, action: 'leave');
+  }
+
+  @override
+  Future<void> forgetRoom(String roomId) {
+    return _manageRoom(roomId: roomId, action: 'forget');
+  }
+
+  Future<void> _manageRoom({
+    required String roomId,
+    required String action,
+    String? userId,
+    String? reason,
+  }) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomLifecycleClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room management',
+        );
+      }
+      await (client as MatrixRustRoomLifecycleClient).manageRoom(
+        roomId: roomId,
+        action: action,
+        userId: userId,
+        reason: reason,
+      );
+    });
+  }
+
   Future<void> _moderateRoomMember({
     required String roomId,
     required String userId,
@@ -2574,6 +2776,9 @@ final class MatrixRustSdkBoundary
               : const <MatrixRoomInvite>[],
           removedInviteRoomIds: isFinalChunk
               ? syncBatch.removedInviteRoomIds
+              : const <String>[],
+          removedRoomIds: isFinalChunk
+              ? syncBatch.removedRoomIds
               : const <String>[],
           replaceInvites: isFinalChunk && syncBatch.replaceInvites,
           commitCursor: isFinalChunk,

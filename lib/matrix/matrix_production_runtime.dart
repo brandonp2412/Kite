@@ -179,6 +179,40 @@ final class MatrixProductionRuntime
     return accounts.createRoom(accountId: accountId, request: request);
   }
 
+  Future<void> reportRoom({
+    required String accountId,
+    required String roomId,
+    String? reason,
+  }) {
+    return accounts.reportRoom(
+      accountId: accountId,
+      roomId: roomId,
+      reason: reason,
+    );
+  }
+
+  Future<void> reportUser({
+    required String accountId,
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) {
+    return accounts.reportUser(
+      accountId: accountId,
+      roomId: roomId,
+      userId: userId,
+      reason: reason,
+    );
+  }
+
+  Future<void> leaveRoom({required String accountId, required String roomId}) {
+    return accounts.leaveRoom(accountId: accountId, roomId: roomId);
+  }
+
+  Future<void> forgetRoom({required String accountId, required String roomId}) {
+    return accounts.forgetRoom(accountId: accountId, roomId: roomId);
+  }
+
   Future<void> setRoomFavourite({
     required String accountId,
     required String roomId,

@@ -101,6 +101,13 @@ final class MatrixRustSyncCodec {
       ))
         _requiredIdentifier(<String, Object?>{'roomId': value}, 'roomId'),
     ];
+    final removedRoomIds = <String>[
+      for (final value in _asList(
+        root['removedRoomIds'] ?? const <Object?>[],
+        'removedRoomIds',
+      ))
+        _requiredIdentifier(<String, Object?>{'roomId': value}, 'roomId'),
+    ];
 
     rooms.sort((left, right) {
       final leftSummary = left.summary!;
@@ -122,6 +129,7 @@ final class MatrixRustSyncCodec {
         rooms: List<MatrixRoomDelta>.unmodifiable(rooms),
         invites: List<MatrixRoomInvite>.unmodifiable(invites),
         removedInviteRoomIds: List<String>.unmodifiable(removedInviteRoomIds),
+        removedRoomIds: List<String>.unmodifiable(removedRoomIds),
         replaceInvites: _optionalBool(root['replaceInvites']) ?? false,
       ),
     );

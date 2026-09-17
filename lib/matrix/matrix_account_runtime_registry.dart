@@ -94,6 +94,63 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.createRoom(request);
   }
 
+  Future<void> reportRoom({
+    required String accountId,
+    required String roomId,
+    String? reason,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<void>.error(
+        StateError('Cannot report a Matrix room for an inactive account'),
+      );
+    }
+    return active.engine.reportRoom(roomId, reason: reason);
+  }
+
+  Future<void> reportUser({
+    required String accountId,
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<void>.error(
+        StateError('Cannot report a Matrix user for an inactive account'),
+      );
+    }
+    return active.engine.reportUser(roomId, userId, reason: reason);
+  }
+
+  Future<void> leaveRoom({required String accountId, required String roomId}) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<void>.error(
+        StateError('Cannot leave a Matrix room for an inactive account'),
+      );
+    }
+    return active.engine.leaveRoom(roomId);
+  }
+
+  Future<void> forgetRoom({required String accountId, required String roomId}) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<void>.error(
+        StateError('Cannot forget a Matrix room for an inactive account'),
+      );
+    }
+    return active.engine.forgetRoom(roomId);
+  }
+
   Future<void> setRoomFavourite({
     required String accountId,
     required String roomId,

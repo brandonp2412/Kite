@@ -51,7 +51,7 @@ void main() {
         runtimeSource,
         contains('memberManagement: _roomMemberManagementCoordinator()'),
       );
-      expect(runtimeSource, contains('memberModerationEnabled: false'));
+      expect(runtimeSource, contains('memberModerationEnabled: true'));
       expect(
         homeSource,
         contains('roomMembersLoader: widget.roomMembersLoader'),

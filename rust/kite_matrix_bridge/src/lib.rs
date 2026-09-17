@@ -16,6 +16,7 @@ use matrix_sdk::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
                 receipt::create_receipt,
+                reporting::report_user,
                 room::{Visibility, create_room},
                 session::get_login_types::v3::LoginType,
             },
@@ -38,7 +39,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 15;
+const KITE_MATRIX_ABI_VERSION: u32 = 16;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -676,6 +677,12 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         .chain(response.rooms.left.keys())
         .map(|room_id| room_id.as_str())
         .collect::<Vec<_>>();
+    let removed_room_ids = response
+        .rooms
+        .left
+        .keys()
+        .map(|room_id| room_id.as_str())
+        .collect::<Vec<_>>();
 
     let rooms = response
         .rooms
@@ -730,6 +737,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         "rooms": rooms,
         "invites": invites,
         "removedInviteRoomIds": removed_invite_room_ids,
+        "removedRoomIds": removed_room_ids,
         "replaceInvites": replace_invites,
     }))
 }
@@ -1433,6 +1441,121 @@ pub unsafe extern "C" fn kite_matrix_client_moderate_room_member(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_manage_room(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    action: *const c_char,
+    user_id: *const c_char,
+    reason: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room management is unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(action) = (unsafe { required_utf8(action) }) else {
+        return error_json("invalid_action", "The Matrix room action is invalid.");
+    };
+    let user_id = unsafe { required_utf8(user_id) }
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let reason = unsafe { required_utf8(reason) }
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_owned();
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room management is unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+
+    let reported_user_id = match action {
+        "report_room" => {
+            if client.runtime.block_on(room.report_room(reason)).is_err() {
+                return error_json(
+                    "room_management_failed",
+                    "The Matrix room action could not be completed.",
+                );
+            }
+            None
+        }
+        "report_user" => {
+            let Some(user_id) = user_id else {
+                return error_json("invalid_user", "The Matrix user is invalid.");
+            };
+            let Ok(user_id) = UserId::parse(user_id) else {
+                return error_json("invalid_user", "The Matrix user is invalid.");
+            };
+            let request = report_user::v3::Request::new(user_id.to_owned(), reason);
+            if client
+                .runtime
+                .block_on(async { matrix_client.send(request).await })
+                .is_err()
+            {
+                return error_json(
+                    "room_management_failed",
+                    "The Matrix room action could not be completed.",
+                );
+            }
+            Some(user_id.to_owned())
+        }
+        "leave" => {
+            let result = client.runtime.block_on(async {
+                room.leave().await?;
+                room.set_is_direct(false).await
+            });
+            if result.is_err() {
+                return error_json(
+                    "room_management_failed",
+                    "The Matrix room action could not be completed.",
+                );
+            }
+            None
+        }
+        "forget" => {
+            if client.runtime.block_on(room.forget()).is_err() {
+                return error_json(
+                    "room_management_failed",
+                    "The Matrix room action could not be completed.",
+                );
+            }
+            None
+        }
+        _ => return error_json("invalid_action", "The Matrix room action is invalid."),
+    };
+
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "action": action,
+        "userId": reported_user_id.as_deref().map(UserId::as_str),
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -1543,7 +1666,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 15);
+        assert_eq!(kite_matrix_abi_version(), 16);
     }
 
     #[test]
@@ -1681,6 +1804,16 @@ mod tests {
                 ptr::null(),
             )
         };
+        let manage_action = CString::new("leave").unwrap();
+        let manage = unsafe {
+            kite_matrix_client_manage_room(
+                ptr::null_mut(),
+                room_id.as_ptr(),
+                manage_action.as_ptr(),
+                ptr::null(),
+                ptr::null(),
+            )
+        };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
         for result in [
@@ -1693,6 +1826,7 @@ mod tests {
             invite_member,
             permissions,
             moderate,
+            manage,
         ] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();

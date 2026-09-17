@@ -10,6 +10,7 @@ void main() {
     final decoded = codec.decodeSync(r'''
       {
         "cursor": "s42",
+        "removedRoomIds": ["!left:kite.test"],
         "rooms": [
           {
             "roomId": "!empty:kite.test",
@@ -54,6 +55,7 @@ void main() {
     ''');
 
     expect(decoded.batch.cursor, 's42');
+    expect(decoded.batch.removedRoomIds, <String>['!left:kite.test']);
     expect(decoded.batch.rooms, hasLength(2));
     expect(
       () => decoded.batch.rooms.add(

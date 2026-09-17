@@ -261,6 +261,60 @@ void main() {
     );
   });
 
+  test(
+    'sync removes left room presentation state without disturbing peers',
+    () {
+      final alphaEvent = _event(
+        eventId: r'$alpha',
+        roomId: '!alpha:kite.test',
+        position: 4,
+        second: 4,
+      );
+      final beta = _summary(
+        roomId: '!beta:kite.test',
+        displayName: 'Beta',
+        position: 5,
+        second: 5,
+      );
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            _summary(
+              roomId: '!alpha:kite.test',
+              displayName: 'Alpha',
+              position: 4,
+              second: 4,
+              lastEventId: alphaEvent.eventId,
+            ),
+            beta,
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!alpha:kite.test': <MatrixTimelineEvent>[alphaEvent],
+          },
+          syncCursor: 'before-left',
+        ),
+      );
+      final betaBefore = cache.roomSummarySignal('!beta:kite.test').value;
+
+      cache.applySync(
+        const MatrixSyncBatch(
+          cursor: 'after-left',
+          rooms: <MatrixRoomDelta>[],
+          removedRoomIds: <String>['!alpha:kite.test'],
+        ),
+      );
+
+      expect(cache.lastSyncCursor, 'after-left');
+      expect(cache.roomOrder.value, <String>['!beta:kite.test']);
+      expect(cache.roomSummarySignal('!alpha:kite.test').value, isNull);
+      expect(cache.timelineSignal('!alpha:kite.test').value, isEmpty);
+      expect(
+        identical(betaBefore, cache.roomSummarySignal('!beta:kite.test').value),
+        isTrue,
+      );
+    },
+  );
+
   test('malformed sync room data is rejected before any cache mutation', () {
     final cache = MatrixPresentationCache(
       initialSnapshot: MatrixPresentationSnapshot(
@@ -314,6 +368,38 @@ void main() {
       identical(alphaBefore, cache.roomSummarySignal('!alpha:kite.test').value),
       isTrue,
     );
+    expect(identical(orderBefore, cache.roomOrder.value), isTrue);
+  });
+
+  test('duplicate removed room ids are rejected before cache mutation', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          _summary(
+            roomId: '!alpha:kite.test',
+            displayName: 'Alpha',
+            position: 5,
+            second: 5,
+          ),
+        ],
+        syncCursor: 'stable',
+      ),
+    );
+    final orderBefore = cache.roomOrder.value;
+
+    expect(
+      () => cache.applySync(
+        const MatrixSyncBatch(
+          cursor: 'rejected',
+          rooms: <MatrixRoomDelta>[],
+          removedRoomIds: <String>['!alpha:kite.test', '!alpha:kite.test'],
+        ),
+      ),
+      throwsArgumentError,
+    );
+
+    expect(cache.lastSyncCursor, 'stable');
+    expect(cache.roomSummarySignal('!alpha:kite.test').value, isNotNull);
     expect(identical(orderBefore, cache.roomOrder.value), isTrue);
   });
 

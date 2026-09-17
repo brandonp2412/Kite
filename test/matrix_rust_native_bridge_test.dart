@@ -115,6 +115,14 @@ void main() {
         reason: 'spam',
       );
       await boundary.unbanRoomMember('!room:kite.test', '@bob:kite.test');
+      await boundary.reportRoom('!room:kite.test', reason: 'spam room');
+      await boundary.reportUser(
+        '!room:kite.test',
+        '@bob:kite.test',
+        reason: 'spam user',
+      );
+      await boundary.leaveRoom('!room:kite.test');
+      await boundary.forgetRoom('!room:kite.test');
       await boundary.markRoomRead('!room:kite.test', r'$event');
 
       expect(login.userId, '@alice:kite.test');
@@ -143,6 +151,12 @@ void main() {
         ('!room:kite.test', '@bob:kite.test', 'kick', 0, null),
         ('!room:kite.test', '@bob:kite.test', 'ban', 0, 'spam'),
         ('!room:kite.test', '@bob:kite.test', 'unban', 0, null),
+      ]);
+      expect(client.roomManagement, <(String, String, String?, String?)>[
+        ('!room:kite.test', 'report_room', null, 'spam room'),
+        ('!room:kite.test', 'report_user', '@bob:kite.test', 'spam user'),
+        ('!room:kite.test', 'leave', null, null),
+        ('!room:kite.test', 'forget', null, null),
       ]);
       expect(client.readReceipts, <(String, String)>[
         ('!room:kite.test', r'$event'),
@@ -1061,6 +1075,7 @@ final class _FakeRustClient
         MatrixRustRoomInviteClient,
         MatrixRustRoomMemberInviterClient,
         MatrixRustRoomMemberModeratorClient,
+        MatrixRustRoomLifecycleClient,
         MatrixRustRoomReadClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
@@ -1076,6 +1091,8 @@ final class _FakeRustClient
   final List<(String, String)> memberInvites = <(String, String)>[];
   final List<(String, String, String, int, String?)> memberModerations =
       <(String, String, String, int, String?)>[];
+  final List<(String, String, String?, String?)> roomManagement =
+      <(String, String, String?, String?)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
 
   bool _closed = false;
@@ -1156,6 +1173,16 @@ final class _FakeRustClient
     String? reason,
   }) async {
     memberModerations.add((roomId, userId, action, powerLevel, reason));
+  }
+
+  @override
+  Future<void> manageRoom({
+    required String roomId,
+    required String action,
+    String? userId,
+    String? reason,
+  }) async {
+    roomManagement.add((roomId, action, userId, reason));
   }
 
   @override

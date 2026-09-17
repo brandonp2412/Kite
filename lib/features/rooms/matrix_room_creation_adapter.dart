@@ -4,11 +4,36 @@ import 'package:kite/matrix/matrix_sdk_boundary.dart';
 typedef MatrixRoomCreate = Future<MatrixSdkCreatedRoom> Function(
   MatrixSdkRoomCreationRequest request,
 );
+typedef MatrixRoomReport = Future<void> Function(String roomId, String? reason);
+typedef MatrixUserReport = Future<void> Function(
+  String roomId,
+  String userId,
+  String? reason,
+);
+typedef MatrixRoomMutation = Future<void> Function(String roomId);
 
 final class MatrixRoomCreationManagementPort implements RoomManagementPort {
-  const MatrixRoomCreationManagementPort(this._create);
+  const MatrixRoomCreationManagementPort(
+    this._create, {
+    required MatrixRoomReport reportRoom,
+    required MatrixUserReport reportUser,
+    required MatrixRoomMutation leaveRoom,
+    required MatrixRoomMutation forgetRoom,
+  }) : _lifecycle = (
+         reportRoom: reportRoom,
+         reportUser: reportUser,
+         leaveRoom: leaveRoom,
+         forgetRoom: forgetRoom,
+       );
 
   final MatrixRoomCreate _create;
+  final ({
+    MatrixRoomReport reportRoom,
+    MatrixUserReport reportUser,
+    MatrixRoomMutation leaveRoom,
+    MatrixRoomMutation forgetRoom,
+  })
+  _lifecycle;
 
   @override
   Future<KiteRoomCapabilities> capabilities() async => KiteRoomCapabilities(
@@ -88,20 +113,20 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
 
   @override
   Future<void> reportRoom({required String roomId, String? reason}) =>
-      _unsupported();
+      _lifecycle.reportRoom(roomId, reason);
 
   @override
   Future<void> reportUser({
     required String roomId,
     required String userId,
     String? reason,
-  }) => _unsupported();
+  }) => _lifecycle.reportUser(roomId, userId, reason);
 
   @override
-  Future<void> leaveRoom(String roomId) => _unsupported();
+  Future<void> leaveRoom(String roomId) => _lifecycle.leaveRoom(roomId);
 
   @override
-  Future<void> forgetRoom(String roomId) => _unsupported();
+  Future<void> forgetRoom(String roomId) => _lifecycle.forgetRoom(roomId);
 
   Future<T> _unsupported<T>() => Future<T>.error(
     UnsupportedError('This adapter only exposes Matrix room creation.'),

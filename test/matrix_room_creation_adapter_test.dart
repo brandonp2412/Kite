@@ -8,13 +8,19 @@ void main() {
     'production room creation adapter preserves Matrix room semantics',
     () async {
       MatrixSdkRoomCreationRequest? captured;
-      final port = MatrixRoomCreationManagementPort((request) async {
-        captured = request;
-        return const MatrixSdkCreatedRoom(
-          roomId: '!created:example.org',
-          isDirect: false,
-        );
-      });
+      final port = MatrixRoomCreationManagementPort(
+        (request) async {
+          captured = request;
+          return const MatrixSdkCreatedRoom(
+            roomId: '!created:example.org',
+            isDirect: false,
+          );
+        },
+        reportRoom: (_, _) async {},
+        reportUser: (_, _, _) async {},
+        leaveRoom: (_) async {},
+        forgetRoom: (_) async {},
+      );
 
       final created = await port.createRoom(
         KiteRoomCreationRequest(
@@ -48,6 +54,10 @@ void main() {
           roomId: '!unused:example.org',
           isDirect: false,
         ),
+        reportRoom: (_, _) async {},
+        reportUser: (_, _, _) async {},
+        leaveRoom: (_) async {},
+        forgetRoom: (_) async {},
       );
 
       final capabilities = await port.capabilities();
@@ -57,6 +67,41 @@ void main() {
         KiteRoomJoinRule.invite,
         KiteRoomJoinRule.public,
       });
+    },
+  );
+
+  test(
+    'production room lifecycle mutations route exact Matrix identities',
+    () async {
+      final invocations = <String>[];
+      final port = MatrixRoomCreationManagementPort(
+        (_) async => const MatrixSdkCreatedRoom(
+          roomId: '!unused:example.org',
+          isDirect: false,
+        ),
+        reportRoom: (roomId, reason) async =>
+            invocations.add('report-room:$roomId:$reason'),
+        reportUser: (roomId, userId, reason) async =>
+            invocations.add('report-user:$roomId:$userId:$reason'),
+        leaveRoom: (roomId) async => invocations.add('leave:$roomId'),
+        forgetRoom: (roomId) async => invocations.add('forget:$roomId'),
+      );
+
+      await port.reportRoom(roomId: '!room:example.org', reason: 'spam');
+      await port.reportUser(
+        roomId: '!room:example.org',
+        userId: '@bob:example.org',
+        reason: 'abuse',
+      );
+      await port.leaveRoom('!room:example.org');
+      await port.forgetRoom('!room:example.org');
+
+      expect(invocations, <String>[
+        'report-room:!room:example.org:spam',
+        'report-user:!room:example.org:@bob:example.org:abuse',
+        'leave:!room:example.org',
+        'forget:!room:example.org',
+      ]);
     },
   );
 }

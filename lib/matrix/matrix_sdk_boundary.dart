@@ -96,6 +96,16 @@ abstract interface class MatrixSdkRoomCreator {
   Future<MatrixSdkCreatedRoom> createRoom(MatrixSdkRoomCreationRequest request);
 }
 
+abstract interface class MatrixSdkRoomLifecycleManager {
+  Future<void> reportRoom(String roomId, {String? reason});
+
+  Future<void> reportUser(String roomId, String userId, {String? reason});
+
+  Future<void> leaveRoom(String roomId);
+
+  Future<void> forgetRoom(String roomId);
+}
+
 abstract interface class MatrixSdkRoomMemberDirectory {
   Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
 }
@@ -305,6 +315,61 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     return (creator as MatrixSdkRoomCreator).createRoom(request);
+  }
+
+  Future<void> reportRoom(String roomId, {String? reason}) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomLifecycleManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room reporting',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomLifecycleManager).reportRoom(
+      roomId,
+      reason: reason,
+    );
+  }
+
+  Future<void> reportUser(
+    String roomId,
+    String userId, {
+    String? reason,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomLifecycleManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support user reporting',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomLifecycleManager).reportUser(
+      roomId,
+      userId,
+      reason: reason,
+    );
+  }
+
+  Future<void> leaveRoom(String roomId) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomLifecycleManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support leaving rooms',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomLifecycleManager).leaveRoom(roomId);
+  }
+
+  Future<void> forgetRoom(String roomId) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomLifecycleManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support forgetting rooms',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomLifecycleManager).forgetRoom(roomId);
   }
 
   Future<void> setRoomFavourite(String roomId, bool isFavourite) async {
