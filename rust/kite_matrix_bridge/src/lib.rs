@@ -20,6 +20,7 @@ use matrix_sdk::{
         RoomAliasId, RoomId, UInt, UserId,
         api::{
             client::{
+                backup::get_latest_backup_info,
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
                 profile::{AvatarUrl, DisplayName},
                 receipt::create_receipt,
@@ -46,6 +47,7 @@ use matrix_sdk::{
         },
     },
 };
+use matrix_sdk_crypto::{store::types::BackupDecryptionKey, types::RoomKeyBackupInfo};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
@@ -502,6 +504,42 @@ async fn download_recoverable_room_keys(matrix_client: &Client) -> Result<(), Ma
     Ok(())
 }
 
+async fn recover_with_backup_recovery_key(
+    matrix_client: &Client,
+    recovery_key: &str,
+) -> Result<(), ()> {
+    let decryption_key = BackupDecryptionKey::from_base58(recovery_key).map_err(|_| ())?;
+    let current_version = matrix_client
+        .send(get_latest_backup_info::v3::Request::new())
+        .await
+        .map_err(|_| ())?;
+    let backup_info: RoomKeyBackupInfo =
+        current_version.algorithm.deserialize_as().map_err(|_| ())?;
+    if !decryption_key.backup_key_matches(&backup_info) {
+        return Err(());
+    }
+
+    {
+        let olm_machine = matrix_client.olm_machine_for_testing().await;
+        let olm_machine = olm_machine.as_ref().ok_or(())?;
+        let backup_machine = olm_machine.backup_machine();
+        let backup_key = decryption_key.megolm_v1_public_key();
+        backup_key.set_version(current_version.version.clone());
+        backup_machine
+            .save_decryption_key(Some(decryption_key), Some(current_version.version.clone()))
+            .await
+            .map_err(|_| ())?;
+        backup_machine
+            .enable_backup_v1(backup_key)
+            .await
+            .map_err(|_| ())?;
+    }
+
+    download_recoverable_room_keys(matrix_client)
+        .await
+        .map_err(|_| ())
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_recovery(
     client: *mut KiteMatrixClient,
@@ -568,21 +606,34 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
                     .recovery()
                     .recover(secret)
                     .await
-                    .is_err()
+                    .is_ok()
                 {
-                    return Err(());
+                    download_recoverable_room_keys(matrix_client)
+                        .await
+                        .map_err(|_| ())?;
+                    return Ok(false);
                 }
-                download_recoverable_room_keys(matrix_client)
-                    .await
-                    .map_err(|_| ())
+
+                recover_with_backup_recovery_key(matrix_client, secret).await?;
+                Ok(true)
             });
-            if result.is_err() {
-                return error_json(
-                    "recovery_failed",
-                    "Matrix could not restore encrypted message history with that recovery secret.",
-                );
+            let recovered_from_backup_key = match result {
+                Ok(recovered_from_backup_key) => recovered_from_backup_key,
+                Err(()) => {
+                    return error_json(
+                        "recovery_failed",
+                        "Matrix could not restore encrypted message history with that recovery key.",
+                    );
+                }
+            };
+            if recovered_from_backup_key {
+                let mut status = recovery_status_value(matrix_client);
+                status["backupState"] = Value::String("enabled".to_owned());
+                status["backupExistsOnServer"] = Value::Bool(true);
+                ok_json(status)
+            } else {
+                ok_json(recovery_status_value(matrix_client))
             }
-            ok_json(recovery_status_value(matrix_client))
         }
         "recover_history" => {
             if client
