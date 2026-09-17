@@ -268,6 +268,7 @@ final class _FakeRustClient
     required String transactionId,
     required String body,
     String? replyToEventId,
+    String? replacementEventId,
   }) {
     throw UnimplementedError();
   }

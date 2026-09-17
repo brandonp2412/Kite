@@ -5,14 +5,15 @@ void main() {
   test('edits retain ordered prior bodies in leaf event state', () {
     final controller = TimelineController(
       sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+      editPort: const DeterministicTimelineEditPort(latency: Duration.zero),
     );
     final message = controller.messagesFor('alice').value.last;
     final messageList = controller.messagesFor('alice').value;
     final historySignal = message.editHistoryState;
     final original = message.body;
 
-    controller.editText(message, 'First edit');
-    controller.editText(message, 'Second edit');
+    controller.editText('alice', message, 'First edit');
+    controller.editText('alice', message, 'Second edit');
 
     expect(message.body, 'Second edit');
     expect(message.edited, isTrue);
@@ -24,10 +25,11 @@ void main() {
   test('redaction clears edit history with the rest of event content', () {
     final controller = TimelineController(
       sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+      editPort: const DeterministicTimelineEditPort(latency: Duration.zero),
     );
     final message = controller.messagesFor('alice').value.last;
 
-    controller.editText(message, 'Edited once');
+    controller.editText('alice', message, 'Edited once');
     expect(message.editHistory, isNotEmpty);
 
     controller.redactText(message);

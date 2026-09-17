@@ -4218,7 +4218,7 @@ class _ComposerState extends State<_Composer> {
     final contextMessage = _contextRoomId == roomId ? _contextMessage : null;
     if (_mode == _ComposerMode.edit && contextMessage != null) {
       if (body.isEmpty) return;
-      _homeTimelineController(context).editText(contextMessage, body);
+      _homeTimelineController(context).editText(roomId, contextMessage, body);
       _clearContext(restoreEditDraft: true);
     } else {
       if (body.isEmpty && attachment == null) return;

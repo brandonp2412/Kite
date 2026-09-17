@@ -80,13 +80,29 @@ void main() {
         transactionId: 'kite-local-42',
         body: 'Hello from Kite',
       );
+      await registry.sendTextMessage(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        transactionId: 'kite-local-42-edit',
+        body: 'Hello from edited Kite',
+        replacementEventId: r'$original',
+      );
 
       expect(eventId, r'$sent-1');
       expect(
         boundaries['@alice:example.org']!.sentTextMessages,
         <(String, String, String)>[
           ('!alice:example.org', 'kite-local-42', 'Hello from Kite'),
+          (
+            '!alice:example.org',
+            'kite-local-42-edit',
+            'Hello from edited Kite',
+          ),
         ],
+      );
+      expect(
+        boundaries['@alice:example.org']!.sentReplacementTargets,
+        <String?>[null, r'$original'],
       );
 
       await registry.deactivate();
@@ -1857,6 +1873,7 @@ final class _FakeAccountBoundary
   final List<String> paginationCalls = <String>[];
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
+  final List<String?> sentReplacementTargets = <String?>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<String> userSearches = <String>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
@@ -2013,8 +2030,10 @@ final class _FakeAccountBoundary
     required String transactionId,
     required String body,
     String? replyToEventId,
+    String? replacementEventId,
   }) async {
     sentTextMessages.add((roomId, transactionId, body));
+    sentReplacementTargets.add(replacementEventId);
     return r'$sent-' + sentTextMessages.length.toString();
   }
 

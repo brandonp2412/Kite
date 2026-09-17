@@ -248,6 +248,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Create/respond/end polls.
 - [ ] Sending progress, retry, cancel where supported, and deterministic failure UI.
 
+**Edit-message progress (2026-09-18):** the existing edit composer now sends production Matrix `m.replace` events through the audited Rust SDK path instead of mutating only local Signals. Replacement events fold back into the original timeline message identity, preserve ordered edit history without adding duplicate rows, reject cross-sender replacement attempts, and optimistic edits roll back on send failure without allowing a stale failure to undo a newer edit. Room-list previews use `m.new_content` rather than Matrix's fallback edit body. The native boundary is ABI 22; focused controller/presentation/runtime/native tests, Rust checks/tests, and Android JNI builds pass. The edit checkbox remains unchecked until the required locked Waydroid quality gate can run on an available ADB device.
+
 **Benchmarks:** keyboard appearance, composer expansion, formatting toolbar, media picker return, send message, react, edit, reply, attachment preview.
 
 ## Milestone 6 — Threads 2.x parity

@@ -466,7 +466,11 @@ void main() {
 
       timelineController.reset(sendPort: DeterministicTimelineSendPort());
       final target = timelineController.messagesFor('alice').value.last;
-      timelineController.editText(target, 'Edited message 100 in Alice');
+      timelineController.editText(
+        'alice',
+        target,
+        'Edited message 100 in Alice',
+      );
       selectRoom('alice');
       await tester.pumpWidget(
         MaterialApp(

@@ -85,6 +85,59 @@ void main() {
     expect(entry.latestEventBody, 'Image');
   });
 
+  test('Matrix room projection uses replacement content for edit previews', () {
+    final cache = MatrixPresentationCache();
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 's1',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:example.org',
+            summary: MatrixRoomSummary(
+              roomId: '!alpha:example.org',
+              displayName: 'Alpha',
+              lastActivity: DateTime.utc(2026, 9, 16, 10, 31),
+              streamPosition: 2,
+              lastEventId: r'$edit',
+            ),
+            timelineEvents: <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$original',
+                streamPosition: 1,
+                senderId: '@alice:example.org',
+                senderDisplayName: 'Alice',
+                msgtype: 'm.text',
+                body: 'Original message',
+              ),
+              _event(
+                eventId: r'$edit',
+                streamPosition: 2,
+                senderId: '@alice:example.org',
+                senderDisplayName: 'Alice',
+                msgtype: 'm.text',
+                body: '* Edited message',
+                extra: const <String, Object?>{
+                  'm.new_content': <String, Object?>{
+                    'msgtype': 'm.text',
+                    'body': 'Edited message',
+                  },
+                  'm.relates_to': <String, Object?>{
+                    'rel_type': 'm.replace',
+                    'event_id': r'$original',
+                  },
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final entry = matrixRoomListEntries(cache).single;
+    expect(entry.latestSender, 'Alice');
+    expect(entry.latestEventBody, 'Edited message');
+  });
+
   test(
     'room reconciliation keeps existing leaf signals while order changes',
     () {
@@ -258,6 +311,202 @@ void main() {
     expect(sendPort.calls.single.body, 'Reply body');
   });
 
+  test(
+    'Matrix replacements update the original message without adding a row',
+    () {
+      final controller = TimelineController(
+        sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+        fixtureProvider: (_) => const [],
+      );
+      final events = <MatrixTimelineEvent>[
+        _event(
+          eventId: r'$original',
+          streamPosition: 1,
+          senderId: '@alice:example.org',
+          senderDisplayName: 'Alice',
+          msgtype: 'm.text',
+          body: 'Original message',
+        ),
+        _event(
+          eventId: r'$edit',
+          streamPosition: 2,
+          senderId: '@alice:example.org',
+          senderDisplayName: 'Alice',
+          msgtype: 'm.text',
+          body: '* Edited message',
+          extra: const <String, Object?>{
+            'm.new_content': <String, Object?>{
+              'msgtype': 'm.text',
+              'body': 'Edited message',
+            },
+            'm.relates_to': <String, Object?>{
+              'rel_type': 'm.replace',
+              'event_id': r'$original',
+            },
+          },
+        ),
+      ];
+
+      controller.applyMatrixEvents(
+        '!alpha:example.org',
+        events,
+        currentUserId: '@me:example.org',
+      );
+      final first = controller.messagesFor('!alpha:example.org').value.single;
+      expect(first.id, r'$original');
+      expect(first.body, 'Edited message');
+      expect(first.edited, isTrue);
+      expect(first.editHistory, <String>['Original message']);
+
+      controller.applyMatrixEvents(
+        '!alpha:example.org',
+        events,
+        currentUserId: '@me:example.org',
+      );
+      final replayed = controller
+          .messagesFor('!alpha:example.org')
+          .value
+          .single;
+      expect(replayed, same(first));
+      expect(replayed.body, 'Edited message');
+      expect(replayed.editHistory, <String>['Original message']);
+    },
+  );
+
+  test('Matrix replacements from a different sender are ignored', () {
+    final controller = TimelineController(
+      sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+      fixtureProvider: (_) => const [],
+    );
+    controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+      _event(
+        eventId: r'$original',
+        streamPosition: 1,
+        senderId: '@alice:example.org',
+        msgtype: 'm.text',
+        body: 'Original message',
+      ),
+      _event(
+        eventId: r'$malicious-edit',
+        streamPosition: 2,
+        senderId: '@mallory:example.org',
+        msgtype: 'm.text',
+        body: '* Forged edit',
+        extra: const <String, Object?>{
+          'm.new_content': <String, Object?>{
+            'msgtype': 'm.text',
+            'body': 'Forged edit',
+          },
+          'm.relates_to': <String, Object?>{
+            'rel_type': 'm.replace',
+            'event_id': r'$original',
+          },
+        },
+      ),
+    ], currentUserId: '@me:example.org');
+
+    final message = controller.messagesFor('!alpha:example.org').value.single;
+    expect(message.body, 'Original message');
+    expect(message.edited, isFalse);
+    expect(message.editHistory, isEmpty);
+  });
+
+  test(
+    'edit sends preserve Matrix replacement target and roll back failures',
+    () async {
+      final editPort = _RecordingEditPort();
+      final controller = TimelineController(
+        sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+        editPort: editPort,
+        fixtureProvider: (_) => const [],
+      );
+      controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+        _event(
+          eventId: r'$original',
+          streamPosition: 1,
+          senderId: '@me:example.org',
+          msgtype: 'm.text',
+          body: 'Original message',
+        ),
+      ], currentUserId: '@me:example.org');
+      final message = controller.messagesFor('!alpha:example.org').value.single;
+
+      controller.editText('!alpha:example.org', message, 'Edited message');
+      await Future<void>.delayed(Duration.zero);
+      expect(editPort.calls, hasLength(1));
+      expect(editPort.calls.single.eventId, r'$original');
+      expect(editPort.calls.single.body, 'Edited message');
+      expect(message.body, 'Edited message');
+      expect(message.edited, isTrue);
+
+      editPort.outcome = TimelineSendOutcome.failed;
+      controller.editText('!alpha:example.org', message, 'Rejected edit');
+      await Future<void>.delayed(Duration.zero);
+      expect(message.body, 'Edited message');
+      expect(message.edited, isTrue);
+      expect(message.editHistory, <String>['Original message']);
+    },
+  );
+
+  test(
+    'optimistic Matrix edits survive stale sync until replacement arrives',
+    () async {
+      final controller = TimelineController(
+        sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+        editPort: _RecordingEditPort(),
+        fixtureProvider: (_) => const [],
+      );
+      final original = _event(
+        eventId: r'$original',
+        streamPosition: 1,
+        senderId: '@me:example.org',
+        msgtype: 'm.text',
+        body: 'Original message',
+      );
+      controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+        original,
+      ], currentUserId: '@me:example.org');
+      final message = controller.messagesFor('!alpha:example.org').value.single;
+
+      controller.editText('!alpha:example.org', message, 'Edited message');
+      await Future<void>.delayed(Duration.zero);
+      controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+        original,
+      ], currentUserId: '@me:example.org');
+
+      expect(message.body, 'Edited message');
+      expect(message.editHistory, <String>['Original message']);
+
+      controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+        original,
+        _event(
+          eventId: r'$edit',
+          streamPosition: 2,
+          senderId: '@me:example.org',
+          msgtype: 'm.text',
+          body: '* Edited message',
+          extra: const <String, Object?>{
+            'm.new_content': <String, Object?>{
+              'msgtype': 'm.text',
+              'body': 'Edited message',
+            },
+            'm.relates_to': <String, Object?>{
+              'rel_type': 'm.replace',
+              'event_id': r'$original',
+            },
+          },
+        ),
+      ], currentUserId: '@me:example.org');
+
+      expect(
+        controller.messagesFor('!alpha:example.org').value.single,
+        same(message),
+      );
+      expect(message.body, 'Edited message');
+      expect(message.editHistory, <String>['Original message']);
+    },
+  );
+
   test('Matrix transaction IDs stay unique across controller restarts', () {
     final firstController = TimelineController(
       sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
@@ -348,6 +597,31 @@ void main() {
       expect(messages[2], same(local));
     },
   );
+}
+
+final class _RecordingEditPort implements TimelineEditPort {
+  TimelineSendOutcome outcome = TimelineSendOutcome.sent;
+  final List<
+    ({String roomId, String transactionId, String eventId, String body})
+  >
+  calls =
+      <({String roomId, String transactionId, String eventId, String body})>[];
+
+  @override
+  Future<TimelineSendOutcome> editText({
+    required String roomId,
+    required String transactionId,
+    required String eventId,
+    required String body,
+  }) async {
+    calls.add((
+      roomId: roomId,
+      transactionId: transactionId,
+      eventId: eventId,
+      body: body,
+    ));
+    return outcome;
+  }
 }
 
 final class _RecordingSendPort implements TimelineSendPort {

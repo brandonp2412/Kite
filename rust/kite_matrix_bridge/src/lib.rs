@@ -35,7 +35,7 @@ use matrix_sdk::{
                 encryption::RoomEncryptionEventContent,
                 history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
                 join_rules::{JoinRule, RoomJoinRulesEventContent},
-                message::{Relation, RoomMessageEventContent},
+                message::{Relation, ReplacementMetadata, RoomMessageEventContent},
                 power_levels::UserPowerLevel,
             },
         },
@@ -45,7 +45,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 21;
+const KITE_MATRIX_ABI_VERSION: u32 = 22;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -506,8 +506,12 @@ pub unsafe extern "C" fn kite_matrix_client_restore_session(
 fn text_message_content(
     body: &str,
     reply_to_event_id: Option<OwnedEventId>,
+    replacement_event_id: Option<OwnedEventId>,
 ) -> RoomMessageEventContent {
     let mut content = RoomMessageEventContent::text_plain(body);
+    if let Some(event_id) = replacement_event_id {
+        return content.make_replacement(ReplacementMetadata::new(event_id, None));
+    }
     if let Some(event_id) = reply_to_event_id {
         content.relates_to = Some(Relation::Reply(Reply::with_event_id(event_id)));
     }
@@ -520,6 +524,7 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
     transaction_id: *const c_char,
     body: *const c_char,
     reply_to_event_id: *const c_char,
+    replacement_event_id: *const c_char,
 ) -> *mut c_char {
     if client.is_null() {
         return error_json("client_closed", "Matrix message sending is unavailable.");
@@ -537,6 +542,7 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
         return error_json("invalid_message", "The Matrix message is invalid.");
     };
     let reply_to_event_id = unsafe { required_utf8(reply_to_event_id) };
+    let replacement_event_id = unsafe { required_utf8(replacement_event_id) };
     if room_id.is_empty() || transaction_id.is_empty() || body.is_empty() {
         return error_json("invalid_message", "The Matrix message is invalid.");
     }
@@ -552,6 +558,24 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
         },
         None => None,
     };
+    let replacement_event_id = match replacement_event_id {
+        Some(event_id) => match EventId::parse(event_id) {
+            Ok(event_id) => Some(event_id),
+            Err(_) => {
+                return error_json(
+                    "invalid_replacement",
+                    "The Matrix replacement target is invalid.",
+                );
+            }
+        },
+        None => None,
+    };
+    if reply_to_event_id.is_some() && replacement_event_id.is_some() {
+        return error_json(
+            "invalid_relation",
+            "A Matrix text event cannot be both a reply and a replacement.",
+        );
+    }
 
     let client = unsafe { &mut *client };
     let Some(matrix_client) = client.client.as_ref() else {
@@ -567,7 +591,7 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
-    let content = text_message_content(body, reply_to_event_id);
+    let content = text_message_content(body, reply_to_event_id, replacement_event_id);
     let Ok(response) = client.runtime.block_on(async {
         room.send(content)
             .with_transaction_id(OwnedTransactionId::from(transaction_id))
@@ -2206,7 +2230,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 21);
+        assert_eq!(kite_matrix_abi_version(), 22);
     }
 
     #[test]
@@ -2287,11 +2311,24 @@ mod tests {
     #[test]
     fn reply_content_preserves_matrix_relation() {
         let reply_to = EventId::parse("$original:kite.test").unwrap();
-        let content = text_message_content("Reply body", Some(reply_to));
+        let content = text_message_content("Reply body", Some(reply_to), None);
         let serialized = serde_json::to_value(content).unwrap();
         assert_eq!(serialized["body"], "Reply body");
         assert_eq!(
             serialized["m.relates_to"]["m.in_reply_to"]["event_id"],
+            "$original:kite.test"
+        );
+    }
+
+    #[test]
+    fn replacement_content_preserves_matrix_relation_and_new_content() {
+        let target = EventId::parse("$original:kite.test").unwrap();
+        let content = text_message_content("Edited body", None, Some(target));
+        let serialized = serde_json::to_value(content).unwrap();
+        assert_eq!(serialized["m.new_content"]["body"], "Edited body");
+        assert_eq!(serialized["m.relates_to"]["rel_type"], "m.replace");
+        assert_eq!(
+            serialized["m.relates_to"]["event_id"],
             "$original:kite.test"
         );
     }
@@ -2313,6 +2350,7 @@ mod tests {
                 room_id.as_ptr(),
                 transaction_id.as_ptr(),
                 body.as_ptr(),
+                ptr::null(),
                 ptr::null(),
             )
         };

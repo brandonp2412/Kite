@@ -472,12 +472,20 @@ bool _sameRoom(RoomListEntry left, RoomListEntry right) {
 
 String _latestEventPreview(MatrixTimelineEvent event) {
   if (event.type != 'm.room.message') return 'Room activity';
-  final body = event.content['body'];
+  final newContent = event.content['m.new_content'];
+  final relatesTo = event.content['m.relates_to'];
+  final content =
+      relatesTo is Map &&
+          relatesTo['rel_type'] == 'm.replace' &&
+          newContent is Map
+      ? newContent
+      : event.content;
+  final body = content['body'];
   final text = body is String ? body.trim() : '';
-  return switch (event.content['msgtype']) {
+  return switch (content['msgtype']) {
     'm.image' => 'Image',
     'm.video' => 'Video',
-    'm.audio' when event.content.containsKey('org.matrix.msc3245.voice') =>
+    'm.audio' when content.containsKey('org.matrix.msc3245.voice') =>
       'Voice message',
     'm.audio' => 'Audio',
     'm.file' => 'File',

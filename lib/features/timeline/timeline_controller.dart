@@ -418,6 +418,34 @@ abstract interface class TimelineSendPort {
   });
 }
 
+abstract interface class TimelineEditPort {
+  Future<TimelineSendOutcome> editText({
+    required String roomId,
+    required String transactionId,
+    required String eventId,
+    required String body,
+  });
+}
+
+final class DeterministicTimelineEditPort implements TimelineEditPort {
+  const DeterministicTimelineEditPort({
+    this.latency = const Duration(milliseconds: 120),
+  });
+
+  final Duration latency;
+
+  @override
+  Future<TimelineSendOutcome> editText({
+    required String roomId,
+    required String transactionId,
+    required String eventId,
+    required String body,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    return TimelineSendOutcome.sent;
+  }
+}
+
 class DeterministicTimelineSendPort implements TimelineSendPort {
   DeterministicTimelineSendPort({
     this.latency = const Duration(milliseconds: 180),
@@ -474,6 +502,7 @@ class TimelineMessage {
     required this.sender,
     required String body,
     required this.mine,
+    this.senderId,
     required this.timeLabel,
     this.replyToMessageId,
     this.replyToSender,
@@ -540,6 +569,7 @@ class TimelineMessage {
       sender: event.senderDisplayName ?? event.senderId,
       body: mediaBody,
       mine: event.senderId == currentUserId,
+      senderId: event.senderId,
       timeLabel:
           '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
       replyToMessageId: replyToMessageId,
@@ -553,6 +583,7 @@ class TimelineMessage {
   final String sender;
   final Signal<String> bodyText;
   final bool mine;
+  final String? senderId;
   final String timeLabel;
   final String? replyToMessageId;
   final String? replyToSender;
@@ -591,6 +622,7 @@ abstract interface class TimelineLocationShareDelegate {
 class TimelineController implements TimelineLocationShareDelegate {
   TimelineController({
     TimelineSendPort? sendPort,
+    TimelineEditPort? editPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
@@ -599,6 +631,7 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelinePollPort? pollPort,
     TimelineFixtureProvider? fixtureProvider,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
+       _editPort = editPort ?? const DeterministicTimelineEditPort(),
        _fixtureProvider = fixtureProvider ?? BenchmarkFixture.messagesFor,
        _attachmentSendPort =
            attachmentSendPort ??
@@ -613,6 +646,7 @@ class TimelineController implements TimelineLocationShareDelegate {
   }
 
   TimelineSendPort _sendPort;
+  TimelineEditPort _editPort;
   TimelineFixtureProvider _fixtureProvider;
   TimelineAttachmentSendPort _attachmentSendPort;
   TimelineModerationPort _moderationPort;
@@ -731,11 +765,24 @@ class TimelineController implements TimelineLocationShareDelegate {
     };
     final projected = <TimelineMessage>[];
     final projectedById = <String, TimelineMessage>{};
+    final pendingReplacements = <String, List<MatrixTimelineEvent>>{};
     final echoedTransactionIds = <String>{};
     for (final event in events) {
       if (event.roomId != roomId) continue;
       final transactionId = event.transactionId;
       if (transactionId != null) echoedTransactionIds.add(transactionId);
+      final replacement = _matrixReplacement(event.content);
+      if (replacement != null) {
+        final replacementTarget = projectedById[replacement.eventId];
+        if (replacementTarget == null) {
+          pendingReplacements
+              .putIfAbsent(replacement.eventId, () => <MatrixTimelineEvent>[])
+              .add(event);
+        } else {
+          _applyMatrixReplacement(replacementTarget, event, replacement.body);
+        }
+        continue;
+      }
       final replyToEventId = _matrixReplyToEventId(event.content);
       final mapped = TimelineMessage.fromMatrixEvent(
         event,
@@ -745,13 +792,28 @@ class TimelineController implements TimelineLocationShareDelegate {
             : projectedById[replyToEventId] ?? existingById[replyToEventId],
       );
       if (mapped == null) continue;
+      projected.add(mapped);
+      projectedById[mapped.id] = mapped;
+      final deferredReplacements = pendingReplacements.remove(mapped.id);
+      if (deferredReplacements != null) {
+        for (final replacementEvent in deferredReplacements) {
+          final deferred = _matrixReplacement(replacementEvent.content);
+          if (deferred != null) {
+            _applyMatrixReplacement(mapped, replacementEvent, deferred.body);
+          }
+        }
+      }
+    }
+    for (var index = 0; index < projected.length; index++) {
+      final mapped = projected[index];
       final existing = existingById[mapped.id];
-      final projection =
-          existing != null && _sameMatrixProjection(existing, mapped)
-          ? existing
-          : mapped;
-      projected.add(projection);
-      projectedById[projection.id] = projection;
+      if (existing == null ||
+          !_sameMatrixProjectionStructure(existing, mapped)) {
+        continue;
+      }
+      _applyMatrixProjectionLeaves(existing, mapped);
+      projected[index] = existing;
+      projectedById[mapped.id] = existing;
     }
     projected.addAll(
       current.where(
@@ -1007,18 +1069,32 @@ class TimelineController implements TimelineLocationShareDelegate {
     return false;
   }
 
-  void editText(TimelineMessage message, String rawBody) {
+  void editText(String roomId, TimelineMessage message, String rawBody) {
     if (!message.mine || message.redacted) return;
     final body = rawBody.trim();
     if (body.isEmpty || body == message.body) return;
+    final previousBody = message.body;
+    final previousEdited = message.edited;
+    final previousHistory = message.editHistory;
+    final nextHistory = List<String>.unmodifiable(<String>[
+      ...previousHistory,
+      previousBody,
+    ]);
     batch(() {
-      message.editHistoryState.value = List<String>.unmodifiable(<String>[
-        ...message.editHistoryState.peek(),
-        message.body,
-      ]);
+      message.editHistoryState.value = nextHistory;
       message.bodyText.value = body;
       message.editedState.value = true;
     });
+    unawaited(
+      _settleEdit(
+        roomId,
+        message,
+        body,
+        previousBody: previousBody,
+        previousEdited: previousEdited,
+        previousHistory: previousHistory,
+      ),
+    );
   }
 
   void redactText(TimelineMessage message) {
@@ -1130,6 +1206,7 @@ class TimelineController implements TimelineLocationShareDelegate {
 
   void reset({
     TimelineSendPort? sendPort,
+    TimelineEditPort? editPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
@@ -1139,6 +1216,7 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineFixtureProvider? fixtureProvider,
   }) {
     if (sendPort != null) _sendPort = sendPort;
+    if (editPort != null) _editPort = editPort;
     if (fixtureProvider != null) _fixtureProvider = fixtureProvider;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
@@ -1195,6 +1273,30 @@ class TimelineController implements TimelineLocationShareDelegate {
     };
   }
 
+  Future<void> _settleEdit(
+    String roomId,
+    TimelineMessage message,
+    String body, {
+    required String previousBody,
+    required bool previousEdited,
+    required List<String> previousHistory,
+  }) async {
+    final outcome = await _editPort.editText(
+      roomId: roomId,
+      transactionId: _nextMatrixTransactionId(),
+      eventId: message.id,
+      body: body,
+    );
+    if (outcome == TimelineSendOutcome.sent || message.body != body) return;
+    batch(() {
+      message.bodyText.value = previousBody;
+      message.editedState.value = previousEdited;
+      message.editHistoryState.value = List<String>.unmodifiable(
+        previousHistory,
+      );
+    });
+  }
+
   Future<void> _settle(String roomId, TimelineMessage message) async {
     final outcome = await _sendPort.sendText(
       roomId: roomId,
@@ -1216,6 +1318,48 @@ String _secureTransactionNamespace() {
   final random = Random.secure();
   final bytes = List<int>.generate(12, (_) => random.nextInt(256));
   return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+}
+
+({String eventId, String body})? _matrixReplacement(
+  Map<String, Object?> content,
+) {
+  final relatesTo = content['m.relates_to'];
+  if (relatesTo is! Map || relatesTo['rel_type'] != 'm.replace') return null;
+  final eventId = relatesTo['event_id'];
+  final newContent = content['m.new_content'];
+  if (eventId is! String || newContent is! Map) return null;
+  final body = newContent['body'];
+  final msgtype = newContent['msgtype'];
+  final normalizedEventId = eventId.trim();
+  final normalizedBody = body is String ? body.trim() : '';
+  if (normalizedEventId.isEmpty ||
+      normalizedBody.isEmpty ||
+      (msgtype != 'm.text' && msgtype != 'm.notice' && msgtype != 'm.emote')) {
+    return null;
+  }
+  return (eventId: normalizedEventId, body: normalizedBody);
+}
+
+void _applyMatrixReplacement(
+  TimelineMessage target,
+  MatrixTimelineEvent replacementEvent,
+  String body,
+) {
+  if (target.redacted ||
+      target.attachment != null ||
+      target.senderId == null ||
+      target.senderId != replacementEvent.senderId ||
+      target.body == body) {
+    return;
+  }
+  batch(() {
+    target.editHistoryState.value = List<String>.unmodifiable(<String>[
+      ...target.editHistoryState.peek(),
+      target.body,
+    ]);
+    target.bodyText.value = body;
+    target.editedState.value = true;
+  });
 }
 
 String? _matrixReplyToEventId(Map<String, Object?> content) {
@@ -1321,12 +1465,15 @@ String _formatDuration(Duration duration) {
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
 
-bool _sameMatrixProjection(TimelineMessage left, TimelineMessage right) {
+bool _sameMatrixProjectionStructure(
+  TimelineMessage left,
+  TimelineMessage right,
+) {
   final leftAttachment = left.attachment;
   final rightAttachment = right.attachment;
   return left.id == right.id &&
       left.sender == right.sender &&
-      left.body == right.body &&
+      left.senderId == right.senderId &&
       left.mine == right.mine &&
       left.timeLabel == right.timeLabel &&
       left.replyToMessageId == right.replyToMessageId &&
@@ -1337,6 +1484,33 @@ bool _sameMatrixProjection(TimelineMessage left, TimelineMessage right) {
       leftAttachment?.name == rightAttachment?.name &&
       leftAttachment?.sizeLabel == rightAttachment?.sizeLabel &&
       leftAttachment?.durationLabel == rightAttachment?.durationLabel;
+}
+
+void _applyMatrixProjectionLeaves(
+  TimelineMessage target,
+  TimelineMessage projection,
+) {
+  if (target.edited &&
+      target.editHistoryState.peek().length >
+          projection.editHistoryState.peek().length) {
+    return;
+  }
+  batch(() {
+    if (target.bodyText.peek() != projection.bodyText.peek()) {
+      target.bodyText.value = projection.bodyText.peek();
+    }
+    if (target.editedState.peek() != projection.editedState.peek()) {
+      target.editedState.value = projection.editedState.peek();
+    }
+    if (!listEquals(
+      target.editHistoryState.peek(),
+      projection.editHistoryState.peek(),
+    )) {
+      target.editHistoryState.value = List<String>.unmodifiable(
+        projection.editHistoryState.peek(),
+      );
+    }
+  });
 }
 
 bool _sameMessageIdentityList(

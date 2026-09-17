@@ -38,6 +38,38 @@ typedef MatrixReplyTextSender = Future<void> Function({
   required String body,
   required String replyToEventId,
 });
+typedef MatrixTextEditor = Future<void> Function({
+  required String roomId,
+  required String transactionId,
+  required String eventId,
+  required String body,
+});
+
+final class MatrixTimelineEditPort implements TimelineEditPort {
+  const MatrixTimelineEditPort(this._edit);
+
+  final MatrixTextEditor _edit;
+
+  @override
+  Future<TimelineSendOutcome> editText({
+    required String roomId,
+    required String transactionId,
+    required String eventId,
+    required String body,
+  }) async {
+    try {
+      await _edit(
+        roomId: roomId,
+        transactionId: transactionId,
+        eventId: eventId,
+        body: body,
+      );
+      return TimelineSendOutcome.sent;
+    } catch (_) {
+      return TimelineSendOutcome.failed;
+    }
+  }
+}
 
 final class MatrixTimelineSendPort implements TimelineSendPort {
   const MatrixTimelineSendPort(this._send, {this.sendReply});
@@ -77,6 +109,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.cache,
     required this.currentUserId,
     required this.sendPort,
+    this.editPort,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
@@ -92,6 +125,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final MatrixPresentationCache cache;
   final String currentUserId;
   final TimelineSendPort sendPort;
+  final TimelineEditPort? editPort;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
@@ -121,7 +155,8 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
     super.didUpdateWidget(oldWidget);
     if (identical(oldWidget.cache, widget.cache) &&
         oldWidget.currentUserId == widget.currentUserId &&
-        identical(oldWidget.sendPort, widget.sendPort)) {
+        identical(oldWidget.sendPort, widget.sendPort) &&
+        identical(oldWidget.editPort, widget.editPort)) {
       return;
     }
     _binding.dispose();
@@ -133,6 +168,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       cache: widget.cache,
       currentUserId: widget.currentUserId,
       sendPort: widget.sendPort,
+      editPort: widget.editPort,
       invitePort: widget.onRoomInviteResponse == null
           ? null
           : MatrixRoomInvitePort(widget.onRoomInviteResponse!),
@@ -172,6 +208,7 @@ final class MatrixHomePresentationBinding {
     required this.cache,
     required String currentUserId,
     required TimelineSendPort sendPort,
+    TimelineEditPort? editPort,
     TimelineController? controller,
     Signal<String>? selectedRoom,
     RoomInvitePort? invitePort,
@@ -180,6 +217,7 @@ final class MatrixHomePresentationBinding {
            controller ??
            TimelineController(
              sendPort: sendPort,
+             editPort: editPort,
              fixtureProvider: (_) => const [],
            ),
        selectedRoom = selectedRoom ?? selectedRoomId,
@@ -188,7 +226,11 @@ final class MatrixHomePresentationBinding {
          _matrixRoomInvites(cache),
          port: invitePort ?? const DeterministicRoomInvitePort(),
        ) {
-    this.controller.reset(sendPort: sendPort, fixtureProvider: (_) => const []);
+    this.controller.reset(
+      sendPort: sendPort,
+      editPort: editPort,
+      fixtureProvider: (_) => const [],
+    );
     _projectCache();
     _disposeProjection = effect(_projectCache);
   }

@@ -463,6 +463,7 @@ final class MatrixProductionRuntime
     required String transactionId,
     required String body,
     String? replyToEventId,
+    String? replacementEventId,
   }) {
     return accounts.sendTextMessage(
       accountId: accountId,
@@ -470,6 +471,7 @@ final class MatrixProductionRuntime
       transactionId: transactionId,
       body: body,
       replyToEventId: replyToEventId,
+      replacementEventId: replacementEventId,
     );
   }
 

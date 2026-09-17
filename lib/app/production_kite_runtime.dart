@@ -409,6 +409,20 @@ final class _AuthenticatedMatrixHomeState
                     );
                   },
             ),
+            editPort: MatrixTimelineEditPort(({
+              required roomId,
+              required transactionId,
+              required eventId,
+              required body,
+            }) async {
+              await widget.runtime.sendTextMessage(
+                accountId: widget.session.userId,
+                roomId: roomId,
+                transactionId: transactionId,
+                body: body,
+                replacementEventId: eventId,
+              );
+            }),
             onRoomFavouriteChanged: (roomId, isFavourite) =>
                 widget.runtime.setRoomFavourite(
                   accountId: widget.session.userId,

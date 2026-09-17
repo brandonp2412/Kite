@@ -84,6 +84,12 @@ void main() {
         body: 'Hello Matrix',
         replyToEventId: r'$original',
       );
+      final editedEventId = await boundary.sendTextMessage(
+        roomId: '!room:kite.test',
+        transactionId: 'kite-transaction-2',
+        body: 'Edited Matrix',
+        replacementEventId: r'$original',
+      );
       final created = await boundary.createRoom(
         MatrixSdkRoomCreationRequest(
           kind: MatrixSdkRoomCreationKind.privateRoom,
@@ -185,6 +191,7 @@ void main() {
         ('@alice:kite.test', 'test-password'),
       ]);
       expect(eventId, r'$sent');
+      expect(editedEventId, r'$sent');
       expect(created.roomId, '!created:kite.test');
       expect(created.isDirect, isFalse);
       expect(roomDetails.roomId, '!room:kite.test');
@@ -201,8 +208,10 @@ void main() {
       expect(client.createRequests.single.name, 'Kite room');
       expect(client.sendCalls, <(String, String, String)>[
         ('!room:kite.test', 'kite-transaction-1', 'Hello Matrix'),
+        ('!room:kite.test', 'kite-transaction-2', 'Edited Matrix'),
       ]);
-      expect(client.sendReplyTargets, <String?>[r'$original']);
+      expect(client.sendReplyTargets, <String?>[r'$original', null]);
+      expect(client.sendReplacementTargets, <String?>[null, r'$original']);
       expect(client.roomSettingCalls, <(String, String, String?)>[
         ('!room:kite.test', 'get', null),
         ('!room:kite.test', 'set_name', 'Renamed'),
@@ -1014,6 +1023,7 @@ final class _FailingCloseRustClient implements MatrixRustClient {
     required String transactionId,
     required String body,
     String? replyToEventId,
+    String? replacementEventId,
   }) {
     throw UnimplementedError();
   }
@@ -1063,6 +1073,7 @@ final class _SessionExpiredRustClient implements MatrixRustClient {
     required String transactionId,
     required String body,
     String? replyToEventId,
+    String? replacementEventId,
   }) {
     throw UnimplementedError();
   }
@@ -1115,6 +1126,7 @@ final class _RecoveringRustClient implements MatrixRustClient {
     required String transactionId,
     required String body,
     String? replyToEventId,
+    String? replacementEventId,
   }) {
     throw UnimplementedError();
   }
@@ -1167,6 +1179,7 @@ final class _FakeRustClient
   final List<String> paginationCalls = <String>[];
   final List<(String, String, String)> sendCalls = <(String, String, String)>[];
   final List<String?> sendReplyTargets = <String?>[];
+  final List<String?> sendReplacementTargets = <String?>[];
   final List<(String, String)> loginCalls = <(String, String)>[];
   final List<MatrixSdkRoomCreationRequest> createRequests =
       <MatrixSdkRoomCreationRequest>[];
@@ -1364,9 +1377,11 @@ final class _FakeRustClient
     required String transactionId,
     required String body,
     String? replyToEventId,
+    String? replacementEventId,
   }) async {
     sendCalls.add((roomId, transactionId, body));
     sendReplyTargets.add(replyToEventId);
+    sendReplacementTargets.add(replacementEventId);
     return const MatrixRustSendResult(eventId: r'$sent');
   }
 

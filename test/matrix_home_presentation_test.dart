@@ -51,6 +51,47 @@ void main() {
     ]);
   });
 
+  test('Matrix timeline edit port preserves replacement targets', () async {
+    final edits =
+        <
+          ({String roomId, String transactionId, String eventId, String body})
+        >[];
+    final port = MatrixTimelineEditPort(({
+      required roomId,
+      required transactionId,
+      required eventId,
+      required body,
+    }) async {
+      edits.add((
+        roomId: roomId,
+        transactionId: transactionId,
+        eventId: eventId,
+        body: body,
+      ));
+    });
+
+    expect(
+      await port.editText(
+        roomId: '!room:example.org',
+        transactionId: 'txn-edit-1',
+        eventId: r'$original',
+        body: 'Edited',
+      ),
+      TimelineSendOutcome.sent,
+    );
+    expect(
+      edits,
+      <({String roomId, String transactionId, String eventId, String body})>[
+        (
+          roomId: '!room:example.org',
+          transactionId: 'txn-edit-1',
+          eventId: r'$original',
+          body: 'Edited',
+        ),
+      ],
+    );
+  });
+
   testWidgets('empty Matrix home shows loading until the first sync batch', (
     tester,
   ) async {
