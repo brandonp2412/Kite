@@ -274,6 +274,8 @@ abstract interface class MatrixSdkPasswordAuthenticator {
 abstract interface class MatrixSdkEncryptionRecoveryManager {
   Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus();
 
+  Future<MatrixSdkEncryptionRecoveryStatus> createEncryptedBackup();
+
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption(String secret);
 
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory();
@@ -419,6 +421,18 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await _ensureOpen();
     return (manager as MatrixSdkEncryptionRecoveryManager)
         .encryptionRecoveryStatus();
+  }
+
+  Future<MatrixSdkEncryptionRecoveryStatus> createEncryptedBackup() async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkEncryptionRecoveryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support encryption recovery',
+      );
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkEncryptionRecoveryManager)
+        .createEncryptedBackup();
   }
 
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption(

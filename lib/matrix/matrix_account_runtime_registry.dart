@@ -81,6 +81,16 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.encryptionRecoveryStatus();
   }
 
+  Future<MatrixSdkEncryptionRecoveryStatus> createEncryptedBackup({
+    required String accountId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot create a Matrix encrypted backup for an inactive account',
+    );
+    return active.engine.createEncryptedBackup();
+  }
+
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption({
     required String accountId,
     required String secret,

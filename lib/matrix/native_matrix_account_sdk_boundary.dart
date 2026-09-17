@@ -20,6 +20,8 @@ abstract interface class MatrixNativeProfileApi {
 abstract interface class MatrixNativeRecoveryApi {
   Future<MatrixSdkRecoveryStatus> loadRecoveryStatus();
 
+  Future<MatrixSdkRecoveryStatus> createEncryptedBackup();
+
   Future<MatrixSdkRecoveryStatus> restoreBackup(String secret);
 
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages();
@@ -168,6 +170,7 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
 
   @override
   Future<MatrixSdkRecoveryStatus> createEncryptedBackup() =>
+      _recovery?.createEncryptedBackup() ??
       _unsupported(MatrixAccountSdkCapability.encryptedBackup);
 
   @override

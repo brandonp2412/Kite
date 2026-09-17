@@ -38,6 +38,43 @@ final class _AuthApi implements MatrixNativeAuthSessionApi {
   Future<MatrixSdkSessionDescriptor?> restoreSession() async => null;
 }
 
+final class _RecoveryApi implements MatrixNativeRecoveryApi {
+  int createCalls = 0;
+  String? restoredSecret;
+  int historyCalls = 0;
+
+  static const status = MatrixSdkRecoveryStatus(
+    backupState: MatrixSdkBackupState.ready,
+    historicalRecoveryState: MatrixSdkHistoricalRecoveryState.available,
+    hasUnverifiedSessions: false,
+  );
+
+  @override
+  Future<MatrixSdkRecoveryStatus> createEncryptedBackup() async {
+    createCalls += 1;
+    return status;
+  }
+
+  @override
+  Future<MatrixSdkRecoveryStatus> loadRecoveryStatus() async => status;
+
+  @override
+  Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages() async {
+    historyCalls += 1;
+    return const MatrixSdkRecoveryStatus(
+      backupState: MatrixSdkBackupState.ready,
+      historicalRecoveryState: MatrixSdkHistoricalRecoveryState.complete,
+      hasUnverifiedSessions: false,
+    );
+  }
+
+  @override
+  Future<MatrixSdkRecoveryStatus> restoreBackup(String secret) async {
+    restoredSecret = secret;
+    return status;
+  }
+}
+
 final class _ProfileApi implements MatrixNativeProfileApi {
   final ignored = <String>{'@spam:example.org'};
   final writes = <(String, bool)>[];
@@ -105,6 +142,38 @@ void main() {
       expect(profile.writes.last, ('@spam:example.org', false));
     },
   );
+
+  test('native recovery bridge delegates recovery actions', () async {
+    final recovery = _RecoveryApi();
+    final boundary = NativeMatrixAccountSdkBoundary(
+      _AuthApi(),
+      recoveryApi: recovery,
+    );
+
+    expect(
+      boundary.accountCapabilities,
+      contains(MatrixAccountSdkCapability.encryptedBackup),
+    );
+    expect(
+      boundary.accountCapabilities,
+      contains(MatrixAccountSdkCapability.historicalMessageRecovery),
+    );
+    expect(await boundary.loadRecoveryStatus(), _RecoveryApi.status);
+    expect(await boundary.createEncryptedBackup(), _RecoveryApi.status);
+    expect(recovery.createCalls, 1);
+
+    await boundary.restoreBackupWithRecoveryKey('opaque-secret');
+    expect(recovery.restoredSecret, 'opaque-secret');
+    await boundary.restoreBackupWithPassphrase('opaque passphrase');
+    expect(recovery.restoredSecret, 'opaque passphrase');
+
+    final history = await boundary.recoverHistoricalMessages();
+    expect(
+      history.historicalRecoveryState,
+      MatrixSdkHistoricalRecoveryState.complete,
+    );
+    expect(recovery.historyCalls, 1);
+  });
 
   test(
     'privacy controls remain unavailable without a production profile api',

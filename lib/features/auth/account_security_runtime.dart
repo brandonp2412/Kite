@@ -21,12 +21,16 @@ final class AccountSecurityRuntime {
     final recovery = EncryptionRecoveryController(gateway);
     final encryptionTrust = EncryptionTrustController(gateway);
     final profile = UserProfileController(gateway);
+    final recoveryAvailable = boundary.accountCapabilities.contains(
+      MatrixAccountSdkCapability.encryptedBackup,
+    );
     return AccountSecurityRuntime._(
       gateway: gateway,
       authentication: AuthenticationController(gateway),
       lifecycle: SessionLifecycleController(gateway),
       verification: verification,
       recovery: recovery,
+      recoveryAvailable: recoveryAvailable,
       encryptionTrust: encryptionTrust,
       sessionDevices: sessionDevices,
       accounts: AccountManagementController(gateway),
@@ -48,6 +52,7 @@ final class AccountSecurityRuntime {
     required this.lifecycle,
     required this.verification,
     required this.recovery,
+    required this.recoveryAvailable,
     required this.encryptionTrust,
     required this.sessionDevices,
     required this.accounts,
@@ -61,6 +66,7 @@ final class AccountSecurityRuntime {
   final SessionLifecycleController lifecycle;
   final DeviceVerificationController verification;
   final EncryptionRecoveryController recovery;
+  final bool recoveryAvailable;
   final EncryptionTrustController encryptionTrust;
   final SessionDeviceController sessionDevices;
   final AccountManagementController accounts;

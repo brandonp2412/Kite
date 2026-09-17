@@ -113,6 +113,10 @@ final class MatrixProductionRuntime
     required String accountId,
   }) => accounts.encryptionRecoveryStatus(accountId: accountId);
 
+  Future<MatrixSdkEncryptionRecoveryStatus> createEncryptedBackup({
+    required String accountId,
+  }) => accounts.createEncryptedBackup(accountId: accountId);
+
   Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption({
     required String accountId,
     required String secret,

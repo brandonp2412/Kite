@@ -70,6 +70,7 @@ void main() {
       isTrue,
     );
     expect(runtime.recovery.status.value?.backupState.name, 'ready');
+    expect(runtime.recoveryAvailable, isTrue);
     expect(identical(runtime.scope.recovery, runtime.recovery), isTrue);
     expect(
       identical(runtime.scope.sessionDevices, runtime.sessionDevices),

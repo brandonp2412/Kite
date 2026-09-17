@@ -16,6 +16,13 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
   }
 
   @override
+  Future<MatrixSdkRecoveryStatus> createEncryptedBackup() async {
+    return _status(
+      await _runtime.createEncryptedBackup(accountId: _activeAccountId()),
+    );
+  }
+
+  @override
   Future<MatrixSdkRecoveryStatus> restoreBackup(String secret) async {
     return _status(
       await _runtime.recoverEncryption(
@@ -27,8 +34,13 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
 
   @override
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages() async {
-    return _status(
+    final status = _status(
       await _runtime.recoverEncryptedHistory(accountId: _activeAccountId()),
+    );
+    return MatrixSdkRecoveryStatus(
+      backupState: status.backupState,
+      historicalRecoveryState: MatrixSdkHistoricalRecoveryState.complete,
+      hasUnverifiedSessions: status.hasUnverifiedSessions,
     );
   }
 
@@ -45,29 +57,25 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
   ) {
     final recovered =
         status.recoveryState == MatrixSdkEncryptionRecoveryState.enabled;
-    final backupState = switch (status.recoveryState) {
-      MatrixSdkEncryptionRecoveryState.enabled
-          when status.backupExistsOnServer =>
-        MatrixSdkBackupState.ready,
-      MatrixSdkEncryptionRecoveryState.incomplete =>
+    final backupState = switch (status.backupState) {
+      MatrixSdkEncryptionBackupState.enabled => MatrixSdkBackupState.ready,
+      _
+          when status.recoveryState ==
+              MatrixSdkEncryptionRecoveryState.incomplete =>
         MatrixSdkBackupState.needsRecovery,
-      MatrixSdkEncryptionRecoveryState.disabled
-          when status.backupExistsOnServer =>
+      _
+          when status.backupExistsOnServer &&
+              status.recoveryState !=
+                  MatrixSdkEncryptionRecoveryState.enabled =>
         MatrixSdkBackupState.needsRecovery,
-      MatrixSdkEncryptionRecoveryState.disabled =>
-        MatrixSdkBackupState.unavailable,
-      MatrixSdkEncryptionRecoveryState.unknown
-          when status.backupExistsOnServer =>
-        MatrixSdkBackupState.needsRecovery,
-      MatrixSdkEncryptionRecoveryState.unknown => MatrixSdkBackupState.unknown,
-      MatrixSdkEncryptionRecoveryState.enabled =>
-        MatrixSdkBackupState.unavailable,
+      _ when status.backupExistsOnServer => MatrixSdkBackupState.ready,
+      _ when status.recoveryState == MatrixSdkEncryptionRecoveryState.unknown =>
+        MatrixSdkBackupState.unknown,
+      _ => MatrixSdkBackupState.unavailable,
     };
     final historyState = switch (status.backupState) {
       MatrixSdkEncryptionBackupState.downloading =>
         MatrixSdkHistoricalRecoveryState.recovering,
-      MatrixSdkEncryptionBackupState.enabled when recovered =>
-        MatrixSdkHistoricalRecoveryState.complete,
       _ when recovered && status.backupExistsOnServer =>
         MatrixSdkHistoricalRecoveryState.available,
       _ => MatrixSdkHistoricalRecoveryState.idle,

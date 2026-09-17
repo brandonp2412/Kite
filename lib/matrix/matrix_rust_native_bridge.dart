@@ -1635,6 +1635,8 @@ abstract interface class MatrixRustProfileClient {
 abstract interface class MatrixRustEncryptionRecoveryClient {
   Future<Map<String, Object?>> encryptionRecoveryStatus();
 
+  Future<Map<String, Object?>> createEncryptedBackup();
+
   Future<Map<String, Object?>> recoverEncryption(String secret);
 
   Future<Map<String, Object?>> recoverEncryptedHistory();
@@ -2007,6 +2009,11 @@ final class MatrixRustNativeClient
   @override
   Future<Map<String, Object?>> encryptionRecoveryStatus() {
     return _recovery(action: 'status');
+  }
+
+  @override
+  Future<Map<String, Object?>> createEncryptedBackup() {
+    return _recovery(action: 'create_backup');
   }
 
   @override
@@ -3049,6 +3056,11 @@ final class MatrixRustSdkBoundary
   @override
   Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus() {
     return _encryptionRecovery((client) => client.encryptionRecoveryStatus());
+  }
+
+  @override
+  Future<MatrixSdkEncryptionRecoveryStatus> createEncryptedBackup() {
+    return _encryptionRecovery((client) => client.createEncryptedBackup());
   }
 
   @override

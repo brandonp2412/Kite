@@ -4,11 +4,39 @@ import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
+import 'package:kite/features/auth/encryption_recovery_controller.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/testing/deterministic_room_management_adapter.dart';
+
+final class _HomeRecoveryGateway implements EncryptionRecoveryGateway {
+  static const status = EncryptionRecoveryStatus(
+    backupState: EncryptedBackupState.ready,
+    historicalRecoveryState: HistoricalRecoveryState.available,
+    hasUnverifiedSessions: false,
+  );
+
+  @override
+  Future<EncryptionRecoveryStatus> createEncryptedBackup() async => status;
+
+  @override
+  Future<EncryptionRecoveryStatus> loadRecoveryStatus() async => status;
+
+  @override
+  Future<EncryptionRecoveryStatus> recoverHistoricalMessages() async => status;
+
+  @override
+  Future<EncryptionRecoveryStatus> restoreWithPassphrase(
+    String passphrase,
+  ) async => status;
+
+  @override
+  Future<EncryptionRecoveryStatus> restoreWithRecoveryKey(
+    String recoveryKey,
+  ) async => status;
+}
 
 final class _HomeProfileGateway implements UserProfileGateway {
   Uri? avatarUri;
@@ -400,6 +428,50 @@ void main() {
       Uri.parse('mxc://example.org/profile-avatar'),
     );
   });
+
+  testWidgets(
+    'encryption recovery stays contextual and opens from the account sheet',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final recovery = EncryptionRecoveryController(_HomeRecoveryGateway());
+      addTearDown(recovery.dispose);
+      final session = AuthenticatedSession(
+        userId: '@me:example.org',
+        deviceId: 'KITE',
+        homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: AuthenticatedAccountScope(
+            session: session,
+            signOut: () async {},
+            recoveryController: recovery,
+            child: const HomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Encryption recovery'), findsNothing);
+      await tester.tap(find.byKey(const Key('home-account-menu')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('home-account-encryption-recovery')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('home-account-encryption-recovery')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('encryption-recovery-list')), findsOneWidget);
+    },
+  );
 
   testWidgets('contextual room filters stay off the home surface', (
     tester,
