@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 16;
+const int kiteMatrixNativeAbiVersion = 17;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -209,6 +209,18 @@ typedef _ClientManageRoomNative = Pointer<Char> Function(
 typedef _ClientManageRoomDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientRoomSettingsNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientRoomSettingsDart = Pointer<Char> Function(
+  Pointer<Void>,
   Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
@@ -989,6 +1001,64 @@ final class _MatrixNativeManageRoomOperation {
   }
 }
 
+final class _MatrixNativeRoomSettingsOperation {
+  const _MatrixNativeRoomSettingsOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.action,
+    required this.value,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String action;
+  final String? value;
+
+  Map<String, Object?> call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final roomSettings = library
+        .lookupFunction<_ClientRoomSettingsNative, _ClientRoomSettingsDart>(
+          'kite_matrix_client_room_settings',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final actionUtf8 = action.toNativeUtf8(allocator: calloc);
+    final valueUtf8 = value?.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        roomSettings(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          actionUtf8.cast<Char>(),
+          valueUtf8 == null
+              ? Pointer<Char>.fromAddress(0)
+              : valueUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room settings',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid room settings data.',
+        );
+      }
+      return Map<String, Object?>.from(decoded);
+    } finally {
+      if (valueUtf8 != null) calloc.free(valueUtf8);
+      calloc.free(actionUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomMembersOperation {
   const _MatrixNativeRoomMembersOperation({
     required this.libraryPath,
@@ -1213,6 +1283,14 @@ abstract interface class MatrixRustRoomLifecycleClient {
   });
 }
 
+abstract interface class MatrixRustRoomSettingsClient {
+  Future<Map<String, Object?>> roomSettings({
+    required String roomId,
+    required String action,
+    String? value,
+  });
+}
+
 abstract interface class MatrixRustRoomFavouriteClient {
   Future<void> setRoomFavourite({
     required String roomId,
@@ -1396,6 +1474,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomMemberInviterClient,
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
+        MatrixRustRoomSettingsClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
@@ -1653,6 +1732,54 @@ final class MatrixRustNativeClient
           timeoutMs: timeoutMs,
           since: since,
           timelineEventLimit: timelineEventLimit,
+        ).call,
+      );
+    });
+  }
+
+  @override
+  Future<Map<String, Object?>> roomSettings({
+    required String roomId,
+    required String action,
+    String? value,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedAction = action.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedAction.isEmpty || normalizedAction.contains('\u0000')) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          action,
+          'action',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (value?.contains('\u0000') ?? false) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'value',
+          'must not contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<Map<String, Object?>>(() async {
+      return Isolate.run<Map<String, Object?>>(
+        _MatrixNativeRoomSettingsOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          action: normalizedAction,
+          value: value,
         ).call,
       );
     });
@@ -2185,6 +2312,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
         MatrixSdkRoomCreator,
+        MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
         MatrixSdkRoomMemberDirectory,
         MatrixSdkRoomMemberInviter,
@@ -2317,6 +2445,135 @@ final class MatrixRustSdkBoundary
         roomId: created.roomId,
         isDirect: created.isDirect,
       );
+    });
+  }
+
+  @override
+  Future<MatrixSdkRoomDetails> roomDetails(String roomId) {
+    return _enqueue<MatrixSdkRoomDetails>(() async {
+      final decoded = await _roomSettings(roomId: roomId, action: 'get');
+      final returnedRoomId = decoded['roomId'];
+      final name = decoded['name'];
+      final topic = decoded['topic'];
+      final avatarUrl = decoded['avatarUrl'];
+      final canonicalAlias = decoded['canonicalAlias'];
+      final joinRule = decoded['joinRule'];
+      final encryptionEnabled = decoded['encryptionEnabled'];
+      final historyVisibility = decoded['historyVisibility'];
+      final notificationMode = decoded['notificationMode'];
+      final isDirect = decoded['isDirect'];
+      final directUserIds = decoded['directUserIds'];
+      if (returnedRoomId is! String ||
+          returnedRoomId.isEmpty ||
+          (name != null && name is! String) ||
+          (topic != null && topic is! String) ||
+          (avatarUrl != null && avatarUrl is! String) ||
+          (canonicalAlias != null && canonicalAlias is! String) ||
+          joinRule is! String ||
+          encryptionEnabled is! bool ||
+          historyVisibility is! String ||
+          notificationMode is! String ||
+          isDirect is! bool ||
+          directUserIds is! List ||
+          directUserIds.any((value) => value is! String)) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid room settings',
+        );
+      }
+      return MatrixSdkRoomDetails(
+        roomId: returnedRoomId,
+        name: name as String?,
+        topic: topic as String?,
+        avatarUrl: avatarUrl as String?,
+        canonicalAlias: canonicalAlias as String?,
+        joinRule: joinRule,
+        encryptionEnabled: encryptionEnabled,
+        historyVisibility: historyVisibility,
+        notificationMode: notificationMode,
+        isDirect: isDirect,
+        directUserIds: directUserIds.cast<String>(),
+      );
+    });
+  }
+
+  @override
+  Future<void> setRoomName(String roomId, String? name) =>
+      _setRoomSetting(roomId: roomId, action: 'set_name', value: name);
+
+  @override
+  Future<void> setRoomTopic(String roomId, String? topic) =>
+      _setRoomSetting(roomId: roomId, action: 'set_topic', value: topic);
+
+  @override
+  Future<void> setRoomAvatar(String roomId, String? avatarUrl) =>
+      _setRoomSetting(roomId: roomId, action: 'set_avatar', value: avatarUrl);
+
+  @override
+  Future<void> setRoomCanonicalAlias(String roomId, String? canonicalAlias) =>
+      _setRoomSetting(
+        roomId: roomId,
+        action: 'set_canonical_alias',
+        value: canonicalAlias,
+      );
+
+  @override
+  Future<void> setRoomJoinRule(String roomId, String joinRule) =>
+      _setRoomSetting(roomId: roomId, action: 'set_join_rule', value: joinRule);
+
+  @override
+  Future<void> enableRoomEncryption(String roomId) =>
+      _setRoomSetting(roomId: roomId, action: 'enable_encryption');
+
+  @override
+  Future<void> setRoomHistoryVisibility(String roomId, String visibility) =>
+      _setRoomSetting(
+        roomId: roomId,
+        action: 'set_history_visibility',
+        value: visibility,
+      );
+
+  @override
+  Future<void> setRoomNotificationMode(String roomId, String mode) =>
+      _setRoomSetting(
+        roomId: roomId,
+        action: 'set_notification_mode',
+        value: mode,
+      );
+
+  Future<Map<String, Object?>> _roomSettings({
+    required String roomId,
+    required String action,
+    String? value,
+  }) async {
+    final client = _requireClient();
+    if (client is! MatrixRustRoomSettingsClient) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client does not support room settings',
+      );
+    }
+    return (client as MatrixRustRoomSettingsClient).roomSettings(
+      roomId: roomId,
+      action: action,
+      value: value,
+    );
+  }
+
+  Future<void> _setRoomSetting({
+    required String roomId,
+    required String action,
+    String? value,
+  }) {
+    return _enqueue<void>(() async {
+      final decoded = await _roomSettings(
+        roomId: roomId,
+        action: action,
+        value: value,
+      );
+      if (decoded['roomId'] != roomId || decoded['action'] != action) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid room settings state',
+        );
+      }
     });
   }
 

@@ -94,6 +94,91 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.createRoom(request);
   }
 
+  Future<MatrixSdkRoomDetails> roomDetails({
+    required String accountId,
+    required String roomId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load Matrix room settings for an inactive account',
+    );
+    return active.engine.roomDetails(roomId);
+  }
+
+  Future<void> setRoomName({
+    required String accountId,
+    required String roomId,
+    required String? name,
+  }) => _roomSetting(accountId, (engine) => engine.setRoomName(roomId, name));
+
+  Future<void> setRoomTopic({
+    required String accountId,
+    required String roomId,
+    required String? topic,
+  }) => _roomSetting(accountId, (engine) => engine.setRoomTopic(roomId, topic));
+
+  Future<void> setRoomAvatar({
+    required String accountId,
+    required String roomId,
+    required String? avatarUrl,
+  }) => _roomSetting(
+    accountId,
+    (engine) => engine.setRoomAvatar(roomId, avatarUrl),
+  );
+
+  Future<void> setRoomCanonicalAlias({
+    required String accountId,
+    required String roomId,
+    required String? canonicalAlias,
+  }) => _roomSetting(
+    accountId,
+    (engine) => engine.setRoomCanonicalAlias(roomId, canonicalAlias),
+  );
+
+  Future<void> setRoomJoinRule({
+    required String accountId,
+    required String roomId,
+    required String joinRule,
+  }) => _roomSetting(
+    accountId,
+    (engine) => engine.setRoomJoinRule(roomId, joinRule),
+  );
+
+  Future<void> enableRoomEncryption({
+    required String accountId,
+    required String roomId,
+  }) =>
+      _roomSetting(accountId, (engine) => engine.enableRoomEncryption(roomId));
+
+  Future<void> setRoomHistoryVisibility({
+    required String accountId,
+    required String roomId,
+    required String visibility,
+  }) => _roomSetting(
+    accountId,
+    (engine) => engine.setRoomHistoryVisibility(roomId, visibility),
+  );
+
+  Future<void> setRoomNotificationMode({
+    required String accountId,
+    required String roomId,
+    required String mode,
+  }) => _roomSetting(
+    accountId,
+    (engine) => engine.setRoomNotificationMode(roomId, mode),
+  );
+
+  Future<void> _roomSetting(
+    String accountId,
+    Future<void> Function(MatrixBoundaryEngine engine) update,
+  ) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot update Matrix room settings for an inactive account',
+    );
+    return update(active.engine);
+  }
+
   Future<void> reportRoom({
     required String accountId,
     required String roomId,

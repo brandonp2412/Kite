@@ -92,8 +92,48 @@ final class MatrixSdkCreatedRoom {
   final bool isDirect;
 }
 
+final class MatrixSdkRoomDetails {
+  MatrixSdkRoomDetails({
+    required this.roomId,
+    required this.name,
+    required this.topic,
+    required this.avatarUrl,
+    required this.canonicalAlias,
+    required this.joinRule,
+    required this.encryptionEnabled,
+    required this.historyVisibility,
+    required this.notificationMode,
+    required this.isDirect,
+    required Iterable<String> directUserIds,
+  }) : directUserIds = List<String>.unmodifiable(directUserIds);
+
+  final String roomId;
+  final String? name;
+  final String? topic;
+  final String? avatarUrl;
+  final String? canonicalAlias;
+  final String joinRule;
+  final bool encryptionEnabled;
+  final String historyVisibility;
+  final String notificationMode;
+  final bool isDirect;
+  final List<String> directUserIds;
+}
+
 abstract interface class MatrixSdkRoomCreator {
   Future<MatrixSdkCreatedRoom> createRoom(MatrixSdkRoomCreationRequest request);
+}
+
+abstract interface class MatrixSdkRoomSettingsManager {
+  Future<MatrixSdkRoomDetails> roomDetails(String roomId);
+  Future<void> setRoomName(String roomId, String? name);
+  Future<void> setRoomTopic(String roomId, String? topic);
+  Future<void> setRoomAvatar(String roomId, String? avatarUrl);
+  Future<void> setRoomCanonicalAlias(String roomId, String? canonicalAlias);
+  Future<void> setRoomJoinRule(String roomId, String joinRule);
+  Future<void> enableRoomEncryption(String roomId);
+  Future<void> setRoomHistoryVisibility(String roomId, String visibility);
+  Future<void> setRoomNotificationMode(String roomId, String mode);
 }
 
 abstract interface class MatrixSdkRoomLifecycleManager {
@@ -317,6 +357,65 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     return (creator as MatrixSdkRoomCreator).createRoom(request);
   }
 
+  Future<MatrixSdkRoomDetails> roomDetails(String roomId) async {
+    final manager = _roomSettingsManager();
+    final normalizedRoomId = _validatedRoomId(roomId);
+    await _ensureOpen();
+    return manager.roomDetails(normalizedRoomId);
+  }
+
+  Future<void> setRoomName(String roomId, String? name) => _updateRoomSetting(
+    roomId,
+    (manager, normalizedRoomId) => manager.setRoomName(normalizedRoomId, name),
+  );
+
+  Future<void> setRoomTopic(String roomId, String? topic) => _updateRoomSetting(
+    roomId,
+    (manager, normalizedRoomId) =>
+        manager.setRoomTopic(normalizedRoomId, topic),
+  );
+
+  Future<void> setRoomAvatar(String roomId, String? avatarUrl) =>
+      _updateRoomSetting(
+        roomId,
+        (manager, normalizedRoomId) =>
+            manager.setRoomAvatar(normalizedRoomId, avatarUrl),
+      );
+
+  Future<void> setRoomCanonicalAlias(String roomId, String? canonicalAlias) =>
+      _updateRoomSetting(
+        roomId,
+        (manager, normalizedRoomId) =>
+            manager.setRoomCanonicalAlias(normalizedRoomId, canonicalAlias),
+      );
+
+  Future<void> setRoomJoinRule(String roomId, String joinRule) =>
+      _updateRoomSetting(
+        roomId,
+        (manager, normalizedRoomId) =>
+            manager.setRoomJoinRule(normalizedRoomId, joinRule),
+      );
+
+  Future<void> enableRoomEncryption(String roomId) => _updateRoomSetting(
+    roomId,
+    (manager, normalizedRoomId) =>
+        manager.enableRoomEncryption(normalizedRoomId),
+  );
+
+  Future<void> setRoomHistoryVisibility(String roomId, String visibility) =>
+      _updateRoomSetting(
+        roomId,
+        (manager, normalizedRoomId) =>
+            manager.setRoomHistoryVisibility(normalizedRoomId, visibility),
+      );
+
+  Future<void> setRoomNotificationMode(String roomId, String mode) =>
+      _updateRoomSetting(
+        roomId,
+        (manager, normalizedRoomId) =>
+            manager.setRoomNotificationMode(normalizedRoomId, mode),
+      );
+
   Future<void> reportRoom(String roomId, {String? reason}) async {
     final manager = _boundary;
     if (manager is! MatrixSdkRoomLifecycleManager) {
@@ -370,6 +469,39 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     await (manager as MatrixSdkRoomLifecycleManager).forgetRoom(roomId);
+  }
+
+  MatrixSdkRoomSettingsManager _roomSettingsManager() {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomSettingsManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room settings',
+      );
+    }
+    return manager as MatrixSdkRoomSettingsManager;
+  }
+
+  String _validatedRoomId(String roomId) {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'must contain a non-empty Matrix room id without NUL bytes',
+      );
+    }
+    return normalizedRoomId;
+  }
+
+  Future<void> _updateRoomSetting(
+    String roomId,
+    Future<void> Function(MatrixSdkRoomSettingsManager manager, String roomId)
+    update,
+  ) async {
+    final manager = _roomSettingsManager();
+    final normalizedRoomId = _validatedRoomId(roomId);
+    await _ensureOpen();
+    await update(manager, normalizedRoomId);
   }
 
   Future<void> setRoomFavourite(String roomId, bool isFavourite) async {

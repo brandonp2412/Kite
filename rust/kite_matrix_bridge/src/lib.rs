@@ -11,7 +11,8 @@ use matrix_sdk::{
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
-        EventId, Int, OwnedTransactionId, OwnedUserId, RoomAliasId, RoomId, UInt, UserId,
+        EventId, Int, OwnedMxcUri, OwnedTransactionId, OwnedUserId, RoomAliasId, RoomId, UInt,
+        UserId,
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
@@ -39,7 +40,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 16;
+const KITE_MATRIX_ABI_VERSION: u32 = 17;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -1556,6 +1557,203 @@ pub unsafe extern "C" fn kite_matrix_client_manage_room(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_room_settings(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    action: *const c_char,
+    value: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room settings are unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(action) = (unsafe { required_utf8(action) }) else {
+        return error_json("invalid_action", "The Matrix room setting is invalid.");
+    };
+    let value = unsafe { required_utf8(value) }.map(str::trim);
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room settings are unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+
+    if action == "get" {
+        let is_direct = match client.runtime.block_on(room.is_direct()) {
+            Ok(value) => value,
+            Err(_) => {
+                return error_json(
+                    "room_settings_failed",
+                    "The Matrix room settings could not be loaded.",
+                );
+            }
+        };
+        let notification_mode = client
+            .runtime
+            .block_on(room.notification_mode())
+            .unwrap_or(RoomNotificationMode::AllMessages);
+        let direct_user_ids = room
+            .direct_targets()
+            .into_iter()
+            .filter_map(|target| target.into_user_id())
+            .map(|user_id| user_id.to_string())
+            .collect::<Vec<_>>();
+        return ok_json(json!({
+            "roomId": room_id.as_str(),
+            "name": room.name(),
+            "topic": room.topic(),
+            "avatarUrl": room.avatar_url().map(|url| url.to_string()),
+            "canonicalAlias": room.canonical_alias().map(|alias| alias.to_string()),
+            "joinRule": room.join_rule().map(|rule| rule.as_str().to_owned()).unwrap_or_else(|| "invite".to_owned()),
+            "encryptionEnabled": room.encryption_state().is_encrypted(),
+            "historyVisibility": room.history_visibility_or_default().as_str(),
+            "notificationMode": match notification_mode {
+                RoomNotificationMode::AllMessages => "allMessages",
+                RoomNotificationMode::MentionsAndKeywordsOnly => "mentionsOnly",
+                RoomNotificationMode::Mute => "mute",
+            },
+            "isDirect": is_direct,
+            "directUserIds": direct_user_ids,
+        }));
+    }
+
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let result = match action {
+        "set_name" => client
+            .runtime
+            .block_on(room.set_name(value.unwrap_or_default().to_owned()))
+            .map(|_| ()),
+        "set_topic" => client
+            .runtime
+            .block_on(room.set_room_topic(value.unwrap_or_default()))
+            .map(|_| ()),
+        "set_avatar" => {
+            if let Some(value) = value.filter(|value| !value.is_empty()) {
+                let avatar = OwnedMxcUri::from(value.to_owned());
+                if !avatar.is_valid() {
+                    return error_json("invalid_avatar", "The Matrix avatar URI is invalid.");
+                }
+                client
+                    .runtime
+                    .block_on(room.set_avatar_url(&avatar, None))
+                    .map(|_| ())
+            } else {
+                client.runtime.block_on(room.remove_avatar()).map(|_| ())
+            }
+        }
+        "set_canonical_alias" => {
+            let alias = match value.filter(|value| !value.is_empty()) {
+                Some(value) => match RoomAliasId::parse(value) {
+                    Ok(alias) => Some(alias),
+                    Err(_) => {
+                        return error_json(
+                            "invalid_room_alias",
+                            "The Matrix room address is invalid.",
+                        );
+                    }
+                },
+                None => None,
+            };
+            client.runtime.block_on(
+                room.privacy_settings()
+                    .update_canonical_alias(alias, room.alt_aliases()),
+            )
+        }
+        "set_join_rule" => {
+            let join_rule = match value {
+                Some("invite") => JoinRule::Invite,
+                Some("public") => JoinRule::Public,
+                _ => {
+                    return error_json(
+                        "invalid_join_rule",
+                        "The Matrix room join rule is invalid.",
+                    );
+                }
+            };
+            client
+                .runtime
+                .block_on(room.privacy_settings().update_join_rule(join_rule))
+        }
+        "enable_encryption" => client.runtime.block_on(room.enable_encryption()),
+        "set_history_visibility" => {
+            let visibility = match value {
+                Some("invited") => HistoryVisibility::Invited,
+                Some("joined") => HistoryVisibility::Joined,
+                Some("shared") => HistoryVisibility::Shared,
+                Some("worldReadable") => HistoryVisibility::WorldReadable,
+                _ => {
+                    return error_json(
+                        "invalid_history_visibility",
+                        "The Matrix room history visibility is invalid.",
+                    );
+                }
+            };
+            client.runtime.block_on(
+                room.privacy_settings()
+                    .update_room_history_visibility(visibility),
+            )
+        }
+        "set_notification_mode" => {
+            let mode = match value {
+                Some("allMessages") => RoomNotificationMode::AllMessages,
+                Some("mentionsOnly") => RoomNotificationMode::MentionsAndKeywordsOnly,
+                Some("mute") => RoomNotificationMode::Mute,
+                _ => {
+                    return error_json(
+                        "invalid_notification_mode",
+                        "The Matrix room notification mode is invalid.",
+                    );
+                }
+            };
+            let notification_result = client.runtime.block_on(async {
+                matrix_client
+                    .notification_settings()
+                    .await
+                    .set_room_notification_mode(&room_id, mode)
+                    .await
+            });
+            if notification_result.is_err() {
+                return error_json(
+                    "room_settings_failed",
+                    "The Matrix room setting could not be updated.",
+                );
+            }
+            Ok(())
+        }
+        _ => return error_json("invalid_action", "The Matrix room setting is invalid."),
+    };
+    if result.is_err() {
+        return error_json(
+            "room_settings_failed",
+            "The Matrix room setting could not be updated.",
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+    ok_json(json!({"roomId": room_id.as_str(), "action": action}))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -1666,7 +1864,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 16);
+        assert_eq!(kite_matrix_abi_version(), 17);
     }
 
     #[test]
@@ -1814,6 +2012,15 @@ mod tests {
                 ptr::null(),
             )
         };
+        let settings_action = CString::new("get").unwrap();
+        let room_settings = unsafe {
+            kite_matrix_client_room_settings(
+                ptr::null_mut(),
+                room_id.as_ptr(),
+                settings_action.as_ptr(),
+                ptr::null(),
+            )
+        };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
         for result in [
@@ -1827,6 +2034,7 @@ mod tests {
             permissions,
             moderate,
             manage,
+            room_settings,
         ] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();

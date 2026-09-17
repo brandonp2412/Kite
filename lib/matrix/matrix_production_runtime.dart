@@ -179,6 +179,79 @@ final class MatrixProductionRuntime
     return accounts.createRoom(accountId: accountId, request: request);
   }
 
+  Future<MatrixSdkRoomDetails> roomDetails({
+    required String accountId,
+    required String roomId,
+  }) => accounts.roomDetails(accountId: accountId, roomId: roomId);
+
+  Future<void> setRoomName({
+    required String accountId,
+    required String roomId,
+    required String? name,
+  }) => accounts.setRoomName(accountId: accountId, roomId: roomId, name: name);
+
+  Future<void> setRoomTopic({
+    required String accountId,
+    required String roomId,
+    required String? topic,
+  }) =>
+      accounts.setRoomTopic(accountId: accountId, roomId: roomId, topic: topic);
+
+  Future<void> setRoomAvatar({
+    required String accountId,
+    required String roomId,
+    required String? avatarUrl,
+  }) => accounts.setRoomAvatar(
+    accountId: accountId,
+    roomId: roomId,
+    avatarUrl: avatarUrl,
+  );
+
+  Future<void> setRoomCanonicalAlias({
+    required String accountId,
+    required String roomId,
+    required String? canonicalAlias,
+  }) => accounts.setRoomCanonicalAlias(
+    accountId: accountId,
+    roomId: roomId,
+    canonicalAlias: canonicalAlias,
+  );
+
+  Future<void> setRoomJoinRule({
+    required String accountId,
+    required String roomId,
+    required String joinRule,
+  }) => accounts.setRoomJoinRule(
+    accountId: accountId,
+    roomId: roomId,
+    joinRule: joinRule,
+  );
+
+  Future<void> enableRoomEncryption({
+    required String accountId,
+    required String roomId,
+  }) => accounts.enableRoomEncryption(accountId: accountId, roomId: roomId);
+
+  Future<void> setRoomHistoryVisibility({
+    required String accountId,
+    required String roomId,
+    required String visibility,
+  }) => accounts.setRoomHistoryVisibility(
+    accountId: accountId,
+    roomId: roomId,
+    visibility: visibility,
+  );
+
+  Future<void> setRoomNotificationMode({
+    required String accountId,
+    required String roomId,
+    required String mode,
+  }) => accounts.setRoomNotificationMode(
+    accountId: accountId,
+    roomId: roomId,
+    mode: mode,
+  );
+
   Future<void> reportRoom({
     required String accountId,
     required String roomId,

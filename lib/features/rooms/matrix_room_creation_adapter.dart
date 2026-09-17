@@ -11,6 +11,17 @@ typedef MatrixUserReport = Future<void> Function(
   String? reason,
 );
 typedef MatrixRoomMutation = Future<void> Function(String roomId);
+typedef MatrixRoomDetailsLookup = Future<MatrixSdkRoomDetails> Function(
+  String roomId,
+);
+typedef MatrixRoomTextMutation = Future<void> Function(
+  String roomId,
+  String? value,
+);
+typedef MatrixRoomRequiredTextMutation = Future<void> Function(
+  String roomId,
+  String value,
+);
 
 final class MatrixRoomCreationManagementPort implements RoomManagementPort {
   const MatrixRoomCreationManagementPort(
@@ -19,11 +30,31 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
     required MatrixUserReport reportUser,
     required MatrixRoomMutation leaveRoom,
     required MatrixRoomMutation forgetRoom,
+    required MatrixRoomDetailsLookup roomDetails,
+    required MatrixRoomTextMutation setName,
+    required MatrixRoomTextMutation setTopic,
+    required MatrixRoomTextMutation setAvatar,
+    required MatrixRoomTextMutation setCanonicalAlias,
+    required MatrixRoomRequiredTextMutation setJoinRule,
+    required MatrixRoomMutation enableEncryption,
+    required MatrixRoomRequiredTextMutation setHistoryVisibility,
+    required MatrixRoomRequiredTextMutation setNotificationMode,
   }) : _lifecycle = (
          reportRoom: reportRoom,
          reportUser: reportUser,
          leaveRoom: leaveRoom,
          forgetRoom: forgetRoom,
+       ),
+       _settings = (
+         roomDetails: roomDetails,
+         setName: setName,
+         setTopic: setTopic,
+         setAvatar: setAvatar,
+         setCanonicalAlias: setCanonicalAlias,
+         setJoinRule: setJoinRule,
+         enableEncryption: enableEncryption,
+         setHistoryVisibility: setHistoryVisibility,
+         setNotificationMode: setNotificationMode,
        );
 
   final MatrixRoomCreate _create;
@@ -34,6 +65,18 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
     MatrixRoomMutation forgetRoom,
   })
   _lifecycle;
+  final ({
+    MatrixRoomDetailsLookup roomDetails,
+    MatrixRoomTextMutation setName,
+    MatrixRoomTextMutation setTopic,
+    MatrixRoomTextMutation setAvatar,
+    MatrixRoomTextMutation setCanonicalAlias,
+    MatrixRoomRequiredTextMutation setJoinRule,
+    MatrixRoomMutation enableEncryption,
+    MatrixRoomRequiredTextMutation setHistoryVisibility,
+    MatrixRoomRequiredTextMutation setNotificationMode,
+  })
+  _settings;
 
   @override
   Future<KiteRoomCapabilities> capabilities() async => KiteRoomCapabilities(
@@ -70,46 +113,68 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
   }
 
   @override
-  Future<KiteRoomDetails> roomDetails(String roomId) => _unsupported();
+  Future<KiteRoomDetails> roomDetails(String roomId) async {
+    final details = await _settings.roomDetails(roomId);
+    return KiteRoomDetails(
+      roomId: details.roomId,
+      name: details.name,
+      topic: details.topic,
+      avatarUrl: details.avatarUrl == null
+          ? null
+          : Uri.parse(details.avatarUrl!),
+      canonicalAlias: details.canonicalAlias,
+      joinRule: KiteRoomJoinRule.values.byName(details.joinRule),
+      encryptionEnabled: details.encryptionEnabled,
+      historyVisibility: KiteRoomHistoryVisibility.values.byName(
+        details.historyVisibility,
+      ),
+      notificationMode: KiteRoomNotificationMode.values.byName(
+        details.notificationMode,
+      ),
+      isDirect: details.isDirect,
+      directUserIds: details.directUserIds,
+    );
+  }
 
   @override
   Future<void> setName({required String roomId, required String? name}) =>
-      _unsupported();
+      _settings.setName(roomId, name);
 
   @override
   Future<void> setTopic({required String roomId, required String? topic}) =>
-      _unsupported();
+      _settings.setTopic(roomId, topic);
 
   @override
   Future<void> setAvatar({required String roomId, required Uri? avatarUrl}) =>
-      _unsupported();
+      _settings.setAvatar(roomId, avatarUrl?.toString());
 
   @override
   Future<void> setCanonicalAlias({
     required String roomId,
     required String? canonicalAlias,
-  }) => _unsupported();
+  }) => _settings.setCanonicalAlias(roomId, canonicalAlias);
 
   @override
   Future<void> setJoinRule({
     required String roomId,
     required KiteRoomJoinRule joinRule,
-  }) => _unsupported();
+  }) => _settings.setJoinRule(roomId, joinRule.name);
 
   @override
-  Future<void> enableEncryption(String roomId) => _unsupported();
+  Future<void> enableEncryption(String roomId) =>
+      _settings.enableEncryption(roomId);
 
   @override
   Future<void> setHistoryVisibility({
     required String roomId,
     required KiteRoomHistoryVisibility visibility,
-  }) => _unsupported();
+  }) => _settings.setHistoryVisibility(roomId, visibility.name);
 
   @override
   Future<void> setNotificationMode({
     required String roomId,
     required KiteRoomNotificationMode mode,
-  }) => _unsupported();
+  }) => _settings.setNotificationMode(roomId, mode.name);
 
   @override
   Future<void> reportRoom({required String roomId, String? reason}) =>
@@ -127,10 +192,6 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
 
   @override
   Future<void> forgetRoom(String roomId) => _lifecycle.forgetRoom(roomId);
-
-  Future<T> _unsupported<T>() => Future<T>.error(
-    UnsupportedError('This adapter only exposes Matrix room creation.'),
-  );
 }
 
 final class MatrixDirectRoomMetadataPort implements DirectRoomMetadataPort {

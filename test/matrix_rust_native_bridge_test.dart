@@ -80,6 +80,18 @@ void main() {
           parentSpaceId: null,
         ),
       );
+      final roomDetails = await boundary.roomDetails('!room:kite.test');
+      await boundary.setRoomName('!room:kite.test', 'Renamed');
+      await boundary.setRoomTopic('!room:kite.test', null);
+      await boundary.setRoomAvatar('!room:kite.test', 'mxc://kite.test/avatar');
+      await boundary.setRoomCanonicalAlias(
+        '!room:kite.test',
+        '#kite:kite.test',
+      );
+      await boundary.setRoomJoinRule('!room:kite.test', 'public');
+      await boundary.enableRoomEncryption('!room:kite.test');
+      await boundary.setRoomHistoryVisibility('!room:kite.test', 'shared');
+      await boundary.setRoomNotificationMode('!room:kite.test', 'mentionsOnly');
       await boundary.setRoomFavourite('!room:kite.test', true);
       await boundary.respondToRoomInvite('!invite:kite.test', true);
       await boundary.inviteRoomMember('!room:kite.test', '@bob:kite.test');
@@ -133,9 +145,31 @@ void main() {
       expect(eventId, r'$sent');
       expect(created.roomId, '!created:kite.test');
       expect(created.isDirect, isFalse);
+      expect(roomDetails.roomId, '!room:kite.test');
+      expect(roomDetails.name, 'Native room');
+      expect(roomDetails.topic, 'SDK-backed settings');
+      expect(roomDetails.avatarUrl, 'mxc://kite.test/avatar');
+      expect(roomDetails.canonicalAlias, '#native:kite.test');
+      expect(roomDetails.joinRule, 'invite');
+      expect(roomDetails.encryptionEnabled, isTrue);
+      expect(roomDetails.historyVisibility, 'joined');
+      expect(roomDetails.notificationMode, 'allMessages');
+      expect(roomDetails.isDirect, isFalse);
+      expect(roomDetails.directUserIds, <String>['@bob:kite.test']);
       expect(client.createRequests.single.name, 'Kite room');
       expect(client.sendCalls, <(String, String, String)>[
         ('!room:kite.test', 'kite-transaction-1', 'Hello Matrix'),
+      ]);
+      expect(client.roomSettingCalls, <(String, String, String?)>[
+        ('!room:kite.test', 'get', null),
+        ('!room:kite.test', 'set_name', 'Renamed'),
+        ('!room:kite.test', 'set_topic', null),
+        ('!room:kite.test', 'set_avatar', 'mxc://kite.test/avatar'),
+        ('!room:kite.test', 'set_canonical_alias', '#kite:kite.test'),
+        ('!room:kite.test', 'set_join_rule', 'public'),
+        ('!room:kite.test', 'enable_encryption', null),
+        ('!room:kite.test', 'set_history_visibility', 'shared'),
+        ('!room:kite.test', 'set_notification_mode', 'mentionsOnly'),
       ]);
       expect(client.favouriteWrites, <(String, bool)>[
         ('!room:kite.test', true),
@@ -1076,6 +1110,7 @@ final class _FakeRustClient
         MatrixRustRoomMemberInviterClient,
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
+        MatrixRustRoomSettingsClient,
         MatrixRustRoomReadClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
@@ -1093,6 +1128,8 @@ final class _FakeRustClient
       <(String, String, String, int, String?)>[];
   final List<(String, String, String?, String?)> roomManagement =
       <(String, String, String?, String?)>[];
+  final List<(String, String, String?)> roomSettingCalls =
+      <(String, String, String?)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
 
   bool _closed = false;
@@ -1183,6 +1220,31 @@ final class _FakeRustClient
     String? reason,
   }) async {
     roomManagement.add((roomId, action, userId, reason));
+  }
+
+  @override
+  Future<Map<String, Object?>> roomSettings({
+    required String roomId,
+    required String action,
+    String? value,
+  }) async {
+    roomSettingCalls.add((roomId, action, value));
+    if (action == 'get') {
+      return <String, Object?>{
+        'roomId': roomId,
+        'name': 'Native room',
+        'topic': 'SDK-backed settings',
+        'avatarUrl': 'mxc://kite.test/avatar',
+        'canonicalAlias': '#native:kite.test',
+        'joinRule': 'invite',
+        'encryptionEnabled': true,
+        'historyVisibility': 'joined',
+        'notificationMode': 'allMessages',
+        'isDirect': false,
+        'directUserIds': <String>['@bob:kite.test'],
+      };
+    }
+    return <String, Object?>{'roomId': roomId, 'action': action};
   }
 
   @override

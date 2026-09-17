@@ -229,6 +229,52 @@ final class _AuthenticatedMatrixHomeState
           accountId: widget.session.userId,
           roomId: roomId,
         ),
+        roomDetails: (roomId) => widget.runtime.roomDetails(
+          accountId: widget.session.userId,
+          roomId: roomId,
+        ),
+        setName: (roomId, name) => widget.runtime.setRoomName(
+          accountId: widget.session.userId,
+          roomId: roomId,
+          name: name,
+        ),
+        setTopic: (roomId, topic) => widget.runtime.setRoomTopic(
+          accountId: widget.session.userId,
+          roomId: roomId,
+          topic: topic,
+        ),
+        setAvatar: (roomId, avatarUrl) => widget.runtime.setRoomAvatar(
+          accountId: widget.session.userId,
+          roomId: roomId,
+          avatarUrl: avatarUrl,
+        ),
+        setCanonicalAlias: (roomId, canonicalAlias) =>
+            widget.runtime.setRoomCanonicalAlias(
+              accountId: widget.session.userId,
+              roomId: roomId,
+              canonicalAlias: canonicalAlias,
+            ),
+        setJoinRule: (roomId, joinRule) => widget.runtime.setRoomJoinRule(
+          accountId: widget.session.userId,
+          roomId: roomId,
+          joinRule: joinRule,
+        ),
+        enableEncryption: (roomId) => widget.runtime.enableRoomEncryption(
+          accountId: widget.session.userId,
+          roomId: roomId,
+        ),
+        setHistoryVisibility: (roomId, visibility) =>
+            widget.runtime.setRoomHistoryVisibility(
+              accountId: widget.session.userId,
+              roomId: roomId,
+              visibility: visibility,
+            ),
+        setNotificationMode: (roomId, mode) =>
+            widget.runtime.setRoomNotificationMode(
+              accountId: widget.session.userId,
+              roomId: roomId,
+              mode: mode,
+            ),
       ),
       directMetadata: const MatrixDirectRoomMetadataPort(),
     );
