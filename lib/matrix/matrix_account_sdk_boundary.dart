@@ -16,6 +16,7 @@ enum MatrixAccountSdkCapability {
   historicalMessageRecovery,
   roomEncryptionTrust,
   encryptedHistorySharing,
+  deviceListing,
   deviceManagement,
   profileManagement,
   privacyControls,
@@ -315,7 +316,7 @@ abstract interface class MatrixAccountSdkBoundary {
 
   Future<List<MatrixSdkDeviceDescriptor>> loadDevices();
 
-  Future<void> signOutDevice(String deviceId);
+  Future<void> signOutDevice(String deviceId, {required String password});
 
   Future<List<MatrixSdkAccountDescriptor>> loadAccounts();
 

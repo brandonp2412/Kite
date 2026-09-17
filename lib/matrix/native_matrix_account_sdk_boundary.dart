@@ -27,6 +27,12 @@ abstract interface class MatrixNativeRecoveryApi {
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages();
 }
 
+abstract interface class MatrixNativeDeviceApi {
+  Future<List<MatrixSdkDeviceDescriptor>> loadDevices();
+
+  Future<void> signOutDevice(String deviceId, {required String password});
+}
+
 abstract interface class MatrixNativeAuthSessionApi {
   Future<MatrixSdkAuthenticationDiscovery> discoverAuthentication(
     Uri homeserver,
@@ -52,12 +58,15 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
     this._native, {
     MatrixNativeProfileApi? profileApi,
     MatrixNativeRecoveryApi? recoveryApi,
+    MatrixNativeDeviceApi? deviceApi,
   }) : _profile = profileApi,
-       _recovery = recoveryApi;
+       _recovery = recoveryApi,
+       _devices = deviceApi;
 
   final MatrixNativeAuthSessionApi _native;
   final MatrixNativeProfileApi? _profile;
   final MatrixNativeRecoveryApi? _recovery;
+  final MatrixNativeDeviceApi? _devices;
 
   @override
   Set<MatrixAccountSdkCapability> get accountCapabilities =>
@@ -65,6 +74,10 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
         MatrixAccountSdkCapability.homeserverDiscovery,
         MatrixAccountSdkCapability.passwordAuthentication,
         MatrixAccountSdkCapability.sessionPersistence,
+        if (_devices != null) ...<MatrixAccountSdkCapability>{
+          MatrixAccountSdkCapability.deviceListing,
+          MatrixAccountSdkCapability.deviceManagement,
+        },
         if (_profile != null) ...<MatrixAccountSdkCapability>{
           MatrixAccountSdkCapability.profileManagement,
           MatrixAccountSdkCapability.privacyControls,
@@ -204,10 +217,12 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
 
   @override
   Future<List<MatrixSdkDeviceDescriptor>> loadDevices() =>
-      _unsupported(MatrixAccountSdkCapability.deviceManagement);
+      _devices?.loadDevices() ??
+      _unsupported(MatrixAccountSdkCapability.deviceListing);
 
   @override
-  Future<void> signOutDevice(String deviceId) =>
+  Future<void> signOutDevice(String deviceId, {required String password}) =>
+      _devices?.signOutDevice(deviceId, password: password) ??
       _unsupported(MatrixAccountSdkCapability.deviceManagement);
 
   @override

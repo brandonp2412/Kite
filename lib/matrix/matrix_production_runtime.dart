@@ -238,6 +238,20 @@ final class MatrixProductionRuntime
     ignored: ignored,
   );
 
+  Future<List<MatrixSdkSessionDeviceDetails>> loadDevices({
+    required String accountId,
+  }) => accounts.loadDevices(accountId: accountId);
+
+  Future<void> signOutDevice({
+    required String accountId,
+    required String deviceId,
+    required String password,
+  }) => accounts.signOutDevice(
+    accountId: accountId,
+    deviceId: deviceId,
+    password: password,
+  );
+
   Future<void> updateDisplayName({
     required String accountId,
     required String displayName,

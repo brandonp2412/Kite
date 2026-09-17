@@ -16,7 +16,12 @@ import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 final class AccountSecurityRuntime {
   factory AccountSecurityRuntime(MatrixAccountSdkBoundary boundary) {
     final gateway = MatrixAccountSdkGateway(boundary);
-    final sessionDevices = SessionDeviceController(gateway);
+    final sessionDevices = SessionDeviceController(
+      gateway,
+      remoteSignOutSupported: boundary.accountCapabilities.contains(
+        MatrixAccountSdkCapability.deviceManagement,
+      ),
+    );
     final verification = DeviceVerificationController(gateway);
     final recovery = EncryptionRecoveryController(gateway);
     final encryptionTrust = EncryptionTrustController(gateway);

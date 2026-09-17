@@ -131,7 +131,10 @@ final class _BenchmarkSessionDeviceGateway implements SessionDeviceGateway {
   }
 
   @override
-  Future<void> signOutDevice(String deviceId) async {}
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {}
 }
 
 final class _BenchmarkSettingsGateway implements SettingsGateway {

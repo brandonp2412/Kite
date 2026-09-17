@@ -22,7 +22,10 @@ final class _DeviceGateway implements SessionDeviceGateway {
   }
 
   @override
-  Future<void> signOutDevice(String deviceId) async {}
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {}
 }
 
 final class _VerificationGateway implements DeviceVerificationGateway {

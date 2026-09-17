@@ -132,6 +132,14 @@ void main() {
         await runtime.loadIgnoredUserIds(accountId: '@alice:example.org'),
         <String>{'@spam:example.org'},
       );
+      final devices = await runtime.loadDevices(
+        accountId: '@alice:example.org',
+      );
+      expect(devices, hasLength(2));
+      expect(devices.first.deviceId, 'CURRENT');
+      expect(devices.first.isCurrent, isTrue);
+      expect(devices.first.isVerified, isTrue);
+      expect(devices.last.isVerified, isNull);
       await runtime.setUserIgnored(
         accountId: '@alice:example.org',
         userId: '@bob:example.org',
@@ -344,6 +352,7 @@ final class _FakeBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkMediaManager,
         MatrixSdkProfileManager,
+        MatrixSdkDeviceManager,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomReadManager {
   final StreamController<MatrixSyncBatch> _sync =
@@ -454,6 +463,30 @@ final class _FakeBoundary
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignoredUserIds};
+
+  @override
+  Future<List<MatrixSdkSessionDeviceDetails>> loadDevices() async =>
+      <MatrixSdkSessionDeviceDetails>[
+        MatrixSdkSessionDeviceDetails(
+          deviceId: 'CURRENT',
+          isCurrent: true,
+          isVerified: true,
+          displayName: 'Glass',
+          lastSeenAt: DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
+        ),
+        const MatrixSdkSessionDeviceDetails(
+          deviceId: 'PHONE',
+          isCurrent: false,
+          isVerified: null,
+          displayName: 'Phone',
+        ),
+      ];
+
+  @override
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {}
 
   @override
   Future<void> setUserIgnored(String userId, bool ignored) async {

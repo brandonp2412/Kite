@@ -201,6 +201,18 @@ void main() {
         await registry.loadIgnoredUserIds(accountId: '@alice:example.org'),
         <String>{'@spam:example.org'},
       );
+      final devices = await registry.loadDevices(
+        accountId: '@alice:example.org',
+      );
+      expect(devices, hasLength(2));
+      expect(devices.first.deviceId, 'CURRENT');
+      expect(devices.first.isCurrent, isTrue);
+      expect(devices.last.isVerified, isFalse);
+      await registry.signOutDevice(
+        accountId: '@alice:example.org',
+        deviceId: 'PHONE',
+        password: 'secret',
+      );
       await registry.setUserIgnored(
         accountId: '@alice:example.org',
         userId: '@bob:example.org',
@@ -223,6 +235,10 @@ void main() {
       expect(bob.userId, '@bob:example.org');
       expect(directRoom, '!dm-bob:example.org');
       expect(
+        boundaries['@alice:example.org']!.deviceSignOuts,
+        <(String, String)>[('PHONE', 'secret')],
+      );
+      expect(
         boundaries['@alice:example.org']!.ignoredUserWrites,
         <(String, bool)>[('@bob:example.org', true)],
       );
@@ -243,6 +259,14 @@ void main() {
         () => registry.openDirectMessage(
           accountId: '@alice:example.org',
           userId: '@bob:example.org',
+        ),
+        throwsStateError,
+      );
+      expect(
+        () => registry.signOutDevice(
+          accountId: '@alice:example.org',
+          deviceId: 'PHONE',
+          password: 'secret',
         ),
         throwsStateError,
       );
@@ -1841,6 +1865,7 @@ final class _FakeAccountBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkMediaManager,
         MatrixSdkProfileManager,
+        MatrixSdkDeviceManager,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomLifecycleManager,
         MatrixSdkRoomMemberInviter,
@@ -1890,6 +1915,7 @@ final class _FakeAccountBoundary
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<String> userSearches = <String>[];
   final Set<String> ignoredUserIds = <String>{'@spam:example.org'};
+  final List<(String, String)> deviceSignOuts = <(String, String)>[];
   final List<(String, bool)> ignoredUserWrites = <(String, bool)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
@@ -1952,6 +1978,32 @@ final class _FakeAccountBoundary
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignoredUserIds};
+
+  @override
+  Future<List<MatrixSdkSessionDeviceDetails>> loadDevices() async =>
+      <MatrixSdkSessionDeviceDetails>[
+        MatrixSdkSessionDeviceDetails(
+          deviceId: 'CURRENT',
+          isCurrent: true,
+          isVerified: true,
+          displayName: 'Glass',
+          lastSeenAt: DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
+        ),
+        const MatrixSdkSessionDeviceDetails(
+          deviceId: 'PHONE',
+          isCurrent: false,
+          isVerified: false,
+          displayName: 'Phone',
+        ),
+      ];
+
+  @override
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {
+    deviceSignOuts.add((deviceId, password));
+  }
 
   @override
   Future<void> setUserIgnored(String userId, bool ignored) async {

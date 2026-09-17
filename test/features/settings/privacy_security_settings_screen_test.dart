@@ -82,7 +82,10 @@ final class _SessionGateway implements SessionDeviceGateway {
   Future<List<SessionDevice>> loadDevices() async => loaded;
 
   @override
-  Future<void> signOutDevice(String deviceId) async {}
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {}
 }
 
 void main() {

@@ -69,7 +69,10 @@ final class _DeferredSessionGateway implements SessionDeviceGateway {
   Future<List<SessionDevice>> loadDevices() => devices.future;
 
   @override
-  Future<void> signOutDevice(String deviceId) async {}
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {}
 }
 
 Rect _rectOf(WidgetTester tester, Finder finder) {

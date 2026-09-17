@@ -140,13 +140,51 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
   }
 
   Future<void> _signOutDevice(SessionDevice device) async {
-    final confirmed = await _confirm(
-      title: 'Sign out ${device.displayName ?? device.deviceId}?',
-      message: 'This Matrix session will be remotely signed out.',
-      actionLabel: 'Sign out device',
+    var enteredPassword = '';
+    final password = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Sign out ${device.displayName ?? device.deviceId}?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'Enter your account password to sign out this session.',
+              ),
+              const SizedBox(height: KiteSpacing.md),
+              TextField(
+                key: const Key('remote-device-password'),
+                obscureText: true,
+                enableSuggestions: false,
+                autocorrect: false,
+                autofillHints: const <String>[AutofillHints.password],
+                decoration: const InputDecoration(labelText: 'Password'),
+                onChanged: (value) => enteredPassword = value,
+                onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+              ),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('account-security-confirm-Sign out device'),
+            onPressed: () => Navigator.of(dialogContext).pop(enteredPassword),
+            child: const Text('Sign out device'),
+          ),
+        ],
+      ),
     );
-    if (!confirmed) return;
-    await widget.sessionDeviceController.signOutRemoteDevice(device.deviceId);
+    if (password == null) return;
+    await widget.sessionDeviceController.signOutRemoteDevice(
+      device.deviceId,
+      password: password,
+    );
   }
 
   @override
@@ -233,7 +271,11 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                     _DeviceTile(
                       device: device,
                       busy: securityOperationActive,
-                      onSignOut: device.isCurrent
+                      onSignOut:
+                          device.isCurrent ||
+                              !widget
+                                  .sessionDeviceController
+                                  .remoteSignOutSupported
                           ? null
                           : () => _signOutDevice(device),
                     ),
@@ -362,6 +404,8 @@ class _DeviceTile extends StatelessWidget {
                   key: Key('current-device-badge'),
                   label: 'This device',
                 )
+              : onSignOut == null
+              ? null
               : TextButton(
                   key: Key('sign-out-device-${device.deviceId}'),
                   onPressed: busy ? null : onSignOut,

@@ -75,6 +75,35 @@ final class _RecoveryApi implements MatrixNativeRecoveryApi {
   }
 }
 
+final class _DeviceApi implements MatrixNativeDeviceApi {
+  final signedOut = <(String, String)>[];
+
+  @override
+  Future<List<MatrixSdkDeviceDescriptor>> loadDevices() async =>
+      const <MatrixSdkDeviceDescriptor>[
+        MatrixSdkDeviceDescriptor(
+          deviceId: 'CURRENT',
+          isCurrent: true,
+          verification: MatrixSdkDeviceVerification.verified,
+          displayName: 'Glass',
+        ),
+        MatrixSdkDeviceDescriptor(
+          deviceId: 'PHONE',
+          isCurrent: false,
+          verification: MatrixSdkDeviceVerification.unknown,
+          displayName: 'Phone',
+        ),
+      ];
+
+  @override
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {
+    signedOut.add((deviceId, password));
+  }
+}
+
 final class _ProfileApi implements MatrixNativeProfileApi {
   final ignored = <String>{'@spam:example.org'};
   final writes = <(String, bool)>[];
@@ -173,6 +202,30 @@ void main() {
       MatrixSdkHistoricalRecoveryState.complete,
     );
     expect(recovery.historyCalls, 1);
+  });
+
+  test('native device bridge exposes listing and remote sign-out', () async {
+    final deviceApi = _DeviceApi();
+    final boundary = NativeMatrixAccountSdkBoundary(
+      _AuthApi(),
+      deviceApi: deviceApi,
+    );
+
+    expect(
+      boundary.accountCapabilities,
+      contains(MatrixAccountSdkCapability.deviceListing),
+    );
+    expect(
+      boundary.accountCapabilities,
+      contains(MatrixAccountSdkCapability.deviceManagement),
+    );
+    final devices = await boundary.loadDevices();
+    expect(devices, hasLength(2));
+    expect(devices.first.deviceId, 'CURRENT');
+    expect(devices.first.verification, MatrixSdkDeviceVerification.verified);
+
+    await boundary.signOutDevice('PHONE', password: 'secret');
+    expect(deviceApi.signedOut, <(String, String)>[('PHONE', 'secret')]);
   });
 
   test(

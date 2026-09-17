@@ -2881,6 +2881,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkEncryptionRecoveryManager,
+        MatrixSdkDeviceManager,
         MatrixSdkRoomCreator,
         MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
@@ -3219,6 +3220,83 @@ final class MatrixRustSdkBoundary
           decoded['ignored'] != ignored) {
         throw const MatrixSdkContractException(
           'Matrix Rust client returned invalid ignored-user state',
+        );
+      }
+    });
+  }
+
+  @override
+  Future<List<MatrixSdkSessionDeviceDetails>> loadDevices() {
+    return _enqueue<List<MatrixSdkSessionDeviceDetails>>(() async {
+      final decoded = await _profile(action: 'devices');
+      final rawDevices = decoded['devices'];
+      if (rawDevices is! List<Object?>) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid device data',
+        );
+      }
+      return List<MatrixSdkSessionDeviceDetails>.unmodifiable(
+        rawDevices.map(_sessionDeviceDetails),
+      );
+    });
+  }
+
+  MatrixSdkSessionDeviceDetails _sessionDeviceDetails(Object? raw) {
+    if (raw is! Map<Object?, Object?>) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid device data',
+      );
+    }
+    final deviceId = raw['deviceId'];
+    final isCurrent = raw['isCurrent'];
+    final verification = raw['verification'];
+    final displayName = raw['displayName'];
+    final lastSeenAtMs = raw['lastSeenAtMs'];
+    if (deviceId is! String ||
+        deviceId.trim() != deviceId ||
+        deviceId.isEmpty ||
+        isCurrent is! bool ||
+        verification is! String ||
+        (displayName != null && displayName is! String) ||
+        (lastSeenAtMs != null && lastSeenAtMs is! int)) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid device data',
+      );
+    }
+    final isVerified = switch (verification) {
+      'verified' => true,
+      'unverified' => false,
+      'unknown' => null,
+      _ => throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid device verification data',
+      ),
+    };
+    return MatrixSdkSessionDeviceDetails(
+      deviceId: deviceId,
+      isCurrent: isCurrent,
+      isVerified: isVerified,
+      displayName: displayName as String?,
+      lastSeenAt: lastSeenAtMs == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              lastSeenAtMs as int,
+              isUtc: true,
+            ),
+    );
+  }
+
+  @override
+  Future<void> signOutDevice(String deviceId, {required String password}) {
+    return _enqueue<void>(() async {
+      final decoded = await _profile(
+        userId: deviceId,
+        action: 'delete_device',
+        value: password,
+      );
+      if (decoded['action'] != 'delete_device' ||
+          decoded['deviceId'] != deviceId) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid device sign-out state',
         );
       }
     });
