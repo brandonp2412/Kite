@@ -11,7 +11,7 @@ use matrix_sdk::{
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
-        EventId, OwnedTransactionId, OwnedUserId, RoomAliasId, RoomId, UInt, UserId,
+        EventId, Int, OwnedTransactionId, OwnedUserId, RoomAliasId, RoomId, UInt, UserId,
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
@@ -38,7 +38,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 14;
+const KITE_MATRIX_ABI_VERSION: u32 = 15;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -1269,6 +1269,170 @@ pub unsafe extern "C" fn kite_matrix_client_invite_room_member(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_room_member_permissions(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    actor_user_id: *const c_char,
+    target_user_id: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room moderation is unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(actor_user_id) = (unsafe { required_utf8(actor_user_id) }) else {
+        return error_json("invalid_user", "The Matrix user is invalid.");
+    };
+    let Some(target_user_id) = (unsafe { required_utf8(target_user_id) }) else {
+        return error_json("invalid_user", "The Matrix user is invalid.");
+    };
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Ok(actor_user_id) = UserId::parse(actor_user_id) else {
+        return error_json("invalid_user", "The Matrix user is invalid.");
+    };
+    let Ok(target_user_id) = UserId::parse(target_user_id) else {
+        return error_json("invalid_user", "The Matrix user is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room moderation is unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let power_levels = match client.runtime.block_on(room.power_levels()) {
+        Ok(power_levels) => power_levels,
+        Err(_) => {
+            return error_json(
+                "power_levels_unavailable",
+                "Matrix room permissions are unavailable.",
+            );
+        }
+    };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+    let actor_power_level = match power_levels.for_user(&actor_user_id) {
+        UserPowerLevel::Infinite => 100_i64,
+        UserPowerLevel::Int(value) => i64::from(value),
+        _ => 0_i64,
+    };
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "targetUserId": target_user_id.as_str(),
+        "actorPowerLevel": actor_power_level,
+        "canInvite": power_levels.user_can_invite(&actor_user_id),
+        "canChangePowerLevel": power_levels
+            .user_can_change_user_power_level(&actor_user_id, &target_user_id),
+        "canKick": power_levels.user_can_kick_user(&actor_user_id, &target_user_id),
+        "canBan": power_levels.user_can_ban_user(&actor_user_id, &target_user_id),
+        "canUnban": power_levels.user_can_unban_user(&actor_user_id, &target_user_id),
+    }))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_moderate_room_member(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    user_id: *const c_char,
+    action: *const c_char,
+    power_level: i64,
+    reason: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room moderation is unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(user_id) = (unsafe { required_utf8(user_id) }) else {
+        return error_json("invalid_user", "The Matrix user is invalid.");
+    };
+    let Some(action) = (unsafe { required_utf8(action) }) else {
+        return error_json("invalid_action", "The Matrix room action is invalid.");
+    };
+    let reason = unsafe { required_utf8(reason) }
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Ok(user_id) = UserId::parse(user_id) else {
+        return error_json("invalid_user", "The Matrix user is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room moderation is unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+
+    let result = match action {
+        "set_power_level" => match Int::try_from(power_level) {
+            Ok(power_level) => client
+                .runtime
+                .block_on(room.update_power_levels(vec![(&user_id, power_level)]))
+                .map(|_| ()),
+            Err(_) => {
+                return error_json("invalid_power_level", "The Matrix power level is invalid.");
+            }
+        },
+        "kick" => client.runtime.block_on(room.kick_user(&user_id, reason)),
+        "ban" => client.runtime.block_on(room.ban_user(&user_id, reason)),
+        "unban" => client.runtime.block_on(room.unban_user(&user_id, reason)),
+        _ => return error_json("invalid_action", "The Matrix room action is invalid."),
+    };
+    if result.is_err() {
+        return error_json(
+            "member_moderation_failed",
+            "The Matrix room member action could not be completed.",
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "userId": user_id.as_str(),
+        "action": action,
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -1379,7 +1543,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 14);
+        assert_eq!(kite_matrix_abi_version(), 15);
     }
 
     #[test]
@@ -1498,9 +1662,38 @@ mod tests {
                 user_id.as_ptr(),
             )
         };
+        let permissions = unsafe {
+            kite_matrix_client_room_member_permissions(
+                ptr::null_mut(),
+                room_id.as_ptr(),
+                user_id.as_ptr(),
+                user_id.as_ptr(),
+            )
+        };
+        let action = CString::new("kick").unwrap();
+        let moderate = unsafe {
+            kite_matrix_client_moderate_room_member(
+                ptr::null_mut(),
+                room_id.as_ptr(),
+                user_id.as_ptr(),
+                action.as_ptr(),
+                0,
+                ptr::null(),
+            )
+        };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
-        for result in [login, logout, send, favourite, create, read, invite_member] {
+        for result in [
+            login,
+            logout,
+            send,
+            favourite,
+            create,
+            read,
+            invite_member,
+            permissions,
+            moderate,
+        ] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();
             assert!(decoded.contains("\"ok\":false"));

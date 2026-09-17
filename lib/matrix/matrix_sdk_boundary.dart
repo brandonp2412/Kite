@@ -100,8 +100,32 @@ abstract interface class MatrixSdkRoomMemberDirectory {
   Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
 }
 
+enum MatrixSdkRoomMemberAction { invite, changePowerLevel, kick, ban, unban }
+
 abstract interface class MatrixSdkRoomMemberInviter {
   Future<void> inviteRoomMember(String roomId, String userId);
+}
+
+abstract interface class MatrixSdkRoomMemberModerator {
+  Future<bool> canModerateRoomMember({
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+    required MatrixSdkRoomMemberAction action,
+    int? requestedPowerLevel,
+  });
+
+  Future<void> setRoomMemberPowerLevel(
+    String roomId,
+    String userId,
+    int powerLevel,
+  );
+
+  Future<void> kickRoomMember(String roomId, String userId);
+
+  Future<void> banRoomMember(String roomId, String userId, {String? reason});
+
+  Future<void> unbanRoomMember(String roomId, String userId);
 }
 
 abstract interface class MatrixSdkRoomFavouriteManager {
@@ -385,8 +409,117 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         'Matrix SDK boundary does not support room member invitations',
       );
     }
+    final (normalizedRoomId, normalizedUserId) = _validatedRoomUserIds(
+      roomId,
+      userId,
+    );
+    await _ensureOpen();
+    await (inviter as MatrixSdkRoomMemberInviter).inviteRoomMember(
+      normalizedRoomId,
+      normalizedUserId,
+    );
+  }
+
+  Future<bool> canModerateRoomMember({
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+    required MatrixSdkRoomMemberAction action,
+    int? requestedPowerLevel,
+  }) async {
+    final moderator = _boundary;
+    if (moderator is! MatrixSdkRoomMemberModerator) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room member moderation',
+      );
+    }
+    final (normalizedRoomId, normalizedTargetUserId) = _validatedRoomUserIds(
+      roomId,
+      targetUserId,
+    );
+    final normalizedActorUserId = _validatedUserId(actorUserId, 'actorUserId');
+    await _ensureOpen();
+    return (moderator as MatrixSdkRoomMemberModerator).canModerateRoomMember(
+      roomId: normalizedRoomId,
+      actorUserId: normalizedActorUserId,
+      targetUserId: normalizedTargetUserId,
+      action: action,
+      requestedPowerLevel: requestedPowerLevel,
+    );
+  }
+
+  Future<void> setRoomMemberPowerLevel(
+    String roomId,
+    String userId,
+    int powerLevel,
+  ) async {
+    final moderator = _roomMemberModerator();
+    final (normalizedRoomId, normalizedUserId) = _validatedRoomUserIds(
+      roomId,
+      userId,
+    );
+    await _ensureOpen();
+    await moderator.setRoomMemberPowerLevel(
+      normalizedRoomId,
+      normalizedUserId,
+      powerLevel,
+    );
+  }
+
+  Future<void> kickRoomMember(String roomId, String userId) async {
+    final moderator = _roomMemberModerator();
+    final (normalizedRoomId, normalizedUserId) = _validatedRoomUserIds(
+      roomId,
+      userId,
+    );
+    await _ensureOpen();
+    await moderator.kickRoomMember(normalizedRoomId, normalizedUserId);
+  }
+
+  Future<void> banRoomMember(
+    String roomId,
+    String userId, {
+    String? reason,
+  }) async {
+    final moderator = _roomMemberModerator();
+    final (normalizedRoomId, normalizedUserId) = _validatedRoomUserIds(
+      roomId,
+      userId,
+    );
+    final normalizedReason = reason?.trim();
+    if (normalizedReason?.contains('\u0000') == true) {
+      throw ArgumentError.value(reason, 'reason', 'must not contain NUL bytes');
+    }
+    await _ensureOpen();
+    await moderator.banRoomMember(
+      normalizedRoomId,
+      normalizedUserId,
+      reason: normalizedReason?.isEmpty == true ? null : normalizedReason,
+    );
+  }
+
+  Future<void> unbanRoomMember(String roomId, String userId) async {
+    final moderator = _roomMemberModerator();
+    final (normalizedRoomId, normalizedUserId) = _validatedRoomUserIds(
+      roomId,
+      userId,
+    );
+    await _ensureOpen();
+    await moderator.unbanRoomMember(normalizedRoomId, normalizedUserId);
+  }
+
+  MatrixSdkRoomMemberModerator _roomMemberModerator() {
+    final moderator = _boundary;
+    if (moderator is! MatrixSdkRoomMemberModerator) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room member moderation',
+      );
+    }
+    return moderator as MatrixSdkRoomMemberModerator;
+  }
+
+  (String, String) _validatedRoomUserIds(String roomId, String userId) {
     final normalizedRoomId = roomId.trim();
-    final normalizedUserId = userId.trim();
     if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
       throw ArgumentError.value(
         roomId,
@@ -394,18 +527,19 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         'must contain a non-empty Matrix room id without NUL bytes',
       );
     }
+    return (normalizedRoomId, _validatedUserId(userId, 'userId'));
+  }
+
+  String _validatedUserId(String userId, String name) {
+    final normalizedUserId = userId.trim();
     if (normalizedUserId.isEmpty || normalizedUserId.contains('\u0000')) {
       throw ArgumentError.value(
         userId,
-        'userId',
+        name,
         'must contain a non-empty Matrix user id without NUL bytes',
       );
     }
-    await _ensureOpen();
-    await (inviter as MatrixSdkRoomMemberInviter).inviteRoomMember(
-      normalizedRoomId,
-      normalizedUserId,
-    );
+    return normalizedUserId;
   }
 
   Future<void> close() async {

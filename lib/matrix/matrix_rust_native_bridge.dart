@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 14;
+const int kiteMatrixNativeAbiVersion = 15;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -171,6 +171,34 @@ typedef _ClientInviteRoomMemberDart = Pointer<Char> Function(
   Pointer<Char>,
   Pointer<Char>,
 );
+typedef _ClientRoomMemberPermissionsNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientRoomMemberPermissionsDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientModerateRoomMemberNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Int64,
+  Pointer<Char>,
+);
+typedef _ClientModerateRoomMemberDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  int,
+  Pointer<Char>,
+);
 typedef _DiscoverAuthenticationNative = Pointer<Char> Function(Pointer<Char>);
 typedef _DiscoverAuthenticationDart = Pointer<Char> Function(Pointer<Char>);
 typedef _ClientLoginPasswordNative = Pointer<Char> Function(
@@ -235,6 +263,24 @@ final class MatrixRustRoomMember {
   final String userId;
   final String displayName;
   final int powerLevel;
+}
+
+final class MatrixRustRoomMemberPermissions {
+  const MatrixRustRoomMemberPermissions({
+    required this.actorPowerLevel,
+    required this.canInvite,
+    required this.canChangePowerLevel,
+    required this.canKick,
+    required this.canBan,
+    required this.canUnban,
+  });
+
+  final int actorPowerLevel;
+  final bool canInvite;
+  final bool canChangePowerLevel;
+  final bool canKick;
+  final bool canBan;
+  final bool canUnban;
 }
 
 final class MatrixRustNativeException implements Exception {
@@ -763,6 +809,119 @@ final class _MatrixNativeInviteRoomMemberOperation {
   }
 }
 
+final class _MatrixNativeRoomMemberPermissionsOperation {
+  const _MatrixNativeRoomMemberPermissionsOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.actorUserId,
+    required this.targetUserId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String actorUserId;
+  final String targetUserId;
+
+  Map<String, Object?> call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final permissions = library
+        .lookupFunction<
+          _ClientRoomMemberPermissionsNative,
+          _ClientRoomMemberPermissionsDart
+        >('kite_matrix_client_room_member_permissions');
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final actorUserIdUtf8 = actorUserId.toNativeUtf8(allocator: calloc);
+    final targetUserIdUtf8 = targetUserId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        permissions(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          actorUserIdUtf8.cast<Char>(),
+          targetUserIdUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room member permissions',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid room member permissions.',
+        );
+      }
+      return Map<String, Object?>.from(decoded);
+    } finally {
+      calloc.free(targetUserIdUtf8);
+      calloc.free(actorUserIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeModerateRoomMemberOperation {
+  const _MatrixNativeModerateRoomMemberOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.userId,
+    required this.action,
+    required this.powerLevel,
+    required this.reason,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String userId;
+  final String action;
+  final int powerLevel;
+  final String reason;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final moderate = library
+        .lookupFunction<
+          _ClientModerateRoomMemberNative,
+          _ClientModerateRoomMemberDart
+        >('kite_matrix_client_moderate_room_member');
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final userIdUtf8 = userId.toNativeUtf8(allocator: calloc);
+    final actionUtf8 = action.toNativeUtf8(allocator: calloc);
+    final reasonUtf8 = reason.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        moderate(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          userIdUtf8.cast<Char>(),
+          actionUtf8.cast<Char>(),
+          powerLevel,
+          reasonUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room member moderation',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(reasonUtf8);
+      calloc.free(actionUtf8);
+      calloc.free(userIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomMembersOperation {
   const _MatrixNativeRoomMembersOperation({
     required this.libraryPath,
@@ -962,6 +1121,22 @@ abstract interface class MatrixRustRoomMemberInviterClient {
   });
 }
 
+abstract interface class MatrixRustRoomMemberModeratorClient {
+  Future<MatrixRustRoomMemberPermissions> roomMemberPermissions({
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+  });
+
+  Future<void> moderateRoomMember({
+    required String roomId,
+    required String userId,
+    required String action,
+    int powerLevel = 0,
+    String? reason,
+  });
+}
+
 abstract interface class MatrixRustRoomFavouriteClient {
   Future<void> setRoomFavourite({
     required String roomId,
@@ -1143,6 +1318,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomCreator,
         MatrixRustRoomMembersClient,
         MatrixRustRoomMemberInviterClient,
+        MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
@@ -1626,6 +1802,161 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<MatrixRustRoomMemberPermissions> roomMemberPermissions({
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedActorUserId = actorUserId.trim();
+    final normalizedTargetUserId = targetUserId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<MatrixRustRoomMemberPermissions>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedActorUserId.isEmpty ||
+        normalizedActorUserId.contains('\u0000')) {
+      return Future<MatrixRustRoomMemberPermissions>.error(
+        ArgumentError.value(
+          actorUserId,
+          'actorUserId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedTargetUserId.isEmpty ||
+        normalizedTargetUserId.contains('\u0000')) {
+      return Future<MatrixRustRoomMemberPermissions>.error(
+        ArgumentError.value(
+          targetUserId,
+          'targetUserId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<MatrixRustRoomMemberPermissions>(() async {
+      final decoded = await Isolate.run<Map<String, Object?>>(
+        _MatrixNativeRoomMemberPermissionsOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          actorUserId: normalizedActorUserId,
+          targetUserId: normalizedTargetUserId,
+        ).call,
+      );
+      final actorPowerLevel = decoded['actorPowerLevel'];
+      final canInvite = decoded['canInvite'];
+      final canChangePowerLevel = decoded['canChangePowerLevel'];
+      final canKick = decoded['canKick'];
+      final canBan = decoded['canBan'];
+      final canUnban = decoded['canUnban'];
+      if (decoded['roomId'] != normalizedRoomId ||
+          decoded['targetUserId'] != normalizedTargetUserId ||
+          actorPowerLevel is! int ||
+          canInvite is! bool ||
+          canChangePowerLevel is! bool ||
+          canKick is! bool ||
+          canBan is! bool ||
+          canUnban is! bool) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid room member permissions.',
+        );
+      }
+      return MatrixRustRoomMemberPermissions(
+        actorPowerLevel: actorPowerLevel,
+        canInvite: canInvite,
+        canChangePowerLevel: canChangePowerLevel,
+        canKick: canKick,
+        canBan: canBan,
+        canUnban: canUnban,
+      );
+    });
+  }
+
+  @override
+  Future<void> moderateRoomMember({
+    required String roomId,
+    required String userId,
+    required String action,
+    int powerLevel = 0,
+    String? reason,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedUserId = userId.trim();
+    final normalizedAction = action.trim();
+    final normalizedReason = reason?.trim() ?? '';
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedUserId.isEmpty || normalizedUserId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          userId,
+          'userId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (!const <String>{
+      'set_power_level',
+      'kick',
+      'ban',
+      'unban',
+    }.contains(normalizedAction)) {
+      return Future<void>.error(
+        ArgumentError.value(
+          action,
+          'action',
+          'must be a supported moderation action',
+        ),
+      );
+    }
+    if (normalizedReason.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'reason',
+          'must not contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeModerateRoomMemberOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          userId: normalizedUserId,
+          action: normalizedAction,
+          powerLevel: powerLevel,
+          reason: normalizedReason,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['roomId'] != normalizedRoomId ||
+          decoded['userId'] != normalizedUserId ||
+          decoded['action'] != normalizedAction) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid room moderation state.',
+        );
+      }
+    });
+  }
+
+  @override
   Future<String> paginateBackwards({required String roomId}) {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
@@ -1702,6 +2033,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkRoomCreator,
         MatrixSdkRoomMemberDirectory,
         MatrixSdkRoomMemberInviter,
+        MatrixSdkRoomMemberModerator,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomInviteManager,
         MatrixSdkRoomReadManager {
@@ -1916,6 +2248,98 @@ final class MatrixRustSdkBoundary
       await (client as MatrixRustRoomMemberInviterClient).inviteRoomMember(
         roomId: roomId,
         userId: userId,
+      );
+    });
+  }
+
+  @override
+  Future<bool> canModerateRoomMember({
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+    required MatrixSdkRoomMemberAction action,
+    int? requestedPowerLevel,
+  }) {
+    return _enqueue<bool>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomMemberModeratorClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room member moderation',
+        );
+      }
+      final permissions = await (client as MatrixRustRoomMemberModeratorClient)
+          .roomMemberPermissions(
+            roomId: roomId,
+            actorUserId: actorUserId,
+            targetUserId: targetUserId,
+          );
+      return switch (action) {
+        MatrixSdkRoomMemberAction.invite => permissions.canInvite,
+        MatrixSdkRoomMemberAction.changePowerLevel =>
+          permissions.canChangePowerLevel &&
+              requestedPowerLevel != null &&
+              requestedPowerLevel <= permissions.actorPowerLevel,
+        MatrixSdkRoomMemberAction.kick => permissions.canKick,
+        MatrixSdkRoomMemberAction.ban => permissions.canBan,
+        MatrixSdkRoomMemberAction.unban => permissions.canUnban,
+      };
+    });
+  }
+
+  @override
+  Future<void> setRoomMemberPowerLevel(
+    String roomId,
+    String userId,
+    int powerLevel,
+  ) {
+    return _moderateRoomMember(
+      roomId: roomId,
+      userId: userId,
+      action: 'set_power_level',
+      powerLevel: powerLevel,
+    );
+  }
+
+  @override
+  Future<void> kickRoomMember(String roomId, String userId) {
+    return _moderateRoomMember(roomId: roomId, userId: userId, action: 'kick');
+  }
+
+  @override
+  Future<void> banRoomMember(String roomId, String userId, {String? reason}) {
+    return _moderateRoomMember(
+      roomId: roomId,
+      userId: userId,
+      action: 'ban',
+      reason: reason,
+    );
+  }
+
+  @override
+  Future<void> unbanRoomMember(String roomId, String userId) {
+    return _moderateRoomMember(roomId: roomId, userId: userId, action: 'unban');
+  }
+
+  Future<void> _moderateRoomMember({
+    required String roomId,
+    required String userId,
+    required String action,
+    int powerLevel = 0,
+    String? reason,
+  }) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomMemberModeratorClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room member moderation',
+        );
+      }
+      await (client as MatrixRustRoomMemberModeratorClient).moderateRoomMember(
+        roomId: roomId,
+        userId: userId,
+        action: action,
+        powerLevel: powerLevel,
+        reason: reason,
       );
     });
   }

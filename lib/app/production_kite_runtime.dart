@@ -226,6 +226,39 @@ final class _AuthenticatedMatrixHomeState
         roomId: roomId,
         userId: userId,
       ),
+      authorizeMember:
+          (roomId, actorUserId, targetUserId, action, requestedPowerLevel) =>
+              widget.runtime.canModerateRoomMember(
+                accountId: widget.session.userId,
+                roomId: roomId,
+                actorUserId: actorUserId,
+                targetUserId: targetUserId,
+                action: action,
+                requestedPowerLevel: requestedPowerLevel,
+              ),
+      setPowerLevel: (roomId, userId, powerLevel) =>
+          widget.runtime.setRoomMemberPowerLevel(
+            accountId: widget.session.userId,
+            roomId: roomId,
+            userId: userId,
+            powerLevel: powerLevel,
+          ),
+      kickMember: (roomId, userId) => widget.runtime.kickRoomMember(
+        accountId: widget.session.userId,
+        roomId: roomId,
+        userId: userId,
+      ),
+      banMember: (roomId, userId, reason) => widget.runtime.banRoomMember(
+        accountId: widget.session.userId,
+        roomId: roomId,
+        userId: userId,
+        reason: reason,
+      ),
+      unbanMember: (roomId, userId) => widget.runtime.unbanRoomMember(
+        accountId: widget.session.userId,
+        roomId: roomId,
+        userId: userId,
+      ),
     );
     return managed.RoomMemberManagementCoordinator(
       actorUserId: widget.session.userId,

@@ -8,6 +8,27 @@ typedef MatrixRoomMemberInvite = Future<void> Function(
   String roomId,
   String userId,
 );
+typedef MatrixRoomMemberAuthorization = Future<bool> Function(
+  String roomId,
+  String actorUserId,
+  String targetUserId,
+  MatrixSdkRoomMemberAction action,
+  int? requestedPowerLevel,
+);
+typedef MatrixRoomMemberPowerLevelMutation = Future<void> Function(
+  String roomId,
+  String userId,
+  int powerLevel,
+);
+typedef MatrixRoomMemberMutation = Future<void> Function(
+  String roomId,
+  String userId,
+);
+typedef MatrixRoomMemberBan = Future<void> Function(
+  String roomId,
+  String userId,
+  String? reason,
+);
 
 final class MatrixRoomMemberManagementPort
     implements
@@ -17,10 +38,20 @@ final class MatrixRoomMemberManagementPort
   const MatrixRoomMemberManagementPort({
     required this._loadMembers,
     required this._inviteMember,
+    required this._authorizeMember,
+    required this._setPowerLevel,
+    required this._kickMember,
+    required this._banMember,
+    required this._unbanMember,
   });
 
   final MatrixRoomMembersLookup _loadMembers;
   final MatrixRoomMemberInvite _inviteMember;
+  final MatrixRoomMemberAuthorization _authorizeMember;
+  final MatrixRoomMemberPowerLevelMutation _setPowerLevel;
+  final MatrixRoomMemberMutation _kickMember;
+  final MatrixRoomMemberBan _banMember;
+  final MatrixRoomMemberMutation _unbanMember;
 
   @override
   Future<List<RoomMember>> searchMembers({
@@ -66,12 +97,32 @@ final class MatrixRoomMemberManagementPort
     String? targetUserId,
     int? requestedPowerLevel,
   }) async {
-    if (action == RoomMemberAction.invite) {
-      return const RoomMemberActionAuthorization.allowed();
+    final target = targetUserId?.trim();
+    if (target == null || target.isEmpty) {
+      return const RoomMemberActionAuthorization.denied(
+        'This room action needs a target member.',
+      );
     }
-    return const RoomMemberActionAuthorization.denied(
-      'This room action is not available yet.',
+    final sdkAction = switch (action) {
+      RoomMemberAction.invite => MatrixSdkRoomMemberAction.invite,
+      RoomMemberAction.changePowerLevel =>
+        MatrixSdkRoomMemberAction.changePowerLevel,
+      RoomMemberAction.kick => MatrixSdkRoomMemberAction.kick,
+      RoomMemberAction.ban => MatrixSdkRoomMemberAction.ban,
+      RoomMemberAction.unban => MatrixSdkRoomMemberAction.unban,
+    };
+    final allowed = await _authorizeMember(
+      roomId,
+      actorUserId,
+      target,
+      sdkAction,
+      requestedPowerLevel,
     );
+    return allowed
+        ? const RoomMemberActionAuthorization.allowed()
+        : const RoomMemberActionAuthorization.denied(
+            'You do not have permission for this room action.',
+          );
   }
 
   @override
@@ -83,22 +134,22 @@ final class MatrixRoomMemberManagementPort
     required String roomId,
     required String userId,
     required int powerLevel,
-  }) => _unsupported();
+  }) => _setPowerLevel(roomId, userId, powerLevel);
 
   @override
   Future<void> kick({required String roomId, required String userId}) =>
-      _unsupported();
+      _kickMember(roomId, userId);
 
   @override
   Future<void> ban({
     required String roomId,
     required String userId,
     String? reason,
-  }) => _unsupported();
+  }) => _banMember(roomId, userId, reason);
 
   @override
   Future<void> unban({required String roomId, required String userId}) =>
-      _unsupported();
+      _unbanMember(roomId, userId);
 
   @override
   Future<void> reportUser({

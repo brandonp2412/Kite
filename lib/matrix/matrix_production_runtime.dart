@@ -226,6 +226,76 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<bool> canModerateRoomMember({
+    required String accountId,
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+    required MatrixSdkRoomMemberAction action,
+    int? requestedPowerLevel,
+  }) {
+    return accounts.canModerateRoomMember(
+      accountId: accountId,
+      roomId: roomId,
+      actorUserId: actorUserId,
+      targetUserId: targetUserId,
+      action: action,
+      requestedPowerLevel: requestedPowerLevel,
+    );
+  }
+
+  Future<void> setRoomMemberPowerLevel({
+    required String accountId,
+    required String roomId,
+    required String userId,
+    required int powerLevel,
+  }) {
+    return accounts.setRoomMemberPowerLevel(
+      accountId: accountId,
+      roomId: roomId,
+      userId: userId,
+      powerLevel: powerLevel,
+    );
+  }
+
+  Future<void> kickRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+  }) {
+    return accounts.kickRoomMember(
+      accountId: accountId,
+      roomId: roomId,
+      userId: userId,
+    );
+  }
+
+  Future<void> banRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) {
+    return accounts.banRoomMember(
+      accountId: accountId,
+      roomId: roomId,
+      userId: userId,
+      reason: reason,
+    );
+  }
+
+  Future<void> unbanRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+  }) {
+    return accounts.unbanRoomMember(
+      accountId: accountId,
+      roomId: roomId,
+      userId: userId,
+    );
+  }
+
   Future<String> sendTextMessage({
     required String accountId,
     required String roomId,

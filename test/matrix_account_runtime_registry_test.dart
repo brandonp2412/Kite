@@ -170,6 +170,78 @@ void main() {
   );
 
   test(
+    'active account routes room member moderation and rejects stale accounts',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      expect(
+        await registry.canModerateRoomMember(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+          actorUserId: '@alice:example.org',
+          targetUserId: '@bob:example.org',
+          action: MatrixSdkRoomMemberAction.kick,
+        ),
+        isTrue,
+      );
+      expect(
+        await registry.canModerateRoomMember(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+          actorUserId: '@alice:example.org',
+          targetUserId: '@bob:example.org',
+          action: MatrixSdkRoomMemberAction.ban,
+        ),
+        isFalse,
+      );
+      await registry.setRoomMemberPowerLevel(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        userId: '@bob:example.org',
+        powerLevel: 50,
+      );
+      await registry.kickRoomMember(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        userId: '@bob:example.org',
+      );
+      await registry.banRoomMember(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        userId: '@bob:example.org',
+        reason: 'spam',
+      );
+      await registry.unbanRoomMember(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        userId: '@bob:example.org',
+      );
+      expect(
+        boundaries['@alice:example.org']!.memberModerations,
+        <(String, String, String, int, String?)>[
+          ('!alice:example.org', '@bob:example.org', 'power', 50, null),
+          ('!alice:example.org', '@bob:example.org', 'kick', 0, null),
+          ('!alice:example.org', '@bob:example.org', 'ban', 0, 'spam'),
+          ('!alice:example.org', '@bob:example.org', 'unban', 0, null),
+        ],
+      );
+
+      await registry.activate('@bob:example.org');
+      await expectLater(
+        registry.kickRoomMember(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+          userId: '@carol:example.org',
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
     'invalid account stores fail before allocating an SDK boundary',
     () async {
       var boundaryFactoryCalls = 0;
@@ -1535,7 +1607,8 @@ final class _FakeAccountBoundary
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
         MatrixSdkRoomFavouriteManager,
-        MatrixSdkRoomMemberInviter {
+        MatrixSdkRoomMemberInviter,
+        MatrixSdkRoomMemberModerator {
   _FakeAccountBoundary({
     required this.accountId,
     this.failStart = false,
@@ -1579,10 +1652,51 @@ final class _FakeAccountBoundary
       <(String, String, String)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String)> memberInvites = <(String, String)>[];
+  final List<(String, String, String, int, String?)> memberModerations =
+      <(String, String, String, int, String?)>[];
 
   @override
   Future<void> inviteRoomMember(String roomId, String userId) async {
     memberInvites.add((roomId, userId));
+  }
+
+  @override
+  Future<bool> canModerateRoomMember({
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+    required MatrixSdkRoomMemberAction action,
+    int? requestedPowerLevel,
+  }) async {
+    return action != MatrixSdkRoomMemberAction.ban;
+  }
+
+  @override
+  Future<void> setRoomMemberPowerLevel(
+    String roomId,
+    String userId,
+    int powerLevel,
+  ) async {
+    memberModerations.add((roomId, userId, 'power', powerLevel, null));
+  }
+
+  @override
+  Future<void> kickRoomMember(String roomId, String userId) async {
+    memberModerations.add((roomId, userId, 'kick', 0, null));
+  }
+
+  @override
+  Future<void> banRoomMember(
+    String roomId,
+    String userId, {
+    String? reason,
+  }) async {
+    memberModerations.add((roomId, userId, 'ban', 0, reason));
+  }
+
+  @override
+  Future<void> unbanRoomMember(String roomId, String userId) async {
+    memberModerations.add((roomId, userId, 'unban', 0, null));
   }
 
   @override

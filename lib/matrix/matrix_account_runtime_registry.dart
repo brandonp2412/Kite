@@ -182,15 +182,11 @@ final class MatrixAccountRuntimeRegistry {
   Future<List<MatrixSdkRoomMember>> roomMembers({
     required String accountId,
     required String roomId,
-  }) {
-    final normalizedAccountId = _normalizeAccountId(accountId);
-    _ensureNotDisposed();
-    final active = _activeRuntime;
-    if (active == null || activeAccountId.value != normalizedAccountId) {
-      return Future<List<MatrixSdkRoomMember>>.error(
-        StateError('Cannot load Matrix room members for an inactive account'),
-      );
-    }
+  }) async {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load Matrix room members for an inactive account',
+    );
     return active.engine.roomMembers(roomId);
   }
 
@@ -198,16 +194,83 @@ final class MatrixAccountRuntimeRegistry {
     required String accountId,
     required String roomId,
     required String userId,
-  }) {
-    final normalizedAccountId = _normalizeAccountId(accountId);
-    _ensureNotDisposed();
-    final active = _activeRuntime;
-    if (active == null || activeAccountId.value != normalizedAccountId) {
-      return Future<void>.error(
-        StateError('Cannot invite Matrix room members for an inactive account'),
-      );
-    }
+  }) async {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot invite Matrix room members for an inactive account',
+    );
     return active.engine.inviteRoomMember(roomId, userId);
+  }
+
+  Future<bool> canModerateRoomMember({
+    required String accountId,
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+    required MatrixSdkRoomMemberAction action,
+    int? requestedPowerLevel,
+  }) async {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot inspect Matrix room permissions for an inactive account',
+    );
+    return active.engine.canModerateRoomMember(
+      roomId: roomId,
+      actorUserId: actorUserId,
+      targetUserId: targetUserId,
+      action: action,
+      requestedPowerLevel: requestedPowerLevel,
+    );
+  }
+
+  Future<void> setRoomMemberPowerLevel({
+    required String accountId,
+    required String roomId,
+    required String userId,
+    required int powerLevel,
+  }) async {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot change Matrix room member roles for an inactive account',
+    );
+    return active.engine.setRoomMemberPowerLevel(roomId, userId, powerLevel);
+  }
+
+  Future<void> kickRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+  }) async {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot remove Matrix room members for an inactive account',
+    );
+    return active.engine.kickRoomMember(roomId, userId);
+  }
+
+  Future<void> banRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+    String? reason,
+  }) async {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot ban Matrix room members for an inactive account',
+    );
+    return active.engine.banRoomMember(roomId, userId, reason: reason);
+  }
+
+  Future<void> unbanRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+  }) async {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot unban Matrix room members for an inactive account',
+    );
+    return active.engine.unbanRoomMember(roomId, userId);
   }
 
   Future<String> sendTextMessage({
@@ -711,6 +774,19 @@ final class MatrixAccountRuntimeRegistry {
     );
     _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return completer.future;
+  }
+
+  _MatrixAccountRuntime _requireActiveAccount(
+    String accountId,
+    String failureMessage,
+  ) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      throw StateError(failureMessage);
+    }
+    return active;
   }
 
   static String _normalizeAccountId(String accountId) {

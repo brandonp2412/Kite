@@ -83,6 +83,38 @@ void main() {
       await boundary.setRoomFavourite('!room:kite.test', true);
       await boundary.respondToRoomInvite('!invite:kite.test', true);
       await boundary.inviteRoomMember('!room:kite.test', '@bob:kite.test');
+      expect(
+        await boundary.canModerateRoomMember(
+          roomId: '!room:kite.test',
+          actorUserId: '@alice:kite.test',
+          targetUserId: '@bob:kite.test',
+          action: MatrixSdkRoomMemberAction.changePowerLevel,
+          requestedPowerLevel: 50,
+        ),
+        isTrue,
+      );
+      expect(
+        await boundary.canModerateRoomMember(
+          roomId: '!room:kite.test',
+          actorUserId: '@alice:kite.test',
+          targetUserId: '@bob:kite.test',
+          action: MatrixSdkRoomMemberAction.changePowerLevel,
+          requestedPowerLevel: 100,
+        ),
+        isFalse,
+      );
+      await boundary.setRoomMemberPowerLevel(
+        '!room:kite.test',
+        '@bob:kite.test',
+        50,
+      );
+      await boundary.kickRoomMember('!room:kite.test', '@bob:kite.test');
+      await boundary.banRoomMember(
+        '!room:kite.test',
+        '@bob:kite.test',
+        reason: 'spam',
+      );
+      await boundary.unbanRoomMember('!room:kite.test', '@bob:kite.test');
       await boundary.markRoomRead('!room:kite.test', r'$event');
 
       expect(login.userId, '@alice:kite.test');
@@ -105,6 +137,12 @@ void main() {
       ]);
       expect(client.memberInvites, <(String, String)>[
         ('!room:kite.test', '@bob:kite.test'),
+      ]);
+      expect(client.memberModerations, <(String, String, String, int, String?)>[
+        ('!room:kite.test', '@bob:kite.test', 'set_power_level', 50, null),
+        ('!room:kite.test', '@bob:kite.test', 'kick', 0, null),
+        ('!room:kite.test', '@bob:kite.test', 'ban', 0, 'spam'),
+        ('!room:kite.test', '@bob:kite.test', 'unban', 0, null),
       ]);
       expect(client.readReceipts, <(String, String)>[
         ('!room:kite.test', r'$event'),
@@ -1022,6 +1060,7 @@ final class _FakeRustClient
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomMemberInviterClient,
+        MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomReadClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
@@ -1035,6 +1074,8 @@ final class _FakeRustClient
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, bool)> inviteResponses = <(String, bool)>[];
   final List<(String, String)> memberInvites = <(String, String)>[];
+  final List<(String, String, String, int, String?)> memberModerations =
+      <(String, String, String, int, String?)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
 
   bool _closed = false;
@@ -1088,6 +1129,33 @@ final class _FakeRustClient
     required String userId,
   }) async {
     memberInvites.add((roomId, userId));
+  }
+
+  @override
+  Future<MatrixRustRoomMemberPermissions> roomMemberPermissions({
+    required String roomId,
+    required String actorUserId,
+    required String targetUserId,
+  }) async {
+    return const MatrixRustRoomMemberPermissions(
+      actorPowerLevel: 50,
+      canInvite: true,
+      canChangePowerLevel: true,
+      canKick: true,
+      canBan: true,
+      canUnban: true,
+    );
+  }
+
+  @override
+  Future<void> moderateRoomMember({
+    required String roomId,
+    required String userId,
+    required String action,
+    int powerLevel = 0,
+    String? reason,
+  }) async {
+    memberModerations.add((roomId, userId, action, powerLevel, reason));
   }
 
   @override
