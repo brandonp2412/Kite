@@ -138,6 +138,38 @@ void main() {
   );
 
   test(
+    'active account routes room member invitations and rejects stale accounts',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      await registry.inviteRoomMember(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        userId: '@bob:example.org',
+      );
+
+      expect(
+        boundaries['@alice:example.org']!.memberInvites,
+        <(String, String)>[('!alice:example.org', '@bob:example.org')],
+      );
+
+      await registry.activate('@bob:example.org');
+      await expectLater(
+        registry.inviteRoomMember(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+          userId: '@carol:example.org',
+        ),
+        throwsStateError,
+      );
+      expect(boundaries['@alice:example.org']!.memberInvites, hasLength(1));
+    },
+  );
+
+  test(
     'invalid account stores fail before allocating an SDK boundary',
     () async {
       var boundaryFactoryCalls = 0;
@@ -1502,7 +1534,8 @@ final class _FakeAccountBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
-        MatrixSdkRoomFavouriteManager {
+        MatrixSdkRoomFavouriteManager,
+        MatrixSdkRoomMemberInviter {
   _FakeAccountBoundary({
     required this.accountId,
     this.failStart = false,
@@ -1545,6 +1578,12 @@ final class _FakeAccountBoundary
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
+  final List<(String, String)> memberInvites = <(String, String)>[];
+
+  @override
+  Future<void> inviteRoomMember(String roomId, String userId) async {
+    memberInvites.add((roomId, userId));
+  }
 
   @override
   Future<void> setRoomFavourite(String roomId, bool isFavourite) async {

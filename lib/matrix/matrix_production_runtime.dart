@@ -214,6 +214,18 @@ final class MatrixProductionRuntime
     return accounts.roomMembers(accountId: accountId, roomId: roomId);
   }
 
+  Future<void> inviteRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+  }) {
+    return accounts.inviteRoomMember(
+      accountId: accountId,
+      roomId: roomId,
+      userId: userId,
+    );
+  }
+
   Future<String> sendTextMessage({
     required String accountId,
     required String roomId,

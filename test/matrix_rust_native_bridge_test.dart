@@ -82,6 +82,7 @@ void main() {
       );
       await boundary.setRoomFavourite('!room:kite.test', true);
       await boundary.respondToRoomInvite('!invite:kite.test', true);
+      await boundary.inviteRoomMember('!room:kite.test', '@bob:kite.test');
       await boundary.markRoomRead('!room:kite.test', r'$event');
 
       expect(login.userId, '@alice:kite.test');
@@ -101,6 +102,9 @@ void main() {
       ]);
       expect(client.inviteResponses, <(String, bool)>[
         ('!invite:kite.test', true),
+      ]);
+      expect(client.memberInvites, <(String, String)>[
+        ('!room:kite.test', '@bob:kite.test'),
       ]);
       expect(client.readReceipts, <(String, String)>[
         ('!room:kite.test', r'$event'),
@@ -1017,6 +1021,7 @@ final class _FakeRustClient
         MatrixRustRoomCreator,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
+        MatrixRustRoomMemberInviterClient,
         MatrixRustRoomReadClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
@@ -1029,6 +1034,7 @@ final class _FakeRustClient
       <MatrixSdkRoomCreationRequest>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, bool)> inviteResponses = <(String, bool)>[];
+  final List<(String, String)> memberInvites = <(String, String)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
 
   bool _closed = false;
@@ -1074,6 +1080,14 @@ final class _FakeRustClient
     required bool accept,
   }) async {
     inviteResponses.add((roomId, accept));
+  }
+
+  @override
+  Future<void> inviteRoomMember({
+    required String roomId,
+    required String userId,
+  }) async {
+    memberInvites.add((roomId, userId));
   }
 
   @override

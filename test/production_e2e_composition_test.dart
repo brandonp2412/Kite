@@ -42,15 +42,21 @@ void main() {
   });
 
   test(
-    'production room details injects the native Matrix member directory',
+    'production room details injects native member lookup and invitations',
     () {
       expect(runtimeSource, contains('roomMembersLoader: _loadRoomMembers'));
       expect(runtimeSource, contains('widget.runtime.roomMembers('));
+      expect(runtimeSource, contains('widget.runtime.inviteRoomMember('));
+      expect(
+        runtimeSource,
+        contains('memberManagement: _roomMemberManagementCoordinator()'),
+      );
       expect(runtimeSource, contains('memberModerationEnabled: false'));
       expect(
         homeSource,
         contains('roomMembersLoader: widget.roomMembersLoader'),
       );
+      expect(homeSource, contains('memberManagement: widget.memberManagement'));
     },
   );
 

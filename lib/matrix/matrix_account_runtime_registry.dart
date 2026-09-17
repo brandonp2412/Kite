@@ -194,6 +194,22 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.roomMembers(roomId);
   }
 
+  Future<void> inviteRoomMember({
+    required String accountId,
+    required String roomId,
+    required String userId,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<void>.error(
+        StateError('Cannot invite Matrix room members for an inactive account'),
+      );
+    }
+    return active.engine.inviteRoomMember(roomId, userId);
+  }
+
   Future<String> sendTextMessage({
     required String accountId,
     required String roomId,

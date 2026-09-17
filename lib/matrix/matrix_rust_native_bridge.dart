@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 13;
+const int kiteMatrixNativeAbiVersion = 14;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -157,6 +157,16 @@ typedef _ClientMarkRoomReadNative = Pointer<Char> Function(
   Pointer<Char>,
 );
 typedef _ClientMarkRoomReadDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientInviteRoomMemberNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientInviteRoomMemberDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
   Pointer<Char>,
@@ -709,6 +719,50 @@ final class _MatrixNativeMarkRoomReadOperation {
   }
 }
 
+final class _MatrixNativeInviteRoomMemberOperation {
+  const _MatrixNativeInviteRoomMemberOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.userId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String userId;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final inviteMember = library
+        .lookupFunction<
+          _ClientInviteRoomMemberNative,
+          _ClientInviteRoomMemberDart
+        >('kite_matrix_client_invite_room_member');
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final userIdUtf8 = userId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        inviteMember(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          userIdUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room member invitation',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(userIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomMembersOperation {
   const _MatrixNativeRoomMembersOperation({
     required this.libraryPath,
@@ -901,6 +955,13 @@ abstract interface class MatrixRustRoomMembersClient {
   Future<List<MatrixRustRoomMember>> roomMembers({required String roomId});
 }
 
+abstract interface class MatrixRustRoomMemberInviterClient {
+  Future<void> inviteRoomMember({
+    required String roomId,
+    required String userId,
+  });
+}
+
 abstract interface class MatrixRustRoomFavouriteClient {
   Future<void> setRoomFavourite({
     required String roomId,
@@ -1081,6 +1142,7 @@ final class MatrixRustNativeClient
         MatrixRustLogoutClient,
         MatrixRustRoomCreator,
         MatrixRustRoomMembersClient,
+        MatrixRustRoomMemberInviterClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
@@ -1518,6 +1580,52 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<void> inviteRoomMember({
+    required String roomId,
+    required String userId,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedUserId = userId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedUserId.isEmpty || normalizedUserId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          userId,
+          'userId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeInviteRoomMemberOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          userId: normalizedUserId,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['roomId'] != normalizedRoomId ||
+          decoded['userId'] != normalizedUserId) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid member invite data.',
+        );
+      }
+    });
+  }
+
+  @override
   Future<String> paginateBackwards({required String roomId}) {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
@@ -1593,6 +1701,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkRoomCreator,
         MatrixSdkRoomMemberDirectory,
+        MatrixSdkRoomMemberInviter,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomInviteManager,
         MatrixSdkRoomReadManager {
@@ -1791,6 +1900,22 @@ final class MatrixRustSdkBoundary
             powerLevel: member.powerLevel,
           ),
         ),
+      );
+    });
+  }
+
+  @override
+  Future<void> inviteRoomMember(String roomId, String userId) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomMemberInviterClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room member invitations',
+        );
+      }
+      await (client as MatrixRustRoomMemberInviterClient).inviteRoomMember(
+        roomId: roomId,
+        userId: userId,
       );
     });
   }

@@ -204,8 +204,11 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
     }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            RoomMembersScreen(roomId: widget.roomId, coordinator: management!),
+        builder: (_) => RoomMembersScreen(
+          roomId: widget.roomId,
+          coordinator: management!,
+          safetyActionsEnabled: widget.memberModerationEnabled,
+        ),
       ),
     );
   }

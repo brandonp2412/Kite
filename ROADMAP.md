@@ -324,6 +324,8 @@ Kite should not merely contain the same controls. It must have the same level of
 
 **Verification note (2026-09-16):** production room details now load joined members and effective power levels through the Matrix Rust SDK boundary, and the real-account Linux smoke path verifies that the member directory is not fixture data. Invite, power-level mutation, kick, and ban/unban remain unchecked until their production Matrix mutation ports are wired; deterministic fixture/controller coverage alone is not counted as parity completion.
 
+**Invite-member progress (2026-09-17):** room details now wires the existing secondary Members flow to a production Matrix Rust SDK `Room::invite_user_by_id()` mutation through the native boundary, account runtime, and inactive-account guard. Production keeps unfinished report/leave/role/kick/ban controls hidden while retaining member search and invitation, and invalid or server-denied invitations surface through the existing deterministic failure state. ABI 14 Android JNI libraries were rebuilt for arm64-v8a, armeabi-v7a, and x86_64; a release APK builds and contains all three updated libraries. Focused Flutter coverage, clean scoped/full analysis, all 7 Rust bridge tests, release audit, ABI smoke coverage, and the 1,012-test Flutter suite with 3 intentional native-library skips pass. `tool/quality_gate.sh` stops only at the required Waydroid jitter stage because Glass currently has no Waydroid ADB device, so the invite-members checkbox remains unchecked until that device gate can run.
+
 ## Milestone 10 — User profile, settings, notifications, privacy, and account management
 
 - [ ] View own profile.

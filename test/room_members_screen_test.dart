@@ -25,11 +25,16 @@ void main() {
   Future<void> pumpScreen(
     WidgetTester tester, {
     required RoomMemberManagementCoordinator coordinator,
+    bool safetyActionsEnabled = true,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: KiteTheme.light,
-        home: RoomMembersScreen(roomId: roomId, coordinator: coordinator),
+        home: RoomMembersScreen(
+          roomId: roomId,
+          coordinator: coordinator,
+          safetyActionsEnabled: safetyActionsEnabled,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -103,6 +108,33 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets(
+    'production-style member screen keeps invite while hiding unsupported safety actions',
+    (tester) async {
+      final member = const RoomMember(
+        userId: '@member:example.org',
+        displayName: 'Member',
+        membership: RoomMembership.joined,
+        powerLevel: 0,
+      );
+      await pumpScreen(
+        tester,
+        coordinator: coordinator(
+          directory: FakeRoomMemberDirectoryPort(members: <RoomMember>[member]),
+        ),
+        safetyActionsEnabled: false,
+      );
+
+      expect(find.byKey(const Key('member-invite-action')), findsOneWidget);
+      expect(find.byKey(const Key('room-safety-actions')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('member-@member:example.org')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('member-report')), findsNothing);
+    },
+  );
 
   testWidgets('role actions expose only SDK-authorised target power levels', (
     tester,

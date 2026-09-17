@@ -100,6 +100,10 @@ abstract interface class MatrixSdkRoomMemberDirectory {
   Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
 }
 
+abstract interface class MatrixSdkRoomMemberInviter {
+  Future<void> inviteRoomMember(String roomId, String userId);
+}
+
 abstract interface class MatrixSdkRoomFavouriteManager {
   Future<void> setRoomFavourite(String roomId, bool isFavourite);
 }
@@ -371,6 +375,36 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await _ensureOpen();
     return (directory as MatrixSdkRoomMemberDirectory).roomMembers(
       normalizedRoomId,
+    );
+  }
+
+  Future<void> inviteRoomMember(String roomId, String userId) async {
+    final inviter = _boundary;
+    if (inviter is! MatrixSdkRoomMemberInviter) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room member invitations',
+      );
+    }
+    final normalizedRoomId = roomId.trim();
+    final normalizedUserId = userId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'must contain a non-empty Matrix room id without NUL bytes',
+      );
+    }
+    if (normalizedUserId.isEmpty || normalizedUserId.contains('\u0000')) {
+      throw ArgumentError.value(
+        userId,
+        'userId',
+        'must contain a non-empty Matrix user id without NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    await (inviter as MatrixSdkRoomMemberInviter).inviteRoomMember(
+      normalizedRoomId,
+      normalizedUserId,
     );
   }
 

@@ -10,11 +10,13 @@ class RoomMembersScreen extends StatefulWidget {
   const RoomMembersScreen({
     required this.roomId,
     required this.coordinator,
+    this.safetyActionsEnabled = true,
     super.key,
   });
 
   final String roomId;
   final RoomMemberManagementCoordinator coordinator;
+  final bool safetyActionsEnabled;
 
   @override
   State<RoomMembersScreen> createState() => _RoomMembersScreenState();
@@ -314,27 +316,28 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
                     );
                   },
                 ),
-                ListTile(
-                  key: const Key('member-report'),
-                  minTileHeight: 52,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.flag_outlined),
-                  title: const Text('Report user'),
-                  onTap: () async {
-                    final reason = await _requestReportReason(
-                      title: 'Report ${member.displayName}?',
-                      message: 'Send a report about this user to the homeserver moderators.',
-                    );
-                    if (reason == null) return;
-                    final reported = await _controller.reportUser(
-                      member,
-                      reason: reason,
-                    );
-                    if (reported && sheetContext.mounted) {
-                      Navigator.of(sheetContext).pop();
-                    }
-                  },
-                ),
+                if (widget.safetyActionsEnabled)
+                  ListTile(
+                    key: const Key('member-report'),
+                    minTileHeight: 52,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.flag_outlined),
+                    title: const Text('Report user'),
+                    onTap: () async {
+                      final reason = await _requestReportReason(
+                        title: 'Report ${member.displayName}?',
+                        message: 'Send a report about this user to the homeserver moderators.',
+                      );
+                      if (reason == null) return;
+                      final reported = await _controller.reportUser(
+                        member,
+                        reason: reason,
+                      );
+                      if (reported && sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      }
+                    },
+                  ),
                 FutureBuilder<RoomMemberModerationOptions>(
                   future: moderationOptions,
                   builder: (context, snapshot) {
@@ -445,37 +448,38 @@ class _RoomMembersScreenState extends State<RoomMembersScreen> {
             onPressed: _inviteMember,
             icon: const Icon(Icons.person_add_alt_1_outlined),
           ),
-          PopupMenuButton<_RoomSafetyAction>(
-            key: const Key('room-safety-actions'),
-            tooltip: 'Room actions',
-            onSelected: (action) {
-              switch (action) {
-                case _RoomSafetyAction.report:
-                  unawaited(_reportRoom());
-                  break;
-                case _RoomSafetyAction.leave:
-                  unawaited(_leaveRoom());
-                  break;
-                case _RoomSafetyAction.forget:
-                  unawaited(_forgetRoom());
-                  break;
-              }
-            },
-            itemBuilder: (_) => const <PopupMenuEntry<_RoomSafetyAction>>[
-              PopupMenuItem<_RoomSafetyAction>(
-                value: _RoomSafetyAction.report,
-                child: Text('Report room'),
-              ),
-              PopupMenuItem<_RoomSafetyAction>(
-                value: _RoomSafetyAction.leave,
-                child: Text('Leave room'),
-              ),
-              PopupMenuItem<_RoomSafetyAction>(
-                value: _RoomSafetyAction.forget,
-                child: Text('Remove local room data'),
-              ),
-            ],
-          ),
+          if (widget.safetyActionsEnabled)
+            PopupMenuButton<_RoomSafetyAction>(
+              key: const Key('room-safety-actions'),
+              tooltip: 'Room actions',
+              onSelected: (action) {
+                switch (action) {
+                  case _RoomSafetyAction.report:
+                    unawaited(_reportRoom());
+                    break;
+                  case _RoomSafetyAction.leave:
+                    unawaited(_leaveRoom());
+                    break;
+                  case _RoomSafetyAction.forget:
+                    unawaited(_forgetRoom());
+                    break;
+                }
+              },
+              itemBuilder: (_) => const <PopupMenuEntry<_RoomSafetyAction>>[
+                PopupMenuItem<_RoomSafetyAction>(
+                  value: _RoomSafetyAction.report,
+                  child: Text('Report room'),
+                ),
+                PopupMenuItem<_RoomSafetyAction>(
+                  value: _RoomSafetyAction.leave,
+                  child: Text('Leave room'),
+                ),
+                PopupMenuItem<_RoomSafetyAction>(
+                  value: _RoomSafetyAction.forget,
+                  child: Text('Remove local room data'),
+                ),
+              ],
+            ),
         ],
       ),
       body: SafeArea(
