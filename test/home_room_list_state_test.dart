@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_theme.dart';
+import 'package:kite/features/auth/authenticated_account_scope.dart';
+import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 
@@ -303,7 +305,72 @@ void main() {
     expect(find.text('Could not update favourite.'), findsOneWidget);
   });
 
-  testWidgets('search is the only homepage chat filter', (tester) async {
+  testWidgets('contextual room filters stay off the home surface', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    final session = AuthenticatedSession(
+      userId: '@me:example.org',
+      deviceId: 'KITE',
+      homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: AuthenticatedAccountScope(
+          session: session,
+          signOut: () async {},
+          child: HomeScreen(roomListStore: store),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('room-filter-row')), findsNothing);
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
+    expect(find.byKey(const Key('room-kite')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('home-account-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-account-filter-chats')), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('home-account-filter-chats')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('room-filter-sheet')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('room-filter-option-people')));
+    await tester.pumpAndSettle();
+
+    expect(store.selectedFilter.value, RoomListFilter.people);
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
+    expect(find.byKey(const Key('room-bob')), findsOneWidget);
+    expect(find.byKey(const Key('room-kite')), findsNothing);
+    expect(find.byKey(const Key('room-room-3')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('home-account-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('People'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('home-account-filter-chats')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-filter-option-favourites')));
+    await tester.pumpAndSettle();
+
+    expect(store.selectedFilter.value, RoomListFilter.favourites);
+    expect(find.byKey(const Key('room-room-3')), findsOneWidget);
+    expect(find.byKey(const Key('room-alice')), findsNothing);
+    expect(find.byKey(const Key('room-filter-row')), findsNothing);
+  });
+
+  testWidgets('search is the only persistent homepage chat filter', (
+    tester,
+  ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);

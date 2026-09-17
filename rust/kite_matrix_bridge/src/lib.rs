@@ -598,9 +598,10 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         }));
     }
 
-    let muted_room_ids = client.runtime.block_on(async {
+    let (muted_room_ids, direct_room_ids) = client.runtime.block_on(async {
         let settings = matrix_client.notification_settings().await;
         let mut muted = HashSet::new();
+        let mut direct = HashSet::new();
         for room_id in response.rooms.joined.keys() {
             if settings
                 .get_user_defined_room_notification_mode(room_id)
@@ -609,8 +610,13 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             {
                 muted.insert(room_id.clone());
             }
+            if let Some(room) = matrix_client.get_room(room_id) {
+                if room.is_direct().await.unwrap_or(false) {
+                    direct.insert(room_id.clone());
+                }
+            }
         }
-        muted
+        (muted, direct)
     });
     let invites = response
         .rooms
@@ -674,6 +680,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 .is_some_and(|room| room.has_active_room_call());
             let is_favourite = room.as_ref().is_some_and(|room| room.is_favourite());
             let is_muted = muted_room_ids.contains(room_id);
+            let is_direct = direct_room_ids.contains(room_id);
             json!({
                 "roomId": room_id.as_str(),
                 "displayName": display_name,
@@ -682,6 +689,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "hasActiveCall": has_active_call,
                 "isFavourite": is_favourite,
                 "isMuted": is_muted,
+                "isDirect": is_direct,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,

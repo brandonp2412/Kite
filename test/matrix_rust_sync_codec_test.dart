@@ -27,6 +27,7 @@ void main() {
             "hasActiveCall": true,
             "isFavourite": true,
             "isMuted": true,
+            "isDirect": true,
             "latestEventTimestamp": 2000,
             "prevBatch": "back-alpha",
             "events": [
@@ -68,6 +69,7 @@ void main() {
     expect(alpha.summary!.hasActiveCall, isTrue);
     expect(alpha.summary!.isFavourite, isTrue);
     expect(alpha.summary!.isMuted, isTrue);
+    expect(alpha.summary!.isDirect, isTrue);
     expect(alpha.summary!.lastEventId, r'$event2');
     expect(alpha.summary!.lastActivity.millisecondsSinceEpoch, 2000);
     expect(alpha.summary!.streamPosition, 2000);

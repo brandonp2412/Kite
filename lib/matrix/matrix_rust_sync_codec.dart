@@ -58,6 +58,7 @@ final class MatrixRustSyncCodec {
             hasActiveCall: _optionalBool(room['hasActiveCall']) ?? false,
             isFavourite: _optionalBool(room['isFavourite']) ?? false,
             isMuted: _optionalBool(room['isMuted']) ?? false,
+            isDirect: _optionalBool(room['isDirect']) ?? false,
           ),
           timelineEvents: events,
         ),

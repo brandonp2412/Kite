@@ -92,6 +92,7 @@ final class RoomListEntry {
       hasActiveCall: summary.hasActiveCall,
       isMuted: summary.isMuted,
       isFavourite: summary.isFavourite,
+      isDirect: summary.isDirect,
     );
   }
 

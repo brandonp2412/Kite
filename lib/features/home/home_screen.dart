@@ -308,11 +308,16 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         session: account.session,
         canMarkAllRead: widget.onMarkAllRoomsRead != null,
         inviteCount: inviteStore.visibleInviteIds.value.length,
+        selectedFilter: store.selectedFilter.value,
       ),
     );
     if (!mounted || action == null) return;
     if (action == _HomeAccountAction.invites) {
       await _openInvitesSheet();
+      return;
+    }
+    if (action == _HomeAccountAction.filterChats) {
+      await _openRoomFilterSheet();
       return;
     }
     if (action == _HomeAccountAction.markAllRead) {
@@ -374,6 +379,14 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       showDragHandle: true,
       isScrollControlled: true,
       builder: (_) => _RoomInvitesSheet(store: inviteStore),
+    );
+  }
+
+  Future<void> _openRoomFilterSheet() {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _RoomFilterSheet(store: store),
     );
   }
 
@@ -461,18 +474,101 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   }
 }
 
-enum _HomeAccountAction { invites, markAllRead, signOut }
+enum _HomeAccountAction { invites, filterChats, markAllRead, signOut }
 
 class _HomeAccountSheet extends StatelessWidget {
   const _HomeAccountSheet({
     required this.session,
     required this.canMarkAllRead,
     required this.inviteCount,
+    required this.selectedFilter,
   });
 
   final AuthenticatedSession session;
   final bool canMarkAllRead;
   final int inviteCount;
+  final RoomListFilter selectedFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.lg,
+          0,
+          KiteSpacing.lg,
+          KiteSpacing.lg,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  child: Text(_accountInitial(session.userId)),
+                ),
+                title: Text(
+                  session.userId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  'Signed in on ${session.homeserver.uri.host}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Divider(height: KiteSpacing.lg),
+              if (inviteCount > 0)
+                ListTile(
+                  key: const Key('home-account-invites'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.mail_outline_rounded),
+                  title: const Text('Invites'),
+                  trailing: Text('$inviteCount'),
+                  onTap: () =>
+                      Navigator.of(context).pop(_HomeAccountAction.invites),
+                ),
+              ListTile(
+                key: const Key('home-account-filter-chats'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.tune_rounded),
+                title: const Text('Filter chats'),
+                trailing: Text(selectedFilter.label),
+                onTap: () =>
+                    Navigator.of(context).pop(_HomeAccountAction.filterChats),
+              ),
+              if (canMarkAllRead)
+                ListTile(
+                  key: const Key('home-account-mark-all-read'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.done_all_rounded),
+                  title: const Text('Mark all as read'),
+                  onTap: () =>
+                      Navigator.of(context).pop(_HomeAccountAction.markAllRead),
+                ),
+              ListTile(
+                key: const Key('home-account-sign-out'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.logout_rounded),
+                title: const Text('Sign out'),
+                onTap: () =>
+                    Navigator.of(context).pop(_HomeAccountAction.signOut),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomFilterSheet extends StatelessWidget {
+  const _RoomFilterSheet({required this.store});
+
+  final RoomListStateStore store;
 
   @override
   Widget build(BuildContext context) {
@@ -486,51 +582,36 @@ class _HomeAccountSheet extends StatelessWidget {
           KiteSpacing.lg,
         ),
         child: Column(
+          key: const Key('room-filter-sheet'),
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                child: Text(_accountInitial(session.userId)),
-              ),
-              title: Text(
-                session.userId,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                'Signed in on ${session.homeserver.uri.host}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Divider(height: KiteSpacing.lg),
-            if (inviteCount > 0)
-              ListTile(
-                key: const Key('home-account-invites'),
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.mail_outline_rounded),
-                title: const Text('Invites'),
-                trailing: Text('$inviteCount'),
-                onTap: () =>
-                    Navigator.of(context).pop(_HomeAccountAction.invites),
-              ),
-            if (canMarkAllRead)
-              ListTile(
-                key: const Key('home-account-mark-all-read'),
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.done_all_rounded),
-                title: const Text('Mark all as read'),
-                onTap: () =>
-                    Navigator.of(context).pop(_HomeAccountAction.markAllRead),
-              ),
-            ListTile(
-              key: const Key('home-account-sign-out'),
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.logout_rounded),
-              title: const Text('Sign out'),
-              onTap: () =>
-                  Navigator.of(context).pop(_HomeAccountAction.signOut),
+            Text('Filter chats', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: KiteSpacing.sm),
+            SignalBuilder(
+              builder: (context) {
+                final selected = store.selectedFilter.value;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    for (final filter in RoomListFilter.values)
+                      ListTile(
+                        key: Key('room-filter-option-${filter.name}'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          filter == selected
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined,
+                        ),
+                        title: Text(filter.label),
+                        onTap: () {
+                          store.selectFilter(filter);
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -918,7 +999,7 @@ class _RoomList extends StatelessWidget {
       child: SignalBuilder(
         builder: (context) {
           final normalizedQuery = query.trim().toLowerCase();
-          final ids = store.roomIds
+          final ids = store.visibleRoomIds.value
               .where((roomId) {
                 if (normalizedQuery.isEmpty) return true;
                 final room = store.roomSignal(roomId).value;
@@ -933,7 +1014,14 @@ class _RoomList extends StatelessWidget {
               })
               .toList(growable: false);
           if (ids.isEmpty) {
-            return const Center(child: Text('No chats found'));
+            return Center(
+              child: Text(
+                normalizedQuery.isEmpty &&
+                        store.selectedFilter.value != RoomListFilter.all
+                    ? 'No chats match this filter'
+                    : 'No chats found',
+              ),
+            );
           }
           return ListView.builder(
             key: const Key('room-list'),

@@ -24,6 +24,7 @@ void main() {
             hasActiveCall: true,
             isFavourite: true,
             isMuted: true,
+            isDirect: true,
           ),
         ],
         timelines: <String, List<MatrixTimelineEvent>>{
@@ -70,6 +71,10 @@ void main() {
     );
     expect(
       binding.roomListStore.roomSignal('!real:example.org').value.isMuted,
+      isTrue,
+    );
+    expect(
+      binding.roomListStore.roomSignal('!real:example.org').value.isDirect,
       isTrue,
     );
     expect(

@@ -72,6 +72,7 @@ final class MatrixRoomSummary {
     this.hasActiveCall = false,
     this.isFavourite = false,
     this.isMuted = false,
+    this.isDirect = false,
   });
 
   final String roomId;
@@ -84,6 +85,7 @@ final class MatrixRoomSummary {
   final bool hasActiveCall;
   final bool isFavourite;
   final bool isMuted;
+  final bool isDirect;
 }
 
 final class MatrixRoomInvite {
