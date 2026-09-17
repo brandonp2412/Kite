@@ -92,6 +92,18 @@ final class MatrixSdkCreatedRoom {
   final bool isDirect;
 }
 
+final class MatrixSdkProfileDetails {
+  const MatrixSdkProfileDetails({
+    required this.userId,
+    required this.displayName,
+    required this.avatarUrl,
+  });
+
+  final String userId;
+  final String? displayName;
+  final String? avatarUrl;
+}
+
 final class MatrixSdkRoomDetails {
   MatrixSdkRoomDetails({
     required this.roomId,
@@ -118,6 +130,14 @@ final class MatrixSdkRoomDetails {
   final String notificationMode;
   final bool isDirect;
   final List<String> directUserIds;
+}
+
+abstract interface class MatrixSdkProfileManager {
+  Future<MatrixSdkProfileDetails> loadOwnProfile();
+  Future<MatrixSdkProfileDetails> loadProfile(String userId);
+  Future<void> updateDisplayName(String displayName);
+  Future<void> updateAvatar(String? avatarUrl);
+  Future<String> openDirectMessage(String userId);
 }
 
 abstract interface class MatrixSdkRoomCreator {
@@ -344,6 +364,50 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     );
   }
 
+  Future<MatrixSdkProfileDetails> loadOwnProfile() async {
+    final manager = _profileManager();
+    await _ensureOpen();
+    return manager.loadOwnProfile();
+  }
+
+  Future<MatrixSdkProfileDetails> loadProfile(String userId) async {
+    final manager = _profileManager();
+    final normalizedUserId = _validatedUserId(userId, 'userId');
+    await _ensureOpen();
+    return manager.loadProfile(normalizedUserId);
+  }
+
+  Future<void> updateDisplayName(String displayName) async {
+    final manager = _profileManager();
+    await _ensureOpen();
+    await manager.updateDisplayName(displayName.trim());
+  }
+
+  Future<void> updateAvatar(String? avatarUrl) async {
+    final manager = _profileManager();
+    final normalizedAvatar = avatarUrl?.trim();
+    if (normalizedAvatar != null && normalizedAvatar.contains('\u0000')) {
+      throw ArgumentError.value(
+        avatarUrl,
+        'avatarUrl',
+        'must not contain NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    await manager.updateAvatar(
+      normalizedAvatar == null || normalizedAvatar.isEmpty
+          ? null
+          : normalizedAvatar,
+    );
+  }
+
+  Future<String> openDirectMessage(String userId) async {
+    final manager = _profileManager();
+    final normalizedUserId = _validatedUserId(userId, 'userId');
+    await _ensureOpen();
+    return manager.openDirectMessage(normalizedUserId);
+  }
+
   Future<MatrixSdkCreatedRoom> createRoom(
     MatrixSdkRoomCreationRequest request,
   ) async {
@@ -469,6 +533,16 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     await (manager as MatrixSdkRoomLifecycleManager).forgetRoom(roomId);
+  }
+
+  MatrixSdkProfileManager _profileManager() {
+    final manager = _boundary;
+    if (manager is! MatrixSdkProfileManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support profile management',
+      );
+    }
+    return manager as MatrixSdkProfileManager;
   }
 
   MatrixSdkRoomSettingsManager _roomSettingsManager() {

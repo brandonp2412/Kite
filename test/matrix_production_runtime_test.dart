@@ -95,6 +95,35 @@ void main() {
       );
       expect(cache.lastSyncCursor, 's1');
 
+      final ownProfile = await runtime.loadOwnProfile(
+        accountId: '@alice:example.org',
+      );
+      final bobProfile = await runtime.loadProfile(
+        accountId: '@alice:example.org',
+        userId: '@bob:example.org',
+      );
+      await runtime.updateDisplayName(
+        accountId: '@alice:example.org',
+        displayName: 'Alice Updated',
+      );
+      await runtime.updateAvatar(
+        accountId: '@alice:example.org',
+        avatarUrl: 'mxc://example.org/alice',
+      );
+      final directRoomId = await runtime.openDirectMessage(
+        accountId: '@alice:example.org',
+        userId: '@bob:example.org',
+      );
+
+      expect(ownProfile.userId, '@alice:example.org');
+      expect(ownProfile.displayName, 'Alice');
+      expect(bobProfile.userId, '@bob:example.org');
+      expect(directRoomId, '!dm:example.org');
+      expect(boundary.profileMutations, <(String, String?)>[
+        ('set_display_name', 'Alice Updated'),
+        ('set_avatar', 'mxc://example.org/alice'),
+      ]);
+
       final eventId = await runtime.sendTextMessage(
         accountId: '@alice:example.org',
         roomId: '!room:example.org',
@@ -261,6 +290,7 @@ final class _FakeBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
+        MatrixSdkProfileManager,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomReadManager {
   final StreamController<MatrixSyncBatch> _sync =
@@ -275,6 +305,7 @@ final class _FakeBoundary
       <(String, String, String)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
+  final List<(String, String?)> profileMutations = <(String, String?)>[];
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -311,6 +342,37 @@ final class _FakeBoundary
       reachedStart: true,
     );
   }
+
+  @override
+  Future<MatrixSdkProfileDetails> loadOwnProfile() async {
+    return const MatrixSdkProfileDetails(
+      userId: '@alice:example.org',
+      displayName: 'Alice',
+      avatarUrl: 'mxc://example.org/alice-old',
+    );
+  }
+
+  @override
+  Future<MatrixSdkProfileDetails> loadProfile(String userId) async {
+    return MatrixSdkProfileDetails(
+      userId: userId,
+      displayName: userId == '@bob:example.org' ? 'Bob' : null,
+      avatarUrl: null,
+    );
+  }
+
+  @override
+  Future<void> updateDisplayName(String displayName) async {
+    profileMutations.add(('set_display_name', displayName));
+  }
+
+  @override
+  Future<void> updateAvatar(String? avatarUrl) async {
+    profileMutations.add(('set_avatar', avatarUrl));
+  }
+
+  @override
+  Future<String> openDirectMessage(String userId) async => '!dm:example.org';
 
   @override
   Future<void> setRoomFavourite(String roomId, bool isFavourite) async {

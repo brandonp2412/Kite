@@ -79,6 +79,58 @@ final class MatrixAccountRuntimeRegistry {
     return _runtimes[normalizedAccountId]?.runtime.paginationState(roomId);
   }
 
+  Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load a Matrix profile for an inactive account',
+    );
+    return active.engine.loadOwnProfile();
+  }
+
+  Future<MatrixSdkProfileDetails> loadProfile({
+    required String accountId,
+    required String userId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load a Matrix profile for an inactive account',
+    );
+    return active.engine.loadProfile(userId);
+  }
+
+  Future<void> updateDisplayName({
+    required String accountId,
+    required String displayName,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot update a Matrix profile for an inactive account',
+    );
+    return active.engine.updateDisplayName(displayName);
+  }
+
+  Future<void> updateAvatar({
+    required String accountId,
+    required String? avatarUrl,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot update a Matrix profile for an inactive account',
+    );
+    return active.engine.updateAvatar(avatarUrl);
+  }
+
+  Future<String> openDirectMessage({
+    required String accountId,
+    required String userId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot open a Matrix conversation for an inactive account',
+    );
+    return active.engine.openDirectMessage(userId);
+  }
+
   Future<MatrixSdkCreatedRoom> createRoom({
     required String accountId,
     required MatrixSdkRoomCreationRequest request,

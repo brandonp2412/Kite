@@ -62,6 +62,11 @@ void main() {
         username: '@alice:kite.test',
         password: 'test-password',
       );
+      final ownProfile = await boundary.loadOwnProfile();
+      final bobProfile = await boundary.loadProfile('@bob:kite.test');
+      await boundary.updateDisplayName('Alice Updated');
+      await boundary.updateAvatar('mxc://kite.test/alice');
+      final directRoomId = await boundary.openDirectMessage('@bob:kite.test');
       final eventId = await boundary.sendTextMessage(
         roomId: '!room:kite.test',
         transactionId: 'kite-transaction-1',
@@ -139,6 +144,19 @@ void main() {
 
       expect(login.userId, '@alice:kite.test');
       expect(login.deviceId, 'KITEDEVICE');
+      expect(ownProfile.userId, '@alice:kite.test');
+      expect(ownProfile.displayName, 'Alice');
+      expect(ownProfile.avatarUrl, 'mxc://kite.test/alice-old');
+      expect(bobProfile.userId, '@bob:kite.test');
+      expect(bobProfile.displayName, 'Bob');
+      expect(directRoomId, '!dm:kite.test');
+      expect(client.profileCalls, <(String?, String, String?)>[
+        (null, 'get', null),
+        ('@bob:kite.test', 'get', null),
+        (null, 'set_display_name', 'Alice Updated'),
+        (null, 'set_avatar', 'mxc://kite.test/alice'),
+        ('@bob:kite.test', 'open_direct', null),
+      ]);
       expect(client.loginCalls, <(String, String)>[
         ('@alice:kite.test', 'test-password'),
       ]);
@@ -1111,6 +1129,7 @@ final class _FakeRustClient
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
         MatrixRustRoomSettingsClient,
+        MatrixRustProfileClient,
         MatrixRustRoomReadClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
@@ -1130,6 +1149,8 @@ final class _FakeRustClient
       <(String, String, String?, String?)>[];
   final List<(String, String, String?)> roomSettingCalls =
       <(String, String, String?)>[];
+  final List<(String?, String, String?)> profileCalls =
+      <(String?, String, String?)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
 
   bool _closed = false;
@@ -1245,6 +1266,26 @@ final class _FakeRustClient
       };
     }
     return <String, Object?>{'roomId': roomId, 'action': action};
+  }
+
+  @override
+  Future<Map<String, Object?>> profile({
+    String? userId,
+    required String action,
+    String? value,
+  }) async {
+    profileCalls.add((userId, action, value));
+    if (action == 'get') {
+      return <String, Object?>{
+        'userId': userId ?? '@alice:kite.test',
+        'displayName': userId == null ? 'Alice' : 'Bob',
+        'avatarUrl': userId == null ? 'mxc://kite.test/alice-old' : null,
+      };
+    }
+    if (action == 'open_direct') {
+      return <String, Object?>{'roomId': '!dm:kite.test'};
+    }
+    return <String, Object?>{'action': action};
   }
 
   @override

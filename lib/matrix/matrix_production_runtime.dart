@@ -172,6 +172,32 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) =>
+      accounts.loadOwnProfile(accountId: accountId);
+
+  Future<MatrixSdkProfileDetails> loadProfile({
+    required String accountId,
+    required String userId,
+  }) => accounts.loadProfile(accountId: accountId, userId: userId);
+
+  Future<void> updateDisplayName({
+    required String accountId,
+    required String displayName,
+  }) => accounts.updateDisplayName(
+    accountId: accountId,
+    displayName: displayName,
+  );
+
+  Future<void> updateAvatar({
+    required String accountId,
+    required String? avatarUrl,
+  }) => accounts.updateAvatar(accountId: accountId, avatarUrl: avatarUrl);
+
+  Future<String> openDirectMessage({
+    required String accountId,
+    required String userId,
+  }) => accounts.openDirectMessage(accountId: accountId, userId: userId);
+
   Future<MatrixSdkCreatedRoom> createRoom({
     required String accountId,
     required MatrixSdkRoomCreationRequest request,

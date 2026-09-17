@@ -21,6 +21,7 @@ import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/media/media_viewer.dart';
+import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_list_view.dart';
@@ -315,11 +316,22 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         session: account.session,
         canCreateRoom: widget.roomCreation != null,
         canMarkAllRead: widget.onMarkAllRoomsRead != null,
+        canOpenProfile: account.profileController != null,
         inviteCount: inviteStore.visibleInviteIds.value.length,
         selectedFilter: store.selectedFilter.value,
       ),
     );
     if (!mounted || action == null) return;
+    if (action == _HomeAccountAction.profile) {
+      final controller = account.profileController;
+      if (controller == null) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => UserProfileScreen.own(controller: controller),
+        ),
+      );
+      return;
+    }
     if (action == _HomeAccountAction.newConversation) {
       await _openRoomCreation();
       return;
@@ -500,6 +512,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
 }
 
 enum _HomeAccountAction {
+  profile,
   newConversation,
   invites,
   filterChats,
@@ -512,6 +525,7 @@ class _HomeAccountSheet extends StatelessWidget {
     required this.session,
     required this.canCreateRoom,
     required this.canMarkAllRead,
+    required this.canOpenProfile,
     required this.inviteCount,
     required this.selectedFilter,
   });
@@ -519,6 +533,7 @@ class _HomeAccountSheet extends StatelessWidget {
   final AuthenticatedSession session;
   final bool canCreateRoom;
   final bool canMarkAllRead;
+  final bool canOpenProfile;
   final int inviteCount;
   final RoomListFilter selectedFilter;
 
@@ -538,6 +553,7 @@ class _HomeAccountSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               ListTile(
+                key: canOpenProfile ? const Key('home-account-profile') : null,
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
                   child: Text(_accountInitial(session.userId)),
@@ -552,6 +568,13 @@ class _HomeAccountSheet extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                trailing: canOpenProfile
+                    ? const Icon(Icons.chevron_right_rounded)
+                    : null,
+                onTap: canOpenProfile
+                    ? () =>
+                          Navigator.of(context).pop(_HomeAccountAction.profile)
+                    : null,
               ),
               const Divider(height: KiteSpacing.lg),
               if (canCreateRoom)

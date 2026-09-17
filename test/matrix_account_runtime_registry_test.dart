@@ -102,6 +102,60 @@ void main() {
   );
 
   test(
+    'active account routes profile operations and rejects stale accounts',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      final own = await registry.loadOwnProfile(
+        accountId: '@alice:example.org',
+      );
+      final bob = await registry.loadProfile(
+        accountId: '@alice:example.org',
+        userId: '@bob:example.org',
+      );
+      await registry.updateDisplayName(
+        accountId: '@alice:example.org',
+        displayName: 'Alice Updated',
+      );
+      await registry.updateAvatar(
+        accountId: '@alice:example.org',
+        avatarUrl: 'mxc://example.org/alice',
+      );
+      final directRoom = await registry.openDirectMessage(
+        accountId: '@alice:example.org',
+        userId: '@bob:example.org',
+      );
+
+      expect(own.userId, '@alice:example.org');
+      expect(bob.userId, '@bob:example.org');
+      expect(directRoom, '!dm-bob:example.org');
+      expect(
+        boundaries['@alice:example.org']!.profileMutations,
+        <(String, String?)>[
+          ('set_display_name', 'Alice Updated'),
+          ('set_avatar', 'mxc://example.org/alice'),
+        ],
+      );
+
+      await registry.activate('@bob:example.org');
+      expect(
+        () => registry.loadOwnProfile(accountId: '@alice:example.org'),
+        throwsStateError,
+      );
+      expect(
+        () => registry.openDirectMessage(
+          accountId: '@alice:example.org',
+          userId: '@bob:example.org',
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
     'active account routes favourite updates and rejects stale accounts',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -1664,6 +1718,7 @@ final class _FakeAccountBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
+        MatrixSdkProfileManager,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomLifecycleManager,
         MatrixSdkRoomMemberInviter,
@@ -1709,12 +1764,48 @@ final class _FakeAccountBoundary
   final List<String> paginationCalls = <String>[];
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
+  final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String, String?, String?)> roomLifecycleActions =
       <(String, String, String?, String?)>[];
   final List<(String, String)> memberInvites = <(String, String)>[];
   final List<(String, String, String, int, String?)> memberModerations =
       <(String, String, String, int, String?)>[];
+
+  @override
+  Future<MatrixSdkProfileDetails> loadOwnProfile() async {
+    final localpart = accountId.substring(1, accountId.indexOf(':'));
+    return MatrixSdkProfileDetails(
+      userId: accountId,
+      displayName: '${localpart[0].toUpperCase()}${localpart.substring(1)}',
+      avatarUrl: 'mxc://example.org/$localpart',
+    );
+  }
+
+  @override
+  Future<MatrixSdkProfileDetails> loadProfile(String userId) async {
+    return MatrixSdkProfileDetails(
+      userId: userId,
+      displayName: userId == '@bob:example.org' ? 'Bob' : null,
+      avatarUrl: null,
+    );
+  }
+
+  @override
+  Future<void> updateDisplayName(String displayName) async {
+    profileMutations.add(('set_display_name', displayName));
+  }
+
+  @override
+  Future<void> updateAvatar(String? avatarUrl) async {
+    profileMutations.add(('set_avatar', avatarUrl));
+  }
+
+  @override
+  Future<String> openDirectMessage(String userId) async {
+    final localpart = userId.substring(1, userId.indexOf(':'));
+    return '!dm-$localpart:example.org';
+  }
 
   @override
   Future<void> reportRoom(String roomId, {String? reason}) async {

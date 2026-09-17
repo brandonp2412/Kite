@@ -15,7 +15,10 @@ void main() {
     expect(mainSource, contains('ProductionKiteRuntime.create()'));
     expect(runtimeSource, contains('MatrixRustNativeBridge('));
     expect(runtimeSource, contains('MatrixRustAuthSessionApi('));
-    expect(runtimeSource, contains('NativeMatrixAccountSdkBoundary(authApi)'));
+    expect(
+      runtimeSource,
+      contains('MatrixProductionProfileApi(matrixRuntime)'),
+    );
     expect(
       runtimeSource,
       contains('accountSdkBoundary: widget.accountBoundary'),

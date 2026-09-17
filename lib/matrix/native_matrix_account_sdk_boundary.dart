@@ -1,6 +1,18 @@
 import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
+abstract interface class MatrixNativeProfileApi {
+  Future<MatrixSdkUserProfile> loadOwnProfile();
+
+  Future<MatrixSdkUserProfile> loadProfile(String userId);
+
+  Future<void> updateDisplayName(String displayName);
+
+  Future<void> updateAvatar(Uri? avatarUri);
+
+  Future<String> openDirectMessage(String userId);
+}
+
 abstract interface class MatrixNativeAuthSessionApi {
   Future<MatrixSdkAuthenticationDiscovery> discoverAuthentication(
     Uri homeserver,
@@ -22,16 +34,21 @@ abstract interface class MatrixNativeAuthSessionApi {
 }
 
 final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
-  const NativeMatrixAccountSdkBoundary(this._native);
+  const NativeMatrixAccountSdkBoundary(
+    this._native, {
+    MatrixNativeProfileApi? profileApi,
+  }) : _profile = profileApi;
 
   final MatrixNativeAuthSessionApi _native;
+  final MatrixNativeProfileApi? _profile;
 
   @override
   Set<MatrixAccountSdkCapability> get accountCapabilities =>
-      const <MatrixAccountSdkCapability>{
+      <MatrixAccountSdkCapability>{
         MatrixAccountSdkCapability.homeserverDiscovery,
         MatrixAccountSdkCapability.passwordAuthentication,
         MatrixAccountSdkCapability.sessionPersistence,
+        if (_profile != null) MatrixAccountSdkCapability.profileManagement,
       };
 
   @override
@@ -176,22 +193,27 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
 
   @override
   Future<MatrixSdkUserProfile> loadOwnProfile() =>
+      _profile?.loadOwnProfile() ??
       _unsupported(MatrixAccountSdkCapability.profileManagement);
 
   @override
   Future<MatrixSdkUserProfile> loadProfile(String userId) =>
+      _profile?.loadProfile(userId) ??
       _unsupported(MatrixAccountSdkCapability.profileManagement);
 
   @override
   Future<void> updateDisplayName(String displayName) =>
+      _profile?.updateDisplayName(displayName) ??
       _unsupported(MatrixAccountSdkCapability.profileManagement);
 
   @override
   Future<void> updateAvatar(Uri? avatarUri) =>
+      _profile?.updateAvatar(avatarUri) ??
       _unsupported(MatrixAccountSdkCapability.profileManagement);
 
   @override
   Future<String> openDirectMessage(String userId) =>
+      _profile?.openDirectMessage(userId) ??
       _unsupported(MatrixAccountSdkCapability.profileManagement);
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
+import 'package:kite/features/profile/user_profile_controller.dart';
 
 typedef AuthenticatedAccountSignOut = Future<void> Function();
 
@@ -7,12 +8,14 @@ class AuthenticatedAccountScope extends InheritedWidget {
   const AuthenticatedAccountScope({
     required this.session,
     required this.signOut,
+    this.profileController,
     required super.child,
     super.key,
   });
 
   final AuthenticatedSession session;
   final AuthenticatedAccountSignOut signOut;
+  final UserProfileController? profileController;
 
   static AuthenticatedAccountScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AuthenticatedAccountScope>();
@@ -22,5 +25,6 @@ class AuthenticatedAccountScope extends InheritedWidget {
       session.userId != oldWidget.session.userId ||
       session.deviceId != oldWidget.session.deviceId ||
       session.homeserver.uri != oldWidget.session.homeserver.uri ||
-      !identical(signOut, oldWidget.signOut);
+      !identical(signOut, oldWidget.signOut) ||
+      !identical(profileController, oldWidget.profileController);
 }

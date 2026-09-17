@@ -140,6 +140,7 @@ class _KiteRuntimeState extends State<KiteRuntime> {
         await widget.beforeSignOut?.call(session);
         await accountSecurity.lifecycle.signOut();
       },
+      profileController: accountSecurity.profile,
       child: home,
     );
   }

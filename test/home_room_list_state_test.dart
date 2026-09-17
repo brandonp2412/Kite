@@ -6,8 +6,46 @@ import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/testing/deterministic_room_management_adapter.dart';
+
+final class _HomeProfileGateway implements UserProfileGateway {
+  @override
+  Future<MatrixUserProfile> loadOwnProfile() async =>
+      const MatrixUserProfile(userId: '@me:example.org', displayName: 'Me');
+
+  @override
+  Future<MatrixUserProfile> loadProfile(String userId) async =>
+      MatrixUserProfile(userId: userId);
+
+  @override
+  Future<String> openDirectMessage(String userId) async => '!dm:example.org';
+
+  @override
+  Future<void> updateDisplayName(String displayName) async {}
+
+  @override
+  Future<void> updateAvatar(Uri? avatarUri) async {}
+
+  @override
+  Future<Set<String>> loadIgnoredUserIds() async => const <String>{};
+
+  @override
+  Future<Set<String>> loadBlockedUserIds() async => const <String>{};
+
+  @override
+  Future<void> setUserIgnored({
+    required String userId,
+    required bool ignored,
+  }) async {}
+
+  @override
+  Future<void> setUserBlocked({
+    required String userId,
+    required bool blocked,
+  }) async {}
+}
 
 void main() {
   test('room-list store updates one stable room signal', () {
@@ -305,6 +343,46 @@ void main() {
     expect(aliceSignal.value.isFavourite, isFalse);
     expect(find.text('Add to favourites'), findsOneWidget);
     expect(find.text('Could not update favourite.'), findsOneWidget);
+  });
+
+  testWidgets('own profile stays contextual and opens from the account sheet', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final profile = UserProfileController(_HomeProfileGateway());
+    addTearDown(profile.dispose);
+    final session = AuthenticatedSession(
+      userId: '@me:example.org',
+      deviceId: 'KITE',
+      homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: AuthenticatedAccountScope(
+          session: session,
+          signOut: () async {},
+          profileController: profile,
+          child: const HomeScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your profile'), findsNothing);
+    await tester.tap(find.byKey(const Key('home-account-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-account-profile')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('home-account-profile')));
+    await tester.pumpAndSettle();
+    expect(find.text('Your profile'), findsOneWidget);
+    expect(find.byKey(const Key('profile-display-name')), findsOneWidget);
+    expect(find.text('Me'), findsWidgets);
   });
 
   testWidgets('contextual room filters stay off the home surface', (

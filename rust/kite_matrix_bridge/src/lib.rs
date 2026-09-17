@@ -16,6 +16,7 @@ use matrix_sdk::{
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
+                profile::{AvatarUrl, DisplayName},
                 receipt::create_receipt,
                 reporting::report_user,
                 room::{Visibility, create_room},
@@ -40,7 +41,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 17;
+const KITE_MATRIX_ABI_VERSION: u32 = 18;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -1557,6 +1558,150 @@ pub unsafe extern "C" fn kite_matrix_client_manage_room(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_profile(
+    client: *mut KiteMatrixClient,
+    user_id: *const c_char,
+    action: *const c_char,
+    value: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix profiles are unavailable.");
+    }
+    let Some(action) = (unsafe { required_utf8(action) }) else {
+        return error_json("invalid_action", "The Matrix profile action is invalid.");
+    };
+    let user_id = unsafe { required_utf8(user_id) };
+    let value = unsafe { required_utf8(value) }.map(str::trim);
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix profiles are unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+
+    let response = match action {
+        "get" => {
+            let target_user_id = match user_id {
+                Some(user_id) => match UserId::parse(user_id) {
+                    Ok(user_id) => user_id,
+                    Err(_) => {
+                        return error_json("invalid_user", "The Matrix user is invalid.");
+                    }
+                },
+                None => match matrix_client.user_id() {
+                    Some(user_id) => user_id.to_owned(),
+                    None => {
+                        return error_json(
+                            "authentication_required",
+                            "The Matrix session is unavailable.",
+                        );
+                    }
+                },
+            };
+            let profile = match client.runtime.block_on(
+                matrix_client
+                    .account()
+                    .fetch_user_profile_of(&target_user_id),
+            ) {
+                Ok(profile) => profile,
+                Err(_) => {
+                    return error_json("profile_failed", "The Matrix profile could not be loaded.");
+                }
+            };
+            let display_name = profile
+                .get_static::<DisplayName>()
+                .ok()
+                .flatten()
+                .filter(|name| !name.trim().is_empty());
+            let avatar_url = profile
+                .get_static::<AvatarUrl>()
+                .ok()
+                .flatten()
+                .filter(|url| url.is_valid());
+            json!({
+                "userId": target_user_id.as_str(),
+                "displayName": display_name,
+                "avatarUrl": avatar_url.map(|url| url.to_string()),
+            })
+        }
+        "set_display_name" => {
+            let display_name = value.filter(|value| !value.is_empty());
+            if client
+                .runtime
+                .block_on(matrix_client.account().set_display_name(display_name))
+                .is_err()
+            {
+                return error_json(
+                    "profile_failed",
+                    "The Matrix display name could not be updated.",
+                );
+            }
+            json!({"action": action})
+        }
+        "set_avatar" => {
+            let avatar = match value.filter(|value| !value.is_empty()) {
+                Some(value) => {
+                    let avatar = OwnedMxcUri::from(value.to_owned());
+                    if !avatar.is_valid() {
+                        return error_json("invalid_avatar", "The Matrix avatar URI is invalid.");
+                    }
+                    Some(avatar)
+                }
+                None => None,
+            };
+            if client
+                .runtime
+                .block_on(matrix_client.account().set_avatar_url(avatar.as_deref()))
+                .is_err()
+            {
+                return error_json("profile_failed", "The Matrix avatar could not be updated.");
+            }
+            json!({"action": action})
+        }
+        "open_direct" => {
+            let Some(user_id) = user_id else {
+                return error_json("invalid_user", "The Matrix user is invalid.");
+            };
+            let Ok(user_id) = UserId::parse(user_id) else {
+                return error_json("invalid_user", "The Matrix user is invalid.");
+            };
+            let room = match matrix_client.get_dm_room(&user_id) {
+                Some(room) => room,
+                None => match client.runtime.block_on(matrix_client.create_dm(&user_id)) {
+                    Ok(room) => room,
+                    Err(_) => {
+                        return error_json(
+                            "profile_failed",
+                            "The direct conversation could not be opened.",
+                        );
+                    }
+                },
+            };
+            json!({"roomId": room.room_id().as_str()})
+        }
+        _ => return error_json("invalid_action", "The Matrix profile action is invalid."),
+    };
+
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(response)
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_room_settings(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -1864,7 +2009,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 17);
+        assert_eq!(kite_matrix_abi_version(), 18);
     }
 
     #[test]

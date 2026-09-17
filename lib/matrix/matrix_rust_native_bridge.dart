@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 17;
+const int kiteMatrixNativeAbiVersion = 18;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -220,6 +220,18 @@ typedef _ClientRoomSettingsNative = Pointer<Char> Function(
   Pointer<Char>,
 );
 typedef _ClientRoomSettingsDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientProfileNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientProfileDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
   Pointer<Char>,
@@ -1001,6 +1013,66 @@ final class _MatrixNativeManageRoomOperation {
   }
 }
 
+final class _MatrixNativeProfileOperation {
+  const _MatrixNativeProfileOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.userId,
+    required this.action,
+    required this.value,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String? userId;
+  final String action;
+  final String? value;
+
+  Map<String, Object?> call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final profile = library
+        .lookupFunction<_ClientProfileNative, _ClientProfileDart>(
+          'kite_matrix_client_profile',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final userIdUtf8 = userId?.toNativeUtf8(allocator: calloc);
+    final actionUtf8 = action.toNativeUtf8(allocator: calloc);
+    final valueUtf8 = value?.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        profile(
+          Pointer<Void>.fromAddress(address),
+          userIdUtf8 == null
+              ? Pointer<Char>.fromAddress(0)
+              : userIdUtf8.cast<Char>(),
+          actionUtf8.cast<Char>(),
+          valueUtf8 == null
+              ? Pointer<Char>.fromAddress(0)
+              : valueUtf8.cast<Char>(),
+        ),
+        freeString,
+        'profile',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid profile data.',
+        );
+      }
+      return Map<String, Object?>.from(decoded);
+    } finally {
+      if (valueUtf8 != null) calloc.free(valueUtf8);
+      calloc.free(actionUtf8);
+      if (userIdUtf8 != null) calloc.free(userIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomSettingsOperation {
   const _MatrixNativeRoomSettingsOperation({
     required this.libraryPath,
@@ -1283,6 +1355,14 @@ abstract interface class MatrixRustRoomLifecycleClient {
   });
 }
 
+abstract interface class MatrixRustProfileClient {
+  Future<Map<String, Object?>> profile({
+    String? userId,
+    required String action,
+    String? value,
+  });
+}
+
 abstract interface class MatrixRustRoomSettingsClient {
   Future<Map<String, Object?>> roomSettings({
     required String roomId,
@@ -1475,6 +1555,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
         MatrixRustRoomSettingsClient,
+        MatrixRustProfileClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
@@ -1732,6 +1813,55 @@ final class MatrixRustNativeClient
           timeoutMs: timeoutMs,
           since: since,
           timelineEventLimit: timelineEventLimit,
+        ).call,
+      );
+    });
+  }
+
+  @override
+  Future<Map<String, Object?>> profile({
+    String? userId,
+    required String action,
+    String? value,
+  }) {
+    final normalizedUserId = userId?.trim();
+    final normalizedAction = action.trim();
+    if (normalizedUserId != null &&
+        (normalizedUserId.isEmpty || normalizedUserId.contains('\u0000'))) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          userId,
+          'userId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedAction.isEmpty || normalizedAction.contains('\u0000')) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          action,
+          'action',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (value?.contains('\u0000') ?? false) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'value',
+          'must not contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<Map<String, Object?>>(() async {
+      return Isolate.run<Map<String, Object?>>(
+        _MatrixNativeProfileOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          userId: normalizedUserId,
+          action: normalizedAction,
+          value: value,
         ).call,
       );
     });
@@ -2311,6 +2441,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkBoundary,
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
+        MatrixSdkProfileManager,
         MatrixSdkRoomCreator,
         MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
@@ -2424,6 +2555,97 @@ final class MatrixRustSdkBoundary
         body: body,
       );
       return result.eventId;
+    });
+  }
+
+  @override
+  Future<MatrixSdkProfileDetails> loadOwnProfile() {
+    return _enqueue<MatrixSdkProfileDetails>(() async {
+      return _profileDetails(await _profile(action: 'get'));
+    });
+  }
+
+  @override
+  Future<MatrixSdkProfileDetails> loadProfile(String userId) {
+    return _enqueue<MatrixSdkProfileDetails>(() async {
+      return _profileDetails(
+        await _profile(userId: userId, action: 'get'),
+        expectedUserId: userId,
+      );
+    });
+  }
+
+  @override
+  Future<void> updateDisplayName(String displayName) =>
+      _updateProfile(action: 'set_display_name', value: displayName);
+
+  @override
+  Future<void> updateAvatar(String? avatarUrl) =>
+      _updateProfile(action: 'set_avatar', value: avatarUrl);
+
+  @override
+  Future<String> openDirectMessage(String userId) {
+    return _enqueue<String>(() async {
+      final decoded = await _profile(userId: userId, action: 'open_direct');
+      final roomId = decoded['roomId'];
+      if (roomId is! String || roomId.trim().isEmpty) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned an invalid direct-message room',
+        );
+      }
+      return roomId;
+    });
+  }
+
+  Future<Map<String, Object?>> _profile({
+    String? userId,
+    required String action,
+    String? value,
+  }) async {
+    final client = _requireClient();
+    if (client is! MatrixRustProfileClient) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client does not support profile management',
+      );
+    }
+    return (client as MatrixRustProfileClient).profile(
+      userId: userId,
+      action: action,
+      value: value,
+    );
+  }
+
+  MatrixSdkProfileDetails _profileDetails(
+    Map<String, Object?> decoded, {
+    String? expectedUserId,
+  }) {
+    final userId = decoded['userId'];
+    final displayName = decoded['displayName'];
+    final avatarUrl = decoded['avatarUrl'];
+    if (userId is! String ||
+        userId.trim().isEmpty ||
+        (expectedUserId != null && userId != expectedUserId) ||
+        (displayName != null && displayName is! String) ||
+        (avatarUrl != null && avatarUrl is! String)) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid profile data',
+      );
+    }
+    return MatrixSdkProfileDetails(
+      userId: userId,
+      displayName: displayName as String?,
+      avatarUrl: avatarUrl as String?,
+    );
+  }
+
+  Future<void> _updateProfile({required String action, String? value}) {
+    return _enqueue<void>(() async {
+      final decoded = await _profile(action: action, value: value);
+      if (decoded['action'] != action) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid profile state',
+        );
+      }
     });
   }
 
