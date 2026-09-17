@@ -320,6 +320,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Forget/remove local room state where relevant.
 - [ ] Convert/use DM semantics correctly when SDK room metadata changes.
 
+**Verification note (2026-09-17):** production room creation now reaches `matrix-sdk` through the Rust bridge for direct messages, private rooms, and public rooms, including safe encryption/history defaults, server-side invites, public/private visibility, local room-address creation, and sender-side `m.direct` metadata for DMs. The entry point lives in the contextual account sheet so the search-first home surface stays unchanged. Focused room-creation/native tests, full Flutter analysis, Rust tests, and an Android release APK build passed; `tool/quality_gate.sh` additionally passed release audit, ABI smoke, and all 1,008 deterministic Flutter tests before stopping at the Waydroid jitter stage because Glass has no Waydroid ADB device. The three creation checkboxes remain intentionally unchecked until that required performance gate can run.
+
 **Verification note (2026-09-16):** production room details now load joined members and effective power levels through the Matrix Rust SDK boundary, and the real-account Linux smoke path verifies that the member directory is not fixture data. Invite, power-level mutation, kick, and ban/unban remain unchecked until their production Matrix mutation ports are wired; deterministic fixture/controller coverage alone is not counted as parity completion.
 
 ## Milestone 10 — User profile, settings, notifications, privacy, and account management

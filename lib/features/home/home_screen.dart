@@ -13,6 +13,7 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/calls/call_session.dart';
+import 'package:kite/features/rooms/room_creation_screen.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
@@ -53,6 +54,7 @@ class HomeScreen extends StatelessWidget {
     this.benchmarkRooms,
     this.roomListStore,
     this.inviteStore,
+    this.roomCreation,
     this.roomManagement,
     this.memberManagement,
     this.calls,
@@ -67,6 +69,7 @@ class HomeScreen extends StatelessWidget {
   final List<BenchmarkRoom>? benchmarkRooms;
   final RoomListStateStore? roomListStore;
   final RoomInviteStore? inviteStore;
+  final RoomManagementCoordinator? roomCreation;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
@@ -102,6 +105,7 @@ class HomeScreen extends StatelessWidget {
                 rooms: roomEntries,
                 store: roomListStore,
                 inviteStore: inviteStore,
+                roomCreation: roomCreation,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
                 onRoomTap: (roomId) {
@@ -144,6 +148,7 @@ class HomeScreen extends StatelessWidget {
                 rooms: roomEntries,
                 store: roomListStore,
                 inviteStore: inviteStore,
+                roomCreation: roomCreation,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
               ),
@@ -211,6 +216,7 @@ class _HomeSidebar extends StatefulWidget {
     required this.rooms,
     this.store,
     this.inviteStore,
+    this.roomCreation,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
     this.onRoomTap,
@@ -219,6 +225,7 @@ class _HomeSidebar extends StatefulWidget {
   final List<RoomListEntry> rooms;
   final RoomListStateStore? store;
   final RoomInviteStore? inviteStore;
+  final RoomManagementCoordinator? roomCreation;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final ValueChanged<String>? onRoomTap;
@@ -306,12 +313,17 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       showDragHandle: true,
       builder: (_) => _HomeAccountSheet(
         session: account.session,
+        canCreateRoom: widget.roomCreation != null,
         canMarkAllRead: widget.onMarkAllRoomsRead != null,
         inviteCount: inviteStore.visibleInviteIds.value.length,
         selectedFilter: store.selectedFilter.value,
       ),
     );
     if (!mounted || action == null) return;
+    if (action == _HomeAccountAction.newConversation) {
+      await _openRoomCreation();
+      return;
+    }
     if (action == _HomeAccountAction.invites) {
       await _openInvitesSheet();
       return;
@@ -371,6 +383,19 @@ class _HomeSidebarState extends State<_HomeSidebar> {
           ),
         );
     }
+  }
+
+  Future<void> _openRoomCreation() async {
+    final coordinator = widget.roomCreation;
+    if (coordinator == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => RoomCreationScreen(
+          coordinator: coordinator,
+          onCreated: (_) => Navigator.of(routeContext).pop(),
+        ),
+      ),
+    );
   }
 
   Future<void> _openInvitesSheet() {
@@ -474,17 +499,25 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   }
 }
 
-enum _HomeAccountAction { invites, filterChats, markAllRead, signOut }
+enum _HomeAccountAction {
+  newConversation,
+  invites,
+  filterChats,
+  markAllRead,
+  signOut,
+}
 
 class _HomeAccountSheet extends StatelessWidget {
   const _HomeAccountSheet({
     required this.session,
+    required this.canCreateRoom,
     required this.canMarkAllRead,
     required this.inviteCount,
     required this.selectedFilter,
   });
 
   final AuthenticatedSession session;
+  final bool canCreateRoom;
   final bool canMarkAllRead;
   final int inviteCount;
   final RoomListFilter selectedFilter;
@@ -521,6 +554,16 @@ class _HomeAccountSheet extends StatelessWidget {
                 ),
               ),
               const Divider(height: KiteSpacing.lg),
+              if (canCreateRoom)
+                ListTile(
+                  key: const Key('home-account-new-conversation'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.add_comment_outlined),
+                  title: const Text('New conversation'),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pop(_HomeAccountAction.newConversation),
+                ),
               if (inviteCount > 0)
                 ListTile(
                   key: const Key('home-account-invites'),

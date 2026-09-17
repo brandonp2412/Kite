@@ -79,6 +79,21 @@ final class MatrixAccountRuntimeRegistry {
     return _runtimes[normalizedAccountId]?.runtime.paginationState(roomId);
   }
 
+  Future<MatrixSdkCreatedRoom> createRoom({
+    required String accountId,
+    required MatrixSdkRoomCreationRequest request,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<MatrixSdkCreatedRoom>.error(
+        StateError('Cannot create a Matrix room for an inactive account'),
+      );
+    }
+    return active.engine.createRoom(request);
+  }
+
   Future<void> setRoomFavourite({
     required String accountId,
     required String roomId,

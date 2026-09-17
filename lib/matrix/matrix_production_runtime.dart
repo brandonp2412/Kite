@@ -172,6 +172,13 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<MatrixSdkCreatedRoom> createRoom({
+    required String accountId,
+    required MatrixSdkRoomCreationRequest request,
+  }) {
+    return accounts.createRoom(accountId: accountId, request: request);
+  }
+
   Future<void> setRoomFavourite({
     required String accountId,
     required String roomId,

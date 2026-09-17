@@ -11,7 +11,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 12;
+const int kiteMatrixNativeAbiVersion = 13;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -123,6 +123,14 @@ typedef _ClientPaginateDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
 );
+typedef _ClientCreateRoomNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+);
+typedef _ClientCreateRoomDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+);
 typedef _ClientSetRoomFavouriteNative = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
@@ -198,6 +206,13 @@ final class MatrixRustSendResult {
   const MatrixRustSendResult({required this.eventId});
 
   final String eventId;
+}
+
+final class MatrixRustCreatedRoom {
+  const MatrixRustCreatedRoom({required this.roomId, required this.isDirect});
+
+  final String roomId;
+  final bool isDirect;
 }
 
 final class MatrixRustRoomMember {
@@ -530,6 +545,44 @@ final class _MatrixNativeSyncOperation {
   }
 }
 
+final class _MatrixNativeCreateRoomOperation {
+  const _MatrixNativeCreateRoomOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.payload,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String payload;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final createRoom = library
+        .lookupFunction<_ClientCreateRoomNative, _ClientCreateRoomDart>(
+          'kite_matrix_client_create_room',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final payloadUtf8 = payload.toNativeUtf8(allocator: calloc);
+    try {
+      final response = _readNativeString(
+        createRoom(
+          Pointer<Void>.fromAddress(address),
+          payloadUtf8.cast<Char>(),
+        ),
+        freeString,
+        'room creation',
+      );
+      return _decodeNativeEnvelope(response);
+    } finally {
+      calloc.free(payloadUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeSetRoomFavouriteOperation {
   const _MatrixNativeSetRoomFavouriteOperation({
     required this.libraryPath,
@@ -838,6 +891,12 @@ abstract interface class MatrixRustBridge {
   });
 }
 
+abstract interface class MatrixRustRoomCreator {
+  Future<MatrixRustCreatedRoom> createRoom(
+    MatrixSdkRoomCreationRequest request,
+  );
+}
+
 abstract interface class MatrixRustRoomMembersClient {
   Future<List<MatrixRustRoomMember>> roomMembers({required String roomId});
 }
@@ -1020,6 +1079,7 @@ final class MatrixRustNativeClient
         MatrixRustClient,
         MatrixRustSessionClient,
         MatrixRustLogoutClient,
+        MatrixRustRoomCreator,
         MatrixRustRoomMembersClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
@@ -1149,6 +1209,49 @@ final class MatrixRustNativeClient
         );
       }
       return MatrixRustSendResult(eventId: eventId);
+    });
+  }
+
+  @override
+  Future<MatrixRustCreatedRoom> createRoom(
+    MatrixSdkRoomCreationRequest request,
+  ) {
+    final payload = jsonEncode(<String, Object?>{
+      'kind': request.kind.name,
+      'name': request.name,
+      'topic': request.topic,
+      'invitees': request.invitees,
+      'joinRule': request.joinRule,
+      'encryptionEnabled': request.encryptionEnabled,
+      'historyVisibility': request.historyVisibility,
+      'canonicalAlias': request.canonicalAlias,
+      'parentSpaceId': request.parentSpaceId,
+    });
+    return _enqueue<MatrixRustCreatedRoom>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeCreateRoomOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          payload: payload,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid room creation data.',
+        );
+      }
+      final roomId = decoded['roomId'];
+      final isDirect = decoded['isDirect'];
+      if (roomId is! String || roomId.isEmpty || isDirect is! bool) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid room creation data.',
+        );
+      }
+      return MatrixRustCreatedRoom(roomId: roomId, isDirect: isDirect);
     });
   }
 
@@ -1488,6 +1591,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkBoundary,
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
+        MatrixSdkRoomCreator,
         MatrixSdkRoomMemberDirectory,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomInviteManager,
@@ -1596,6 +1700,27 @@ final class MatrixRustSdkBoundary
         body: body,
       );
       return result.eventId;
+    });
+  }
+
+  @override
+  Future<MatrixSdkCreatedRoom> createRoom(
+    MatrixSdkRoomCreationRequest request,
+  ) {
+    return _enqueue<MatrixSdkCreatedRoom>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomCreator) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room creation',
+        );
+      }
+      final created = await (client as MatrixRustRoomCreator).createRoom(
+        request,
+      );
+      return MatrixSdkCreatedRoom(
+        roomId: created.roomId,
+        isDirect: created.isDirect,
+      );
     });
   }
 

@@ -67,6 +67,19 @@ void main() {
         transactionId: 'kite-transaction-1',
         body: 'Hello Matrix',
       );
+      final created = await boundary.createRoom(
+        MatrixSdkRoomCreationRequest(
+          kind: MatrixSdkRoomCreationKind.privateRoom,
+          name: 'Kite room',
+          topic: null,
+          invitees: const <String>[],
+          joinRule: 'invite',
+          encryptionEnabled: true,
+          historyVisibility: 'joined',
+          canonicalAlias: null,
+          parentSpaceId: null,
+        ),
+      );
       await boundary.setRoomFavourite('!room:kite.test', true);
       await boundary.respondToRoomInvite('!invite:kite.test', true);
       await boundary.markRoomRead('!room:kite.test', r'$event');
@@ -77,6 +90,9 @@ void main() {
         ('@alice:kite.test', 'test-password'),
       ]);
       expect(eventId, r'$sent');
+      expect(created.roomId, '!created:kite.test');
+      expect(created.isDirect, isFalse);
+      expect(client.createRequests.single.name, 'Kite room');
       expect(client.sendCalls, <(String, String, String)>[
         ('!room:kite.test', 'kite-transaction-1', 'Hello Matrix'),
       ]);
@@ -998,6 +1014,7 @@ final class _RecoveringRustClient implements MatrixRustClient {
 final class _FakeRustClient
     implements
         MatrixRustClient,
+        MatrixRustRoomCreator,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
@@ -1008,6 +1025,8 @@ final class _FakeRustClient
   final List<String> paginationCalls = <String>[];
   final List<(String, String, String)> sendCalls = <(String, String, String)>[];
   final List<(String, String)> loginCalls = <(String, String)>[];
+  final List<MatrixSdkRoomCreationRequest> createRequests =
+      <MatrixSdkRoomCreationRequest>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, bool)> inviteResponses = <(String, bool)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
@@ -1027,6 +1046,17 @@ final class _FakeRustClient
     return const MatrixRustLoginResult(
       userId: '@alice:kite.test',
       deviceId: 'KITEDEVICE',
+    );
+  }
+
+  @override
+  Future<MatrixRustCreatedRoom> createRoom(
+    MatrixSdkRoomCreationRequest request,
+  ) async {
+    createRequests.add(request);
+    return const MatrixRustCreatedRoom(
+      roomId: '!created:kite.test',
+      isDirect: false,
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
@@ -60,6 +61,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
     this.onRoomInviteResponse,
+    this.roomCreation,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -71,6 +73,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final MatrixRoomInviteResponse? onRoomInviteResponse;
+  final RoomManagementCoordinator? roomCreation;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -122,6 +125,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       roomListStore: _binding.roomListStore,
       inviteStore: _binding.inviteStore,
       timeline: _binding.controller,
+      roomCreation: widget.roomCreation,
       onTimelineHistoryRequested: widget.onTimelineHistoryRequested,
       onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
       onMarkAllRoomsRead: widget.onMarkAllRoomsRead,

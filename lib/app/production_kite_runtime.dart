@@ -5,6 +5,8 @@ import 'package:kite/app/kite_runtime.dart';
 import 'package:kite/app/platform_matrix_bootstrap_gateway.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
+import 'package:kite/features/rooms/matrix_room_creation_adapter.dart';
+import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
@@ -199,6 +201,18 @@ final class _AuthenticatedMatrixHomeState
     );
   }
 
+  RoomManagementCoordinator _roomCreationCoordinator() {
+    return RoomManagementCoordinator(
+      rooms: MatrixRoomCreationManagementPort(
+        (request) => widget.runtime.createRoom(
+          accountId: widget.session.userId,
+          request: request,
+        ),
+      ),
+      directMetadata: const MatrixDirectRoomMetadataPort(),
+    );
+  }
+
   void _retry() {
     setState(() {
       _activation = _startActivation();
@@ -242,6 +256,7 @@ final class _AuthenticatedMatrixHomeState
                   roomId: roomId,
                   accept: accept,
                 ),
+            roomCreation: _roomCreationCoordinator(),
             onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
               final paginationState = widget.runtime.paginationState(
                 accountId: widget.session.userId,

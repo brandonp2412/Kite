@@ -59,6 +59,43 @@ final class MatrixSdkRoomMember {
   final int powerLevel;
 }
 
+enum MatrixSdkRoomCreationKind { directMessage, privateRoom, publicRoom }
+
+final class MatrixSdkRoomCreationRequest {
+  MatrixSdkRoomCreationRequest({
+    required this.kind,
+    required this.name,
+    required this.topic,
+    required Iterable<String> invitees,
+    required this.joinRule,
+    required this.encryptionEnabled,
+    required this.historyVisibility,
+    required this.canonicalAlias,
+    required this.parentSpaceId,
+  }) : invitees = List<String>.unmodifiable(invitees);
+
+  final MatrixSdkRoomCreationKind kind;
+  final String? name;
+  final String? topic;
+  final List<String> invitees;
+  final String joinRule;
+  final bool encryptionEnabled;
+  final String historyVisibility;
+  final String? canonicalAlias;
+  final String? parentSpaceId;
+}
+
+final class MatrixSdkCreatedRoom {
+  const MatrixSdkCreatedRoom({required this.roomId, required this.isDirect});
+
+  final String roomId;
+  final bool isDirect;
+}
+
+abstract interface class MatrixSdkRoomCreator {
+  Future<MatrixSdkCreatedRoom> createRoom(MatrixSdkRoomCreationRequest request);
+}
+
 abstract interface class MatrixSdkRoomMemberDirectory {
   Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
 }
@@ -227,6 +264,19 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       transactionId: transactionId,
       body: body,
     );
+  }
+
+  Future<MatrixSdkCreatedRoom> createRoom(
+    MatrixSdkRoomCreationRequest request,
+  ) async {
+    final creator = _boundary;
+    if (creator is! MatrixSdkRoomCreator) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room creation',
+      );
+    }
+    await _ensureOpen();
+    return (creator as MatrixSdkRoomCreator).createRoom(request);
   }
 
   Future<void> setRoomFavourite(String roomId, bool isFavourite) async {

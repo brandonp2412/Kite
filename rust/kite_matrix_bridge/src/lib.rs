@@ -11,26 +11,49 @@ use matrix_sdk::{
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
-        EventId, OwnedTransactionId, RoomId, UInt, UserId,
+        EventId, OwnedTransactionId, OwnedUserId, RoomAliasId, RoomId, UInt, UserId,
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
                 receipt::create_receipt,
+                room::{Visibility, create_room},
                 session::get_login_types::v3::LoginType,
             },
             error::ErrorKind,
         },
         events::{
+            InitialStateEvent,
             receipt::ReceiptThread,
-            room::{message::RoomMessageEventContent, power_levels::UserPowerLevel},
+            room::{
+                encryption::RoomEncryptionEventContent,
+                history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
+                join_rules::{JoinRule, RoomJoinRulesEventContent},
+                message::RoomMessageEventContent,
+                power_levels::UserPowerLevel,
+            },
         },
     },
 };
+use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 12;
+const KITE_MATRIX_ABI_VERSION: u32 = 13;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateRoomRequest {
+    kind: String,
+    name: Option<String>,
+    topic: Option<String>,
+    invitees: Vec<String>,
+    join_rule: String,
+    encryption_enabled: bool,
+    history_visibility: String,
+    canonical_alias: Option<String>,
+    parent_space_id: Option<String>,
+}
 
 pub struct KiteMatrixClient {
     client: Option<Client>,
@@ -712,6 +735,209 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_create_room(
+    client: *mut KiteMatrixClient,
+    request_json: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix room creation is unavailable.");
+    }
+    let Some(request_json) = (unsafe { required_utf8(request_json) }) else {
+        return error_json(
+            "invalid_room_request",
+            "The room creation request is invalid.",
+        );
+    };
+    let Ok(request) = serde_json::from_str::<CreateRoomRequest>(request_json) else {
+        return error_json(
+            "invalid_room_request",
+            "The room creation request is invalid.",
+        );
+    };
+    if request.parent_space_id.is_some() {
+        return error_json(
+            "unsupported_parent_space",
+            "Creating a room inside a Space is not available yet.",
+        );
+    }
+
+    let is_direct = request.kind == "directMessage";
+    let is_private = request.kind == "privateRoom";
+    let is_public = request.kind == "publicRoom";
+    if !is_direct && !is_private && !is_public {
+        return error_json("invalid_room_kind", "The room creation type is invalid.");
+    }
+    if (is_direct || is_private) && request.join_rule != "invite" {
+        return error_json(
+            "invalid_join_rule",
+            "The requested room join rule is not supported.",
+        );
+    }
+    if is_public && request.join_rule != "public" {
+        return error_json(
+            "invalid_join_rule",
+            "The requested room join rule is not supported.",
+        );
+    }
+    if request.invitees.iter().any(|value| value.contains('\0'))
+        || request
+            .name
+            .as_ref()
+            .is_some_and(|value| value.contains('\0'))
+        || request
+            .topic
+            .as_ref()
+            .is_some_and(|value| value.contains('\0'))
+        || request
+            .canonical_alias
+            .as_ref()
+            .is_some_and(|value| value.contains('\0'))
+    {
+        return error_json(
+            "invalid_room_request",
+            "The room creation request is invalid.",
+        );
+    }
+
+    let invitees = match request
+        .invitees
+        .iter()
+        .map(|user_id| UserId::parse(user_id).map(Into::<OwnedUserId>::into))
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(invitees) => invitees,
+        Err(_) => return error_json("invalid_invitee", "A Matrix invitee is invalid."),
+    };
+    if is_direct && invitees.len() != 1 {
+        return error_json(
+            "invalid_direct_invitee",
+            "A direct conversation requires exactly one Matrix user.",
+        );
+    }
+
+    let history_visibility = match request.history_visibility.as_str() {
+        "invited" => HistoryVisibility::Invited,
+        "joined" => HistoryVisibility::Joined,
+        "shared" => HistoryVisibility::Shared,
+        "worldReadable" => HistoryVisibility::WorldReadable,
+        _ => {
+            return error_json(
+                "invalid_history_visibility",
+                "The room history visibility is invalid.",
+            );
+        }
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix room creation is unavailable.");
+    };
+    let mut native_request = create_room::v3::Request::new();
+    native_request.name = request.name.filter(|value| !value.trim().is_empty());
+    native_request.topic = request.topic.filter(|value| !value.trim().is_empty());
+    native_request.invite = invitees.clone();
+    native_request.is_direct = is_direct;
+    native_request.preset = Some(if is_public {
+        create_room::v3::RoomPreset::PublicChat
+    } else if is_direct {
+        create_room::v3::RoomPreset::TrustedPrivateChat
+    } else {
+        create_room::v3::RoomPreset::PrivateChat
+    });
+    native_request.visibility = if is_public {
+        Visibility::Public
+    } else {
+        Visibility::Private
+    };
+    native_request.initial_state.push(
+        InitialStateEvent::with_empty_state_key(RoomJoinRulesEventContent::new(if is_public {
+            JoinRule::Public
+        } else {
+            JoinRule::Invite
+        }))
+        .to_raw_any(),
+    );
+    native_request.initial_state.push(
+        InitialStateEvent::with_empty_state_key(RoomHistoryVisibilityEventContent::new(
+            history_visibility,
+        ))
+        .to_raw_any(),
+    );
+    if request.encryption_enabled {
+        native_request.initial_state.push(
+            InitialStateEvent::with_empty_state_key(
+                RoomEncryptionEventContent::with_recommended_defaults(),
+            )
+            .to_raw_any(),
+        );
+    }
+    if let Some(alias) = request.canonical_alias {
+        let Ok(alias) = RoomAliasId::parse(alias) else {
+            return error_json("invalid_room_alias", "The Matrix room address is invalid.");
+        };
+        let Some(user_id) = matrix_client.user_id() else {
+            return error_json(
+                "authentication_required",
+                "The Matrix session is unavailable.",
+            );
+        };
+        if alias.server_name() != user_id.server_name() {
+            return error_json(
+                "invalid_room_alias",
+                "The room address must use the signed-in account server.",
+            );
+        }
+        native_request.room_alias_name = Some(alias.alias().to_owned());
+    }
+
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let room = match client
+        .runtime
+        .block_on(matrix_client.create_room(native_request))
+    {
+        Ok(room) => room,
+        Err(_) => {
+            return error_json(
+                "room_create_failed",
+                "The Matrix room could not be created.",
+            );
+        }
+    };
+    if is_direct
+        && client
+            .runtime
+            .block_on(
+                matrix_client
+                    .account()
+                    .mark_as_dm(room.room_id(), &invitees),
+            )
+            .is_err()
+    {
+        return error_json(
+            "direct_metadata_failed",
+            "The direct conversation was created but could not be marked as a DM.",
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({"roomId": room.room_id().as_str(), "isDirect": is_direct}))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_respond_to_invite(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -1085,7 +1311,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 12);
+        assert_eq!(kite_matrix_abi_version(), 13);
     }
 
     #[test]
@@ -1185,6 +1411,12 @@ mod tests {
         let sync = unsafe { kite_matrix_client_sync_once(ptr::null_mut(), 0, ptr::null(), 20) };
         let favourite =
             unsafe { kite_matrix_client_set_room_favourite(ptr::null_mut(), room_id.as_ptr(), 1) };
+        let create_request = CString::new(
+            r#"{"kind":"privateRoom","name":"Test","topic":null,"invitees":[],"joinRule":"invite","encryptionEnabled":true,"historyVisibility":"joined","canonicalAlias":null,"parentSpaceId":null}"#,
+        )
+        .unwrap();
+        let create =
+            unsafe { kite_matrix_client_create_room(ptr::null_mut(), create_request.as_ptr()) };
         let event_id = CString::new("$event:kite.test").unwrap();
         let read = unsafe {
             kite_matrix_client_mark_room_read(ptr::null_mut(), room_id.as_ptr(), event_id.as_ptr())
@@ -1192,7 +1424,7 @@ mod tests {
         let members = unsafe { kite_matrix_client_room_members(ptr::null_mut(), room_id.as_ptr()) };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
-        for result in [login, logout, send, favourite, read] {
+        for result in [login, logout, send, favourite, create, read] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();
             assert!(decoded.contains("\"ok\":false"));

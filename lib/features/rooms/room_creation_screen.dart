@@ -239,6 +239,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
                               DropdownButtonFormField<KiteRoomJoinRule>(
                                 key: const Key('room-create-join-rule'),
                                 initialValue: _joinRule,
+                                isExpanded: true,
                                 decoration: const InputDecoration(
                                   labelText: 'Who can join',
                                 ),

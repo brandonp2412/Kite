@@ -6,6 +6,8 @@ import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/testing/deterministic_room_management_adapter.dart';
 
 void main() {
   test('room-list store updates one stable room signal', () {
@@ -366,6 +368,48 @@ void main() {
     expect(find.byKey(const Key('room-room-3')), findsOneWidget);
     expect(find.byKey(const Key('room-alice')), findsNothing);
     expect(find.byKey(const Key('room-filter-row')), findsNothing);
+  });
+
+  testWidgets('room creation stays in the contextual account menu', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final coordinator = RoomManagementCoordinator(
+      rooms: DeterministicRoomManagementPort(),
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    final session = AuthenticatedSession(
+      userId: '@me:example.org',
+      deviceId: 'KITE',
+      homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: AuthenticatedAccountScope(
+          session: session,
+          signOut: () async {},
+          child: HomeScreen(roomCreation: coordinator),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('New conversation'), findsNothing);
+    await tester.tap(find.byKey(const Key('home-account-menu')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('home-account-new-conversation')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('home-account-new-conversation')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('room-creation-screen')), findsOneWidget);
   });
 
   testWidgets('search is the only persistent homepage chat filter', (
