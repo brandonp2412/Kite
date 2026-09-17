@@ -122,12 +122,33 @@ void main() {
       expect(mediaUploads.single.$1, 'image/jpeg');
       expect(mediaUploads.single.$2, <int>[9, 8, 7]);
 
+      final downloaded = await registry.downloadMedia(
+        accountId: '@alice:example.org',
+        contentUri: 'mxc://example.org/avatar',
+        width: 384,
+        height: 384,
+      );
+      expect(downloaded, <int>[4, 3, 2, 1]);
+      expect(
+        boundaries['@alice:example.org']!.mediaDownloads,
+        <(String, int, int)>[('mxc://example.org/avatar', 384, 384)],
+      );
+
       await registry.activate('@bob:example.org');
       expect(
         () => registry.uploadMedia(
           accountId: '@alice:example.org',
           mimeType: 'image/jpeg',
           bytes: Uint8List.fromList(<int>[1]),
+        ),
+        throwsStateError,
+      );
+      expect(
+        () => registry.downloadMedia(
+          accountId: '@alice:example.org',
+          contentUri: 'mxc://example.org/avatar',
+          width: 384,
+          height: 384,
         ),
         throwsStateError,
       );
@@ -608,6 +629,33 @@ void main() {
       expect(effectRuns, 2);
     },
   );
+
+  test('empty restored cache discards its cursor before sync starts', () async {
+    final boundaries = <String, _FakeAccountBoundary>{};
+    final presentationStore = _MemoryPresentationStore(
+      <String, MatrixPresentationSnapshot>{
+        '@alice:example.org': MatrixPresentationSnapshot(
+          rooms: const <MatrixRoomSummary>[],
+          syncCursor: 'stale-empty-cursor',
+        ),
+      },
+    );
+    final registry = _registry(
+      boundaries,
+      presentationStore: presentationStore,
+    );
+    addTearDown(registry.dispose);
+
+    await registry.activate('@alice:example.org');
+
+    expect(
+      boundaries['@alice:example.org']!.lastSyncConfiguration?.resumeFromCursor,
+      isNull,
+    );
+    expect(registry.activeCache?.roomOrder.value, <String>[
+      '!alice:example.org',
+    ]);
+  });
 
   test(
     'restored cache is observable before network sync startup completes',
@@ -1800,6 +1848,7 @@ final class _FakeAccountBoundary
       <(String, String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
+  final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String, String?, String?)> roomLifecycleActions =
       <(String, String, String?, String?)>[];
@@ -1814,6 +1863,16 @@ final class _FakeAccountBoundary
   }) async {
     mediaUploads.add((mimeType, List<int>.from(bytes)));
     return 'mxc://example.org/$accountId-uploaded';
+  }
+
+  @override
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+  }) async {
+    mediaDownloads.add((contentUri, width, height));
+    return Uint8List.fromList(<int>[4, 3, 2, 1]);
   }
 
   @override

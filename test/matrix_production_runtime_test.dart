@@ -106,6 +106,17 @@ void main() {
       expect(boundary.mediaUploads.single.$1, 'image/png');
       expect(boundary.mediaUploads.single.$2, <int>[1, 2, 3, 4]);
 
+      final downloadedMedia = await runtime.downloadMedia(
+        accountId: '@alice:example.org',
+        contentUri: 'mxc://example.org/avatar',
+        width: 384,
+        height: 384,
+      );
+      expect(downloadedMedia, <int>[4, 3, 2, 1]);
+      expect(boundary.mediaDownloads, <(String, int, int)>[
+        ('mxc://example.org/avatar', 384, 384),
+      ]);
+
       final ownProfile = await runtime.loadOwnProfile(
         accountId: '@alice:example.org',
       );
@@ -319,6 +330,7 @@ final class _FakeBoundary
   final List<(String, String)> readReceipts = <(String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
+  final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -363,6 +375,16 @@ final class _FakeBoundary
   }) async {
     mediaUploads.add((mimeType, List<int>.from(bytes)));
     return 'mxc://example.org/uploaded';
+  }
+
+  @override
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+  }) async {
+    mediaDownloads.add((contentUri, width, height));
+    return Uint8List.fromList(<int>[4, 3, 2, 1]);
   }
 
   @override

@@ -92,6 +92,23 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.uploadMedia(mimeType: mimeType, bytes: bytes);
   }
 
+  Future<Uint8List> downloadMedia({
+    required String accountId,
+    required String contentUri,
+    required int width,
+    required int height,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot download Matrix media for an inactive account',
+    );
+    return active.engine.downloadMedia(
+      contentUri: contentUri,
+      width: width,
+      height: height,
+    );
+  }
+
   Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) {
     final active = _requireActiveAccount(
       accountId,
@@ -890,6 +907,9 @@ final class MatrixAccountRuntimeRegistry {
       final snapshot = await presentationStore?.load(accountId);
       if (snapshot != null) {
         runtime.cache.restore(snapshot);
+        if (snapshot.rooms.isEmpty) {
+          runtime.cache.lastSyncCursor = null;
+        }
       }
     } catch (_) {
       runtime.hydrated = true;

@@ -67,6 +67,11 @@ void main() {
         mimeType: 'image/png',
         bytes: Uint8List.fromList(<int>[1, 2, 3]),
       );
+      final downloadedMedia = await boundary.downloadMedia(
+        contentUri: 'mxc://kite.test/avatar',
+        width: 384,
+        height: 384,
+      );
       final ownProfile = await boundary.loadOwnProfile();
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
       await boundary.updateDisplayName('Alice Updated');
@@ -153,6 +158,10 @@ void main() {
       expect(client.mediaUploads, hasLength(1));
       expect(client.mediaUploads.single.$1, 'image/png');
       expect(client.mediaUploads.single.$2, <int>[1, 2, 3]);
+      expect(downloadedMedia, <int>[4, 3, 2, 1]);
+      expect(client.mediaDownloads, <(String, int, int)>[
+        ('mxc://kite.test/avatar', 384, 384),
+      ]);
       expect(ownProfile.userId, '@alice:kite.test');
       expect(ownProfile.displayName, 'Alice');
       expect(ownProfile.avatarUrl, 'mxc://kite.test/alice-old');
@@ -1162,6 +1171,7 @@ final class _FakeRustClient
   final List<(String?, String, String?)> profileCalls =
       <(String?, String, String?)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
+  final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
 
   bool _closed = false;
@@ -1286,6 +1296,16 @@ final class _FakeRustClient
   }) async {
     mediaUploads.add((mimeType, List<int>.from(bytes)));
     return 'mxc://kite.test/uploaded-media';
+  }
+
+  @override
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+  }) async {
+    mediaDownloads.add((contentUri, width, height));
+    return Uint8List.fromList(<int>[4, 3, 2, 1]);
   }
 
   @override

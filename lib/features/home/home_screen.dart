@@ -64,6 +64,8 @@ class HomeScreen extends StatelessWidget {
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
+    this.profileAvatarImageProvider,
+    this.roomListLoading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -80,6 +82,8 @@ class HomeScreen extends StatelessWidget {
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
+  final AvatarImageProvider? profileAvatarImageProvider;
+  final bool roomListLoading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -112,6 +116,8 @@ class HomeScreen extends StatelessWidget {
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
                 profileAvatarPicker: profileAvatarPicker,
+                profileAvatarImageProvider: profileAvatarImageProvider,
+                roomListLoading: roomListLoading,
                 onRoomTap: (roomId) {
                   selectRoom(roomId);
                   Navigator.of(context).push(
@@ -156,6 +162,8 @@ class HomeScreen extends StatelessWidget {
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
                 profileAvatarPicker: profileAvatarPicker,
+                profileAvatarImageProvider: profileAvatarImageProvider,
+                roomListLoading: roomListLoading,
               ),
             ),
             const VerticalDivider(width: 1),
@@ -225,6 +233,8 @@ class _HomeSidebar extends StatefulWidget {
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
+    this.profileAvatarImageProvider,
+    this.roomListLoading = false,
     this.onRoomTap,
   });
 
@@ -235,6 +245,8 @@ class _HomeSidebar extends StatefulWidget {
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
+  final AvatarImageProvider? profileAvatarImageProvider;
+  final bool roomListLoading;
   final ValueChanged<String>? onRoomTap;
 
   @override
@@ -336,6 +348,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
           builder: (_) => UserProfileScreen.own(
             controller: controller,
             pickAvatar: widget.profileAvatarPicker,
+            avatarImageProvider: widget.profileAvatarImageProvider,
           ),
         ),
       );
@@ -513,6 +526,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
             onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
             onRoomTap: widget.onRoomTap,
             query: _searchQuery,
+            roomListLoading: widget.roomListLoading,
           ),
         ),
       ],
@@ -927,12 +941,14 @@ class _RoomList extends StatelessWidget {
     this.onRoomFavouriteChanged,
     this.onRoomTap,
     this.query = '',
+    this.roomListLoading = false,
   });
 
   final RoomListStateStore store;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final ValueChanged<String>? onRoomTap;
   final String query;
+  final bool roomListLoading;
 
   Future<void> _showMoveSectionSheet(BuildContext context, String roomId) {
     final currentSectionId = store.sectionIdFor(roomId);
@@ -1089,6 +1105,11 @@ class _RoomList extends StatelessWidget {
               })
               .toList(growable: false);
           if (ids.isEmpty) {
+            if (roomListLoading && store.roomIds.isEmpty) {
+              return const Center(
+                child: CircularProgressIndicator(key: Key('room-list-loading')),
+              );
+            }
             return Center(
               child: Text(
                 normalizedQuery.isEmpty &&

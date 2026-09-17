@@ -139,6 +139,12 @@ abstract interface class MatrixSdkMediaManager {
     required String mimeType,
     required Uint8List bytes,
   });
+
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+  });
 }
 
 abstract interface class MatrixSdkProfileManager {
@@ -399,6 +405,54 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       mimeType: normalizedMimeType,
       bytes: bytes,
     );
+  }
+
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkMediaManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support media downloads',
+      );
+    }
+    final normalizedContentUri = contentUri.trim();
+    final uri = Uri.tryParse(normalizedContentUri);
+    if (uri == null ||
+        uri.scheme != 'mxc' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.pathSegments.length != 1 ||
+        uri.pathSegments.single.isEmpty ||
+        normalizedContentUri.contains('\u0000')) {
+      throw ArgumentError.value(
+        contentUri,
+        'contentUri',
+        'must be a valid Matrix content URI without NUL bytes',
+      );
+    }
+    if (width <= 0 || width > 4096) {
+      throw ArgumentError.value(width, 'width', 'must be between 1 and 4096');
+    }
+    if (height <= 0 || height > 4096) {
+      throw ArgumentError.value(height, 'height', 'must be between 1 and 4096');
+    }
+    await _ensureOpen();
+    final bytes = await (manager as MatrixSdkMediaManager).downloadMedia(
+      contentUri: normalizedContentUri,
+      width: width,
+      height: height,
+    );
+    if (bytes.isEmpty) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary returned empty media data',
+      );
+    }
+    return bytes;
   }
 
   Future<MatrixSdkProfileDetails> loadOwnProfile() async {

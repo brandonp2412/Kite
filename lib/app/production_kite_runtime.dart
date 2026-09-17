@@ -5,6 +5,7 @@ import 'package:kite/app/kite_runtime.dart';
 import 'package:kite/app/platform_matrix_bootstrap_gateway.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
+import 'package:kite/features/profile/matrix_avatar_image_provider.dart';
 import 'package:kite/features/profile/platform_avatar_picker.dart';
 import 'package:kite/features/rooms/matrix_room_creation_adapter.dart';
 import 'package:kite/features/rooms/matrix_room_member_management_adapter.dart';
@@ -208,6 +209,20 @@ final class _AuthenticatedMatrixHomeState
     );
   }
 
+  ImageProvider<Object>? _profileAvatarImageProvider(Uri? avatarUri) {
+    if (avatarUri == null) return null;
+    return MatrixAvatarImageProvider(
+      avatarUri: avatarUri,
+      cacheNamespace: widget.runtime,
+      loadBytes: (contentUri) => widget.runtime.downloadMedia(
+        accountId: widget.session.userId,
+        contentUri: contentUri.toString(),
+        width: 384,
+        height: 384,
+      ),
+    );
+  }
+
   Future<Uri?> _pickProfileAvatar() {
     return PlatformAvatarPicker(
       uploadMedia: ({required mimeType, required bytes}) =>
@@ -393,6 +408,7 @@ final class _AuthenticatedMatrixHomeState
                   accept: accept,
                 ),
             profileAvatarPicker: _pickProfileAvatar,
+            profileAvatarImageProvider: _profileAvatarImageProvider,
             roomCreation: _roomCreationCoordinator(),
             memberManagement: _roomMemberManagementCoordinator(),
             onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {

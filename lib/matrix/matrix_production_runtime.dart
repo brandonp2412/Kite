@@ -183,6 +183,18 @@ final class MatrixProductionRuntime
     bytes: bytes,
   );
 
+  Future<Uint8List> downloadMedia({
+    required String accountId,
+    required String contentUri,
+    required int width,
+    required int height,
+  }) => accounts.downloadMedia(
+    accountId: accountId,
+    contentUri: contentUri,
+    width: width,
+    height: height,
+  );
+
   Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) =>
       accounts.loadOwnProfile(accountId: accountId);
 

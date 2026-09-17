@@ -12,6 +12,7 @@ final class MatrixPresentationCache {
   final Signal<List<MatrixRoomInvite>> invites = signal<List<MatrixRoomInvite>>(
     const <MatrixRoomInvite>[],
   );
+  final Signal<bool> hasReceivedSyncBatch = signal<bool>(false);
   final Map<String, Signal<MatrixRoomSummary?>> _roomSummaries =
       <String, Signal<MatrixRoomSummary?>>{};
   final Map<String, Signal<List<MatrixTimelineEvent>>> _timelines =
@@ -45,7 +46,9 @@ final class MatrixPresentationCache {
               timelineEventLimitPerRoom,
             ),
       },
-      syncCursor: preservesCompleteRoomSet ? lastSyncCursor : null,
+      syncCursor: preservesCompleteRoomSet && roomOrder.value.isNotEmpty
+          ? lastSyncCursor
+          : null,
     );
   }
 
@@ -175,6 +178,7 @@ final class MatrixPresentationCache {
   void applySync(MatrixSyncBatch syncBatch) {
     _validateSyncBatch(syncBatch);
     batch(() {
+      hasReceivedSyncBatch.value = true;
       _reconcileInvites(syncBatch);
       var roomOrderDirty = false;
       for (final roomId in syncBatch.removedRoomIds) {

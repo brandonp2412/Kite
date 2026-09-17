@@ -4,6 +4,26 @@ import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
 void main() {
+  test('empty presentation state does not persist a resume cursor', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: const <MatrixRoomSummary>[],
+        syncCursor: 'stale-cursor',
+      ),
+    );
+
+    expect(cache.lastSyncCursor, 'stale-cursor');
+    expect(cache.hasReceivedSyncBatch.value, isFalse);
+
+    cache.applySync(
+      const MatrixSyncBatch(cursor: 'fresh-cursor', rooms: <MatrixRoomDelta>[]),
+    );
+
+    expect(cache.hasReceivedSyncBatch.value, isTrue);
+    expect(cache.lastSyncCursor, 'fresh-cursor');
+    expect(cache.snapshot().syncCursor, isNull);
+  });
+
   test('restored presentation data is readable synchronously before sync', () {
     final cachedEvent = _event(
       eventId: r'$cached',

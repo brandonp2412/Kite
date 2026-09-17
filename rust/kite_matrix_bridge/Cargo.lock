@@ -1558,6 +1558,7 @@ dependencies = [
 name = "kite_matrix_bridge"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "matrix-sdk",
  "mime",
  "serde",

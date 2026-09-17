@@ -12,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 19;
+const int kiteMatrixNativeAbiVersion = 20;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -248,6 +248,18 @@ typedef _ClientUploadMediaDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
   Pointer<Uint8>,
+  int,
+);
+typedef _ClientDownloadMediaNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Uint64,
+  Uint64,
+);
+typedef _ClientDownloadMediaDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  int,
   int,
 );
 typedef _DiscoverAuthenticationNative = Pointer<Char> Function(Pointer<Char>);
@@ -1150,6 +1162,83 @@ final class _MatrixNativeUploadMediaOperation {
   }
 }
 
+final class _MatrixNativeDownloadMediaOperation {
+  const _MatrixNativeDownloadMediaOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.contentUri,
+    required this.width,
+    required this.height,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String contentUri;
+  final int width;
+  final int height;
+
+  Uint8List call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final download = library
+        .lookupFunction<_ClientDownloadMediaNative, _ClientDownloadMediaDart>(
+          'kite_matrix_client_download_media',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final contentUriUtf8 = contentUri.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        download(
+          Pointer<Void>.fromAddress(address),
+          contentUriUtf8.cast<Char>(),
+          width,
+          height,
+        ),
+        freeString,
+        'media download',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media data.',
+        );
+      }
+      final encoded = decoded['data'];
+      if (encoded is! String || encoded.isEmpty) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media data.',
+        );
+      }
+      Uint8List bytes;
+      try {
+        bytes = base64Decode(encoded);
+      } on FormatException {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media data.',
+        );
+      }
+      if (bytes.isEmpty) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media data.',
+        );
+      }
+      return bytes;
+    } finally {
+      calloc.free(contentUriUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomSettingsOperation {
   const _MatrixNativeRoomSettingsOperation({
     required this.libraryPath,
@@ -1436,6 +1525,12 @@ abstract interface class MatrixRustMediaClient {
   Future<String> uploadMedia({
     required String mimeType,
     required Uint8List bytes,
+  });
+
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
   });
 }
 
@@ -1931,6 +2026,46 @@ final class MatrixRustNativeClient
           address: _requireAddress(),
           mimeType: normalizedMimeType,
           bytes: copiedBytes,
+        ).call,
+      );
+    });
+  }
+
+  @override
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+  }) {
+    final normalizedContentUri = contentUri.trim();
+    if (!normalizedContentUri.startsWith('mxc://') ||
+        normalizedContentUri.contains('\u0000')) {
+      return Future<Uint8List>.error(
+        ArgumentError.value(
+          contentUri,
+          'contentUri',
+          'must be a valid Matrix content URI without NUL bytes',
+        ),
+      );
+    }
+    if (width <= 0 || width > 4096) {
+      return Future<Uint8List>.error(
+        ArgumentError.value(width, 'width', 'must be between 1 and 4096'),
+      );
+    }
+    if (height <= 0 || height > 4096) {
+      return Future<Uint8List>.error(
+        ArgumentError.value(height, 'height', 'must be between 1 and 4096'),
+      );
+    }
+    return _enqueue<Uint8List>(() async {
+      return Isolate.run<Uint8List>(
+        _MatrixNativeDownloadMediaOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          contentUri: normalizedContentUri,
+          width: width,
+          height: height,
         ).call,
       );
     });
@@ -2699,6 +2834,33 @@ final class MatrixRustSdkBoundary
         );
       }
       return contentUri;
+    });
+  }
+
+  @override
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+  }) {
+    return _enqueue<Uint8List>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustMediaClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support media downloads',
+        );
+      }
+      final bytes = await (client as MatrixRustMediaClient).downloadMedia(
+        contentUri: contentUri,
+        width: width,
+        height: height,
+      );
+      if (bytes.isEmpty) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned empty media data',
+        );
+      }
+      return bytes;
     });
   }
 

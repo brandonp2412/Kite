@@ -9,6 +9,36 @@ import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
 void main() {
+  testWidgets('empty Matrix home shows loading until the first sync batch', (
+    tester,
+  ) async {
+    final cache = MatrixPresentationCache();
+
+    await tester.pumpWidget(
+      KiteApp(
+        home: MatrixHomeScreen(
+          cache: cache,
+          currentUserId: '@me:example.org',
+          sendPort: MatrixTimelineSendPort(
+            ({required roomId, required transactionId, required body}) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('room-list-loading')), findsOneWidget);
+    expect(find.text('No chats found'), findsNothing);
+
+    cache.applySync(
+      const MatrixSyncBatch(cursor: 'sync-1', rooms: <MatrixRoomDelta>[]),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('room-list-loading')), findsNothing);
+    expect(find.text('No chats found'), findsOneWidget);
+  });
+
   test('cached Matrix state replaces fixture room and timeline defaults', () {
     final cache = MatrixPresentationCache(
       initialSnapshot: MatrixPresentationSnapshot(

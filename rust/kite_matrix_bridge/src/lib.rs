@@ -4,10 +4,12 @@ use std::path::Path;
 use std::ptr;
 use std::time::Duration;
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use matrix_sdk::{
     Client, Error as MatrixError, HttpError, RoomMemberships,
     authentication::matrix::MatrixSession,
     config::SyncSettings,
+    media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings},
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
@@ -28,6 +30,7 @@ use matrix_sdk::{
             InitialStateEvent,
             receipt::ReceiptThread,
             room::{
+                MediaSource,
                 encryption::RoomEncryptionEventContent,
                 history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
                 join_rules::{JoinRule, RoomJoinRulesEventContent},
@@ -41,7 +44,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 19;
+const KITE_MATRIX_ABI_VERSION: u32 = 20;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -1759,6 +1762,84 @@ pub unsafe extern "C" fn kite_matrix_client_upload_media(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_download_media(
+    client: *mut KiteMatrixClient,
+    content_uri: *const c_char,
+    width: u64,
+    height: u64,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix media download is unavailable.");
+    }
+    let Some(content_uri) = (unsafe { required_utf8(content_uri) }) else {
+        return error_json("invalid_media", "The Matrix media URI is invalid.");
+    };
+    let content_uri = OwnedMxcUri::from(content_uri.to_owned());
+    if !content_uri.is_valid() {
+        return error_json("invalid_media", "The Matrix media URI is invalid.");
+    }
+    let Some(width) = UInt::new(width) else {
+        return error_json("invalid_media_size", "The Matrix media size is invalid.");
+    };
+    let Some(height) = UInt::new(height) else {
+        return error_json("invalid_media_size", "The Matrix media size is invalid.");
+    };
+    if width == UInt::MIN || height == UInt::MIN {
+        return error_json("invalid_media_size", "The Matrix media size is invalid.");
+    }
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix media download is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let thumbnail = MediaRequestParameters {
+        source: MediaSource::Plain(content_uri.clone()),
+        format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
+    };
+    let file = MediaRequestParameters {
+        source: MediaSource::Plain(content_uri),
+        format: MediaFormat::File,
+    };
+    let result = client.runtime.block_on(async {
+        match matrix_client
+            .media()
+            .get_media_content(&thumbnail, true)
+            .await
+        {
+            Ok(bytes) => Ok(bytes),
+            Err(_) => matrix_client.media().get_media_content(&file, true).await,
+        }
+    });
+    let Ok(bytes) = result else {
+        return error_json(
+            "media_download_failed",
+            "The Matrix media file could not be downloaded.",
+        );
+    };
+    if bytes.is_empty() {
+        return error_json("media_download_failed", "The Matrix media file is empty.");
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({"data": BASE64_STANDARD.encode(bytes)}))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_room_settings(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -2066,7 +2147,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 19);
+        assert_eq!(kite_matrix_abi_version(), 20);
     }
 
     #[test]
@@ -2233,6 +2314,10 @@ mod tests {
                 media_bytes.len() as u64,
             )
         };
+        let media_uri = CString::new("mxc://kite.test/avatar").unwrap();
+        let media_download = unsafe {
+            kite_matrix_client_download_media(ptr::null_mut(), media_uri.as_ptr(), 384, 384)
+        };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
         for result in [
@@ -2248,6 +2333,7 @@ mod tests {
             manage,
             room_settings,
             media_upload,
+            media_download,
         ] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();
