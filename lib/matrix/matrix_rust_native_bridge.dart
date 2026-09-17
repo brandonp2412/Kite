@@ -2882,6 +2882,46 @@ final class MatrixRustSdkBoundary
   }
 
   @override
+  Future<List<MatrixSdkUserSearchResult>> searchUsers(String query) {
+    return _enqueue<List<MatrixSdkUserSearchResult>>(() async {
+      final decoded = await _profile(action: 'search', value: query);
+      final rawResults = decoded['results'];
+      if (rawResults is! List<Object?>) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid user search data',
+        );
+      }
+      return <MatrixSdkUserSearchResult>[
+        for (final raw in rawResults) _userSearchResult(raw),
+      ];
+    });
+  }
+
+  MatrixSdkUserSearchResult _userSearchResult(Object? raw) {
+    if (raw is! Map<Object?, Object?>) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid user search data',
+      );
+    }
+    final userId = raw['userId'];
+    final displayName = raw['displayName'];
+    final avatarUrl = raw['avatarUrl'];
+    if (userId is! String ||
+        userId.trim().isEmpty ||
+        (displayName != null && displayName is! String) ||
+        (avatarUrl != null && avatarUrl is! String)) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid user search data',
+      );
+    }
+    return MatrixSdkUserSearchResult(
+      userId: userId,
+      displayName: displayName as String?,
+      avatarUrl: avatarUrl as String?,
+    );
+  }
+
+  @override
   Future<void> updateDisplayName(String displayName) =>
       _updateProfile(action: 'set_display_name', value: displayName);
 

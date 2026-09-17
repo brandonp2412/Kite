@@ -2,6 +2,7 @@ import 'package:kite/features/rooms/room_management.dart';
 
 enum RoomManagementInvocationType {
   capabilities,
+  searchUsers,
   create,
   details,
   setName,
@@ -44,19 +45,26 @@ final class RoomManagementInvocation {
   final String? reason;
 }
 
-final class DeterministicRoomManagementPort implements RoomManagementPort {
+final class DeterministicRoomManagementPort
+    implements RoomManagementPort, RoomUserSearchPort {
   DeterministicRoomManagementPort({
     this.seed = 0,
     KiteRoomCapabilities? roomCapabilities,
+    Iterable<KiteUserSearchResult> userSearchResults =
+        const <KiteUserSearchResult>[],
   }) : roomCapabilities =
            roomCapabilities ??
            KiteRoomCapabilities(
              canCreatePublicRooms: true,
              supportedJoinRules: KiteRoomJoinRule.values.toSet(),
-           );
+           ),
+       userSearchResults = List<KiteUserSearchResult>.unmodifiable(
+         userSearchResults,
+       );
 
   final int seed;
   KiteRoomCapabilities roomCapabilities;
+  final List<KiteUserSearchResult> userSearchResults;
   final List<RoomManagementInvocation> invocations =
       <RoomManagementInvocation>[];
   final Map<String, KiteRoomDetails> detailsByRoomId =
@@ -73,6 +81,24 @@ final class DeterministicRoomManagementPort implements RoomManagementPort {
     );
     _throwIfRequested();
     return roomCapabilities;
+  }
+
+  @override
+  Future<List<KiteUserSearchResult>> searchUsers(String query) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.searchUsers,
+        text: query,
+      ),
+    );
+    _throwIfRequested();
+    final normalized = query.trim().toLowerCase();
+    return <KiteUserSearchResult>[
+      for (final result in userSearchResults)
+        if (result.userId.toLowerCase().contains(normalized) ||
+            (result.displayName?.toLowerCase().contains(normalized) ?? false))
+          result,
+    ];
   }
 
   @override

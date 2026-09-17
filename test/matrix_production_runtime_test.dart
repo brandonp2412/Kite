@@ -124,6 +124,10 @@ void main() {
         accountId: '@alice:example.org',
         userId: '@bob:example.org',
       );
+      final users = await runtime.searchUsers(
+        accountId: '@alice:example.org',
+        query: 'bob',
+      );
       await runtime.updateDisplayName(
         accountId: '@alice:example.org',
         displayName: 'Alice Updated',
@@ -140,6 +144,9 @@ void main() {
       expect(ownProfile.userId, '@alice:example.org');
       expect(ownProfile.displayName, 'Alice');
       expect(bobProfile.userId, '@bob:example.org');
+      expect(users.single.userId, '@bob:example.org');
+      expect(users.single.avatarUrl, 'mxc://example.org/bob');
+      expect(boundary.userSearches, <String>['bob']);
       expect(directRoomId, '!dm:example.org');
       expect(boundary.profileMutations, <(String, String?)>[
         ('set_display_name', 'Alice Updated'),
@@ -329,6 +336,7 @@ final class _FakeBoundary
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
+  final List<String> userSearches = <String>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
 
@@ -403,6 +411,18 @@ final class _FakeBoundary
       displayName: userId == '@bob:example.org' ? 'Bob' : null,
       avatarUrl: null,
     );
+  }
+
+  @override
+  Future<List<MatrixSdkUserSearchResult>> searchUsers(String query) async {
+    userSearches.add(query);
+    return const <MatrixSdkUserSearchResult>[
+      MatrixSdkUserSearchResult(
+        userId: '@bob:example.org',
+        displayName: 'Bob',
+        avatarUrl: 'mxc://example.org/bob',
+      ),
+    ];
   }
 
   @override

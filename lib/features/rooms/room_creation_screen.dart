@@ -37,6 +37,12 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
   bool _encrypt = true;
   bool _submitting = false;
   String? _error;
+  Timer? _userSearchDebounce;
+  int _userSearchGeneration = 0;
+  bool _searchingUsers = false;
+  String? _userSearchError;
+  List<KiteUserSearchResult> _userSearchResults =
+      const <KiteUserSearchResult>[];
 
   @override
   void initState() {
@@ -49,6 +55,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
 
   @override
   void dispose() {
+    _userSearchDebounce?.cancel();
     _name.dispose();
     _topic.dispose();
     _userId.dispose();
@@ -85,9 +92,14 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
         !capabilities.canCreatePublicRooms) {
       return;
     }
+    _userSearchDebounce?.cancel();
+    _userSearchGeneration += 1;
     setState(() {
       _mode = mode;
       _error = null;
+      _searchingUsers = false;
+      _userSearchError = null;
+      _userSearchResults = const <KiteUserSearchResult>[];
       _encrypt = mode != RoomCreationMode.publicRoom;
       if (mode != RoomCreationMode.privateRoom) {
         _joinRule = mode == RoomCreationMode.publicRoom
@@ -96,6 +108,66 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
       } else if (_joinRule == KiteRoomJoinRule.public) {
         _joinRule = KiteRoomJoinRule.invite;
       }
+    });
+  }
+
+  void _onDirectUserChanged(String rawQuery) {
+    _userSearchDebounce?.cancel();
+    _userSearchGeneration += 1;
+    final generation = _userSearchGeneration;
+    final query = rawQuery.trim();
+    if (query.length < 2) {
+      if (_searchingUsers ||
+          _userSearchError != null ||
+          _userSearchResults.isNotEmpty) {
+        setState(() {
+          _searchingUsers = false;
+          _userSearchError = null;
+          _userSearchResults = const <KiteUserSearchResult>[];
+        });
+      }
+      return;
+    }
+    _userSearchDebounce = Timer(
+      const Duration(milliseconds: 250),
+      () => unawaited(_searchUsers(query, generation)),
+    );
+  }
+
+  Future<void> _searchUsers(String query, int generation) async {
+    if (!mounted || generation != _userSearchGeneration) return;
+    setState(() {
+      _searchingUsers = true;
+      _userSearchError = null;
+    });
+    try {
+      final results = await widget.coordinator.searchUsers(query);
+      if (!mounted || generation != _userSearchGeneration) return;
+      setState(() {
+        _searchingUsers = false;
+        _userSearchResults = results;
+      });
+    } catch (_) {
+      if (!mounted || generation != _userSearchGeneration) return;
+      setState(() {
+        _searchingUsers = false;
+        _userSearchResults = const <KiteUserSearchResult>[];
+        _userSearchError = 'Could not search people.';
+      });
+    }
+  }
+
+  void _selectUser(KiteUserSearchResult result) {
+    _userSearchDebounce?.cancel();
+    _userSearchGeneration += 1;
+    _userId.value = TextEditingValue(
+      text: result.userId,
+      selection: TextSelection.collapsed(offset: result.userId.length),
+    );
+    setState(() {
+      _searchingUsers = false;
+      _userSearchError = null;
+      _userSearchResults = const <KiteUserSearchResult>[];
     });
   }
 
@@ -193,19 +265,111 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
                   switchInCurve: KiteMotion.standardCurve,
                   switchOutCurve: KiteMotion.standardCurve,
                   child: _mode == RoomCreationMode.directMessage
-                      ? TextField(
-                          key: const Key('room-create-user-id'),
-                          controller: _userId,
-                          enabled: !_submitting,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          textInputAction: TextInputAction.done,
-                          decoration: const InputDecoration(
-                            labelText: 'Matrix user ID',
-                            hintText: '@name:server',
-                            prefixIcon: Icon(Icons.alternate_email_rounded),
-                          ),
-                          onSubmitted: (_) => unawaited(_create()),
+                      ? Column(
+                          key: const Key('room-create-direct-fields'),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            TextField(
+                              key: const Key('room-create-user-id'),
+                              controller: _userId,
+                              enabled: !_submitting,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              textInputAction: TextInputAction.done,
+                              decoration: InputDecoration(
+                                labelText: 'Search people or Matrix user ID',
+                                hintText: '@name:server or display name',
+                                prefixIcon: const Icon(
+                                  Icons.person_search_rounded,
+                                ),
+                                suffixIcon: _searchingUsers
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(14),
+                                        child: SizedBox.square(
+                                          dimension: 18,
+                                          child: CircularProgressIndicator(
+                                            key: Key(
+                                              'room-create-user-searching',
+                                            ),
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              onChanged: _onDirectUserChanged,
+                              onSubmitted: (_) => unawaited(_create()),
+                            ),
+                            SizedBox(
+                              key: const Key('room-create-user-search-status'),
+                              height: 28,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _userSearchError ?? '',
+                                  key: const Key(
+                                    'room-create-user-search-error',
+                                  ),
+                                  style: KiteTypography.metadata.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_userSearchResults.isNotEmpty)
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 240,
+                                ),
+                                child: ListView.separated(
+                                  key: const Key('room-create-user-results'),
+                                  shrinkWrap: true,
+                                  padding: EdgeInsets.zero,
+                                  itemCount: _userSearchResults.length,
+                                  separatorBuilder: (_, _) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (context, index) {
+                                    final result = _userSearchResults[index];
+                                    final displayName = result.displayName
+                                        ?.trim();
+                                    final label =
+                                        displayName == null ||
+                                            displayName.isEmpty
+                                        ? result.userId
+                                        : displayName;
+                                    return ListTile(
+                                      key: Key(
+                                        'room-create-user-result-$index',
+                                      ),
+                                      leading: CircleAvatar(
+                                        child: Text(
+                                          label.startsWith('@') &&
+                                                  label.length > 1
+                                              ? label[1].toUpperCase()
+                                              : label.characters.first
+                                                    .toUpperCase(),
+                                        ),
+                                      ),
+                                      title: Text(
+                                        label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: label == result.userId
+                                          ? null
+                                          : Text(
+                                              result.userId,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                      onTap: _submitting
+                                          ? null
+                                          : () => _selectUser(result),
+                                    );
+                                  },
+                                ),
+                              ),
+                          ],
                         )
                       : Column(
                           key: const Key('room-create-room-fields'),

@@ -129,6 +129,12 @@ void main() {
         height: 384,
       );
       expect(downloaded, <int>[4, 3, 2, 1]);
+      final users = await registry.searchUsers(
+        accountId: '@alice:example.org',
+        query: 'bob',
+      );
+      expect(users.single.userId, '@bob:example.org');
+      expect(boundaries['@alice:example.org']!.userSearches, <String>['bob']);
       expect(
         boundaries['@alice:example.org']!.mediaDownloads,
         <(String, int, int)>[('mxc://example.org/avatar', 384, 384)],
@@ -150,6 +156,11 @@ void main() {
           width: 384,
           height: 384,
         ),
+        throwsStateError,
+      );
+      expect(
+        () =>
+            registry.searchUsers(accountId: '@alice:example.org', query: 'bob'),
         throwsStateError,
       );
     },
@@ -1847,6 +1858,7 @@ final class _FakeAccountBoundary
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
+  final List<String> userSearches = <String>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
@@ -1892,6 +1904,18 @@ final class _FakeAccountBoundary
       displayName: userId == '@bob:example.org' ? 'Bob' : null,
       avatarUrl: null,
     );
+  }
+
+  @override
+  Future<List<MatrixSdkUserSearchResult>> searchUsers(String query) async {
+    userSearches.add(query);
+    return const <MatrixSdkUserSearchResult>[
+      MatrixSdkUserSearchResult(
+        userId: '@bob:example.org',
+        displayName: 'Bob',
+        avatarUrl: 'mxc://example.org/bob',
+      ),
+    ];
   }
 
   @override

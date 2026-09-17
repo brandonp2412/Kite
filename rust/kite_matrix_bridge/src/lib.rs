@@ -1630,6 +1630,41 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
                 "avatarUrl": avatar_url.map(|url| url.to_string()),
             })
         }
+        "search" => {
+            let Some(query) = value.filter(|value| value.len() >= 2) else {
+                return error_json(
+                    "invalid_search",
+                    "The Matrix user search must contain at least two characters.",
+                );
+            };
+            let search = match client
+                .runtime
+                .block_on(matrix_client.search_users(query, 20))
+            {
+                Ok(search) => search,
+                Err(_) => {
+                    return error_json(
+                        "profile_failed",
+                        "The Matrix user directory could not be searched.",
+                    );
+                }
+            };
+            let results = search
+                .results
+                .into_iter()
+                .map(|user| {
+                    json!({
+                        "userId": user.user_id.as_str(),
+                        "displayName": user.display_name.filter(|name| !name.trim().is_empty()),
+                        "avatarUrl": user
+                            .avatar_url
+                            .filter(|url| url.is_valid())
+                            .map(|url| url.to_string()),
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({"results": results, "limited": search.limited})
+        }
         "set_display_name" => {
             let display_name = value.filter(|value| !value.is_empty());
             if client

@@ -306,6 +306,10 @@ final class _AuthenticatedMatrixHomeState
               roomId: roomId,
               mode: mode,
             ),
+        userSearch: (query) => widget.runtime.searchUsers(
+          accountId: widget.session.userId,
+          query: query,
+        ),
       ),
       directMetadata: const MatrixDirectRoomMetadataPort(),
     );

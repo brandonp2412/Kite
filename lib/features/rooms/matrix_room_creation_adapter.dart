@@ -22,8 +22,12 @@ typedef MatrixRoomRequiredTextMutation = Future<void> Function(
   String roomId,
   String value,
 );
+typedef MatrixUserSearch = Future<List<MatrixSdkUserSearchResult>> Function(
+  String query,
+);
 
-final class MatrixRoomCreationManagementPort implements RoomManagementPort {
+final class MatrixRoomCreationManagementPort
+    implements RoomManagementPort, RoomUserSearchPort {
   const MatrixRoomCreationManagementPort(
     this._create, {
     required MatrixRoomReport reportRoom,
@@ -39,6 +43,7 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
     required MatrixRoomMutation enableEncryption,
     required MatrixRoomRequiredTextMutation setHistoryVisibility,
     required MatrixRoomRequiredTextMutation setNotificationMode,
+    this.userSearch,
   }) : _lifecycle = (
          reportRoom: reportRoom,
          reportUser: reportUser,
@@ -58,6 +63,7 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
        );
 
   final MatrixRoomCreate _create;
+  final MatrixUserSearch? userSearch;
   final ({
     MatrixRoomReport reportRoom,
     MatrixUserReport reportUser,
@@ -86,6 +92,23 @@ final class MatrixRoomCreationManagementPort implements RoomManagementPort {
       KiteRoomJoinRule.public,
     },
   );
+
+  @override
+  Future<List<KiteUserSearchResult>> searchUsers(String query) async {
+    final search = userSearch;
+    if (search == null) return const <KiteUserSearchResult>[];
+    final results = await search(query);
+    return <KiteUserSearchResult>[
+      for (final result in results)
+        KiteUserSearchResult(
+          userId: result.userId,
+          displayName: result.displayName,
+          avatarUrl: result.avatarUrl == null
+              ? null
+              : Uri.parse(result.avatarUrl!),
+        ),
+    ];
+  }
 
   @override
   Future<KiteCreatedRoom> createRoom(KiteRoomCreationRequest request) async {

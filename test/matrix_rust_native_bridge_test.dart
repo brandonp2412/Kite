@@ -74,6 +74,7 @@ void main() {
       );
       final ownProfile = await boundary.loadOwnProfile();
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
+      final userSearch = await boundary.searchUsers('bo');
       await boundary.updateDisplayName('Alice Updated');
       await boundary.updateAvatar('mxc://kite.test/alice');
       final directRoomId = await boundary.openDirectMessage('@bob:kite.test');
@@ -167,10 +168,14 @@ void main() {
       expect(ownProfile.avatarUrl, 'mxc://kite.test/alice-old');
       expect(bobProfile.userId, '@bob:kite.test');
       expect(bobProfile.displayName, 'Bob');
+      expect(userSearch.single.userId, '@bob:kite.test');
+      expect(userSearch.single.displayName, 'Bob');
+      expect(userSearch.single.avatarUrl, 'mxc://kite.test/bob');
       expect(directRoomId, '!dm:kite.test');
       expect(client.profileCalls, <(String?, String, String?)>[
         (null, 'get', null),
         ('@bob:kite.test', 'get', null),
+        (null, 'search', 'bo'),
         (null, 'set_display_name', 'Alice Updated'),
         (null, 'set_avatar', 'mxc://kite.test/alice'),
         ('@bob:kite.test', 'open_direct', null),
@@ -1320,6 +1325,17 @@ final class _FakeRustClient
         'userId': userId ?? '@alice:kite.test',
         'displayName': userId == null ? 'Alice' : 'Bob',
         'avatarUrl': userId == null ? 'mxc://kite.test/alice-old' : null,
+      };
+    }
+    if (action == 'search') {
+      return <String, Object?>{
+        'results': <Object?>[
+          <String, Object?>{
+            'userId': '@bob:kite.test',
+            'displayName': 'Bob',
+            'avatarUrl': 'mxc://kite.test/bob',
+          },
+        ],
       };
     }
     if (action == 'open_direct') {

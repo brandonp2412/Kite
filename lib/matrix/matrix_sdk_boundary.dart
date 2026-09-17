@@ -106,6 +106,18 @@ final class MatrixSdkProfileDetails {
   final String? avatarUrl;
 }
 
+final class MatrixSdkUserSearchResult {
+  const MatrixSdkUserSearchResult({
+    required this.userId,
+    required this.displayName,
+    required this.avatarUrl,
+  });
+
+  final String userId;
+  final String? displayName;
+  final String? avatarUrl;
+}
+
 final class MatrixSdkRoomDetails {
   MatrixSdkRoomDetails({
     required this.roomId,
@@ -150,6 +162,7 @@ abstract interface class MatrixSdkMediaManager {
 abstract interface class MatrixSdkProfileManager {
   Future<MatrixSdkProfileDetails> loadOwnProfile();
   Future<MatrixSdkProfileDetails> loadProfile(String userId);
+  Future<List<MatrixSdkUserSearchResult>> searchUsers(String query);
   Future<void> updateDisplayName(String displayName);
   Future<void> updateAvatar(String? avatarUrl);
   Future<String> openDirectMessage(String userId);
@@ -466,6 +479,20 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     final normalizedUserId = _validatedUserId(userId, 'userId');
     await _ensureOpen();
     return manager.loadProfile(normalizedUserId);
+  }
+
+  Future<List<MatrixSdkUserSearchResult>> searchUsers(String query) async {
+    final manager = _profileManager();
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2 || normalizedQuery.contains('\u0000')) {
+      throw ArgumentError.value(
+        query,
+        'query',
+        'must contain at least two non-NUL characters',
+      );
+    }
+    await _ensureOpen();
+    return manager.searchUsers(normalizedQuery);
   }
 
   Future<void> updateDisplayName(String displayName) async {

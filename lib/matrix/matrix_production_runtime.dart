@@ -203,6 +203,11 @@ final class MatrixProductionRuntime
     required String userId,
   }) => accounts.loadProfile(accountId: accountId, userId: userId);
 
+  Future<List<MatrixSdkUserSearchResult>> searchUsers({
+    required String accountId,
+    required String query,
+  }) => accounts.searchUsers(accountId: accountId, query: query);
+
   Future<void> updateDisplayName({
     required String accountId,
     required String displayName,

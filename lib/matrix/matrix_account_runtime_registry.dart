@@ -128,6 +128,17 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.loadProfile(userId);
   }
 
+  Future<List<MatrixSdkUserSearchResult>> searchUsers({
+    required String accountId,
+    required String query,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot search Matrix users for an inactive account',
+    );
+    return active.engine.searchUsers(query);
+  }
+
   Future<void> updateDisplayName({
     required String accountId,
     required String displayName,

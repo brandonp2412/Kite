@@ -35,6 +35,70 @@ void main() {
     expect(request.invitees, <String>['@alice:example.org']);
   });
 
+  testWidgets('direct conversation searches people and selects a Matrix user', (
+    tester,
+  ) async {
+    final fixture = _fixture(
+      userSearchResults: const <KiteUserSearchResult>[
+        KiteUserSearchResult(
+          userId: '@bob:example.org',
+          displayName: 'Bob Builder',
+          avatarUrl: null,
+        ),
+      ],
+    );
+    KiteCreatedRoom? created;
+    await tester.pumpWidget(
+      _app(
+        fixture.coordinator,
+        mode: RoomCreationMode.directMessage,
+        onCreated: (room) => created = room,
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byKey(const Key('room-create-user-id')), 'bob');
+    await tester.pump(const Duration(milliseconds: 251));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('room-create-user-results')), findsOneWidget);
+    expect(find.text('Bob Builder'), findsOneWidget);
+    expect(find.text('@bob:example.org'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('room-create-user-result-0')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('room-create-user-id')))
+          .controller!
+          .text,
+      '@bob:example.org',
+    );
+
+    await tester.tap(find.byKey(const Key('room-create-submit')));
+    await tester.pump();
+
+    expect(created?.isDirect, isTrue);
+    expect(
+      fixture.rooms.invocations
+          .where(
+            (entry) => entry.type == RoomManagementInvocationType.searchUsers,
+          )
+          .single
+          .text,
+      'bob',
+    );
+    expect(
+      fixture.rooms.invocations
+          .firstWhere(
+            (entry) => entry.type == RoomManagementInvocationType.create,
+          )
+          .creation!
+          .invitees,
+      <String>['@bob:example.org'],
+    );
+  });
+
   testWidgets('private room exposes only server-supported join rules', (
     tester,
   ) async {
@@ -146,8 +210,15 @@ Widget _app(
   ),
 );
 
-_RoomFixture _fixture({KiteRoomCapabilities? capabilities}) {
-  final rooms = DeterministicRoomManagementPort(roomCapabilities: capabilities);
+_RoomFixture _fixture({
+  KiteRoomCapabilities? capabilities,
+  Iterable<KiteUserSearchResult> userSearchResults =
+      const <KiteUserSearchResult>[],
+}) {
+  final rooms = DeterministicRoomManagementPort(
+    roomCapabilities: capabilities,
+    userSearchResults: userSearchResults,
+  );
   final direct = DeterministicDirectRoomMetadataPort();
   return _RoomFixture(
     rooms: rooms,

@@ -55,6 +55,18 @@ final class KiteCreatedRoom {
   final bool isDirect;
 }
 
+final class KiteUserSearchResult {
+  const KiteUserSearchResult({
+    required this.userId,
+    required this.displayName,
+    required this.avatarUrl,
+  });
+
+  final String userId;
+  final String? displayName;
+  final Uri? avatarUrl;
+}
+
 final class KiteRoomDetails {
   KiteRoomDetails({
     required this.roomId,
@@ -81,6 +93,10 @@ final class KiteRoomDetails {
   final KiteRoomNotificationMode notificationMode;
   final bool isDirect;
   final Set<String> directUserIds;
+}
+
+abstract interface class RoomUserSearchPort {
+  Future<List<KiteUserSearchResult>> searchUsers(String query);
 }
 
 abstract interface class RoomManagementPort {
@@ -174,6 +190,14 @@ final class RoomManagementCoordinator {
   final DirectRoomMetadataPort _directMetadata;
 
   Future<KiteRoomCapabilities> capabilities() => _rooms.capabilities();
+
+  Future<List<KiteUserSearchResult>> searchUsers(String rawQuery) async {
+    final query = rawQuery.trim();
+    if (query.length < 2 || _rooms is! RoomUserSearchPort) {
+      return const <KiteUserSearchResult>[];
+    }
+    return (_rooms as RoomUserSearchPort).searchUsers(query);
+  }
 
   Future<KiteCreatedRoom> createDirectMessage(String rawUserId) async {
     final userId = _matrixUserId(rawUserId);
