@@ -96,12 +96,13 @@ jobs:
             --target-platform android-arm64 \
             --build-number "$GITHUB_RUN_NUMBER"
           tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/app/outputs/flutter-apk/kite-arm64-v8a.apk
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: kite-arm64-v8a
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          path: build/app/outputs/flutter-apk/kite-arm64-v8a.apk
           if-no-files-found: error
 
       - name: Publish latest Android release
@@ -110,7 +111,7 @@ jobs:
         run: |
           gh release delete android-latest --cleanup-tag --yes >/dev/null 2>&1 || true
           gh release create android-latest \
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            build/app/outputs/flutter-apk/kite-arm64-v8a.apk \
             --target "$GITHUB_SHA" \
             --title 'Kite Android (latest)' \
             --notes "Signed ARM64 Android build from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}." \
