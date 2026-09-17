@@ -60,59 +60,94 @@ jobs:
     needs: static-contract
     runs-on: kite-release
     timeout-minutes: 30
+    concurrency:
+      group: kite-android-release
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify release toolchain
+      - name: Verify release tooling
         run: |
-          command -v flutter
-          command -v cargo
-          command -v rustup
           command -v gh
-          test -d /opt/android-sdk/ndk/28.2.13676358
-          rustup target add aarch64-linux-android
+          apksigner="$(find /opt/android-sdk/build-tools -type f -name apksigner | sort -V | tail -1)"
+          test -n "$apksigner"
+          env -u GH_TOKEN -u GITHUB_TOKEN gh api repos/brandonp2412/Flexify >/dev/null
 
-      - name: Use local release signing key
+      - name: Request Flexify F-Droid signed ARM64 APK
         run: |
-          test -f "$HOME/.config/android-signing/fdroid.properties"
-          ln -sfn "$HOME/.config/android-signing/fdroid.properties" android/key.properties
+          set -euo pipefail
+          request_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          title="Sign Kite ARM64 ${request_id}"
+          env -u GH_TOKEN -u GITHUB_TOKEN gh workflow run sign-kite-android.yml \
+            --repo brandonp2412/Flexify \
+            -f kite_sha="$GITHUB_SHA" \
+            -f build_number="$GITHUB_RUN_NUMBER" \
+            -f request_id="$request_id"
 
-      - name: Dependencies
-        run: flutter pub get
+          run_id=''
+          for _ in $(seq 1 30); do
+            run_id="$(env -u GH_TOKEN -u GITHUB_TOKEN gh run list \
+              --repo brandonp2412/Flexify \
+              --workflow sign-kite-android.yml \
+              --event workflow_dispatch \
+              --limit 30 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"${title}\") | .databaseId" \
+              | head -1)"
+            if [[ -n "$run_id" ]]; then
+              break
+            fi
+            sleep 2
+          done
+          test -n "$run_id"
+          printf 'FLEXIFY_SIGN_RUN_ID=%s\n' "$run_id" >> "$GITHUB_ENV"
+          printf 'FLEXIFY_SIGN_REQUEST_ID=%s\n' "$request_id" >> "$GITHUB_ENV"
+          env -u GH_TOKEN -u GITHUB_TOKEN gh run watch "$run_id" --repo brandonp2412/Flexify --exit-status
 
-      - name: Build ARM64 Matrix bridge
-        env:
-          KITE_ANDROID_NDK_ROOT: /opt/android-sdk/ndk/28.2.13676358
-        run: tool/build_android_matrix_bridge.sh arm64-v8a
-
-      - name: Build signed ARM64 APK
+      - name: Download signed ARM64 APK
         run: |
-          flutter build apk \
-            --release \
-            --split-per-abi \
-            --target-platform android-arm64 \
-            --build-number "$GITHUB_RUN_NUMBER"
-          tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
-          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/app/outputs/flutter-apk/kite-arm64-v8a.apk
+          rm -rf build/release
+          mkdir -p build/release
+          env -u GH_TOKEN -u GITHUB_TOKEN gh run download "$FLEXIFY_SIGN_RUN_ID" \
+            --repo brandonp2412/Flexify \
+            --name "kite-arm64-${FLEXIFY_SIGN_REQUEST_ID}" \
+            --dir build/release
+          test -s build/release/app-arm64-v8a-release.apk
+          mv build/release/app-arm64-v8a-release.apk build/release/kite-arm64-v8a.apk
+
+      - name: Verify signed APK
+        run: |
+          set -euo pipefail
+          apk='build/release/kite-arm64-v8a.apk'
+          tool/verify_android_matrix_bridge.sh "$apk" arm64-v8a
+          apksigner="$(find /opt/android-sdk/build-tools -type f -name apksigner | sort -V | tail -1)"
+          actual="$($apksigner verify --print-certs "$apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+          expected='011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd'
+          test "$actual" = "$expected"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: kite-arm64-v8a
-          path: build/app/outputs/flutter-apk/kite-arm64-v8a.apk
+          path: build/release/kite-arm64-v8a.apk
           if-no-files-found: error
 
       - name: Publish latest Android release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          latest_sha="$(gh api repos/${GITHUB_REPOSITORY}/commits/main --jq .sha)"
+          if [[ "$latest_sha" != "$GITHUB_SHA" ]]; then
+            printf 'Skipping release publish because main advanced to %s.\n' "$latest_sha"
+            exit 0
+          fi
           gh release delete android-latest --cleanup-tag --yes >/dev/null 2>&1 || true
           gh release create android-latest \
-            build/app/outputs/flutter-apk/kite-arm64-v8a.apk \
+            build/release/kite-arm64-v8a.apk \
             --target "$GITHUB_SHA" \
             --title 'Kite Android (latest)' \
-            --notes "Signed ARM64 Android build from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}." \
+            --notes "ARM64 Android build signed with the Flexify F-Droid key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}." \
             --latest
