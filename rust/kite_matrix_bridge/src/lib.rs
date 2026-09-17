@@ -461,22 +461,20 @@ pub unsafe extern "C" fn kite_matrix_client_persist_session(
     ok_json(Value::Null)
 }
 
-fn recovery_status_value(runtime: &Runtime, matrix_client: &Client) -> Value {
-    let recovery_state = match matrix_client.encryption().recovery().state() {
+fn recovery_status_value(matrix_client: &Client) -> Value {
+    let recovery_state = matrix_client.encryption().recovery().state();
+    let recovery_state_name = match recovery_state {
         RecoveryState::Unknown => "unknown",
         RecoveryState::Enabled => "enabled",
         RecoveryState::Disabled => "disabled",
         RecoveryState::Incomplete => "incomplete",
     };
-    let backup_exists_on_server = runtime
-        .block_on(
-            matrix_client
-                .encryption()
-                .backups()
-                .fetch_exists_on_server(),
-        )
-        .unwrap_or(false);
-    let backup_state = match matrix_client.encryption().backups().state() {
+    let backup_state_value = matrix_client.encryption().backups().state();
+    let backup_exists_on_server = matches!(
+        recovery_state,
+        RecoveryState::Enabled | RecoveryState::Incomplete
+    ) || !matches!(backup_state_value, BackupState::Unknown);
+    let backup_state = match backup_state_value {
         BackupState::Unknown => "unknown",
         BackupState::Creating => "creating",
         BackupState::Enabling => "enabling",
@@ -486,7 +484,7 @@ fn recovery_status_value(runtime: &Runtime, matrix_client: &Client) -> Value {
         BackupState::Disabling => "disabling",
     };
     json!({
-        "recoveryState": recovery_state,
+        "recoveryState": recovery_state_name,
         "backupState": backup_state,
         "backupExistsOnServer": backup_exists_on_server,
     })
@@ -536,7 +534,20 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
     }
 
     match action {
-        "status" => ok_json(recovery_status_value(&client.runtime, matrix_client)),
+        "status" => ok_json(recovery_status_value(matrix_client)),
+        "create_backup" => {
+            if client
+                .runtime
+                .block_on(matrix_client.encryption().recovery().enable_backup())
+                .is_err()
+            {
+                return error_json(
+                    "backup_creation_failed",
+                    "Matrix could not enable encrypted backup.",
+                );
+            }
+            ok_json(recovery_status_value(matrix_client))
+        }
         "recover" => {
             let Some(secret) = (unsafe { required_utf8(secret) }) else {
                 return error_json(
@@ -570,7 +581,7 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
                     "Matrix could not restore encrypted message history with that recovery secret.",
                 );
             }
-            ok_json(recovery_status_value(&client.runtime, matrix_client))
+            ok_json(recovery_status_value(matrix_client))
         }
         "recover_history" => {
             if client
@@ -583,7 +594,7 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
                     "Matrix could not recover encrypted message history.",
                 );
             }
-            ok_json(recovery_status_value(&client.runtime, matrix_client))
+            ok_json(recovery_status_value(matrix_client))
         }
         _ => error_json(
             "invalid_recovery_action",
@@ -2433,7 +2444,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 23);
+        assert_eq!(kite_matrix_abi_version(), 25);
     }
 
     #[test]

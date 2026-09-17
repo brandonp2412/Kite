@@ -12,6 +12,7 @@ import 'package:kite/benchmark/jitter_injector.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
+import 'package:kite/features/auth/encryption_recovery_screen.dart';
 import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/rooms/room_creation_screen.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
@@ -335,6 +336,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         canCreateRoom: widget.roomCreation != null,
         canMarkAllRead: widget.onMarkAllRoomsRead != null,
         canOpenProfile: account.profileController != null,
+        canOpenRecovery: account.recoveryController != null,
         inviteCount: inviteStore.visibleInviteIds.value.length,
         selectedFilter: store.selectedFilter.value,
       ),
@@ -350,6 +352,16 @@ class _HomeSidebarState extends State<_HomeSidebar> {
             pickAvatar: widget.profileAvatarPicker,
             avatarImageProvider: widget.profileAvatarImageProvider,
           ),
+        ),
+      );
+      return;
+    }
+    if (action == _HomeAccountAction.encryptionRecovery) {
+      final controller = account.recoveryController;
+      if (controller == null) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EncryptionRecoveryScreen(controller: controller),
         ),
       );
       return;
@@ -536,6 +548,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
 
 enum _HomeAccountAction {
   profile,
+  encryptionRecovery,
   newConversation,
   invites,
   filterChats,
@@ -549,6 +562,7 @@ class _HomeAccountSheet extends StatelessWidget {
     required this.canCreateRoom,
     required this.canMarkAllRead,
     required this.canOpenProfile,
+    required this.canOpenRecovery,
     required this.inviteCount,
     required this.selectedFilter,
   });
@@ -557,6 +571,7 @@ class _HomeAccountSheet extends StatelessWidget {
   final bool canCreateRoom;
   final bool canMarkAllRead;
   final bool canOpenProfile;
+  final bool canOpenRecovery;
   final int inviteCount;
   final RoomListFilter selectedFilter;
 
@@ -600,6 +615,17 @@ class _HomeAccountSheet extends StatelessWidget {
                     : null,
               ),
               const Divider(height: KiteSpacing.lg),
+              if (canOpenRecovery)
+                ListTile(
+                  key: const Key('home-account-encryption-recovery'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.key_outlined),
+                  title: const Text('Encryption recovery'),
+                  subtitle: const Text('Restore encrypted message history'),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pop(_HomeAccountAction.encryptionRecovery),
+                ),
               if (canCreateRoom)
                 ListTile(
                   key: const Key('home-account-new-conversation'),

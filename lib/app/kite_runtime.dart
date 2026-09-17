@@ -141,6 +141,9 @@ class _KiteRuntimeState extends State<KiteRuntime> {
         await accountSecurity.lifecycle.signOut();
       },
       profileController: accountSecurity.profile,
+      recoveryController: accountSecurity.recoveryAvailable
+          ? accountSecurity.recovery
+          : null,
       child: home,
     );
   }
