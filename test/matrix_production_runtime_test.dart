@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_models.dart';
@@ -94,6 +95,16 @@ void main() {
         'Hello from Matrix',
       );
       expect(cache.lastSyncCursor, 's1');
+
+      final uploadedMedia = await runtime.uploadMedia(
+        accountId: '@alice:example.org',
+        mimeType: 'image/png',
+        bytes: Uint8List.fromList(<int>[1, 2, 3, 4]),
+      );
+      expect(uploadedMedia, 'mxc://example.org/uploaded');
+      expect(boundary.mediaUploads, hasLength(1));
+      expect(boundary.mediaUploads.single.$1, 'image/png');
+      expect(boundary.mediaUploads.single.$2, <int>[1, 2, 3, 4]);
 
       final ownProfile = await runtime.loadOwnProfile(
         accountId: '@alice:example.org',
@@ -290,6 +301,7 @@ final class _FakeBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
+        MatrixSdkMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomReadManager {
@@ -306,6 +318,7 @@ final class _FakeBoundary
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
+  final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -341,6 +354,15 @@ final class _FakeBoundary
       events: const <MatrixTimelineEvent>[],
       reachedStart: true,
     );
+  }
+
+  @override
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    mediaUploads.add((mimeType, List<int>.from(bytes)));
+    return 'mxc://example.org/uploaded';
   }
 
   @override

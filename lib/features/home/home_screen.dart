@@ -63,6 +63,7 @@ class HomeScreen extends StatelessWidget {
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
+    this.profileAvatarPicker,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -78,6 +79,7 @@ class HomeScreen extends StatelessWidget {
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
+  final AvatarPicker? profileAvatarPicker;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -109,6 +111,7 @@ class HomeScreen extends StatelessWidget {
                 roomCreation: roomCreation,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
+                profileAvatarPicker: profileAvatarPicker,
                 onRoomTap: (roomId) {
                   selectRoom(roomId);
                   Navigator.of(context).push(
@@ -152,6 +155,7 @@ class HomeScreen extends StatelessWidget {
                 roomCreation: roomCreation,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
+                profileAvatarPicker: profileAvatarPicker,
               ),
             ),
             const VerticalDivider(width: 1),
@@ -220,6 +224,7 @@ class _HomeSidebar extends StatefulWidget {
     this.roomCreation,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
+    this.profileAvatarPicker,
     this.onRoomTap,
   });
 
@@ -229,6 +234,7 @@ class _HomeSidebar extends StatefulWidget {
   final RoomManagementCoordinator? roomCreation;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
+  final AvatarPicker? profileAvatarPicker;
   final ValueChanged<String>? onRoomTap;
 
   @override
@@ -327,7 +333,10 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       if (controller == null) return;
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => UserProfileScreen.own(controller: controller),
+          builder: (_) => UserProfileScreen.own(
+            controller: controller,
+            pickAvatar: widget.profileAvatarPicker,
+          ),
         ),
       );
       return;

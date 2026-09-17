@@ -41,7 +41,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 18;
+const KITE_MATRIX_ABI_VERSION: u32 = 19;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -1702,6 +1702,63 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_upload_media(
+    client: *mut KiteMatrixClient,
+    mime_type: *const c_char,
+    data: *const u8,
+    data_len: u64,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix media upload is unavailable.");
+    }
+    let Some(mime_type) = (unsafe { required_utf8(mime_type) }) else {
+        return error_json("invalid_media_type", "The media type is invalid.");
+    };
+    let Ok(mime_type) = mime_type.parse::<mime::Mime>() else {
+        return error_json("invalid_media_type", "The media type is invalid.");
+    };
+    if data_len == 0 || data.is_null() {
+        return error_json("invalid_media", "The media file is empty.");
+    }
+    let Ok(data_len) = usize::try_from(data_len) else {
+        return error_json("invalid_media", "The media file is too large.");
+    };
+    let bytes = unsafe { std::slice::from_raw_parts(data, data_len) }.to_vec();
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix media upload is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let Ok(response) = client
+        .runtime
+        .block_on(async { matrix_client.media().upload(&mime_type, bytes, None).await })
+    else {
+        return error_json(
+            "media_upload_failed",
+            "The media file could not be uploaded.",
+        );
+    };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({"contentUri": response.content_uri.as_str()}))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_room_settings(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -2009,7 +2066,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 18);
+        assert_eq!(kite_matrix_abi_version(), 19);
     }
 
     #[test]
@@ -2166,6 +2223,16 @@ mod tests {
                 ptr::null(),
             )
         };
+        let media_type = CString::new("image/png").unwrap();
+        let media_bytes = [1_u8, 2, 3];
+        let media_upload = unsafe {
+            kite_matrix_client_upload_media(
+                ptr::null_mut(),
+                media_type.as_ptr(),
+                media_bytes.as_ptr(),
+                media_bytes.len() as u64,
+            )
+        };
         let pagination =
             unsafe { kite_matrix_client_paginate_backwards(ptr::null_mut(), room_id.as_ptr()) };
         for result in [
@@ -2180,6 +2247,7 @@ mod tests {
             moderate,
             manage,
             room_settings,
+            media_upload,
         ] {
             assert!(!result.is_null());
             let decoded = unsafe { CStr::from_ptr(result) }.to_str().unwrap();

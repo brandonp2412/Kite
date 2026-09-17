@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:kite/diagnostics/crash_reporting.dart';
 import 'package:kite/diagnostics/structured_logging.dart';
@@ -171,6 +172,16 @@ final class MatrixProductionRuntime
       hasMoreHistory: hasMoreHistory,
     );
   }
+
+  Future<String> uploadMedia({
+    required String accountId,
+    required String mimeType,
+    required Uint8List bytes,
+  }) => accounts.uploadMedia(
+    accountId: accountId,
+    mimeType: mimeType,
+    bytes: bytes,
+  );
 
   Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) =>
       accounts.loadOwnProfile(accountId: accountId);

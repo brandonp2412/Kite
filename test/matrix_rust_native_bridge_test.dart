@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +62,10 @@ void main() {
       final login = await boundary.loginWithPassword(
         username: '@alice:kite.test',
         password: 'test-password',
+      );
+      final uploadedMedia = await boundary.uploadMedia(
+        mimeType: 'image/png',
+        bytes: Uint8List.fromList(<int>[1, 2, 3]),
       );
       final ownProfile = await boundary.loadOwnProfile();
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
@@ -144,6 +149,10 @@ void main() {
 
       expect(login.userId, '@alice:kite.test');
       expect(login.deviceId, 'KITEDEVICE');
+      expect(uploadedMedia, 'mxc://kite.test/uploaded-media');
+      expect(client.mediaUploads, hasLength(1));
+      expect(client.mediaUploads.single.$1, 'image/png');
+      expect(client.mediaUploads.single.$2, <int>[1, 2, 3]);
       expect(ownProfile.userId, '@alice:kite.test');
       expect(ownProfile.displayName, 'Alice');
       expect(ownProfile.avatarUrl, 'mxc://kite.test/alice-old');
@@ -1129,6 +1138,7 @@ final class _FakeRustClient
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
         MatrixRustRoomSettingsClient,
+        MatrixRustMediaClient,
         MatrixRustProfileClient,
         MatrixRustRoomReadClient {
   final Completer<void> firstSyncReturned = Completer<void>();
@@ -1151,6 +1161,7 @@ final class _FakeRustClient
       <(String, String, String?)>[];
   final List<(String?, String, String?)> profileCalls =
       <(String?, String, String?)>[];
+  final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
 
   bool _closed = false;
@@ -1266,6 +1277,15 @@ final class _FakeRustClient
       };
     }
     return <String, Object?>{'roomId': roomId, 'action': action};
+  }
+
+  @override
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    mediaUploads.add((mimeType, List<int>.from(bytes)));
+    return 'mxc://kite.test/uploaded-media';
   }
 
   @override

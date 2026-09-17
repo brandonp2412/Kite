@@ -11,6 +11,8 @@ import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/testing/deterministic_room_management_adapter.dart';
 
 final class _HomeProfileGateway implements UserProfileGateway {
+  Uri? avatarUri;
+
   @override
   Future<MatrixUserProfile> loadOwnProfile() async =>
       const MatrixUserProfile(userId: '@me:example.org', displayName: 'Me');
@@ -26,7 +28,9 @@ final class _HomeProfileGateway implements UserProfileGateway {
   Future<void> updateDisplayName(String displayName) async {}
 
   @override
-  Future<void> updateAvatar(Uri? avatarUri) async {}
+  Future<void> updateAvatar(Uri? avatarUri) async {
+    this.avatarUri = avatarUri;
+  }
 
   @override
   Future<Set<String>> loadIgnoredUserIds() async => const <String>{};
@@ -353,7 +357,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
 
-    final profile = UserProfileController(_HomeProfileGateway());
+    final profileGateway = _HomeProfileGateway();
+    final profile = UserProfileController(profileGateway);
     addTearDown(profile.dispose);
     final session = AuthenticatedSession(
       userId: '@me:example.org',
@@ -367,7 +372,10 @@ void main() {
           session: session,
           signOut: () async {},
           profileController: profile,
-          child: const HomeScreen(),
+          child: HomeScreen(
+            profileAvatarPicker: () async =>
+                Uri.parse('mxc://example.org/profile-avatar'),
+          ),
         ),
       ),
     );
@@ -383,6 +391,14 @@ void main() {
     expect(find.text('Your profile'), findsOneWidget);
     expect(find.byKey(const Key('profile-display-name')), findsOneWidget);
     expect(find.text('Me'), findsWidgets);
+    expect(find.byKey(const Key('change-profile-avatar')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('change-profile-avatar')));
+    await tester.pumpAndSettle();
+    expect(
+      profileGateway.avatarUri,
+      Uri.parse('mxc://example.org/profile-avatar'),
+    );
   });
 
   testWidgets('contextual room filters stay off the home surface', (

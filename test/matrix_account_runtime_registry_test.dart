@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/matrix/matrix_account_runtime_registry.dart';
@@ -95,6 +96,38 @@ void main() {
           roomId: '!alice:example.org',
           transactionId: 'kite-local-43',
           body: 'Inactive',
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
+    'active account routes media uploads and rejects stale accounts',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      final contentUri = await registry.uploadMedia(
+        accountId: '@alice:example.org',
+        mimeType: 'image/jpeg',
+        bytes: Uint8List.fromList(<int>[9, 8, 7]),
+      );
+
+      expect(contentUri, 'mxc://example.org/@alice:example.org-uploaded');
+      final mediaUploads = boundaries['@alice:example.org']!.mediaUploads;
+      expect(mediaUploads, hasLength(1));
+      expect(mediaUploads.single.$1, 'image/jpeg');
+      expect(mediaUploads.single.$2, <int>[9, 8, 7]);
+
+      await registry.activate('@bob:example.org');
+      expect(
+        () => registry.uploadMedia(
+          accountId: '@alice:example.org',
+          mimeType: 'image/jpeg',
+          bytes: Uint8List.fromList(<int>[1]),
         ),
         throwsStateError,
       );
@@ -1718,6 +1751,7 @@ final class _FakeAccountBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
+        MatrixSdkMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomLifecycleManager,
@@ -1765,12 +1799,22 @@ final class _FakeAccountBoundary
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
+  final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String, String?, String?)> roomLifecycleActions =
       <(String, String, String?, String?)>[];
   final List<(String, String)> memberInvites = <(String, String)>[];
   final List<(String, String, String, int, String?)> memberModerations =
       <(String, String, String, int, String?)>[];
+
+  @override
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    mediaUploads.add((mimeType, List<int>.from(bytes)));
+    return 'mxc://example.org/$accountId-uploaded';
+  }
 
   @override
   Future<MatrixSdkProfileDetails> loadOwnProfile() async {

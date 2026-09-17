@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:kite/matrix/matrix_engine.dart';
 import 'package:kite/matrix/matrix_models.dart';
 
@@ -130,6 +132,13 @@ final class MatrixSdkRoomDetails {
   final String notificationMode;
   final bool isDirect;
   final List<String> directUserIds;
+}
+
+abstract interface class MatrixSdkMediaManager {
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  });
 }
 
 abstract interface class MatrixSdkProfileManager {
@@ -361,6 +370,34 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       roomId: roomId,
       transactionId: transactionId,
       body: body,
+    );
+  }
+
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkMediaManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support media uploads',
+      );
+    }
+    final normalizedMimeType = mimeType.trim();
+    if (normalizedMimeType.isEmpty || normalizedMimeType.contains('\u0000')) {
+      throw ArgumentError.value(
+        mimeType,
+        'mimeType',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    if (bytes.isEmpty) {
+      throw ArgumentError.value(bytes, 'bytes', 'must not be empty');
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkMediaManager).uploadMedia(
+      mimeType: normalizedMimeType,
+      bytes: bytes,
     );
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:kite/diagnostics/crash_reporting.dart';
@@ -11,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 18;
+const int kiteMatrixNativeAbiVersion = 19;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -236,6 +237,18 @@ typedef _ClientProfileDart = Pointer<Char> Function(
   Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
+);
+typedef _ClientUploadMediaNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Uint8>,
+  Uint64,
+);
+typedef _ClientUploadMediaDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Uint8>,
+  int,
 );
 typedef _DiscoverAuthenticationNative = Pointer<Char> Function(Pointer<Char>);
 typedef _DiscoverAuthenticationDart = Pointer<Char> Function(Pointer<Char>);
@@ -1073,6 +1086,70 @@ final class _MatrixNativeProfileOperation {
   }
 }
 
+final class _MatrixNativeUploadMediaOperation {
+  const _MatrixNativeUploadMediaOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.mimeType,
+    required this.bytes,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String mimeType;
+  final Uint8List bytes;
+
+  String call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final upload = library
+        .lookupFunction<_ClientUploadMediaNative, _ClientUploadMediaDart>(
+          'kite_matrix_client_upload_media',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final mimeTypeUtf8 = mimeType.toNativeUtf8(allocator: calloc);
+    final data = calloc<Uint8>(bytes.length);
+    data.asTypedList(bytes.length).setAll(0, bytes);
+    try {
+      final payload = _readNativeString(
+        upload(
+          Pointer<Void>.fromAddress(address),
+          mimeTypeUtf8.cast<Char>(),
+          data,
+          bytes.length,
+        ),
+        freeString,
+        'media upload',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media data.',
+        );
+      }
+      final contentUri = decoded['contentUri'];
+      if (contentUri is! String ||
+          contentUri.isEmpty ||
+          !contentUri.startsWith('mxc://')) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media data.',
+        );
+      }
+      return contentUri;
+    } finally {
+      data.asTypedList(bytes.length).fillRange(0, bytes.length, 0);
+      calloc.free(data);
+      calloc.free(mimeTypeUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomSettingsOperation {
   const _MatrixNativeRoomSettingsOperation({
     required this.libraryPath,
@@ -1355,6 +1432,13 @@ abstract interface class MatrixRustRoomLifecycleClient {
   });
 }
 
+abstract interface class MatrixRustMediaClient {
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  });
+}
+
 abstract interface class MatrixRustProfileClient {
   Future<Map<String, Object?>> profile({
     String? userId,
@@ -1555,6 +1639,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
         MatrixRustRoomSettingsClient,
+        MatrixRustMediaClient,
         MatrixRustProfileClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
@@ -1813,6 +1898,39 @@ final class MatrixRustNativeClient
           timeoutMs: timeoutMs,
           since: since,
           timelineEventLimit: timelineEventLimit,
+        ).call,
+      );
+    });
+  }
+
+  @override
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  }) {
+    final normalizedMimeType = mimeType.trim();
+    if (normalizedMimeType.isEmpty || normalizedMimeType.contains('\u0000')) {
+      return Future<String>.error(
+        ArgumentError.value(
+          mimeType,
+          'mimeType',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (bytes.isEmpty) {
+      return Future<String>.error(
+        ArgumentError.value(bytes, 'bytes', 'must not be empty'),
+      );
+    }
+    final copiedBytes = Uint8List.fromList(bytes);
+    return _enqueue<String>(() async {
+      return Isolate.run<String>(
+        _MatrixNativeUploadMediaOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          mimeType: normalizedMimeType,
+          bytes: copiedBytes,
         ).call,
       );
     });
@@ -2441,6 +2559,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkBoundary,
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
+        MatrixSdkMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkRoomCreator,
         MatrixSdkRoomSettingsManager,
@@ -2555,6 +2674,31 @@ final class MatrixRustSdkBoundary
         body: body,
       );
       return result.eventId;
+    });
+  }
+
+  @override
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  }) {
+    return _enqueue<String>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustMediaClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support media uploads',
+        );
+      }
+      final contentUri = await (client as MatrixRustMediaClient).uploadMedia(
+        mimeType: mimeType,
+        bytes: bytes,
+      );
+      if (!contentUri.startsWith('mxc://') || contentUri.length <= 6) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned an invalid media URI',
+        );
+      }
+      return contentUri;
     });
   }
 

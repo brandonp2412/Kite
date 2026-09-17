@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_engine.dart';
@@ -77,6 +78,18 @@ final class MatrixAccountRuntimeRegistry {
     final normalizedAccountId = _normalizeAccountId(accountId);
     if (activeAccountId.value != normalizedAccountId) return null;
     return _runtimes[normalizedAccountId]?.runtime.paginationState(roomId);
+  }
+
+  Future<String> uploadMedia({
+    required String accountId,
+    required String mimeType,
+    required Uint8List bytes,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot upload Matrix media for an inactive account',
+    );
+    return active.engine.uploadMedia(mimeType: mimeType, bytes: bytes);
   }
 
   Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) {

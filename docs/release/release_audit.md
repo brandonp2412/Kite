@@ -1,6 +1,6 @@
 # Kite release audit baseline
 
-Reviewed: 2026-09-16
+Reviewed: 2026-09-17
 
 This document records the executable release-security and dependency baseline. `tool/release_audit.sh` is the enforcement source; this file explains the reviewed assumptions and intentionally does not replace the final release-candidate security sign-off.
 
@@ -28,12 +28,12 @@ Two clean Android release builds were produced on Glass on 2026-09-15 with the s
 
 ## Dependency and license review
 
-Reverified on 2026-09-16: the executable audit passed with all 38 hosted packages accounted for (27 BSD-family, 9 Apache-2.0, and 2 MIT).
+Reverified on 2026-09-17: the executable audit passed with all 51 hosted packages accounted for (39 BSD-family, 10 Apache-2.0, and 2 MIT).
 
 The reviewed `pubspec.lock` SHA-256 is:
 
-`fad2c6c2ab4be8831a2fe478874312dd5322eb63819997e44cc5a234495986c7`
+`322da73c5f162e937a7c2821b7bd127d8056480fdb58e8f5f90dcc48ed09a0ca`
 
-The lock contains only SDK or hosted packages. The executable audit rejects Git/path dependencies and requires a non-empty license or copying file for every hosted package resolved by the lock. It recognizes only the reviewed BSD-family, Apache-2.0, and MIT license texts; unknown license text fails the gate for manual review. The current baseline contains 38 hosted packages: 27 BSD-family, 9 Apache-2.0, and 2 MIT. The added `intl` 0.20.3 dependency is BSD-family and is required by Flutter's generated localisation/plural support. The later `ffi` 2.2.0 direct dependency is also BSD-family and is required by the Matrix Rust native bridge; its pub.dev package identifies the Dart native repository as its source and its cached license text matches the reviewed BSD-family pattern.
+The lock contains only SDK or hosted packages. The executable audit rejects Git/path dependencies and requires a non-empty license or copying file for every hosted package resolved by the lock. It recognizes only the reviewed BSD-family, Apache-2.0, and MIT license texts; unknown license text fails the gate for manual review. The current baseline contains 51 hosted packages: 39 BSD-family, 10 Apache-2.0, and 2 MIT. The added `intl` 0.20.3 dependency is BSD-family and is required by Flutter's generated localisation/plural support. The later `ffi` 2.2.0 direct dependency is also BSD-family and is required by the Matrix Rust native bridge. The `file_selector` 1.1.0 dependency and its resolved cross-platform selector stack add 13 hosted packages for production avatar selection: 12 BSD-family and one Apache-2.0 (`file_selector_android`). All resolved package license files match the executable audit's reviewed license families.
 
 Any `pubspec.lock` change deliberately fails the release audit until the changed dependency graph and licenses are reviewed and the pinned digest is updated. This makes dependency/license review an ongoing release gate instead of a one-time document.

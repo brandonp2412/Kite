@@ -114,7 +114,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _changeAvatar() async {
     final picker = widget.pickAvatar;
     if (picker == null) return;
-    final selected = await picker();
+    Uri? selected;
+    try {
+      selected = await picker();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not update your avatar.')),
+        );
+      return;
+    }
     if (selected == null || !mounted) return;
     await widget.controller.updateAvatar(selected);
   }
