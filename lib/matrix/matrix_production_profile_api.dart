@@ -25,6 +25,20 @@ final class MatrixProductionProfileApi implements MatrixNativeProfileApi {
   }
 
   @override
+  Future<Set<String>> loadIgnoredUserIds() {
+    return _runtime.loadIgnoredUserIds(accountId: _activeAccountId());
+  }
+
+  @override
+  Future<void> setUserIgnored({required String userId, required bool ignored}) {
+    return _runtime.setUserIgnored(
+      accountId: _activeAccountId(),
+      userId: userId,
+      ignored: ignored,
+    );
+  }
+
+  @override
   Future<void> updateDisplayName(String displayName) {
     return _runtime.updateDisplayName(
       accountId: _activeAccountId(),

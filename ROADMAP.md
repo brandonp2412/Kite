@@ -358,6 +358,8 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Custom message notification sound.
 - [x] Custom call ringtone.
 - [ ] Push registration and encrypted notification payload handling.
+
+**Profile-safety progress (2026-09-18):** the existing user-profile and privacy surfaces now expose the single upstream-equivalent Block/Unblock state instead of duplicate Ignore and Block controls. Production routes that state through `matrix-sdk`'s stored ignored-user list plus `Account::ignore_user` / `Account::unignore_user`, with inactive-account guards, native-response validation, and the same SDK-backed state available to privacy management. ABI 23 JNI libraries were rebuilt for arm64-v8a, armeabi-v7a, and x86_64 and verified inside a release APK. Focused profile/privacy/runtime/native tests, inspected light/dark golden diffs, Rust formatting/check/tests, full analysis, and the Android release build pass; `tool/quality_gate.sh` passes release audit, Rust/ABI stages, analysis, and the 1,043-test Flutter suite with 3 intentional native-library skips before stopping only at the required Waydroid jitter stage because Glass has no ADB device. The ignore/block parity checkbox remains unchecked until that device gate can run.
 - [ ] Badge counts and clear-on-read behaviour.
 - [ ] Privacy/security settings.
 - [ ] Session/device management.

@@ -75,6 +75,8 @@ void main() {
       final ownProfile = await boundary.loadOwnProfile();
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
       final userSearch = await boundary.searchUsers('bo');
+      final ignoredUserIds = await boundary.loadIgnoredUserIds();
+      await boundary.setUserIgnored('@bob:kite.test', true);
       await boundary.updateDisplayName('Alice Updated');
       await boundary.updateAvatar('mxc://kite.test/alice');
       final directRoomId = await boundary.openDirectMessage('@bob:kite.test');
@@ -178,11 +180,14 @@ void main() {
       expect(userSearch.single.userId, '@bob:kite.test');
       expect(userSearch.single.displayName, 'Bob');
       expect(userSearch.single.avatarUrl, 'mxc://kite.test/bob');
+      expect(ignoredUserIds, <String>{'@spam:kite.test'});
       expect(directRoomId, '!dm:kite.test');
       expect(client.profileCalls, <(String?, String, String?)>[
         (null, 'get', null),
         ('@bob:kite.test', 'get', null),
         (null, 'search', 'bo'),
+        (null, 'ignored_users', null),
+        ('@bob:kite.test', 'set_ignored', 'true'),
         (null, 'set_display_name', 'Alice Updated'),
         (null, 'set_avatar', 'mxc://kite.test/alice'),
         ('@bob:kite.test', 'open_direct', null),
@@ -1355,6 +1360,18 @@ final class _FakeRustClient
             'avatarUrl': 'mxc://kite.test/bob',
           },
         ],
+      };
+    }
+    if (action == 'ignored_users') {
+      return <String, Object?>{
+        'userIds': <Object?>['@spam:kite.test'],
+      };
+    }
+    if (action == 'set_ignored') {
+      return <String, Object?>{
+        'action': action,
+        'userId': userId,
+        'ignored': value == 'true',
       };
     }
     if (action == 'open_direct') {

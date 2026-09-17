@@ -6,6 +6,10 @@ abstract interface class MatrixNativeProfileApi {
 
   Future<MatrixSdkUserProfile> loadProfile(String userId);
 
+  Future<Set<String>> loadIgnoredUserIds();
+
+  Future<void> setUserIgnored({required String userId, required bool ignored});
+
   Future<void> updateDisplayName(String displayName);
 
   Future<void> updateAvatar(Uri? avatarUri);
@@ -48,7 +52,10 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
         MatrixAccountSdkCapability.homeserverDiscovery,
         MatrixAccountSdkCapability.passwordAuthentication,
         MatrixAccountSdkCapability.sessionPersistence,
-        if (_profile != null) MatrixAccountSdkCapability.profileManagement,
+        if (_profile != null) ...<MatrixAccountSdkCapability>{
+          MatrixAccountSdkCapability.profileManagement,
+          MatrixAccountSdkCapability.privacyControls,
+        },
       };
 
   @override
@@ -218,23 +225,25 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
 
   @override
   Future<Set<String>> loadIgnoredUserIds() =>
+      _profile?.loadIgnoredUserIds() ??
       _unsupported(MatrixAccountSdkCapability.privacyControls);
 
   @override
-  Future<Set<String>> loadBlockedUserIds() =>
-      _unsupported(MatrixAccountSdkCapability.privacyControls);
+  Future<Set<String>> loadBlockedUserIds() => loadIgnoredUserIds();
 
   @override
   Future<void> setUserIgnored({
     required String userId,
     required bool ignored,
-  }) => _unsupported(MatrixAccountSdkCapability.privacyControls);
+  }) =>
+      _profile?.setUserIgnored(userId: userId, ignored: ignored) ??
+      _unsupported(MatrixAccountSdkCapability.privacyControls);
 
   @override
   Future<void> setUserBlocked({
     required String userId,
     required bool blocked,
-  }) => _unsupported(MatrixAccountSdkCapability.privacyControls);
+  }) => setUserIgnored(userId: userId, ignored: blocked);
 
   @override
   Future<void> registerPush({

@@ -86,18 +86,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final unignoreResult = await measureFrames(
-      binding: binding,
-      action: () async {
-        await tester.tap(
-          find.byKey(const Key('unignore-user-@ignored:example.org')),
-        );
-        await tester.pumpAndSettle();
-      },
-      enforceTotalSpan: enforceTotalSpan,
-    );
-    expect(controller.isIgnored('@ignored:example.org'), isFalse);
-
     final unblockResult = await measureFrames(
       binding: binding,
       action: () async {
@@ -111,12 +99,6 @@ void main() {
     expect(controller.isBlocked('@blocked:example.org'), isFalse);
 
     binding.reportData ??= <String, dynamic>{};
-    binding.reportData!['privacy_user_unignore'] = <String, dynamic>{
-      'journey': 'privacy_user_unignore',
-      'fixture': 'deterministic_privacy_controls_v1',
-      ...unignoreResult,
-      'result': 'PASS',
-    };
     binding.reportData!['privacy_user_unblock'] = <String, dynamic>{
       'journey': 'privacy_user_unblock',
       'fixture': 'deterministic_privacy_controls_v1',

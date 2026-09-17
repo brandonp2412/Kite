@@ -34,13 +34,11 @@ class _PrivacyUserControlsScreenState extends State<PrivacyUserControlsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ignored & blocked users')),
+      appBar: AppBar(title: const Text('Blocked users')),
       body: SafeArea(
         top: false,
         child: SignalBuilder(
           builder: (context) {
-            final ignored = widget.controller.ignoredUserIds.value.toList()
-              ..sort();
             final blocked = widget.controller.blockedUserIds.value.toList()
               ..sort();
             final loading = widget.controller.isPrivacyLoading.value;
@@ -58,35 +56,6 @@ class _PrivacyUserControlsScreenState extends State<PrivacyUserControlsScreen> {
                   height: 4,
                   child: loading ? const LinearProgressIndicator() : null,
                 ),
-                const _SectionTitle(label: 'Ignored users'),
-                SizedBox(
-                  key: const Key('ignored-users-slot'),
-                  height: _sectionHeight(ignored.length),
-                  child: ignored.isEmpty
-                      ? const _EmptyState(
-                          icon: Icons.volume_up_outlined,
-                          label: 'No ignored users',
-                        )
-                      : ListView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: ignored.length,
-                          itemExtent: 72,
-                          itemBuilder: (context, index) {
-                            final userId = ignored[index];
-                            return _PrivacyUserTile(
-                              key: Key('ignored-user-$userId'),
-                              userId: userId,
-                              actionKey: Key('unignore-user-$userId'),
-                              actionLabel: 'Unignore',
-                              busy: busy,
-                              onOpenUser: widget.onOpenUser,
-                              onAction: () =>
-                                  widget.controller.setIgnored(userId, false),
-                            );
-                          },
-                        ),
-                ),
-                const Divider(height: 1),
                 const _SectionTitle(label: 'Blocked users'),
                 SizedBox(
                   key: const Key('blocked-users-slot'),

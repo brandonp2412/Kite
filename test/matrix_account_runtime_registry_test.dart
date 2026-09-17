@@ -197,6 +197,15 @@ void main() {
         accountId: '@alice:example.org',
         userId: '@bob:example.org',
       );
+      expect(
+        await registry.loadIgnoredUserIds(accountId: '@alice:example.org'),
+        <String>{'@spam:example.org'},
+      );
+      await registry.setUserIgnored(
+        accountId: '@alice:example.org',
+        userId: '@bob:example.org',
+        ignored: true,
+      );
       await registry.updateDisplayName(
         accountId: '@alice:example.org',
         displayName: 'Alice Updated',
@@ -213,6 +222,10 @@ void main() {
       expect(own.userId, '@alice:example.org');
       expect(bob.userId, '@bob:example.org');
       expect(directRoom, '!dm-bob:example.org');
+      expect(
+        boundaries['@alice:example.org']!.ignoredUserWrites,
+        <(String, bool)>[('@bob:example.org', true)],
+      );
       expect(
         boundaries['@alice:example.org']!.profileMutations,
         <(String, String?)>[
@@ -1876,6 +1889,8 @@ final class _FakeAccountBoundary
   final List<String?> sentReplacementTargets = <String?>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<String> userSearches = <String>[];
+  final Set<String> ignoredUserIds = <String>{'@spam:example.org'};
+  final List<(String, bool)> ignoredUserWrites = <(String, bool)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
@@ -1933,6 +1948,19 @@ final class _FakeAccountBoundary
         avatarUrl: 'mxc://example.org/bob',
       ),
     ];
+  }
+
+  @override
+  Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignoredUserIds};
+
+  @override
+  Future<void> setUserIgnored(String userId, bool ignored) async {
+    ignoredUserWrites.add((userId, ignored));
+    if (ignored) {
+      ignoredUserIds.add(userId);
+    } else {
+      ignoredUserIds.remove(userId);
+    }
   }
 
   @override

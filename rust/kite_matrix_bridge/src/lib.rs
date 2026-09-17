@@ -28,6 +28,7 @@ use matrix_sdk::{
         },
         events::{
             InitialStateEvent,
+            ignored_user_list::IgnoredUserListEventContent,
             receipt::ReceiptThread,
             relation::Reply,
             room::{
@@ -45,7 +46,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 22;
+const KITE_MATRIX_ABI_VERSION: u32 = 23;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -1713,6 +1714,70 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
                 .collect::<Vec<_>>();
             json!({"results": results, "limited": search.limited})
         }
+        "ignored_users" => {
+            let ignored_users = match client.runtime.block_on(
+                matrix_client
+                    .account()
+                    .account_data::<IgnoredUserListEventContent>(),
+            ) {
+                Ok(Some(raw_content)) => match raw_content.deserialize() {
+                    Ok(content) => content
+                        .ignored_users
+                        .into_keys()
+                        .map(|user_id| user_id.to_string())
+                        .collect::<Vec<_>>(),
+                    Err(_) => {
+                        return error_json(
+                            "profile_failed",
+                            "The blocked-user list could not be read.",
+                        );
+                    }
+                },
+                Ok(None) => Vec::new(),
+                Err(_) => {
+                    return error_json(
+                        "profile_failed",
+                        "The blocked-user list could not be read.",
+                    );
+                }
+            };
+            json!({"userIds": ignored_users})
+        }
+        "set_ignored" => {
+            let Some(user_id) = user_id else {
+                return error_json("invalid_user", "The Matrix user is invalid.");
+            };
+            let Ok(user_id) = UserId::parse(user_id) else {
+                return error_json("invalid_user", "The Matrix user is invalid.");
+            };
+            let ignored = match value {
+                Some("true") => true,
+                Some("false") => false,
+                _ => {
+                    return error_json("invalid_action", "The blocked-user state is invalid.");
+                }
+            };
+            let result = if ignored {
+                client
+                    .runtime
+                    .block_on(matrix_client.account().ignore_user(&user_id))
+            } else {
+                client
+                    .runtime
+                    .block_on(matrix_client.account().unignore_user(&user_id))
+            };
+            if result.is_err() {
+                return error_json(
+                    "profile_failed",
+                    "The blocked-user state could not be updated.",
+                );
+            }
+            json!({
+                "action": action,
+                "userId": user_id.as_str(),
+                "ignored": ignored,
+            })
+        }
         "set_display_name" => {
             let display_name = value.filter(|value| !value.is_empty());
             if client
@@ -2230,7 +2295,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 22);
+        assert_eq!(kite_matrix_abi_version(), 23);
     }
 
     #[test]

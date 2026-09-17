@@ -12,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 22;
+const int kiteMatrixNativeAbiVersion = 23;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -2981,6 +2981,49 @@ final class MatrixRustSdkBoundary
       displayName: displayName as String?,
       avatarUrl: avatarUrl as String?,
     );
+  }
+
+  @override
+  Future<Set<String>> loadIgnoredUserIds() {
+    return _enqueue<Set<String>>(() async {
+      final decoded = await _profile(action: 'ignored_users');
+      final rawUserIds = decoded['userIds'];
+      if (rawUserIds is! List<Object?>) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid ignored-user data',
+        );
+      }
+      final userIds = <String>{};
+      for (final rawUserId in rawUserIds) {
+        if (rawUserId is! String ||
+            rawUserId.trim() != rawUserId ||
+            rawUserId.isEmpty) {
+          throw const MatrixSdkContractException(
+            'Matrix Rust client returned invalid ignored-user data',
+          );
+        }
+        userIds.add(rawUserId);
+      }
+      return Set<String>.unmodifiable(userIds);
+    });
+  }
+
+  @override
+  Future<void> setUserIgnored(String userId, bool ignored) {
+    return _enqueue<void>(() async {
+      final decoded = await _profile(
+        userId: userId,
+        action: 'set_ignored',
+        value: ignored.toString(),
+      );
+      if (decoded['action'] != 'set_ignored' ||
+          decoded['userId'] != userId ||
+          decoded['ignored'] != ignored) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid ignored-user state',
+        );
+      }
+    });
   }
 
   @override

@@ -7,7 +7,7 @@ import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/profile/user_profile_screen.dart';
 
 final class _DeferredProfileGateway implements UserProfileGateway {
-  final ignoreWrite = Completer<void>();
+  final blockWrite = Completer<void>();
   Completer<MatrixUserProfile>? ownProfileLoad;
 
   @override
@@ -37,13 +37,13 @@ final class _DeferredProfileGateway implements UserProfileGateway {
   Future<void> setUserBlocked({
     required String userId,
     required bool blocked,
-  }) async {}
+  }) => blockWrite.future;
 
   @override
   Future<void> setUserIgnored({
     required String userId,
     required bool ignored,
-  }) => ignoreWrite.future;
+  }) async {}
 
   @override
   Future<void> updateAvatar(Uri? avatarUri) async {}
@@ -190,7 +190,7 @@ void main() {
     final initialHeader = _rectOf(tester, header);
     final initialStatus = _rectOf(tester, status);
 
-    await tester.tap(find.byKey(const Key('profile-ignore')));
+    await tester.tap(find.byKey(const Key('profile-block')));
     for (var index = 0; index < PerformanceContract.motionSamples; index++) {
       await tester.pump(PerformanceContract.motionFrame);
       expect(_rectOf(tester, list), initialList);
@@ -199,10 +199,10 @@ void main() {
       expect(tester.takeException(), isNull);
     }
 
-    gateway.ignoreWrite.complete();
+    gateway.blockWrite.complete();
     await tester.pump();
     expect(_rectOf(tester, header), initialHeader);
     expect(_rectOf(tester, status), initialStatus);
-    expect(controller.isIgnored('@alice:example.org'), isTrue);
+    expect(controller.isBlocked('@alice:example.org'), isTrue);
   });
 }

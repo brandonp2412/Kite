@@ -128,6 +128,15 @@ void main() {
         accountId: '@alice:example.org',
         query: 'bob',
       );
+      expect(
+        await runtime.loadIgnoredUserIds(accountId: '@alice:example.org'),
+        <String>{'@spam:example.org'},
+      );
+      await runtime.setUserIgnored(
+        accountId: '@alice:example.org',
+        userId: '@bob:example.org',
+        ignored: true,
+      );
       await runtime.updateDisplayName(
         accountId: '@alice:example.org',
         displayName: 'Alice Updated',
@@ -147,6 +156,9 @@ void main() {
       expect(users.single.userId, '@bob:example.org');
       expect(users.single.avatarUrl, 'mxc://example.org/bob');
       expect(boundary.userSearches, <String>['bob']);
+      expect(boundary.ignoredUserWrites, <(String, bool)>[
+        ('@bob:example.org', true),
+      ]);
       expect(directRoomId, '!dm:example.org');
       expect(boundary.profileMutations, <(String, String?)>[
         ('set_display_name', 'Alice Updated'),
@@ -350,6 +362,8 @@ final class _FakeBoundary
   final List<(String, String)> readReceipts = <(String, String)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<String> userSearches = <String>[];
+  final Set<String> ignoredUserIds = <String>{'@spam:example.org'};
+  final List<(String, bool)> ignoredUserWrites = <(String, bool)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
 
@@ -436,6 +450,19 @@ final class _FakeBoundary
         avatarUrl: 'mxc://example.org/bob',
       ),
     ];
+  }
+
+  @override
+  Future<Set<String>> loadIgnoredUserIds() async => <String>{...ignoredUserIds};
+
+  @override
+  Future<void> setUserIgnored(String userId, bool ignored) async {
+    ignoredUserWrites.add((userId, ignored));
+    if (ignored) {
+      ignoredUserIds.add(userId);
+    } else {
+      ignoredUserIds.remove(userId);
+    }
   }
 
   @override

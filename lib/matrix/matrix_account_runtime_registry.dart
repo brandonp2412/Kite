@@ -139,6 +139,26 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.searchUsers(query);
   }
 
+  Future<Set<String>> loadIgnoredUserIds({required String accountId}) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load Matrix privacy controls for an inactive account',
+    );
+    return active.engine.loadIgnoredUserIds();
+  }
+
+  Future<void> setUserIgnored({
+    required String accountId,
+    required String userId,
+    required bool ignored,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot update Matrix privacy controls for an inactive account',
+    );
+    return active.engine.setUserIgnored(userId, ignored);
+  }
+
   Future<void> updateDisplayName({
     required String accountId,
     required String displayName,

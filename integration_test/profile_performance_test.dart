@@ -184,16 +184,6 @@ void main() {
     );
     expect(openedRoom, '!benchmark:example.org');
 
-    final ignoreResult = await measureFrames(
-      binding: binding,
-      action: () async {
-        await tester.tap(find.byKey(const Key('profile-ignore')));
-        await tester.pumpAndSettle();
-      },
-      enforceTotalSpan: enforceTotalSpan,
-    );
-    expect(controller.isIgnored('@alice:example.org'), isTrue);
-
     final blockResult = await measureFrames(
       binding: binding,
       action: () async {
@@ -208,10 +198,6 @@ void main() {
     binding.reportData!['profile_open_dm'] = _record(
       'profile_open_dm',
       dmResult,
-    );
-    binding.reportData!['profile_ignore'] = _record(
-      'profile_ignore',
-      ignoreResult,
     );
     binding.reportData!['profile_block'] = _record(
       'profile_block',

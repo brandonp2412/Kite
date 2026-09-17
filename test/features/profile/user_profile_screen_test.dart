@@ -205,12 +205,7 @@ void main() {
             .onPressed,
         isNotNull,
       );
-      expect(
-        tester
-            .widget<SwitchListTile>(find.byKey(const Key('profile-ignore')))
-            .onChanged,
-        isNull,
-      );
+      expect(find.byKey(const Key('profile-ignore')), findsNothing);
       expect(
         tester
             .widget<SwitchListTile>(find.byKey(const Key('profile-block')))
@@ -226,12 +221,6 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<SwitchListTile>(find.byKey(const Key('profile-ignore')))
-            .onChanged,
-        isNull,
-      );
-      expect(
-        tester
             .widget<SwitchListTile>(find.byKey(const Key('profile-block')))
             .onChanged,
         isNull,
@@ -239,12 +228,6 @@ void main() {
 
       controller.hasPrivacyState.value = true;
       await tester.pump();
-      expect(
-        tester
-            .widget<SwitchListTile>(find.byKey(const Key('profile-ignore')))
-            .onChanged,
-        isNotNull,
-      );
       expect(
         tester
             .widget<SwitchListTile>(find.byKey(const Key('profile-block')))
@@ -277,12 +260,7 @@ void main() {
 
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('@alice:example.org'), findsOneWidget);
-    expect(
-      tester
-          .widget<SwitchListTile>(find.byKey(const Key('profile-ignore')))
-          .value,
-      isTrue,
-    );
+    expect(find.byKey(const Key('profile-ignore')), findsNothing);
     expect(
       tester
           .widget<SwitchListTile>(find.byKey(const Key('profile-block')))
@@ -294,10 +272,6 @@ void main() {
     await tester.pump();
     expect(gateway.openedUserId, '@alice:example.org');
     expect(openedRoomId, '!dm:example.org');
-
-    await tester.tap(find.byKey(const Key('profile-ignore')));
-    await tester.pump();
-    expect(controller.isIgnored('@alice:example.org'), isFalse);
 
     await tester.tap(find.byKey(const Key('profile-block')));
     await tester.pump();

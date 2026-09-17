@@ -185,7 +185,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     imageProvider: widget.avatarImageProvider?.call(
                       profile.avatarUri,
                     ),
-                    ignored: widget.controller.isIgnored(profile.userId),
                     blocked: widget.controller.isBlocked(profile.userId),
                     onEditDisplayName: () => _editDisplayName(profile),
                     onChangeAvatar: _changeAvatar,
@@ -193,8 +192,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ? null
                         : () => widget.controller.updateAvatar(null),
                     onMessage: () => _openDirectMessage(profile),
-                    onIgnoredChanged: (value) =>
-                        widget.controller.setIgnored(profile.userId, value),
                     onBlockedChanged: (value) =>
                         widget.controller.setBlocked(profile.userId, value),
                   ),
@@ -264,13 +261,11 @@ class _ProfilePlaceholder extends StatelessWidget {
             privacyBusy: true,
             canChangeAvatar: canChangeAvatar,
             imageProvider: null,
-            ignored: false,
             blocked: false,
             onEditDisplayName: _noop,
             onChangeAvatar: _noop,
             onRemoveAvatar: null,
             onMessage: _noop,
-            onIgnoredChanged: _noopBool,
             onBlockedChanged: _noopBool,
             keyed: false,
           ),
@@ -300,13 +295,11 @@ class _ProfileContent extends StatelessWidget {
     required this.privacyBusy,
     required this.canChangeAvatar,
     required this.imageProvider,
-    required this.ignored,
     required this.blocked,
     required this.onEditDisplayName,
     required this.onChangeAvatar,
     required this.onRemoveAvatar,
     required this.onMessage,
-    required this.onIgnoredChanged,
     required this.onBlockedChanged,
     this.keyed = true,
   });
@@ -317,13 +310,11 @@ class _ProfileContent extends StatelessWidget {
   final bool privacyBusy;
   final bool canChangeAvatar;
   final ImageProvider<Object>? imageProvider;
-  final bool ignored;
   final bool blocked;
   final VoidCallback onEditDisplayName;
   final VoidCallback onChangeAvatar;
   final VoidCallback? onRemoveAvatar;
   final VoidCallback onMessage;
-  final ValueChanged<bool> onIgnoredChanged;
   final ValueChanged<bool> onBlockedChanged;
   final bool keyed;
 
@@ -347,10 +338,8 @@ class _ProfileContent extends StatelessWidget {
             profile: profile,
             busy: busy,
             privacyBusy: privacyBusy,
-            ignored: ignored,
             blocked: blocked,
             onMessage: onMessage,
-            onIgnoredChanged: onIgnoredChanged,
             onBlockedChanged: onBlockedChanged,
           ),
       ],
@@ -482,20 +471,16 @@ class _OtherProfileActions extends StatelessWidget {
     required this.profile,
     required this.busy,
     required this.privacyBusy,
-    required this.ignored,
     required this.blocked,
     required this.onMessage,
-    required this.onIgnoredChanged,
     required this.onBlockedChanged,
   });
 
   final MatrixUserProfile profile;
   final bool busy;
   final bool privacyBusy;
-  final bool ignored;
   final bool blocked;
   final VoidCallback onMessage;
-  final ValueChanged<bool> onIgnoredChanged;
   final ValueChanged<bool> onBlockedChanged;
 
   @override
@@ -521,20 +506,12 @@ class _OtherProfileActions extends StatelessWidget {
         ),
         const Divider(height: 1),
         SwitchListTile(
-          key: const Key('profile-ignore'),
-          value: ignored,
-          onChanged: busy || privacyBusy ? null : onIgnoredChanged,
-          secondary: const Icon(Icons.volume_off_outlined),
-          title: const Text('Ignore user'),
-          subtitle: const Text('Hide messages and activity from this user.'),
-        ),
-        SwitchListTile(
           key: const Key('profile-block'),
           value: blocked,
           onChanged: busy || privacyBusy ? null : onBlockedChanged,
           secondary: const Icon(Icons.block_outlined),
           title: const Text('Block user'),
-          subtitle: const Text('Apply the homeserver-supported block state.'),
+          subtitle: const Text('Hide messages and activity from this user.'),
         ),
       ],
     );

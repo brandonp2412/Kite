@@ -98,20 +98,13 @@ void main() {
         ),
       );
 
-      expect(find.text('@ignored:example.org'), findsOneWidget);
+      expect(find.text('@ignored:example.org'), findsNothing);
       expect(find.text('@blocked:example.org'), findsOneWidget);
 
       await tester.tap(
-        find.byKey(const Key('ignored-user-@ignored:example.org')),
+        find.byKey(const Key('blocked-user-@blocked:example.org')),
       );
-      expect(openedUser, '@ignored:example.org');
-
-      await tester.tap(
-        find.byKey(const Key('unignore-user-@ignored:example.org')),
-      );
-      await tester.pump();
-      expect(controller.isIgnored('@ignored:example.org'), isFalse);
-      expect(find.text('No ignored users'), findsOneWidget);
+      expect(openedUser, '@blocked:example.org');
 
       gateway.updateFailure = StateError('access_token=secret');
       await tester.tap(
@@ -148,14 +141,6 @@ void main() {
     expect(
       tester
           .widget<TextButton>(
-            find.byKey(const Key('unignore-user-@ignored:example.org')),
-          )
-          .onPressed,
-      isNull,
-    );
-    expect(
-      tester
-          .widget<TextButton>(
             find.byKey(const Key('unblock-user-@blocked:example.org')),
           )
           .onPressed,
@@ -170,7 +155,7 @@ void main() {
     expect(
       tester
           .widget<TextButton>(
-            find.byKey(const Key('unignore-user-@ignored:example.org')),
+            find.byKey(const Key('unblock-user-@blocked:example.org')),
           )
           .onPressed,
       isNotNull,
@@ -208,7 +193,7 @@ void main() {
     expect(
       tester
           .widget<TextButton>(
-            find.byKey(const Key('unignore-user-@ignored:example.org')),
+            find.byKey(const Key('unblock-user-@blocked:example.org')),
           )
           .onPressed,
       isNull,

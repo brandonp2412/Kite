@@ -163,6 +163,8 @@ abstract interface class MatrixSdkProfileManager {
   Future<MatrixSdkProfileDetails> loadOwnProfile();
   Future<MatrixSdkProfileDetails> loadProfile(String userId);
   Future<List<MatrixSdkUserSearchResult>> searchUsers(String query);
+  Future<Set<String>> loadIgnoredUserIds();
+  Future<void> setUserIgnored(String userId, bool ignored);
   Future<void> updateDisplayName(String displayName);
   Future<void> updateAvatar(String? avatarUrl);
   Future<String> openDirectMessage(String userId);
@@ -525,6 +527,22 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     return manager.searchUsers(normalizedQuery);
+  }
+
+  Future<Set<String>> loadIgnoredUserIds() async {
+    final manager = _profileManager();
+    await _ensureOpen();
+    final userIds = await manager.loadIgnoredUserIds();
+    return Set<String>.unmodifiable(
+      userIds.map((userId) => _validatedUserId(userId, 'ignoredUserId')),
+    );
+  }
+
+  Future<void> setUserIgnored(String userId, bool ignored) async {
+    final manager = _profileManager();
+    final normalizedUserId = _validatedUserId(userId, 'userId');
+    await _ensureOpen();
+    await manager.setUserIgnored(normalizedUserId, ignored);
   }
 
   Future<void> updateDisplayName(String displayName) async {

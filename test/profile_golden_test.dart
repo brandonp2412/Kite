@@ -126,7 +126,7 @@ void main() {
 
       expect(find.text('Alice Example'), findsOneWidget);
       expect(find.byKey(const Key('profile-message')), findsOneWidget);
-      expect(find.byKey(const Key('profile-ignore')), findsOneWidget);
+      expect(find.byKey(const Key('profile-ignore')), findsNothing);
       expect(find.byKey(const Key('profile-block')), findsOneWidget);
 
       await expectLater(

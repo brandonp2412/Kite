@@ -208,6 +208,19 @@ final class MatrixProductionRuntime
     required String query,
   }) => accounts.searchUsers(accountId: accountId, query: query);
 
+  Future<Set<String>> loadIgnoredUserIds({required String accountId}) =>
+      accounts.loadIgnoredUserIds(accountId: accountId);
+
+  Future<void> setUserIgnored({
+    required String accountId,
+    required String userId,
+    required bool ignored,
+  }) => accounts.setUserIgnored(
+    accountId: accountId,
+    userId: userId,
+    ignored: ignored,
+  );
+
   Future<void> updateDisplayName({
     required String accountId,
     required String displayName,
