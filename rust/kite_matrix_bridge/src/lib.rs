@@ -13,8 +13,8 @@ use matrix_sdk::{
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
     ruma::{
-        EventId, Int, OwnedEventId, OwnedMxcUri, OwnedTransactionId, OwnedUserId, RoomAliasId,
-        RoomId, UInt, UserId,
+        EventId, Int, OwnedDeviceId, OwnedEventId, OwnedMxcUri, OwnedTransactionId, OwnedUserId,
+        RoomAliasId, RoomId, UInt, UserId,
         api::{
             client::{
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
@@ -23,6 +23,7 @@ use matrix_sdk::{
                 reporting::report_user,
                 room::{Visibility, create_room},
                 session::get_login_types::v3::LoginType,
+                uiaa,
             },
             error::ErrorKind,
         },
@@ -46,7 +47,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 23;
+const KITE_MATRIX_ABI_VERSION: u32 = 24;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -1623,7 +1624,8 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
         return error_json("invalid_action", "The Matrix profile action is invalid.");
     };
     let user_id = unsafe { required_utf8(user_id) };
-    let value = unsafe { required_utf8(value) }.map(str::trim);
+    let raw_value = unsafe { required_utf8(value) };
+    let value = raw_value.map(str::trim);
 
     let client = unsafe { &mut *client };
     let Some(matrix_client) = client.client.as_ref() else {
@@ -1713,6 +1715,113 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
                 })
                 .collect::<Vec<_>>();
             json!({"results": results, "limited": search.limited})
+        }
+        "devices" => {
+            let Some(session) = matrix_client.session_meta() else {
+                return error_json(
+                    "profile_failed",
+                    "The signed-in devices could not be loaded.",
+                );
+            };
+            let current_device_id = session.device_id.clone();
+            let user_id = session.user_id.clone();
+            let response = match client.runtime.block_on(matrix_client.devices()) {
+                Ok(response) => response,
+                Err(_) => {
+                    return error_json(
+                        "profile_failed",
+                        "The signed-in devices could not be loaded.",
+                    );
+                }
+            };
+            let crypto_devices = client
+                .runtime
+                .block_on(matrix_client.encryption().get_user_devices(&user_id))
+                .ok();
+            let devices = response
+                .devices
+                .into_iter()
+                .map(|device| {
+                    let verification = crypto_devices
+                        .as_ref()
+                        .and_then(|devices| devices.get(&device.device_id))
+                        .map(|device| {
+                            if device.is_verified() {
+                                "verified"
+                            } else {
+                                "unverified"
+                            }
+                        })
+                        .unwrap_or("unknown");
+                    let last_seen_at_ms = device.last_seen_ts.map(|timestamp| {
+                        let value: u64 = timestamp.get().into();
+                        value
+                    });
+                    json!({
+                        "deviceId": device.device_id.as_str(),
+                        "displayName": device.display_name,
+                        "lastSeenAtMs": last_seen_at_ms,
+                        "isCurrent": device.device_id == current_device_id,
+                        "verification": verification,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({"devices": devices})
+        }
+        "delete_device" => {
+            let Some(device_id) =
+                user_id.filter(|value| !value.is_empty() && value.trim() == *value)
+            else {
+                return error_json("invalid_device", "The Matrix device is invalid.");
+            };
+            let Some(password) = raw_value.filter(|value| !value.is_empty()) else {
+                return error_json(
+                    "reauthentication_required",
+                    "Your account password is required to sign out that device.",
+                );
+            };
+            let Some(session) = matrix_client.session_meta() else {
+                return error_json(
+                    "authentication_required",
+                    "The Matrix session is unavailable.",
+                );
+            };
+            if session.device_id.as_str() == device_id {
+                return error_json(
+                    "invalid_device",
+                    "Use account sign out for the current device.",
+                );
+            }
+            let devices = [OwnedDeviceId::from(device_id.to_owned())];
+            let first_attempt = client
+                .runtime
+                .block_on(matrix_client.delete_devices(&devices, None));
+            if let Err(error) = first_attempt {
+                let Some(info) = error.as_uiaa_response() else {
+                    return error_json(
+                        "device_sign_out_failed",
+                        "The Matrix device could not be signed out.",
+                    );
+                };
+                let mut password_auth = uiaa::Password::new(
+                    uiaa::UserIdentifier::Matrix(uiaa::MatrixUserIdentifier::new(
+                        session.user_id.localpart().to_owned(),
+                    )),
+                    password.to_owned(),
+                );
+                password_auth.session = info.session.clone();
+                let authenticated = client.runtime.block_on(
+                    matrix_client
+                        .delete_devices(&devices, Some(uiaa::AuthData::Password(password_auth))),
+                );
+                if authenticated.is_err() {
+                    return error_json(
+                        "device_sign_out_failed",
+                        "The Matrix device could not be signed out.",
+                    );
+                }
+            }
+            json!({"action": "delete_device", "deviceId": device_id})
         }
         "ignored_users" => {
             let ignored_users = match client.runtime.block_on(
@@ -2295,7 +2404,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 23);
+        assert_eq!(kite_matrix_abi_version(), 24);
     }
 
     #[test]

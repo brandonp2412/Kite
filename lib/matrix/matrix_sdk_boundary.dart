@@ -170,6 +170,28 @@ abstract interface class MatrixSdkProfileManager {
   Future<String> openDirectMessage(String userId);
 }
 
+final class MatrixSdkSessionDeviceDetails {
+  const MatrixSdkSessionDeviceDetails({
+    required this.deviceId,
+    required this.isCurrent,
+    required this.isVerified,
+    this.displayName,
+    this.lastSeenAt,
+  });
+
+  final String deviceId;
+  final bool isCurrent;
+  final bool? isVerified;
+  final String? displayName;
+  final DateTime? lastSeenAt;
+}
+
+abstract interface class MatrixSdkDeviceManager {
+  Future<List<MatrixSdkSessionDeviceDetails>> loadDevices();
+
+  Future<void> signOutDevice(String deviceId, {required String password});
+}
+
 abstract interface class MatrixSdkRoomCreator {
   Future<MatrixSdkCreatedRoom> createRoom(MatrixSdkRoomCreationRequest request);
 }
@@ -543,6 +565,70 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     final normalizedUserId = _validatedUserId(userId, 'userId');
     await _ensureOpen();
     await manager.setUserIgnored(normalizedUserId, ignored);
+  }
+
+  Future<List<MatrixSdkSessionDeviceDetails>> loadDevices() async {
+    final manager = _boundary is MatrixSdkDeviceManager
+        ? _boundary as MatrixSdkDeviceManager
+        : null;
+    if (manager == null) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support device listing',
+      );
+    }
+    await _ensureOpen();
+    final devices = await manager.loadDevices();
+    final ids = <String>{};
+    var currentCount = 0;
+    for (final device in devices) {
+      if (device.deviceId.trim() != device.deviceId ||
+          device.deviceId.isEmpty ||
+          !ids.add(device.deviceId)) {
+        throw const MatrixSdkContractException(
+          'Matrix SDK boundary returned invalid device data',
+        );
+      }
+      if (device.isCurrent) currentCount += 1;
+    }
+    if (devices.isNotEmpty && currentCount != 1) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary returned invalid current-device data',
+      );
+    }
+    return List<MatrixSdkSessionDeviceDetails>.unmodifiable(devices);
+  }
+
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {
+    final manager = _boundary is MatrixSdkDeviceManager
+        ? _boundary as MatrixSdkDeviceManager
+        : null;
+    if (manager == null) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support device management',
+      );
+    }
+    final normalizedDeviceId = deviceId.trim();
+    if (normalizedDeviceId.isEmpty ||
+        normalizedDeviceId != deviceId ||
+        normalizedDeviceId.contains('\u0000')) {
+      throw ArgumentError.value(
+        deviceId,
+        'deviceId',
+        'must be a valid device ID',
+      );
+    }
+    if (password.isEmpty || password.contains('\u0000')) {
+      throw ArgumentError.value(
+        '<redacted>',
+        'password',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    await manager.signOutDevice(normalizedDeviceId, password: password);
   }
 
   Future<void> updateDisplayName(String displayName) async {

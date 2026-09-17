@@ -76,6 +76,8 @@ void main() {
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
       final userSearch = await boundary.searchUsers('bo');
       final ignoredUserIds = await boundary.loadIgnoredUserIds();
+      final devices = await boundary.loadDevices();
+      await boundary.signOutDevice('PHONE', password: ' secret with spaces ');
       await boundary.setUserIgnored('@bob:kite.test', true);
       await boundary.updateDisplayName('Alice Updated');
       await boundary.updateAvatar('mxc://kite.test/alice');
@@ -181,12 +183,26 @@ void main() {
       expect(userSearch.single.displayName, 'Bob');
       expect(userSearch.single.avatarUrl, 'mxc://kite.test/bob');
       expect(ignoredUserIds, <String>{'@spam:kite.test'});
+      expect(devices, hasLength(2));
+      expect(devices.first.deviceId, 'KITEDEVICE');
+      expect(devices.first.isCurrent, isTrue);
+      expect(devices.first.isVerified, isTrue);
+      expect(devices.first.displayName, 'Glass');
+      expect(
+        devices.first.lastSeenAt,
+        DateTime.fromMillisecondsSinceEpoch(1758170000000, isUtc: true),
+      );
+      expect(devices.last.deviceId, 'PHONE');
+      expect(devices.last.isCurrent, isFalse);
+      expect(devices.last.isVerified, isNull);
       expect(directRoomId, '!dm:kite.test');
       expect(client.profileCalls, <(String?, String, String?)>[
         (null, 'get', null),
         ('@bob:kite.test', 'get', null),
         (null, 'search', 'bo'),
         (null, 'ignored_users', null),
+        (null, 'devices', null),
+        ('PHONE', 'delete_device', ' secret with spaces '),
         ('@bob:kite.test', 'set_ignored', 'true'),
         (null, 'set_display_name', 'Alice Updated'),
         (null, 'set_avatar', 'mxc://kite.test/alice'),
@@ -1366,6 +1382,29 @@ final class _FakeRustClient
       return <String, Object?>{
         'userIds': <Object?>['@spam:kite.test'],
       };
+    }
+    if (action == 'devices') {
+      return <String, Object?>{
+        'devices': <Object?>[
+          <String, Object?>{
+            'deviceId': 'KITEDEVICE',
+            'displayName': 'Glass',
+            'lastSeenAtMs': 1758170000000,
+            'isCurrent': true,
+            'verification': 'verified',
+          },
+          <String, Object?>{
+            'deviceId': 'PHONE',
+            'displayName': 'Phone',
+            'lastSeenAtMs': null,
+            'isCurrent': false,
+            'verification': 'unknown',
+          },
+        ],
+      };
+    }
+    if (action == 'delete_device') {
+      return <String, Object?>{'action': action, 'deviceId': userId};
     }
     if (action == 'set_ignored') {
       return <String, Object?>{

@@ -301,7 +301,7 @@ final class MatrixAccountSdkGateway
 
   @override
   Future<List<SessionDevice>> loadDevices() {
-    return _run(MatrixAccountSdkCapability.deviceManagement, () async {
+    return _run(MatrixAccountSdkCapability.deviceListing, () async {
       final devices = await _boundary.loadDevices();
       return List<SessionDevice>.unmodifiable(
         devices.map(
@@ -318,10 +318,10 @@ final class MatrixAccountSdkGateway
   }
 
   @override
-  Future<void> signOutDevice(String deviceId) {
+  Future<void> signOutDevice(String deviceId, {required String password}) {
     return _run(
       MatrixAccountSdkCapability.deviceManagement,
-      () => _boundary.signOutDevice(deviceId),
+      () => _boundary.signOutDevice(deviceId, password: password),
     );
   }
 

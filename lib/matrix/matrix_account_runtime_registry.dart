@@ -159,6 +159,28 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.setUserIgnored(userId, ignored);
   }
 
+  Future<List<MatrixSdkSessionDeviceDetails>> loadDevices({
+    required String accountId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load Matrix devices for an inactive account',
+    );
+    return active.engine.loadDevices();
+  }
+
+  Future<void> signOutDevice({
+    required String accountId,
+    required String deviceId,
+    required String password,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot sign out a Matrix device for an inactive account',
+    );
+    return active.engine.signOutDevice(deviceId, password: password);
+  }
+
   Future<void> updateDisplayName({
     required String accountId,
     required String displayName,

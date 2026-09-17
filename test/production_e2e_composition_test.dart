@@ -19,6 +19,7 @@ void main() {
       runtimeSource,
       contains('MatrixProductionProfileApi(matrixRuntime)'),
     );
+    expect(runtimeSource, contains('MatrixProductionDeviceApi(matrixRuntime)'));
     expect(
       runtimeSource,
       contains('accountSdkBoundary: widget.accountBoundary'),

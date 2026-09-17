@@ -21,13 +21,14 @@ final class SessionDevice {
 abstract interface class SessionDeviceGateway {
   Future<List<SessionDevice>> loadDevices();
 
-  Future<void> signOutDevice(String deviceId);
+  Future<void> signOutDevice(String deviceId, {required String password});
 }
 
 final class SessionDeviceController {
-  SessionDeviceController(this._gateway);
+  SessionDeviceController(this._gateway, {this.remoteSignOutSupported = true});
 
   final SessionDeviceGateway _gateway;
+  final bool remoteSignOutSupported;
   int _accountGeneration = 0;
 
   final devices = signal<List<SessionDevice>>(const <SessionDevice>[]);
@@ -89,7 +90,19 @@ final class SessionDeviceController {
     return true;
   }
 
-  Future<bool> signOutRemoteDevice(String deviceId) async {
+  Future<bool> signOutRemoteDevice(
+    String deviceId, {
+    required String password,
+  }) async {
+    if (!remoteSignOutSupported) {
+      errorMessage.value = 'Remote device sign-out is not available.';
+      return false;
+    }
+    if (password.isEmpty) {
+      errorMessage.value =
+          'Enter your account password to sign out this device.';
+      return false;
+    }
     if (isLoading.value || signingOutDeviceIds.value.isNotEmpty) return false;
     final device = _findDevice(deviceId);
     if (device == null) {
@@ -108,7 +121,7 @@ final class SessionDeviceController {
       deviceId,
     };
     try {
-      await _gateway.signOutDevice(deviceId);
+      await _gateway.signOutDevice(deviceId, password: password);
       if (generation != _accountGeneration) return false;
       devices.value = List<SessionDevice>.unmodifiable(
         devices.value.where(

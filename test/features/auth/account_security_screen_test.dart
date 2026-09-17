@@ -35,6 +35,7 @@ final class _FakeSessionGateway implements SessionDeviceGateway {
   List<SessionDevice> loaded = const <SessionDevice>[];
   Completer<List<SessionDevice>>? deferredLoad;
   final signedOut = <String>[];
+  final signedOutPasswords = <String>[];
   int loadCalls = 0;
 
   @override
@@ -46,8 +47,12 @@ final class _FakeSessionGateway implements SessionDeviceGateway {
   }
 
   @override
-  Future<void> signOutDevice(String deviceId) async {
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {
     signedOut.add(deviceId);
+    signedOutPasswords.add(password);
   }
 }
 
@@ -139,6 +144,29 @@ void main() {
     expect(accounts.activeAccount?.session.deviceId, 'WORK_DEVICE');
     expect(devices.currentDevice?.deviceId, 'WORK_DEVICE');
     expect(devices.errorMessage.value, isNull);
+  });
+
+  testWidgets('hides remote sign-out until Matrix UIA is available', (
+    tester,
+  ) async {
+    final accounts = AccountManagementController(_FakeAccountGateway());
+    final sessionGateway = _FakeSessionGateway()
+      ..loaded = const <SessionDevice>[_currentDevice, _remoteDevice];
+    final devices = SessionDeviceController(
+      sessionGateway,
+      remoteSignOutSupported: false,
+    );
+    addTearDown(accounts.dispose);
+    addTearDown(devices.dispose);
+    await accounts.load();
+    await devices.load();
+
+    await tester.pumpWidget(_app(accounts: accounts, devices: devices));
+
+    expect(find.byKey(const Key('device-CURRENT')), findsOneWidget);
+    expect(find.byKey(const Key('device-PHONE')), findsOneWidget);
+    expect(find.byKey(const Key('current-device-badge')), findsOneWidget);
+    expect(find.byKey(const Key('sign-out-device-PHONE')), findsNothing);
   });
 
   testWidgets(
@@ -335,16 +363,23 @@ void main() {
     await tester.tap(find.byKey(const Key('sign-out-device-PHONE')));
     await tester.pumpAndSettle();
     expect(
-      find.text('This Matrix session will be remotely signed out.'),
+      find.text('Enter your account password to sign out this session.'),
       findsOneWidget,
     );
     expect(sessionGateway.signedOut, isEmpty);
 
+    await tester.enterText(
+      find.byKey(const Key('remote-device-password')),
+      'correct horse battery staple',
+    );
     await tester.tap(
       find.byKey(const Key('account-security-confirm-Sign out device')),
     );
     await tester.pumpAndSettle();
     expect(sessionGateway.signedOut, <String>['PHONE']);
+    expect(sessionGateway.signedOutPasswords, <String>[
+      'correct horse battery staple',
+    ]);
     expect(find.byKey(const Key('device-PHONE')), findsNothing);
 
     await tester.tap(find.byKey(const Key('sign-out-account-work')));

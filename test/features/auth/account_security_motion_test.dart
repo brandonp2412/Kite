@@ -66,7 +66,10 @@ final class _StableSessionGateway implements SessionDeviceGateway {
   }
 
   @override
-  Future<void> signOutDevice(String deviceId) async {}
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {}
 }
 
 Rect _rectOf(WidgetTester tester, Finder finder) {

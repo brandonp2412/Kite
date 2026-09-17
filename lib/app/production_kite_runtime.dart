@@ -14,6 +14,7 @@ import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
+import 'package:kite/matrix/matrix_production_device_api.dart';
 import 'package:kite/matrix/matrix_production_profile_api.dart';
 import 'package:kite/matrix/matrix_production_runtime.dart';
 import 'package:kite/matrix/matrix_rust_auth_session_api.dart';
@@ -60,6 +61,7 @@ final class ProductionKiteRuntime extends StatefulWidget {
       accountBoundary: NativeMatrixAccountSdkBoundary(
         authApi,
         profileApi: MatrixProductionProfileApi(matrixRuntime),
+        deviceApi: MatrixProductionDeviceApi(matrixRuntime),
       ),
       matrixRuntime: matrixRuntime,
     );

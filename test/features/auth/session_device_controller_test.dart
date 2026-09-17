@@ -8,6 +8,7 @@ final class _FakeSessionDeviceGateway implements SessionDeviceGateway {
   Object? loadError;
   Object? signOutError;
   final signedOutDeviceIds = <String>[];
+  final signedOutPasswords = <String>[];
   Completer<void>? deferredSignOut;
 
   @override
@@ -17,8 +18,12 @@ final class _FakeSessionDeviceGateway implements SessionDeviceGateway {
   }
 
   @override
-  Future<void> signOutDevice(String deviceId) async {
+  Future<void> signOutDevice(
+    String deviceId, {
+    required String password,
+  }) async {
     signedOutDeviceIds.add(deviceId);
+    signedOutPasswords.add(password);
     if (signOutError case final error?) throw error;
     await deferredSignOut?.future;
   }
@@ -83,6 +88,30 @@ void main() {
   });
 
   test(
+    'remote sign-out stays unavailable when device management is unsupported',
+    () async {
+      final gateway = _FakeSessionDeviceGateway()
+        ..loaded = const <SessionDevice>[_current, _remote];
+      final controller = SessionDeviceController(
+        gateway,
+        remoteSignOutSupported: false,
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+
+      expect(
+        await controller.signOutRemoteDevice('REMOTE', password: 'secret'),
+        isFalse,
+      );
+      expect(gateway.signedOutDeviceIds, isEmpty);
+      expect(
+        controller.errorMessage.value,
+        'Remote device sign-out is not available.',
+      );
+    },
+  );
+
+  test(
     'remote sign-out removes only the device after gateway success',
     () async {
       final gateway = _FakeSessionDeviceGateway()
@@ -91,9 +120,13 @@ void main() {
       addTearDown(controller.dispose);
       await controller.load();
 
-      expect(await controller.signOutRemoteDevice('REMOTE'), isTrue);
+      expect(
+        await controller.signOutRemoteDevice('REMOTE', password: 'secret'),
+        isTrue,
+      );
 
       expect(gateway.signedOutDeviceIds, <String>['REMOTE']);
+      expect(gateway.signedOutPasswords, <String>['secret']);
       expect(
         controller.devices.value.map((device) => device.deviceId),
         <String>['CURRENT'],
@@ -110,14 +143,20 @@ void main() {
     addTearDown(controller.dispose);
     await controller.load();
 
-    final signOut = controller.signOutRemoteDevice('REMOTE');
+    final signOut = controller.signOutRemoteDevice(
+      'REMOTE',
+      password: 'secret',
+    );
     await Future<void>.delayed(Duration.zero);
     expect(controller.signingOutDeviceIds.value, <String>{'REMOTE'});
 
     expect(controller.resetForAccountChange(), isTrue);
     expect(controller.devices.value, isEmpty);
     expect(controller.signingOutDeviceIds.value, isEmpty);
-    expect(await controller.signOutRemoteDevice('REMOTE'), isFalse);
+    expect(
+      await controller.signOutRemoteDevice('REMOTE', password: 'secret'),
+      isFalse,
+    );
     expect(gateway.signedOutDeviceIds, <String>['REMOTE']);
 
     gateway.deferredSignOut!.complete();
@@ -138,7 +177,10 @@ void main() {
       addTearDown(controller.dispose);
       await controller.load();
 
-      expect(await controller.signOutRemoteDevice('CURRENT'), isFalse);
+      expect(
+        await controller.signOutRemoteDevice('CURRENT', password: 'secret'),
+        isFalse,
+      );
 
       expect(gateway.signedOutDeviceIds, isEmpty);
       expect(
@@ -156,7 +198,10 @@ void main() {
     await controller.load();
 
     gateway.signOutError = StateError('access_token=remote-secret');
-    expect(await controller.signOutRemoteDevice('REMOTE'), isFalse);
+    expect(
+      await controller.signOutRemoteDevice('REMOTE', password: 'secret'),
+      isFalse,
+    );
 
     expect(controller.devices.value, hasLength(2));
     expect(
