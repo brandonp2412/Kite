@@ -9,6 +9,9 @@ use matrix_sdk::{
     Client, Error as MatrixError, HttpError, RoomMemberships,
     authentication::matrix::MatrixSession,
     config::SyncSettings,
+    encryption::{
+        BackupDownloadStrategy, EncryptionSettings, backups::BackupState, recovery::RecoveryState,
+    },
     media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings},
     notification_settings::RoomNotificationMode,
     room::MessagesOptions,
@@ -46,7 +49,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::runtime::{Builder, Runtime};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 23;
+const KITE_MATRIX_ABI_VERSION: u32 = 25;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -234,6 +237,10 @@ pub unsafe extern "C" fn kite_matrix_client_new(
     let builder = Client::builder()
         .homeserver_url(homeserver)
         .handle_refresh_tokens()
+        .with_encryption_settings(EncryptionSettings {
+            backup_download_strategy: BackupDownloadStrategy::OneShot,
+            ..Default::default()
+        })
         .sqlite_store(Path::new(store_path), Some(store_passphrase));
     let Ok(client) = runtime.block_on(builder.build()) else {
         return ptr::null_mut();
@@ -452,6 +459,137 @@ pub unsafe extern "C" fn kite_matrix_client_persist_session(
         );
     }
     ok_json(Value::Null)
+}
+
+fn recovery_status_value(runtime: &Runtime, matrix_client: &Client) -> Value {
+    let recovery_state = match matrix_client.encryption().recovery().state() {
+        RecoveryState::Unknown => "unknown",
+        RecoveryState::Enabled => "enabled",
+        RecoveryState::Disabled => "disabled",
+        RecoveryState::Incomplete => "incomplete",
+    };
+    let backup_exists_on_server = runtime
+        .block_on(
+            matrix_client
+                .encryption()
+                .backups()
+                .fetch_exists_on_server(),
+        )
+        .unwrap_or(false);
+    let backup_state = match matrix_client.encryption().backups().state() {
+        BackupState::Unknown => "unknown",
+        BackupState::Creating => "creating",
+        BackupState::Enabling => "enabling",
+        BackupState::Resuming => "resuming",
+        BackupState::Enabled => "enabled",
+        BackupState::Downloading => "downloading",
+        BackupState::Disabling => "disabling",
+    };
+    json!({
+        "recoveryState": recovery_state,
+        "backupState": backup_state,
+        "backupExistsOnServer": backup_exists_on_server,
+    })
+}
+
+async fn download_recoverable_room_keys(matrix_client: &Client) -> Result<(), MatrixError> {
+    for room in matrix_client.rooms() {
+        matrix_client
+            .encryption()
+            .backups()
+            .download_room_keys_for_room(room.room_id())
+            .await?;
+    }
+    Ok(())
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_recovery(
+    client: *mut KiteMatrixClient,
+    action: *const c_char,
+    secret: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json(
+            "client_closed",
+            "Matrix encryption recovery is unavailable.",
+        );
+    }
+    let Some(action) = (unsafe { required_utf8(action) }) else {
+        return error_json(
+            "invalid_recovery_action",
+            "Matrix encryption recovery is unavailable.",
+        );
+    };
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json(
+            "client_closed",
+            "Matrix encryption recovery is unavailable.",
+        );
+    };
+    if matrix_client.matrix_auth().session().is_none() {
+        return error_json(
+            "session_unavailable",
+            "Matrix encryption recovery requires an authenticated session.",
+        );
+    }
+
+    match action {
+        "status" => ok_json(recovery_status_value(&client.runtime, matrix_client)),
+        "recover" => {
+            let Some(secret) = (unsafe { required_utf8(secret) }) else {
+                return error_json(
+                    "recovery_secret_required",
+                    "A Matrix recovery key or passphrase is required.",
+                );
+            };
+            if secret.is_empty() {
+                return error_json(
+                    "recovery_secret_required",
+                    "A Matrix recovery key or passphrase is required.",
+                );
+            }
+            let result = client.runtime.block_on(async {
+                if matrix_client
+                    .encryption()
+                    .recovery()
+                    .recover(secret)
+                    .await
+                    .is_err()
+                {
+                    return Err(());
+                }
+                download_recoverable_room_keys(matrix_client)
+                    .await
+                    .map_err(|_| ())
+            });
+            if result.is_err() {
+                return error_json(
+                    "recovery_failed",
+                    "Matrix could not restore encrypted message history with that recovery secret.",
+                );
+            }
+            ok_json(recovery_status_value(&client.runtime, matrix_client))
+        }
+        "recover_history" => {
+            if client
+                .runtime
+                .block_on(download_recoverable_room_keys(matrix_client))
+                .is_err()
+            {
+                return error_json(
+                    "history_recovery_failed",
+                    "Matrix could not recover encrypted message history.",
+                );
+            }
+            ok_json(recovery_status_value(&client.runtime, matrix_client))
+        }
+        _ => error_json(
+            "invalid_recovery_action",
+            "Matrix encryption recovery is unavailable.",
+        ),
+    }
 }
 
 #[unsafe(no_mangle)]

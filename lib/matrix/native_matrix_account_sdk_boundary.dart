@@ -17,6 +17,14 @@ abstract interface class MatrixNativeProfileApi {
   Future<String> openDirectMessage(String userId);
 }
 
+abstract interface class MatrixNativeRecoveryApi {
+  Future<MatrixSdkRecoveryStatus> loadRecoveryStatus();
+
+  Future<MatrixSdkRecoveryStatus> restoreBackup(String secret);
+
+  Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages();
+}
+
 abstract interface class MatrixNativeAuthSessionApi {
   Future<MatrixSdkAuthenticationDiscovery> discoverAuthentication(
     Uri homeserver,
@@ -41,10 +49,13 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
   const NativeMatrixAccountSdkBoundary(
     this._native, {
     MatrixNativeProfileApi? profileApi,
-  }) : _profile = profileApi;
+    MatrixNativeRecoveryApi? recoveryApi,
+  }) : _profile = profileApi,
+       _recovery = recoveryApi;
 
   final MatrixNativeAuthSessionApi _native;
   final MatrixNativeProfileApi? _profile;
+  final MatrixNativeRecoveryApi? _recovery;
 
   @override
   Set<MatrixAccountSdkCapability> get accountCapabilities =>
@@ -55,6 +66,10 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
         if (_profile != null) ...<MatrixAccountSdkCapability>{
           MatrixAccountSdkCapability.profileManagement,
           MatrixAccountSdkCapability.privacyControls,
+        },
+        if (_recovery != null) ...<MatrixAccountSdkCapability>{
+          MatrixAccountSdkCapability.encryptedBackup,
+          MatrixAccountSdkCapability.historicalMessageRecovery,
         },
       };
 
@@ -148,6 +163,7 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
 
   @override
   Future<MatrixSdkRecoveryStatus> loadRecoveryStatus() =>
+      _recovery?.loadRecoveryStatus() ??
       _unsupported(MatrixAccountSdkCapability.encryptedBackup);
 
   @override
@@ -157,15 +173,20 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
   @override
   Future<MatrixSdkRecoveryStatus> restoreBackupWithRecoveryKey(
     String recoveryKey,
-  ) => _unsupported(MatrixAccountSdkCapability.encryptedBackup);
+  ) =>
+      _recovery?.restoreBackup(recoveryKey) ??
+      _unsupported(MatrixAccountSdkCapability.encryptedBackup);
 
   @override
   Future<MatrixSdkRecoveryStatus> restoreBackupWithPassphrase(
     String passphrase,
-  ) => _unsupported(MatrixAccountSdkCapability.encryptedBackup);
+  ) =>
+      _recovery?.restoreBackup(passphrase) ??
+      _unsupported(MatrixAccountSdkCapability.encryptedBackup);
 
   @override
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages() =>
+      _recovery?.recoverHistoricalMessages() ??
       _unsupported(MatrixAccountSdkCapability.historicalMessageRecovery);
 
   @override

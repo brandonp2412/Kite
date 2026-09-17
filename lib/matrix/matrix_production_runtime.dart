@@ -109,6 +109,19 @@ final class MatrixProductionRuntime
   ReadonlySignal<MatrixSyncState>? get activeSyncState =>
       accounts.activeSyncState;
 
+  Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus({
+    required String accountId,
+  }) => accounts.encryptionRecoveryStatus(accountId: accountId);
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption({
+    required String accountId,
+    required String secret,
+  }) => accounts.recoverEncryption(accountId: accountId, secret: secret);
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory({
+    required String accountId,
+  }) => accounts.recoverEncryptedHistory(accountId: accountId);
+
   void registerAuthenticatedAccount({
     required String accountId,
     required Uri homeserver,

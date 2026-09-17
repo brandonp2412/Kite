@@ -71,6 +71,37 @@ final class MatrixAccountRuntimeRegistry {
     return _activeRuntime?.runtime.syncState;
   }
 
+  Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus({
+    required String accountId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot read Matrix encryption recovery for an inactive account',
+    );
+    return active.engine.encryptionRecoveryStatus();
+  }
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption({
+    required String accountId,
+    required String secret,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot recover Matrix encryption for an inactive account',
+    );
+    return active.engine.recoverEncryption(secret);
+  }
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory({
+    required String accountId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot recover Matrix history for an inactive account',
+    );
+    return active.engine.recoverEncryptedHistory();
+  }
+
   ReadonlySignal<MatrixPaginationState>? activePaginationState({
     required String accountId,
     required String roomId,

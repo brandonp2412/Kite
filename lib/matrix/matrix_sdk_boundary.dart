@@ -49,6 +49,30 @@ final class MatrixSdkPasswordLoginResult {
   final String deviceId;
 }
 
+enum MatrixSdkEncryptionRecoveryState { unknown, enabled, disabled, incomplete }
+
+enum MatrixSdkEncryptionBackupState {
+  unknown,
+  creating,
+  enabling,
+  resuming,
+  enabled,
+  downloading,
+  disabling,
+}
+
+final class MatrixSdkEncryptionRecoveryStatus {
+  const MatrixSdkEncryptionRecoveryStatus({
+    required this.recoveryState,
+    required this.backupState,
+    required this.backupExistsOnServer,
+  });
+
+  final MatrixSdkEncryptionRecoveryState recoveryState;
+  final MatrixSdkEncryptionBackupState backupState;
+  final bool backupExistsOnServer;
+}
+
 final class MatrixSdkRoomMember {
   const MatrixSdkRoomMember({
     required this.userId,
@@ -247,6 +271,14 @@ abstract interface class MatrixSdkPasswordAuthenticator {
   });
 }
 
+abstract interface class MatrixSdkEncryptionRecoveryManager {
+  Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus();
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption(String secret);
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory();
+}
+
 abstract interface class MatrixSdkTextMessageSender {
   Future<String> sendTextMessage({
     required String roomId,
@@ -375,6 +407,52 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       username: username,
       password: password,
     );
+  }
+
+  Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus() async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkEncryptionRecoveryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support encryption recovery',
+      );
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkEncryptionRecoveryManager)
+        .encryptionRecoveryStatus();
+  }
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption(
+    String secret,
+  ) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkEncryptionRecoveryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support encryption recovery',
+      );
+    }
+    if (secret.isEmpty || secret.contains('\u0000')) {
+      throw ArgumentError.value(
+        '<redacted>',
+        'secret',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkEncryptionRecoveryManager).recoverEncryption(
+      secret,
+    );
+  }
+
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory() async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkEncryptionRecoveryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support encryption recovery',
+      );
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkEncryptionRecoveryManager)
+        .recoverEncryptedHistory();
   }
 
   Future<String> sendTextMessage({

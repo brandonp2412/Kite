@@ -12,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 23;
+const int kiteMatrixNativeAbiVersion = 25;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -235,6 +235,16 @@ typedef _ClientProfileNative = Pointer<Char> Function(
 typedef _ClientProfileDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientRecoveryNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientRecoveryDart = Pointer<Char> Function(
+  Pointer<Void>,
   Pointer<Char>,
   Pointer<Char>,
 );
@@ -1118,6 +1128,66 @@ final class _MatrixNativeProfileOperation {
   }
 }
 
+final class _MatrixNativeRecoveryOperation {
+  const _MatrixNativeRecoveryOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.action,
+    required this.secret,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String action;
+  final String? secret;
+
+  Map<String, Object?> call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final recovery = library
+        .lookupFunction<_ClientRecoveryNative, _ClientRecoveryDart>(
+          'kite_matrix_client_recovery',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final actionUtf8 = action.toNativeUtf8(allocator: calloc);
+    final secretUtf8 = secret?.toNativeUtf8(allocator: calloc);
+    final secretByteLength = secret == null
+        ? 0
+        : utf8.encode(secret!).length + 1;
+    try {
+      final payload = _readNativeString(
+        recovery(
+          Pointer<Void>.fromAddress(address),
+          actionUtf8.cast<Char>(),
+          secretUtf8 == null
+              ? Pointer<Char>.fromAddress(0)
+              : secretUtf8.cast<Char>(),
+        ),
+        freeString,
+        'encryption recovery',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid recovery data.',
+        );
+      }
+      return Map<String, Object?>.from(decoded);
+    } finally {
+      if (secretUtf8 != null) {
+        final bytes = secretUtf8.cast<Uint8>().asTypedList(secretByteLength);
+        bytes.fillRange(0, bytes.length, 0);
+        calloc.free(secretUtf8);
+      }
+      calloc.free(actionUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeUploadMediaOperation {
   const _MatrixNativeUploadMediaOperation({
     required this.libraryPath,
@@ -1562,6 +1632,14 @@ abstract interface class MatrixRustProfileClient {
   });
 }
 
+abstract interface class MatrixRustEncryptionRecoveryClient {
+  Future<Map<String, Object?>> encryptionRecoveryStatus();
+
+  Future<Map<String, Object?>> recoverEncryption(String secret);
+
+  Future<Map<String, Object?>> recoverEncryptedHistory();
+}
+
 abstract interface class MatrixRustRoomSettingsClient {
   Future<Map<String, Object?>> roomSettings({
     required String roomId,
@@ -1758,6 +1836,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomSettingsClient,
         MatrixRustMediaClient,
         MatrixRustProfileClient,
+        MatrixRustEncryptionRecoveryClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomReadClient {
@@ -1923,6 +2002,46 @@ final class MatrixRustNativeClient
       }
       return MatrixRustSendResult(eventId: eventId);
     });
+  }
+
+  @override
+  Future<Map<String, Object?>> encryptionRecoveryStatus() {
+    return _recovery(action: 'status');
+  }
+
+  @override
+  Future<Map<String, Object?>> recoverEncryption(String secret) {
+    if (secret.isEmpty || secret.contains('\u0000')) {
+      return Future<Map<String, Object?>>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'secret',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _recovery(action: 'recover', secret: secret);
+  }
+
+  @override
+  Future<Map<String, Object?>> recoverEncryptedHistory() {
+    return _recovery(action: 'recover_history');
+  }
+
+  Future<Map<String, Object?>> _recovery({
+    required String action,
+    String? secret,
+  }) {
+    return _enqueue<Map<String, Object?>>(
+      () => Isolate.run<Map<String, Object?>>(
+        _MatrixNativeRecoveryOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          action: action,
+          secret: secret,
+        ).call,
+      ),
+    );
   }
 
   @override
@@ -2754,6 +2873,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkMediaManager,
         MatrixSdkProfileManager,
+        MatrixSdkEncryptionRecoveryManager,
         MatrixSdkRoomCreator,
         MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
@@ -2923,6 +3043,72 @@ final class MatrixRustSdkBoundary
         );
       }
       return bytes;
+    });
+  }
+
+  @override
+  Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus() {
+    return _encryptionRecovery((client) => client.encryptionRecoveryStatus());
+  }
+
+  @override
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryption(String secret) {
+    return _encryptionRecovery((client) => client.recoverEncryption(secret));
+  }
+
+  @override
+  Future<MatrixSdkEncryptionRecoveryStatus> recoverEncryptedHistory() {
+    return _encryptionRecovery((client) => client.recoverEncryptedHistory());
+  }
+
+  Future<MatrixSdkEncryptionRecoveryStatus> _encryptionRecovery(
+    Future<Map<String, Object?>> Function(
+      MatrixRustEncryptionRecoveryClient client,
+    )
+    operation,
+  ) {
+    return _enqueue<MatrixSdkEncryptionRecoveryStatus>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustEncryptionRecoveryClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support encryption recovery',
+        );
+      }
+      final data = await operation(
+        client as MatrixRustEncryptionRecoveryClient,
+      );
+      final recoveryState = switch (data['recoveryState']) {
+        'unknown' => MatrixSdkEncryptionRecoveryState.unknown,
+        'enabled' => MatrixSdkEncryptionRecoveryState.enabled,
+        'disabled' => MatrixSdkEncryptionRecoveryState.disabled,
+        'incomplete' => MatrixSdkEncryptionRecoveryState.incomplete,
+        _ => throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid recovery state',
+        ),
+      };
+      final backupState = switch (data['backupState']) {
+        'unknown' => MatrixSdkEncryptionBackupState.unknown,
+        'creating' => MatrixSdkEncryptionBackupState.creating,
+        'enabling' => MatrixSdkEncryptionBackupState.enabling,
+        'resuming' => MatrixSdkEncryptionBackupState.resuming,
+        'enabled' => MatrixSdkEncryptionBackupState.enabled,
+        'downloading' => MatrixSdkEncryptionBackupState.downloading,
+        'disabling' => MatrixSdkEncryptionBackupState.disabling,
+        _ => throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid backup state',
+        ),
+      };
+      final backupExistsOnServer = data['backupExistsOnServer'];
+      if (backupExistsOnServer is! bool) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid backup availability',
+        );
+      }
+      return MatrixSdkEncryptionRecoveryStatus(
+        recoveryState: recoveryState,
+        backupState: backupState,
+        backupExistsOnServer: backupExistsOnServer,
+      );
     });
   }
 
