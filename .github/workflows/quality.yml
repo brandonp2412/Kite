@@ -58,7 +58,7 @@ jobs:
   android-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: static-contract
-    runs-on: kite-release
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
       group: kite-android-release
@@ -69,61 +69,76 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify release tooling
-        run: |
-          command -v gh
-          apksigner="$(find /opt/android-sdk/build-tools -type f -name apksigner | sort -V | tail -1)"
-          test -n "$apksigner"
-          env -u GH_TOKEN -u GITHUB_TOKEN gh api repos/brandonp2412/Flexify >/dev/null
+      - name: Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
 
-      - name: Request Flexify F-Droid signed ARM64 APK
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Android NDK
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager" ]]; then
+            sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -x "$sdkmanager"
+          "$sdkmanager" 'ndk;28.2.13676358'
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Restore Android signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          request_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          title="Sign Kite ARM64 ${request_id}"
-          env -u GH_TOKEN -u GITHUB_TOKEN gh workflow run sign-kite-android.yml \
-            --repo brandonp2412/Flexify \
-            -f kite_sha="$GITHUB_SHA" \
-            -f build_number="$GITHUB_RUN_NUMBER" \
-            -f request_id="$request_id"
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_STORE_PASSWORD"
+          test -n "$ANDROID_KEY_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/keystore.jks
+          {
+            printf 'storePassword=%s\n' "$ANDROID_STORE_PASSWORD"
+            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'storeFile=keystore.jks\n'
+          } > android/key.properties
 
-          run_id=''
-          for _ in $(seq 1 30); do
-            run_id="$(env -u GH_TOKEN -u GITHUB_TOKEN gh run list \
-              --repo brandonp2412/Flexify \
-              --workflow sign-kite-android.yml \
-              --event workflow_dispatch \
-              --limit 30 \
-              --json databaseId,displayTitle \
-              --jq ".[] | select(.displayTitle == \"${title}\") | .databaseId" \
-              | head -1)"
-            if [[ -n "$run_id" ]]; then
-              break
-            fi
-            sleep 2
-          done
-          test -n "$run_id"
-          printf 'FLEXIFY_SIGN_RUN_ID=%s\n' "$run_id" >> "$GITHUB_ENV"
-          printf 'FLEXIFY_SIGN_REQUEST_ID=%s\n' "$request_id" >> "$GITHUB_ENV"
-          env -u GH_TOKEN -u GITHUB_TOKEN gh run watch "$run_id" --repo brandonp2412/Flexify --exit-status
+      - name: Build ARM64 Matrix bridge
+        run: KITE_ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" tool/build_android_matrix_bridge.sh arm64-v8a
 
-      - name: Download signed ARM64 APK
+      - name: Build signed ARM64 APK
         run: |
-          rm -rf build/release
+          flutter build apk \
+            --release \
+            --split-per-abi \
+            --target-platform android-arm64 \
+            --build-number "$GITHUB_RUN_NUMBER"
+          tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
           mkdir -p build/release
-          env -u GH_TOKEN -u GITHUB_TOKEN gh run download "$FLEXIFY_SIGN_RUN_ID" \
-            --repo brandonp2412/Flexify \
-            --name "kite-arm64-${FLEXIFY_SIGN_REQUEST_ID}" \
-            --dir build/release
-          test -s build/release/app-arm64-v8a-release.apk
-          mv build/release/app-arm64-v8a-release.apk build/release/kite-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/release/kite-arm64-v8a.apk
 
       - name: Verify signed APK
         run: |
           set -euo pipefail
           apk='build/release/kite-arm64-v8a.apk'
-          tool/verify_android_matrix_bridge.sh "$apk" arm64-v8a
-          apksigner="$(find /opt/android-sdk/build-tools -type f -name apksigner | sort -V | tail -1)"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$apksigner"
           actual="$($apksigner verify --print-certs "$apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
           expected='011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd'
           test "$actual" = "$expected"
@@ -149,5 +164,5 @@ jobs:
             build/release/kite-arm64-v8a.apk \
             --target "$GITHUB_SHA" \
             --title 'Kite Android (latest)' \
-            --notes "ARM64 Android build signed with the Flexify F-Droid key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}." \
+            --notes "ARM64 Android build signed with the F-Droid signing key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}." \
             --latest
