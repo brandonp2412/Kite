@@ -184,7 +184,7 @@ Kite should not merely contain the same controls. It must have the same level of
 
 ## Milestone 4 — Timeline rendering and message state
 
-- [ ] Virtualised timeline capable of very large histories without retaining every rendered widget.
+- [x] Virtualised timeline capable of very large histories without retaining every rendered widget.
 - [x] Stable scroll anchoring when events arrive above/below the viewport.
 - [x] Stable scroll anchoring during back-pagination.
 - [ ] Text messages.
@@ -220,6 +220,8 @@ Kite should not merely contain the same controls. It must have the same level of
 **Reply progress (2026-09-18):** the existing reply composer now preserves the target event through the production send stack and emits a proper Matrix `m.in_reply_to` relation through the audited Rust SDK path instead of degrading to plain text. Synced Matrix reply relations project back into Kite reply previews using cached target sender/body metadata while preserving timeline order and existing message identity. The native boundary is ABI 21; Rust formatting/check/tests, focused timeline motion/projection/runtime/native tests, full analysis, native-library smoke coverage, and an Android release APK with all three rebuilt JNI ABIs pass. Reply-related checkboxes remain unchecked until the required locked Waydroid quality gate can run on an available ADB device.
 
 **Pagination-anchor completion (2026-09-18):** the reversed timeline now keeps the existing visible sliver anchored while older events are prepended, without retaining the newly loaded offscreen rows. Deterministic 120 Hz tests cover both synced tail insertion while scrolled away from the tail and back-pagination while retaining an existing visible event. The full `tool/quality_gate.sh` passes on Glass with the active locked Waydroid device, including release audit, Rust/ABI verification, analysis, deterministic Flutter tests, jitter PASS → expected FAIL → PASS, and back-navigation profile verification.
+
+**Timeline-virtualisation completion (2026-09-18):** a deterministic 2,000-event widget test now verifies that Kite retains the complete timeline model while mounting fewer than 200 message bubbles both at the tail and after substantial scrolling. The oldest offscreen row remains unmounted at the initial tail position, proving the large-history timeline is backed by lazy slivers rather than a fully retained rendered list.
 
 **Jitter contract:** incoming messages, read receipts, typing indicators, send-state changes, reaction updates, pagination, and media completion must not move unrelated visible events.
 

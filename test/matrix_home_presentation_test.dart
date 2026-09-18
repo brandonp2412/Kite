@@ -852,6 +852,89 @@ void main() {
     },
   );
 
+  testWidgets('large timeline keeps rendered message widgets virtualized', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const eventCount = 2000;
+    final events = List<MatrixTimelineEvent>.generate(
+      eventCount,
+      (index) => _event(
+        eventId: '\$virtual-$index',
+        body: 'Virtualized message $index',
+        streamPosition: index,
+      ),
+      growable: false,
+    );
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!real:example.org',
+            displayName: 'Real room',
+            lastActivity: DateTime.utc(2026, 9, 16, 12),
+            streamPosition: eventCount,
+            lastEventId: r'$virtual-1999',
+          ),
+        ],
+        timelines: <String, List<MatrixTimelineEvent>>{
+          '!real:example.org': events,
+        },
+      ),
+    );
+
+    await tester.pumpWidget(
+      KiteApp(
+        home: MatrixHomeScreen(
+          cache: cache,
+          currentUserId: '@me:example.org',
+          sendPort: MatrixTimelineSendPort(
+            ({required roomId, required transactionId, required body}) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      cache.snapshot().timelines['!real:example.org'],
+      hasLength(eventCount),
+    );
+    final messageList = find.byKey(const Key('message-list'));
+    Finder mountedMessageBubbles() => find.byWidgetPredicate((widget) {
+      final key = widget.key;
+      return key is ValueKey<String> && key.value.startsWith('message-bubble-');
+    });
+
+    final initiallyMounted = mountedMessageBubbles().evaluate().length;
+    expect(initiallyMounted, greaterThan(0));
+    expect(initiallyMounted, lessThan(200));
+    expect(find.byKey(const Key(r'message-bubble-$virtual-0')), findsNothing);
+    expect(
+      find.byKey(const Key(r'message-bubble-$virtual-1999')),
+      findsOneWidget,
+    );
+
+    for (var index = 0; index < 12; index += 1) {
+      await tester.drag(messageList, const Offset(0, 500));
+      await tester.pump();
+    }
+
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(of: messageList, matching: find.byType(Scrollable)).first,
+    );
+    expect(
+      scrollable.position.pixels,
+      greaterThan(scrollable.position.minScrollExtent),
+    );
+    expect(mountedMessageBubbles().evaluate().length, lessThan(200));
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'production send port settles optimistic messages from real sender',
     () async {
