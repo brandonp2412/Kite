@@ -1,3 +1,4 @@
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:signals/signals.dart';
 
@@ -35,7 +36,7 @@ abstract interface class SessionLifecycleGateway {
   Future<void> clear();
 }
 
-final class SessionLifecycleController {
+final class SessionLifecycleController with AsyncControllerLifecycle {
   SessionLifecycleController(this._gateway);
 
   final SessionLifecycleGateway _gateway;
@@ -48,7 +49,9 @@ final class SessionLifecycleController {
   bool get isRestoring => state.value is SessionRestoring;
 
   Future<void> restore() {
-    if (isRestoring || _restoreQueued) return Future<void>.value();
+    if (controllerDisposed || isRestoring || _restoreQueued) {
+      return Future<void>.value();
+    }
     _restoreQueued = true;
     return _enqueue(() async {
       try {
@@ -60,10 +63,13 @@ final class SessionLifecycleController {
   }
 
   Future<void> _restore() async {
+    if (controllerDisposed) return;
+    final lifecycle = captureControllerLifecycle();
     errorMessage.value = null;
     state.value = const SessionRestoring();
     try {
       final restored = await _gateway.restore();
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       if (restored == null) {
         state.value = const SessionSignedOut();
         return;
@@ -78,8 +84,10 @@ final class SessionLifecycleController {
       }
       state.value = SessionAuthenticated(restored);
     } catch (_) {
-      state.value = const SessionSignedOut();
-      errorMessage.value = 'Kite could not restore your previous session.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        state.value = const SessionSignedOut();
+        errorMessage.value = 'Kite could not restore your previous session.';
+      }
     }
   }
 
@@ -87,6 +95,8 @@ final class SessionLifecycleController {
       _enqueue(() => _acceptAuthenticatedSession(session));
 
   Future<void> _acceptAuthenticatedSession(AuthenticatedSession session) async {
+    if (controllerDisposed) return;
+    final lifecycle = captureControllerLifecycle();
     errorMessage.value = null;
     if (!_isValidSession(session)) {
       state.value = const SessionSignedOut();
@@ -95,14 +105,18 @@ final class SessionLifecycleController {
     }
     try {
       await _gateway.persist(session);
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       state.value = SessionAuthenticated(session);
     } catch (_) {
-      state.value = const SessionSignedOut();
-      errorMessage.value = 'Kite could not save your session securely.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        state.value = const SessionSignedOut();
+        errorMessage.value = 'Kite could not save your session securely.';
+      }
     }
   }
 
   void markSoftLoggedOut() {
+    if (controllerDisposed) return;
     final current = state.value;
     if (current is SessionAuthenticated) {
       errorMessage.value = null;
@@ -114,6 +128,7 @@ final class SessionLifecycleController {
       _enqueue(() => _resumeAfterSoftLogout(session));
 
   Future<void> _resumeAfterSoftLogout(AuthenticatedSession session) async {
+    if (controllerDisposed) return;
     final current = state.value;
     if (current is SessionSoftLoggedOut) {
       final sameAccount = session.userId == current.session.userId;
@@ -132,6 +147,8 @@ final class SessionLifecycleController {
   Future<void> signOut() => _enqueue(_signOut);
 
   Future<void> _signOut() async {
+    if (controllerDisposed) return;
+    final lifecycle = captureControllerLifecycle();
     errorMessage.value = null;
     final current = state.value;
 
@@ -146,11 +163,13 @@ final class SessionLifecycleController {
 
     try {
       await _gateway.clear();
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       state.value = const SessionSignedOut();
       if (remoteLogoutFailed) {
         errorMessage.value = 'Signed out from Kite, but the Matrix server may still list this device.';
       }
     } catch (_) {
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       if (current is SessionAuthenticated) {
         state.value = const SessionSignedOut();
         errorMessage.value = remoteLogoutFailed
@@ -163,7 +182,12 @@ final class SessionLifecycleController {
   }
 
   Future<void> _enqueue(Future<void> Function() operation) {
-    final result = _operationTail.then((_) => operation());
+    if (controllerDisposed) return Future<void>.value();
+    final lifecycle = captureControllerLifecycle();
+    final result = _operationTail.then((_) {
+      if (!isControllerLifecycleCurrent(lifecycle)) return Future<void>.value();
+      return operation();
+    });
     _operationTail = result.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
@@ -185,6 +209,8 @@ final class SessionLifecycleController {
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
+    _restoreQueued = false;
     state.dispose();
     errorMessage.dispose();
   }

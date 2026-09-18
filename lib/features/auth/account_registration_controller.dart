@@ -1,3 +1,4 @@
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:signals/signals.dart';
 
@@ -44,7 +45,7 @@ abstract interface class AccountRegistrationGateway {
   });
 }
 
-final class AccountRegistrationController {
+final class AccountRegistrationController with AsyncControllerLifecycle {
   factory AccountRegistrationController({
     required HomeserverAddress homeserver,
     required AccountRegistrationGateway gateway,
@@ -106,12 +107,14 @@ final class AccountRegistrationController {
     Future<AccountRegistrationStep> Function() action, {
     required String failureMessage,
   }) async {
-    if (isBusy.value) return false;
+    if (controllerDisposed || isBusy.value) return false;
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final next = await action();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!_isValidStep(next)) {
         errorMessage.value = 'Kite received an invalid registration state.';
         return false;
@@ -119,13 +122,19 @@ final class AccountRegistrationController {
       step.value = next;
       return true;
     } on AuthenticationException catch (error) {
-      errorMessage.value = error.publicMessage;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = error.publicMessage;
+      }
       return false;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -149,6 +158,7 @@ final class AccountRegistrationController {
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
     step.dispose();
     isBusy.dispose();
     errorMessage.dispose();

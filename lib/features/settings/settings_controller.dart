@@ -1,3 +1,4 @@
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:signals/signals.dart';
 
 enum KiteAppearanceMode { system, light, dark, black }
@@ -119,7 +120,7 @@ abstract interface class SettingsGateway {
   Future<void> saveCallRingtone(String? soundId);
 }
 
-final class SettingsController {
+final class SettingsController with AsyncControllerLifecycle {
   SettingsController(this._gateway);
 
   final SettingsGateway _gateway;
@@ -131,12 +132,14 @@ final class SettingsController {
   final errorMessage = signal<String?>(null);
 
   Future<void> load() async {
-    if (isLoading.value || isSaving.value) return;
+    if (controllerDisposed || isLoading.value || isSaving.value) return;
 
+    final lifecycle = captureControllerLifecycle();
     isLoading.value = true;
     errorMessage.value = null;
     try {
       final loaded = await _gateway.load();
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       final snapshot = _validatedSnapshot(loaded);
       if (snapshot == null) {
         errorMessage.value = 'Kite received invalid settings data.';
@@ -145,73 +148,95 @@ final class SettingsController {
       settings.value = snapshot;
       hasLoaded.value = true;
     } catch (_) {
-      errorMessage.value = 'Kite could not load your settings.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not load your settings.';
+      }
     } finally {
-      isLoading.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isLoading.value = false;
+      }
     }
   }
 
   Future<bool> setAppearance(KiteAppearanceMode appearanceMode) async {
-    if (isLoading.value || isSaving.value) return false;
+    if (controllerDisposed || isLoading.value || isSaving.value) return false;
     final previous = settings.value;
+    final lifecycle = captureControllerLifecycle();
 
     isSaving.value = true;
     errorMessage.value = null;
     try {
       await _gateway.saveAppearance(appearanceMode);
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       settings.value = previous.copyWith(appearanceMode: appearanceMode);
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not save your appearance setting.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not save your appearance setting.';
+      }
       return false;
     } finally {
-      isSaving.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isSaving.value = false;
+      }
     }
   }
 
   Future<bool> setLanguage(String? languageTag) async {
-    if (isLoading.value || isSaving.value) return false;
+    if (controllerDisposed || isLoading.value || isSaving.value) return false;
     final normalized = _normalizeLanguageTag(languageTag);
     if (languageTag != null && normalized == null) {
       errorMessage.value = 'Choose a valid language.';
       return false;
     }
     final previous = settings.value;
+    final lifecycle = captureControllerLifecycle();
 
     isSaving.value = true;
     errorMessage.value = null;
     try {
       await _gateway.saveLanguage(normalized);
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       settings.value = previous.copyWith(
         languageTag: normalized,
         useSystemLanguage: normalized == null,
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not save your language setting.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not save your language setting.';
+      }
       return false;
     } finally {
-      isSaving.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isSaving.value = false;
+      }
     }
   }
 
   Future<bool> setNotificationMaster(bool enabled) async {
-    if (isLoading.value || isSaving.value) return false;
+    if (controllerDisposed || isLoading.value || isSaving.value) return false;
     final previous = settings.value;
+    final lifecycle = captureControllerLifecycle();
 
     isSaving.value = true;
     errorMessage.value = null;
     try {
       await _gateway.saveNotificationMaster(enabled);
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       settings.value = previous.copyWith(
         notifications: previous.notifications.copyWith(masterEnabled: enabled),
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not save notification settings.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not save notification settings.';
+      }
       return false;
     } finally {
-      isSaving.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isSaving.value = false;
+      }
     }
   }
 
@@ -219,8 +244,9 @@ final class SettingsController {
     NotificationCategory category,
     bool enabled,
   ) async {
-    if (isLoading.value || isSaving.value) return false;
+    if (controllerDisposed || isLoading.value || isSaving.value) return false;
     final previous = settings.value;
+    final lifecycle = captureControllerLifecycle();
     final categories = <NotificationCategory>{
       ...previous.notifications.enabledCategories,
     };
@@ -237,6 +263,7 @@ final class SettingsController {
         category: category,
         enabled: enabled,
       );
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       settings.value = previous.copyWith(
         notifications: previous.notifications.copyWith(
           enabledCategories: categories,
@@ -244,10 +271,14 @@ final class SettingsController {
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not save notification settings.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not save notification settings.';
+      }
       return false;
     } finally {
-      isSaving.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isSaving.value = false;
+      }
     }
   }
 
@@ -255,13 +286,14 @@ final class SettingsController {
     String roomId,
     RoomNotificationMode mode,
   ) async {
-    if (isLoading.value || isSaving.value) return false;
+    if (controllerDisposed || isLoading.value || isSaving.value) return false;
     final normalizedRoomId = roomId.trim();
     if (!_isValidRoomId(normalizedRoomId)) {
       errorMessage.value = 'Choose a valid Matrix room.';
       return false;
     }
     final previous = settings.value;
+    final lifecycle = captureControllerLifecycle();
     final roomModes = <String, RoomNotificationMode>{
       ...previous.notifications.roomModes,
     };
@@ -278,15 +310,20 @@ final class SettingsController {
         roomId: normalizedRoomId,
         mode: mode,
       );
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       settings.value = previous.copyWith(
         notifications: previous.notifications.copyWith(roomModes: roomModes),
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not save room notification settings.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not save room notification settings.';
+      }
       return false;
     } finally {
-      isSaving.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isSaving.value = false;
+      }
     }
   }
 
@@ -325,21 +362,27 @@ final class SettingsController {
     success,
     required String failureMessage,
   }) async {
-    if (isLoading.value || isSaving.value) return false;
+    if (controllerDisposed || isLoading.value || isSaving.value) return false;
     final normalizedSoundId = _normalizeSoundId(soundId);
     final previous = settings.value;
+    final lifecycle = captureControllerLifecycle();
 
     isSaving.value = true;
     errorMessage.value = null;
     try {
       await save(normalizedSoundId);
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       settings.value = success(previous, normalizedSoundId);
       return true;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isSaving.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isSaving.value = false;
+      }
     }
   }
 
@@ -405,6 +448,7 @@ final class SettingsController {
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
     settings.dispose();
     hasLoaded.dispose();
     isLoading.dispose();

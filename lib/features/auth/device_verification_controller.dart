@@ -310,6 +310,7 @@ final class DeviceVerificationController {
   }
 
   void dispose() {
+    _accountGeneration += 1;
     trustState.dispose();
     session.dispose();
     isBusy.dispose();

@@ -172,6 +172,7 @@ final class SessionDeviceController {
   }
 
   void dispose() {
+    _accountGeneration += 1;
     devices.dispose();
     isLoading.dispose();
     signingOutDeviceIds.dispose();

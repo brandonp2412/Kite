@@ -81,6 +81,24 @@ final class _FakeSettingsGateway implements SettingsGateway {
 }
 
 void main() {
+  test(
+    'disposing during an in-flight save does not write disposed signals',
+    () async {
+      final deferred = Completer<void>();
+      final gateway = _FakeSettingsGateway()..deferredAppearanceSave = deferred;
+      final controller = SettingsController(gateway);
+
+      final saving = controller.setAppearance(KiteAppearanceMode.dark);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.isSaving.value, isTrue);
+
+      controller.dispose();
+      deferred.complete();
+
+      expect(await saving, isFalse);
+    },
+  );
+
   test('save is rejected while a settings load is in flight', () async {
     final deferred = Completer<KiteSettings>();
     final gateway = _FakeSettingsGateway()..deferredLoad = deferred;

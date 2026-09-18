@@ -218,6 +218,7 @@ final class EncryptionRecoveryController {
   }
 
   void dispose() {
+    _accountGeneration += 1;
     status.dispose();
     roomKeyImportResult.dispose();
     isBusy.dispose();

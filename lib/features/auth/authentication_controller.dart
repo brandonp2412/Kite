@@ -1,9 +1,10 @@
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:signals/signals.dart';
 
 enum AuthenticationProgress { idle, discovering, signingIn }
 
-final class AuthenticationController {
+final class AuthenticationController with AsyncControllerLifecycle {
   AuthenticationController(this._gateway);
 
   final AuthenticationGateway _gateway;
@@ -16,7 +17,7 @@ final class AuthenticationController {
   bool get isBusy => progress.value != AuthenticationProgress.idle;
 
   Future<void> discover(String rawHomeserver) async {
-    if (isBusy) return;
+    if (controllerDisposed || isBusy) return;
 
     errorMessage.value = null;
     HomeserverAddress homeserver;
@@ -27,18 +28,26 @@ final class AuthenticationController {
       return;
     }
 
+    final lifecycle = captureControllerLifecycle();
     loginMethods.value = null;
     session.value = null;
     progress.value = AuthenticationProgress.discovering;
     try {
       final discovered = await _gateway.discover(homeserver);
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       loginMethods.value = discovered;
     } on AuthenticationException catch (error) {
-      errorMessage.value = error.publicMessage;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = error.publicMessage;
+      }
     } catch (_) {
-      errorMessage.value = 'Kite could not connect to that homeserver.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not connect to that homeserver.';
+      }
     } finally {
-      progress.value = AuthenticationProgress.idle;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        progress.value = AuthenticationProgress.idle;
+      }
     }
   }
 
@@ -111,11 +120,14 @@ final class AuthenticationController {
     HomeserverAddress? expectedHomeserver,
     String? expectedUserId,
   }) async {
+    if (controllerDisposed) return;
+    final lifecycle = captureControllerLifecycle();
     errorMessage.value = null;
     session.value = null;
     progress.value = AuthenticationProgress.signingIn;
     try {
       final authenticated = await action();
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       if (!_isValidSession(
         authenticated,
         expectedHomeserver: expectedHomeserver,
@@ -130,11 +142,18 @@ final class AuthenticationController {
       }
       session.value = authenticated;
     } on AuthenticationException catch (error) {
-      errorMessage.value = error.publicMessage;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = error.publicMessage;
+      }
     } catch (_) {
-      errorMessage.value = 'Sign in failed. Check your details and try again.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value =
+            'Sign in failed. Check your details and try again.';
+      }
     } finally {
-      progress.value = AuthenticationProgress.idle;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        progress.value = AuthenticationProgress.idle;
+      }
     }
   }
 
@@ -163,13 +182,14 @@ final class AuthenticationController {
   }
 
   void changeHomeserver() {
-    if (isBusy) return;
+    if (controllerDisposed || isBusy) return;
     errorMessage.value = null;
     loginMethods.value = null;
     session.value = null;
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
     progress.dispose();
     loginMethods.dispose();
     session.dispose();

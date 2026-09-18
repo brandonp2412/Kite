@@ -1,3 +1,4 @@
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:signals/signals.dart';
 
 final class StorageUsageSnapshot {
@@ -74,7 +75,7 @@ abstract interface class SupportSettingsGateway {
   Future<void> submitProblemReport(ProblemReportRequest report);
 }
 
-final class SupportSettingsController {
+final class SupportSettingsController with AsyncControllerLifecycle {
   SupportSettingsController(this._gateway);
 
   final SupportSettingsGateway _gateway;
@@ -86,13 +87,16 @@ final class SupportSettingsController {
   final reportSubmitted = signal(false);
 
   Future<bool> load() async {
-    if (isBusy.value) return false;
+    if (controllerDisposed || isBusy.value) return false;
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final nextStorage = await _gateway.loadStorageUsage();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       final nextAbout = await _gateway.loadAboutInfo();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!_isValidStorage(nextStorage) || !_isValidAbout(nextAbout)) {
         errorMessage.value = 'Kite received invalid support settings data.';
         return false;
@@ -101,10 +105,14 @@ final class SupportSettingsController {
       about.value = nextAbout;
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not load storage and app information.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not load storage and app information.';
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -123,14 +131,18 @@ final class SupportSettingsController {
   }
 
   Future<bool> clearClearableCaches() async {
-    if (isBusy.value) return false;
+    if (controllerDisposed || isBusy.value) return false;
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       await _gateway.clearMediaCache();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       await _gateway.clearPresentationCache();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       final nextStorage = await _gateway.loadStorageUsage();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!_isValidStorage(nextStorage)) {
         errorMessage.value = 'Kite received invalid support settings data.';
         return false;
@@ -138,26 +150,32 @@ final class SupportSettingsController {
       storage.value = nextStorage;
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not clear all cached content.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not clear all cached content.';
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
   Future<bool> submitProblemReport(String description) async {
-    if (isBusy.value) return false;
+    if (controllerDisposed || isBusy.value) return false;
     final normalized = description.trim();
     if (normalized.isEmpty) {
       errorMessage.value = 'Describe the problem before sending a report.';
       return false;
     }
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     reportSubmitted.value = false;
     try {
       final diagnostics = await _gateway.prepareSanitizedDiagnostics();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!_isValidDiagnostics(diagnostics)) {
         errorMessage.value = 'Kite received invalid diagnostic metadata.';
         return false;
@@ -165,13 +183,18 @@ final class SupportSettingsController {
       await _gateway.submitProblemReport(
         ProblemReportRequest(description: normalized, diagnostics: diagnostics),
       );
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       reportSubmitted.value = true;
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not send the problem report.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not send the problem report.';
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -179,13 +202,16 @@ final class SupportSettingsController {
     Future<void> Function() clear, {
     required String failureMessage,
   }) async {
-    if (isBusy.value) return false;
+    if (controllerDisposed || isBusy.value) return false;
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       await clear();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       final nextStorage = await _gateway.loadStorageUsage();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!_isValidStorage(nextStorage)) {
         errorMessage.value = 'Kite received invalid support settings data.';
         return false;
@@ -193,10 +219,14 @@ final class SupportSettingsController {
       storage.value = nextStorage;
       return true;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -217,6 +247,7 @@ final class SupportSettingsController {
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
     storage.dispose();
     about.dispose();
     isBusy.dispose();

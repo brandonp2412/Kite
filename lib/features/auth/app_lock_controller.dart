@@ -1,3 +1,4 @@
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:signals/signals.dart';
 
 final class AppLockSettings {
@@ -51,7 +52,7 @@ abstract interface class BiometricAuthenticationGateway {
   Future<bool> authenticate();
 }
 
-final class AppLockController {
+final class AppLockController with AsyncControllerLifecycle {
   AppLockController(this._credentials, this._biometrics);
 
   final AppLockCredentialGateway _credentials;
@@ -68,12 +69,14 @@ final class AppLockController {
       (isLocked.value && settings.value.hideNotificationContents);
 
   Future<void> load() async {
-    if (isBusy.value) return;
+    if (controllerDisposed || isBusy.value) return;
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     isReady.value = false;
     errorMessage.value = null;
     try {
       final loaded = await _credentials.loadSettings();
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       if (!_isValidSettings(loaded)) {
         throw StateError('Invalid app lock settings.');
       }
@@ -81,11 +84,15 @@ final class AppLockController {
       isLocked.value = loaded.enabled;
       isReady.value = true;
     } catch (_) {
-      settings.value = const AppLockSettings.disabled();
-      isLocked.value = true;
-      errorMessage.value = 'Kite could not load app lock settings.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        settings.value = const AppLockSettings.disabled();
+        isLocked.value = true;
+        errorMessage.value = 'Kite could not load app lock settings.';
+      }
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -93,7 +100,7 @@ final class AppLockController {
     required String pin,
     required bool hideNotificationContents,
   }) async {
-    if (isBusy.value) return;
+    if (controllerDisposed || isBusy.value) return;
     if (settings.value.enabled) {
       errorMessage.value = 'App lock is already enabled.';
       return;
@@ -103,6 +110,7 @@ final class AppLockController {
       return;
     }
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
@@ -112,70 +120,95 @@ final class AppLockController {
         hideNotificationContents: hideNotificationContents,
       );
       await _credentials.enablePin(pin: pin, settings: next);
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       settings.value = next;
       isLocked.value = true;
       isReady.value = true;
     } catch (_) {
-      errorMessage.value = 'Kite could not enable app lock securely.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not enable app lock securely.';
+      }
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
   Future<void> setBiometricsEnabled(bool enabled) async {
-    if (isBusy.value || !settings.value.enabled) return;
+    if (controllerDisposed || isBusy.value || !settings.value.enabled) return;
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
-      if (enabled && !await _biometrics.isAvailable()) {
-        errorMessage.value =
-            'Biometric unlock is not available on this device.';
-        return;
+      if (enabled) {
+        final available = await _biometrics.isAvailable();
+        if (!isControllerLifecycleCurrent(lifecycle)) return;
+        if (!available) {
+          errorMessage.value =
+              'Biometric unlock is not available on this device.';
+          return;
+        }
       }
       final next = settings.value.copyWith(biometricsEnabled: enabled);
       await _credentials.saveSettings(next);
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       settings.value = next;
     } catch (_) {
-      errorMessage.value = 'Kite could not update biometric unlock.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not update biometric unlock.';
+      }
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
   Future<void> setHideNotificationContents(bool hidden) async {
-    if (isBusy.value || !settings.value.enabled) return;
+    if (controllerDisposed || isBusy.value || !settings.value.enabled) return;
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final next = settings.value.copyWith(hideNotificationContents: hidden);
       await _credentials.saveSettings(next);
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       settings.value = next;
     } catch (_) {
-      errorMessage.value = 'Kite could not update notification privacy.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not update notification privacy.';
+      }
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
   void lock() {
-    if (!settings.value.enabled) return;
+    if (controllerDisposed || !settings.value.enabled) return;
     errorMessage.value = null;
     isLocked.value = true;
   }
 
   Future<bool> unlockWithPin(String pin) async {
-    if (isBusy.value || !settings.value.enabled) return false;
+    if (controllerDisposed || isBusy.value || !settings.value.enabled) {
+      return false;
+    }
     if (!_isValidPin(pin)) {
       errorMessage.value = 'Enter your app lock PIN.';
       return false;
     }
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final unlocked = await _credentials.verifyPin(pin);
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!unlocked) {
         errorMessage.value = 'Incorrect PIN.';
         return false;
@@ -183,24 +216,31 @@ final class AppLockController {
       isLocked.value = false;
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not verify your PIN.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not verify your PIN.';
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
   Future<bool> unlockWithBiometrics() async {
-    if (isBusy.value ||
+    if (controllerDisposed ||
+        isBusy.value ||
         !settings.value.enabled ||
         !settings.value.biometricsEnabled) {
       return false;
     }
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final unlocked = await _biometrics.authenticate();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!unlocked) {
         errorMessage.value = 'Biometric unlock was not accepted.';
         return false;
@@ -208,37 +248,48 @@ final class AppLockController {
       isLocked.value = false;
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not use biometric unlock.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not use biometric unlock.';
+      }
       return false;
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
   Future<void> disable(String pin) async {
-    if (isBusy.value || !settings.value.enabled) return;
+    if (controllerDisposed || isBusy.value || !settings.value.enabled) return;
     if (!_isValidPin(pin)) {
       errorMessage.value = 'Enter your app lock PIN.';
       return;
     }
 
+    final lifecycle = captureControllerLifecycle();
     isBusy.value = true;
     errorMessage.value = null;
     try {
       final verified = await _credentials.verifyPin(pin);
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       if (!verified) {
         errorMessage.value = 'Incorrect PIN.';
         return;
       }
       await _credentials.disable();
+      if (!isControllerLifecycleCurrent(lifecycle)) return;
       const next = AppLockSettings.disabled();
       settings.value = next;
       isLocked.value = false;
       isReady.value = true;
     } catch (_) {
-      errorMessage.value = 'Kite could not disable app lock securely.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not disable app lock securely.';
+      }
     } finally {
-      isBusy.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isBusy.value = false;
+      }
     }
   }
 
@@ -250,6 +301,7 @@ final class AppLockController {
       (!candidate.biometricsEnabled && !candidate.hideNotificationContents);
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
     settings.dispose();
     isLocked.dispose();
     isBusy.dispose();

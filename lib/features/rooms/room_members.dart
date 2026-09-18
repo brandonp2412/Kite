@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:signals/signals.dart';
 
 enum RoomMembership { joined, invited, knocked, left, banned }
@@ -169,7 +170,7 @@ class InMemoryRoomModerationGateway implements RoomModerationGateway {
   Future<void> unban({required String roomId, required String userId}) async {}
 }
 
-class RoomMembersStore {
+class RoomMembersStore with AsyncControllerLifecycle {
   RoomMembersStore({
     required this.roomId,
     required this.currentUserId,
@@ -218,6 +219,7 @@ class RoomMembersStore {
       RoomModerationPermissions(powerLevels.value);
 
   Future<bool> setRole(String userId, RoomMemberRole role) async {
+    if (controllerDisposed) return false;
     final target = member(userId);
     if (!permissions.canChangeRole(
       actor: currentUser,
@@ -226,6 +228,7 @@ class RoomMembersStore {
     )) {
       return false;
     }
+    final lifecycle = captureControllerLifecycle();
     try {
       await moderationGateway.setPowerLevel(
         roomId: roomId,
@@ -235,6 +238,7 @@ class RoomMembersStore {
     } on Exception {
       return false;
     }
+    if (!isControllerLifecycleCurrent(lifecycle)) return false;
     _replaceMember(target.copyWith(powerLevel: role.powerLevel));
     final nextUsers = Map<String, int>.of(powerLevels.value.users)
       ..[userId] = role.powerLevel;
@@ -251,37 +255,46 @@ class RoomMembersStore {
   }
 
   Future<bool> kick(String userId) async {
+    if (controllerDisposed) return false;
     final target = member(userId);
     if (!permissions.canKick(actor: currentUser, target: target)) return false;
+    final lifecycle = captureControllerLifecycle();
     try {
       await moderationGateway.kick(roomId: roomId, userId: userId);
     } on Exception {
       return false;
     }
+    if (!isControllerLifecycleCurrent(lifecycle)) return false;
     _replaceMember(target.copyWith(membership: RoomMembership.left));
     return true;
   }
 
   Future<bool> ban(String userId) async {
+    if (controllerDisposed) return false;
     final target = member(userId);
     if (!permissions.canBan(actor: currentUser, target: target)) return false;
+    final lifecycle = captureControllerLifecycle();
     try {
       await moderationGateway.ban(roomId: roomId, userId: userId);
     } on Exception {
       return false;
     }
+    if (!isControllerLifecycleCurrent(lifecycle)) return false;
     _replaceMember(target.copyWith(membership: RoomMembership.banned));
     return true;
   }
 
   Future<bool> unban(String userId) async {
+    if (controllerDisposed) return false;
     final target = member(userId);
     if (!permissions.canUnban(actor: currentUser, target: target)) return false;
+    final lifecycle = captureControllerLifecycle();
     try {
       await moderationGateway.unban(roomId: roomId, userId: userId);
     } on Exception {
       return false;
     }
+    if (!isControllerLifecycleCurrent(lifecycle)) return false;
     _replaceMember(target.copyWith(membership: RoomMembership.left));
     return true;
   }
@@ -294,6 +307,7 @@ class RoomMembersStore {
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
     members.dispose();
     powerLevels.dispose();
     query.dispose();

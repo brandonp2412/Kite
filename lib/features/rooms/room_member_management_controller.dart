@@ -1,3 +1,4 @@
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:kite/features/rooms/room_member_management.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -25,7 +26,7 @@ final class RoomMemberModerationOptions {
   final bool canUnban;
 }
 
-final class RoomMemberManagementController {
+final class RoomMemberManagementController with AsyncControllerLifecycle {
   RoomMemberManagementController({
     required this.roomId,
     required this._coordinator,
@@ -47,6 +48,7 @@ final class RoomMemberManagementController {
   Future<void> load() => search('');
 
   Future<void> search(String value) async {
+    if (controllerDisposed) return;
     final normalized = value.trim();
     query.value = normalized;
     final generation = ++_searchGeneration;
@@ -273,20 +275,27 @@ final class RoomMemberManagementController {
     required String failureMessage,
     required Future<void> Function() action,
   }) async {
-    if (isMutating.value) return false;
+    if (controllerDisposed || isMutating.value) return false;
+    final lifecycle = captureControllerLifecycle();
     isMutating.value = true;
     errorMessage.value = null;
     try {
       await action();
-      return true;
+      return isControllerLifecycleCurrent(lifecycle);
     } on RoomMemberActionDenied catch (error) {
-      errorMessage.value = error.reason;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = error.reason;
+      }
       return false;
     } catch (_) {
-      errorMessage.value = failureMessage;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = failureMessage;
+      }
       return false;
     } finally {
-      isMutating.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isMutating.value = false;
+      }
     }
   }
 
@@ -297,6 +306,8 @@ final class RoomMemberManagementController {
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
+    _searchGeneration += 1;
     members.dispose();
     query.dispose();
     isLoading.dispose();

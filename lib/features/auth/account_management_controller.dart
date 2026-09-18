@@ -1,4 +1,5 @@
 import 'package:kite/features/auth/authentication_gateway.dart';
+import 'package:kite/core/async_controller_lifecycle.dart';
 import 'package:signals/signals.dart';
 
 final class ManagedMatrixAccount {
@@ -48,7 +49,7 @@ abstract interface class AccountManagementGateway {
   Future<void> signOutAccount(String accountId);
 }
 
-final class AccountManagementController {
+final class AccountManagementController with AsyncControllerLifecycle {
   AccountManagementController(this._gateway);
 
   final AccountManagementGateway _gateway;
@@ -71,12 +72,18 @@ final class AccountManagementController {
       accounts.value.isNotEmpty && activeAccount == null;
 
   Future<bool> load() async {
-    if (isLoading.value || busyAccountIds.value.isNotEmpty) return false;
+    if (controllerDisposed ||
+        isLoading.value ||
+        busyAccountIds.value.isNotEmpty) {
+      return false;
+    }
 
+    final lifecycle = captureControllerLifecycle();
     isLoading.value = true;
     errorMessage.value = null;
     try {
       final loaded = await _gateway.loadAccounts();
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       if (!_isValidAccountList(loaded)) {
         errorMessage.value = 'Kite received invalid account information.';
         return false;
@@ -84,14 +91,19 @@ final class AccountManagementController {
       accounts.value = List<ManagedMatrixAccount>.unmodifiable(loaded);
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not load your accounts.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not load your accounts.';
+      }
       return false;
     } finally {
-      isLoading.value = false;
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        isLoading.value = false;
+      }
     }
   }
 
   Future<bool> activate(String accountId) async {
+    if (controllerDisposed) return false;
     final normalized = accountId.trim();
     final account = _findAccount(normalized);
     if (account == null) {
@@ -104,9 +116,11 @@ final class AccountManagementController {
     }
     if (!_beginAccountOperation(normalized)) return false;
 
+    final lifecycle = captureControllerLifecycle();
     errorMessage.value = null;
     try {
       await _gateway.activateAccount(normalized);
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       accounts.value = List<ManagedMatrixAccount>.unmodifiable(
         accounts.value.map(
           (candidate) =>
@@ -115,14 +129,19 @@ final class AccountManagementController {
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not switch accounts.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not switch accounts.';
+      }
       return false;
     } finally {
-      _endAccountOperation(normalized);
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        _endAccountOperation(normalized);
+      }
     }
   }
 
   Future<bool> signOut(String accountId) async {
+    if (controllerDisposed) return false;
     final normalized = accountId.trim();
     final account = _findAccount(normalized);
     if (account == null) {
@@ -131,18 +150,24 @@ final class AccountManagementController {
     }
     if (!_beginAccountOperation(normalized)) return false;
 
+    final lifecycle = captureControllerLifecycle();
     errorMessage.value = null;
     try {
       await _gateway.signOutAccount(normalized);
+      if (!isControllerLifecycleCurrent(lifecycle)) return false;
       accounts.value = List<ManagedMatrixAccount>.unmodifiable(
         accounts.value.where((candidate) => candidate.accountId != normalized),
       );
       return true;
     } catch (_) {
-      errorMessage.value = 'Kite could not sign out that account.';
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        errorMessage.value = 'Kite could not sign out that account.';
+      }
       return false;
     } finally {
-      _endAccountOperation(normalized);
+      if (isControllerLifecycleCurrent(lifecycle)) {
+        _endAccountOperation(normalized);
+      }
     }
   }
 
@@ -155,7 +180,9 @@ final class AccountManagementController {
   }
 
   bool _beginAccountOperation(String accountId) {
-    if (isLoading.value || busyAccountIds.value.isNotEmpty) {
+    if (controllerDisposed ||
+        isLoading.value ||
+        busyAccountIds.value.isNotEmpty) {
       return false;
     }
     busyAccountIds.value = Set<String>.unmodifiable(<String>{
@@ -212,6 +239,7 @@ final class AccountManagementController {
   }
 
   void dispose() {
+    if (!disposeControllerLifecycle()) return;
     accounts.dispose();
     isLoading.dispose();
     busyAccountIds.dispose();

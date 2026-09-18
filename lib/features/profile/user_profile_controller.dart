@@ -422,6 +422,8 @@ final class UserProfileController {
   }
 
   void dispose() {
+    _accountGeneration += 1;
+    _profileRequestGeneration += 1;
     ownProfile.dispose();
     viewedProfile.dispose();
     ignoredUserIds.dispose();

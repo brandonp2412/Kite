@@ -190,6 +190,7 @@ final class EncryptionTrustController {
   }
 
   void dispose() {
+    _accountGeneration += 1;
     state.dispose();
     isBusy.dispose();
     errorMessage.dispose();
