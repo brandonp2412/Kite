@@ -187,6 +187,18 @@ void main() {
     expect(gateway.recoveryKey, 'TRANSIENT-RECOVERY-KEY');
     expect(controller.isBusy.value, isTrue);
     expect(
+      controller.activeOperation.value,
+      EncryptionRecoveryOperation.restoreBackup,
+    );
+    expect(
+      find.byKey(const Key('encryption-recovery-progress')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Restoring encrypted messages and downloading room keys…'),
+      findsOneWidget,
+    );
+    expect(
       tester.widget<TextField>(recoveryKeyField).controller?.text,
       isEmpty,
     );
@@ -204,6 +216,18 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(controller.isBusy.value, isFalse);
+    expect(controller.activeOperation.value, isNull);
+    expect(find.byKey(const Key('encryption-recovery-progress')), findsNothing);
+    expect(
+      find.byKey(const Key('encryption-recovery-success')),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Encrypted messages restored. Recent chat history is reloading.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets(

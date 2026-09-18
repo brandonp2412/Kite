@@ -93,8 +93,9 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
         child: SignalBuilder(
           builder: (context) {
             final status = widget.controller.status.value;
-            final importResult = widget.controller.roomKeyImportResult.value;
             final busy = widget.controller.isBusy.value;
+            final operation = widget.controller.activeOperation.value;
+            final success = widget.controller.successMessage.value;
             final error = widget.controller.errorMessage.value;
             final backupReady =
                 status?.backupState == EncryptedBackupState.ready;
@@ -111,6 +112,14 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   _RecoveryOverview(status: status, error: error),
+                  if (busy || success != null) ...<Widget>[
+                    const SizedBox(height: KiteSpacing.md),
+                    _RecoveryOperationFeedback(
+                      busy: busy,
+                      operation: operation,
+                      success: success,
+                    ),
+                  ],
                   const SizedBox(height: KiteSpacing.md),
                   _RecoveryCard(
                     icon: Icons.key_rounded,
@@ -327,10 +336,7 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
                             KiteMotion.standard,
                           ),
                           child: Text(
-                            error ??
-                                (importResult == null
-                                    ? ''
-                                    : 'Imported ${importResult.importedCount} of ${importResult.totalCount} room keys.'),
+                            error ?? '',
                             key: const Key('encryption-recovery-error'),
                             style: KiteTypography.metadata.copyWith(
                               color: error == null
@@ -348,6 +354,87 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _RecoveryOperationFeedback extends StatelessWidget {
+  const _RecoveryOperationFeedback({
+    required this.busy,
+    required this.operation,
+    required this.success,
+  });
+
+  final bool busy;
+  final EncryptionRecoveryOperation? operation;
+  final String? success;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final message = busy
+        ? switch (operation) {
+            EncryptionRecoveryOperation.refreshStatus =>
+              'Checking Matrix recovery status…',
+            EncryptionRecoveryOperation.createBackup =>
+              'Enabling encrypted backup…',
+            EncryptionRecoveryOperation.restoreBackup =>
+              'Restoring encrypted messages and downloading room keys…',
+            EncryptionRecoveryOperation.recoverHistory =>
+              'Recovering encrypted message history…',
+            EncryptionRecoveryOperation.importRoomKeys =>
+              'Importing room keys and reloading message history…',
+            null => 'Working…',
+          }
+        : success ?? '';
+
+    return Semantics(
+      key: const Key('encryption-recovery-feedback'),
+      liveRegion: true,
+      label: message,
+      child: Container(
+        padding: const EdgeInsets.all(KiteSpacing.md),
+        decoration: BoxDecoration(
+          color: busy ? colors.surfaceContainerHigh : colors.primaryContainer,
+          borderRadius: BorderRadius.circular(KiteRadii.md),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(
+                  busy ? Icons.sync_rounded : Icons.check_circle_rounded,
+                  color: busy ? colors.primary : colors.onPrimaryContainer,
+                ),
+                const SizedBox(width: KiteSpacing.sm),
+                Expanded(
+                  child: Text(
+                    message,
+                    key: Key(
+                      busy
+                          ? 'encryption-recovery-progress-label'
+                          : 'encryption-recovery-success',
+                    ),
+                    style: KiteTypography.body.copyWith(
+                      color: busy
+                          ? colors.onSurface
+                          : colors.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (busy) ...<Widget>[
+              const SizedBox(height: KiteSpacing.sm),
+              const LinearProgressIndicator(
+                key: Key('encryption-recovery-progress'),
+              ),
+            ],
+          ],
         ),
       ),
     );

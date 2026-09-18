@@ -201,6 +201,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       builder: (context) => HomeScreen(
         roomListStore: _binding.roomListStore,
         roomListLoading: !widget.cache.hasReceivedSyncBatch.value,
+        timelineReloading: !widget.cache.hasReceivedSyncBatch.value,
         inviteStore: _binding.inviteStore,
         timeline: _binding.controller,
         roomCreation: widget.roomCreation,

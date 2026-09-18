@@ -734,7 +734,7 @@ void main() {
       expect(client.syncCalls, greaterThanOrEqualTo(8));
       expect(client.syncTimeouts.take(7), everyElement(Duration.zero));
       expect(client.syncTimeouts[7], const Duration(seconds: 5));
-      expect(client.syncTimelineEventLimits.take(7), everyElement(1));
+      expect(client.syncTimelineEventLimits.take(7), everyElement(20));
       expect(client.syncTimelineEventLimits[7], 20);
       final failedLogs = logSink.events
           .where(
