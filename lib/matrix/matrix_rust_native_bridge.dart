@@ -12,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 27;
+const int kiteMatrixNativeAbiVersion = 28;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -210,6 +210,18 @@ typedef _ClientManageRoomNative = Pointer<Char> Function(
 typedef _ClientManageRoomDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientReportContentNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientReportContentDart = Pointer<Char> Function(
+  Pointer<Void>,
   Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
@@ -1080,6 +1092,54 @@ final class _MatrixNativeManageRoomOperation {
   }
 }
 
+final class _MatrixNativeReportContentOperation {
+  const _MatrixNativeReportContentOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.eventId,
+    required this.reason,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String eventId;
+  final String reason;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final report = library
+        .lookupFunction<_ClientReportContentNative, _ClientReportContentDart>(
+          'kite_matrix_client_report_content',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final eventIdUtf8 = eventId.toNativeUtf8(allocator: calloc);
+    final reasonUtf8 = reason.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        report(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          eventIdUtf8.cast<Char>(),
+          reasonUtf8.cast<Char>(),
+        ),
+        freeString,
+        'event reporting',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(reasonUtf8);
+      calloc.free(eventIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeProfileOperation {
   const _MatrixNativeProfileOperation({
     required this.libraryPath,
@@ -1786,6 +1846,14 @@ abstract interface class MatrixRustRoomLifecycleClient {
   });
 }
 
+abstract interface class MatrixRustTimelineModerationClient {
+  Future<void> reportContent({
+    required String roomId,
+    required String eventId,
+    String? reason,
+  });
+}
+
 abstract interface class MatrixRustMediaPrefetchClient {
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
@@ -2024,6 +2092,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomMemberInviterClient,
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
+        MatrixRustTimelineModerationClient,
         MatrixRustRoomSettingsClient,
         MatrixRustMediaPrefetchClient,
         MatrixRustMediaClient,
@@ -3014,6 +3083,63 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<void> reportContent({
+    required String roomId,
+    required String eventId,
+    String? reason,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedEventId = eventId.trim();
+    final normalizedReason = reason?.trim() ?? '';
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedEventId.isEmpty || normalizedEventId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          eventId,
+          'eventId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedReason.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          '<redacted>',
+          'reason',
+          'must not contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeReportContentOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          eventId: normalizedEventId,
+          reason: normalizedReason,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['roomId'] != normalizedRoomId ||
+          decoded['eventId'] != normalizedEventId) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid event reporting state.',
+        );
+      }
+    });
+  }
+
+  @override
   Future<void> manageRoom({
     required String roomId,
     required String action,
@@ -3172,6 +3298,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkRoomCreator,
         MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
+        MatrixSdkTimelineModerationManager,
         MatrixSdkRoomMemberDirectory,
         MatrixSdkRoomMemberInviter,
         MatrixSdkRoomMemberModerator,
@@ -4018,6 +4145,23 @@ final class MatrixRustSdkBoundary
   @override
   Future<void> unbanRoomMember(String roomId, String userId) {
     return _moderateRoomMember(roomId: roomId, userId: userId, action: 'unban');
+  }
+
+  @override
+  Future<void> reportEvent(String roomId, String eventId, {String? reason}) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustTimelineModerationClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support event reporting',
+        );
+      }
+      await (client as MatrixRustTimelineModerationClient).reportContent(
+        roomId: roomId,
+        eventId: eventId,
+        reason: reason,
+      );
+    });
   }
 
   @override

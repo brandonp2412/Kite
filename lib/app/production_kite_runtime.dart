@@ -529,6 +529,18 @@ final class _AuthenticatedMatrixHomeState
             ),
             linkOpenPort: PlatformTimelineLinkOpenPort(),
             sharePort: const PlatformTimelineSharePort(),
+            moderationPort: MatrixTimelineModerationPort(({
+              required roomId,
+              required eventId,
+              required reason,
+            }) {
+              return widget.runtime.reportEvent(
+                accountId: widget.session.userId,
+                roomId: roomId,
+                eventId: eventId,
+                reason: reason,
+              );
+            }),
             editPort: MatrixTimelineEditPort(({
               required roomId,
               required transactionId,

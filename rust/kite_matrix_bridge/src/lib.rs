@@ -55,7 +55,7 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 27;
+const KITE_MATRIX_ABI_VERSION: u32 = 28;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 
@@ -1865,6 +1865,74 @@ pub unsafe extern "C" fn kite_matrix_client_moderate_room_member(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_report_content(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    event_id: *const c_char,
+    reason: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix event reporting is unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(event_id) = (unsafe { required_utf8(event_id) }) else {
+        return error_json("invalid_event", "The Matrix event is invalid.");
+    };
+    let reason = unsafe { required_utf8(reason) }
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Ok(event_id) = EventId::parse(event_id) else {
+        return error_json("invalid_event", "The Matrix event is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix event reporting is unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+
+    if client
+        .runtime
+        .block_on(room.report_content(event_id.clone(), reason))
+        .is_err()
+    {
+        return error_json(
+            "event_report_failed",
+            "The Matrix event report could not be submitted.",
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "eventId": event_id.as_str(),
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_manage_room(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -2938,7 +3006,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 27);
+        assert_eq!(kite_matrix_abi_version(), 28);
     }
 
     #[test]
