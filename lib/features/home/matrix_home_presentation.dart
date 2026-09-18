@@ -168,10 +168,12 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       return;
     }
     if (!identical(oldWidget.sendPort, widget.sendPort) ||
-        !identical(oldWidget.editPort, widget.editPort)) {
+        !identical(oldWidget.editPort, widget.editPort) ||
+        !identical(oldWidget.linkOpenPort, widget.linkOpenPort)) {
       _binding.updateTransport(
         sendPort: widget.sendPort,
         editPort: widget.editPort,
+        linkOpenPort: widget.linkOpenPort,
       );
     }
   }
@@ -359,8 +361,13 @@ final class MatrixHomePresentationBinding {
   void updateTransport({
     required TimelineSendPort sendPort,
     TimelineEditPort? editPort,
+    TimelineLinkOpenPort? linkOpenPort,
   }) {
-    controller.updateTransport(sendPort: sendPort, editPort: editPort);
+    controller.updateTransport(
+      sendPort: sendPort,
+      editPort: editPort,
+      linkOpenPort: linkOpenPort,
+    );
   }
 
   void dispose() {

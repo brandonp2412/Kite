@@ -7,11 +7,37 @@ import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
 void main() {
+  test('Matrix home binding preserves the injected link opener', () async {
+    final cache = MatrixPresentationCache();
+    final opened = <Uri>[];
+    final linkOpenPort = PlatformTimelineLinkOpenPort(
+      launcher: (uri) async {
+        opened.add(uri);
+        return true;
+      },
+    );
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+      linkOpenPort: linkOpenPort,
+    );
+    addTearDown(binding.dispose);
+
+    final uri = Uri.parse('https://element.io/help');
+    await binding.controller.openLink(uri);
+
+    expect(opened, <Uri>[uri]);
+  });
+
   test('Matrix timeline send port preserves reply targets', () async {
     final plainBodies = <String>[];
     final replies = <({String body, String eventId})>[];

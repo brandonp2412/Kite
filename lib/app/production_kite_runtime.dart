@@ -672,6 +672,7 @@ final class _AuthenticatedMatrixHomeState
                     );
                   },
             ),
+            linkOpenPort: PlatformTimelineLinkOpenPort(),
             editPort: MatrixTimelineEditPort(({
               required roomId,
               required transactionId,
