@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -725,6 +728,129 @@ void main() {
 
     expect(historyRequests, 2);
   });
+
+  testWidgets(
+    'back-pagination preserves the visible timeline anchor at 120 Hz',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final display = tester.binding.platformDispatcher.displays.first;
+      display.refreshRate = PerformanceContract.motionRefreshRateHz;
+      addTearDown(display.resetRefreshRate);
+
+      final events = List<MatrixTimelineEvent>.generate(
+        60,
+        (index) => _event(
+          eventId: '\$event-$index',
+          body: 'Message $index',
+          streamPosition: index + 31,
+        ),
+      );
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            MatrixRoomSummary(
+              roomId: '!real:example.org',
+              displayName: 'Real room',
+              lastActivity: DateTime.utc(2026, 9, 16, 12),
+              streamPosition: 90,
+              lastEventId: r'$event-59',
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!real:example.org': events,
+          },
+        ),
+      );
+      final historyStarted = Completer<void>();
+      final releaseHistory = Completer<void>();
+      var historyRequests = 0;
+
+      await tester.pumpWidget(
+        KiteApp(
+          home: MatrixHomeScreen(
+            cache: cache,
+            currentUserId: '@me:example.org',
+            sendPort: MatrixTimelineSendPort(
+              ({
+                required roomId,
+                required transactionId,
+                required body,
+              }) async {},
+            ),
+            onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
+              historyRequests += 1;
+              if (historyRequests != 1) return;
+              if (!historyStarted.isCompleted) historyStarted.complete();
+              await releaseHistory.future;
+              cache.applyPagination(
+                MatrixPaginationPage(
+                  roomId: roomId,
+                  events: List<MatrixTimelineEvent>.generate(
+                    30,
+                    (index) => _event(
+                      eventId: '\$older-$index',
+                      body: 'Older message $index',
+                      streamPosition: index + 1,
+                    ),
+                  ),
+                  reachedStart: true,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final messageList = find.byKey(const Key('message-list'));
+      final anchor = find.byKey(const Key(r'message-bubble-$event-5'));
+      await tester.scrollUntilVisible(
+        anchor,
+        240,
+        scrollable: find
+            .descendant(of: messageList, matching: find.byType(Scrollable))
+            .first,
+      );
+      for (
+        var attempt = 0;
+        attempt < 20 && !historyStarted.isCompleted;
+        attempt += 1
+      ) {
+        await tester.drag(messageList, const Offset(0, 300));
+        await tester.pump();
+      }
+      expect(historyStarted.isCompleted, isTrue);
+      expect(anchor, findsOneWidget);
+
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(of: messageList, matching: find.byType(Scrollable))
+            .first,
+      );
+      final anchorRect = tester.getRect(anchor);
+      releaseHistory.complete();
+
+      double? settledPixels;
+      for (
+        var sample = 0;
+        sample < PerformanceContract.motionSamples;
+        sample += 1
+      ) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(tester.getRect(anchor), anchorRect);
+        settledPixels ??= scrollable.position.pixels;
+        expect(scrollable.position.pixels, settledPixels);
+        expect(tester.takeException(), isNull);
+      }
+      final paginatedEvents = cache.snapshot().timelines['!real:example.org']!;
+      expect(paginatedEvents, hasLength(90));
+      expect(paginatedEvents.first.eventId, r'$older-0');
+      expect(find.text('Older message 0'), findsNothing);
+    },
+  );
 
   test(
     'production send port settles optimistic messages from real sender',

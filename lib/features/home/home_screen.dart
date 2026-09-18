@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show RenderAbstractViewport, ScrollCacheExtent;
+    show RenderAbstractViewport, RenderSliver, ScrollCacheExtent;
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
@@ -1823,8 +1823,10 @@ class _Timeline extends StatefulWidget {
 
 class _TimelineState extends State<_Timeline> {
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _currentTimelineSliverKey = GlobalKey();
   final GlobalKey _unreadMarkerKey = GlobalKey();
   String? _displayedRoomId;
+  String? _historyBoundaryMessageId;
   List<TimelineMessage> _displayedMessages = const <TimelineMessage>[];
   List<TimelineMessage>? _pendingTailMessages;
   String? _lastHistoryRequestKey;
@@ -1964,11 +1966,18 @@ class _TimelineState extends State<_Timeline> {
         if (_displayedRoomId != roomId) {
           _displayedRoomId = roomId;
           _displayedMessages = sourceMessages;
+          _historyBoundaryMessageId = sourceMessages.isEmpty
+              ? null
+              : sourceMessages.first.id;
           _pendingTailMessages = null;
         } else if (!_sameMessageIdentityList(
           _displayedMessages,
           sourceMessages,
         )) {
+          final preservedHistoryPixels =
+              _isMessageHistoryPrepend(_displayedMessages, sourceMessages)
+              ? _preservedHistoryPixels()
+              : null;
           final awayFromTail =
               _scrollController.hasClients &&
               _scrollController.position.pixels >
@@ -1982,11 +1991,17 @@ class _TimelineState extends State<_Timeline> {
           if (remoteTailAppend) {
             _pendingTailMessages = sourceMessages;
           } else {
+            if (preservedHistoryPixels != null &&
+                _scrollController.hasClients) {
+              _scrollController.position.correctPixels(preservedHistoryPixels);
+            }
             _displayedMessages = sourceMessages;
             _pendingTailMessages = null;
           }
         }
         final messages = _displayedMessages;
+        final historyMessageCount = _historyMessageCount(messages);
+        final centerMessageCount = messages.length - historyMessageCount;
         _scheduleHistoryProbe(roomId, messages.length);
         final unreadMarkerEventId = _homeTimelineController(context)
             .unreadMarkerFor(roomId)
@@ -2002,31 +2017,61 @@ class _TimelineState extends State<_Timeline> {
                 }
                 return false;
               },
-              child: ListView.builder(
+              child: CustomScrollView(
                 key: const Key('message-list'),
                 controller: _scrollController,
                 reverse: true,
+                semanticChildCount: messages.length,
                 scrollCacheExtent: unreadMarkerEventId == null
                     ? null
                     : const ScrollCacheExtent.viewport(1.8),
-                padding: const EdgeInsets.symmetric(vertical: KiteSpacing.sm),
-                itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  final message = messages[messages.length - 1 - index];
-                  final row = _MessageRow(
-                    key: ValueKey<String>(message.id),
-                    roomId: roomId,
-                    message: message,
-                    semanticsOrder: (messages.length - 1 - index).toDouble(),
-                    onReply: widget.onReply,
-                    onEdit: widget.onEdit,
-                  );
-                  if (message.id != unreadMarkerEventId) return row;
-                  return _UnreadMarkerOverlay(
-                    markerKey: _unreadMarkerKey,
-                    child: row,
-                  );
-                },
+                slivers: <Widget>[
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: KiteSpacing.sm),
+                  ),
+                  SliverList.builder(
+                    key: _currentTimelineSliverKey,
+                    itemCount: centerMessageCount,
+                    addSemanticIndexes: false,
+                    findChildIndexCallback: (key) => _messageChildIndexForKey(
+                      messages,
+                      key,
+                      startIndex: historyMessageCount,
+                      endIndex: messages.length,
+                    ),
+                    itemBuilder: (context, index) {
+                      final sourceIndex = messages.length - 1 - index;
+                      return _buildMessageRow(
+                        roomId: roomId,
+                        message: messages[sourceIndex],
+                        semanticsOrder: sourceIndex.toDouble(),
+                        unreadMarkerEventId: unreadMarkerEventId,
+                      );
+                    },
+                  ),
+                  SliverList.builder(
+                    itemCount: historyMessageCount,
+                    addSemanticIndexes: false,
+                    findChildIndexCallback: (key) => _messageChildIndexForKey(
+                      messages,
+                      key,
+                      startIndex: 0,
+                      endIndex: historyMessageCount,
+                    ),
+                    itemBuilder: (context, index) {
+                      final sourceIndex = historyMessageCount - 1 - index;
+                      return _buildMessageRow(
+                        roomId: roomId,
+                        message: messages[sourceIndex],
+                        semanticsOrder: sourceIndex.toDouble(),
+                        unreadMarkerEventId: unreadMarkerEventId,
+                      );
+                    },
+                  ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: KiteSpacing.sm),
+                  ),
+                ],
               ),
             ),
             Positioned(
@@ -2051,6 +2096,88 @@ class _TimelineState extends State<_Timeline> {
       },
     );
   }
+
+  double? _preservedHistoryPixels() {
+    if (!_scrollController.hasClients) return null;
+    final renderObject = _currentTimelineSliverKey.currentContext
+        ?.findRenderObject();
+    if (renderObject is! RenderSliver) return null;
+    final position = _scrollController.position;
+    final mappedPixels =
+        renderObject.constraints.scrollOffset +
+        renderObject.constraints.precedingScrollExtent;
+    return mappedPixels < position.pixels ? mappedPixels : position.pixels;
+  }
+
+  int _historyMessageCount(List<TimelineMessage> messages) {
+    if (messages.isEmpty) {
+      _historyBoundaryMessageId = null;
+      return 0;
+    }
+    final boundaryMessageId = _historyBoundaryMessageId;
+    if (boundaryMessageId == null) {
+      _historyBoundaryMessageId = messages.first.id;
+      return 0;
+    }
+    final boundaryIndex = messages.indexWhere(
+      (message) => message.id == boundaryMessageId,
+    );
+    if (boundaryIndex >= 0) return boundaryIndex;
+    _historyBoundaryMessageId = messages.first.id;
+    return 0;
+  }
+
+  Widget _buildMessageRow({
+    required String roomId,
+    required TimelineMessage message,
+    required double semanticsOrder,
+    required String? unreadMarkerEventId,
+  }) {
+    final messageKey = ValueKey<String>(message.id);
+    final isUnreadMarker = message.id == unreadMarkerEventId;
+    final row = _MessageRow(
+      key: isUnreadMarker ? null : messageKey,
+      roomId: roomId,
+      message: message,
+      semanticsOrder: semanticsOrder,
+      onReply: widget.onReply,
+      onEdit: widget.onEdit,
+    );
+    if (!isUnreadMarker) return row;
+    return _UnreadMarkerOverlay(
+      key: messageKey,
+      markerKey: _unreadMarkerKey,
+      child: row,
+    );
+  }
+}
+
+int? _messageChildIndexForKey(
+  List<TimelineMessage> messages,
+  Key key, {
+  required int startIndex,
+  required int endIndex,
+}) {
+  if (key is! ValueKey<String>) return null;
+  for (var index = startIndex; index < endIndex; index++) {
+    if (messages[index].id == key.value) {
+      return endIndex - 1 - index;
+    }
+  }
+  return null;
+}
+
+bool _isMessageHistoryPrepend(
+  List<TimelineMessage> previous,
+  List<TimelineMessage> next,
+) {
+  if (previous.isEmpty || next.length <= previous.length) return false;
+  final offset = next.length - previous.length;
+  if (offset <= 0) return false;
+  for (var index = 0; index < previous.length; index++) {
+    if (previous[index].id != next[index + offset].id) return false;
+  }
+  return true;
 }
 
 bool _sameMessageIdentityList(
@@ -2129,7 +2256,11 @@ class _UnreadJumpButton extends StatelessWidget {
 }
 
 class _UnreadMarkerOverlay extends StatelessWidget {
-  const _UnreadMarkerOverlay({required this.markerKey, required this.child});
+  const _UnreadMarkerOverlay({
+    super.key,
+    required this.markerKey,
+    required this.child,
+  });
 
   final GlobalKey markerKey;
   final Widget child;
