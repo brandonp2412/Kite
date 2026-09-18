@@ -246,7 +246,7 @@ void main() {
       expect(boundary.openedStore, same(_store));
       expect(boundary.startCalls, 1);
       expect(boundary.lastSyncConfiguration?.initialRoomListLimit, 200);
-      expect(boundary.lastSyncConfiguration?.initialTimelineEventLimit, 1);
+      expect(boundary.lastSyncConfiguration?.initialTimelineEventLimit, 20);
       expect(boundary.lastSyncConfiguration?.timelineEventLimit, 20);
       expect(boundary.lastSyncConfiguration?.resumeFromCursor, isNull);
       expect(boundary.stopCalls, 1);

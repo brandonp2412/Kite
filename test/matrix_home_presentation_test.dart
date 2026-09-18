@@ -645,6 +645,7 @@ void main() {
         },
       ),
     );
+    _markSyncReady(cache);
     var historyRequests = 0;
 
     await tester.pumpWidget(
@@ -683,6 +684,74 @@ void main() {
     expect(find.text('Newer message'), findsOneWidget);
   });
 
+  testWidgets(
+    'recent sync completes before back-pagination starts after cache invalidation',
+    (tester) async {
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          rooms: <MatrixRoomSummary>[
+            MatrixRoomSummary(
+              roomId: '!real:example.org',
+              displayName: 'Real room',
+              lastActivity: DateTime.utc(2026, 9, 16, 11),
+              streamPosition: 2,
+              lastEventId: r'$newer',
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!real:example.org': <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$newer',
+                body: 'Cached message',
+                streamPosition: 2,
+              ),
+            ],
+          },
+        ),
+      );
+      final historyStarted = Completer<void>();
+      final releaseHistory = Completer<void>();
+      var historyRequests = 0;
+
+      await tester.pumpWidget(
+        KiteApp(
+          home: MatrixHomeScreen(
+            cache: cache,
+            currentUserId: '@me:example.org',
+            sendPort: MatrixTimelineSendPort(
+              ({
+                required roomId,
+                required transactionId,
+                required body,
+              }) async {},
+            ),
+            onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
+              historyRequests += 1;
+              if (!historyStarted.isCompleted) historyStarted.complete();
+              await releaseHistory.future;
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(historyRequests, 0);
+      expect(find.byKey(const Key('timeline-history-loading')), findsOneWidget);
+
+      _markSyncReady(cache);
+      await tester.pump();
+      await tester.pump();
+      expect(historyStarted.isCompleted, isTrue);
+      expect(historyRequests, 1);
+      expect(find.byKey(const Key('timeline-history-loading')), findsOneWidget);
+
+      releaseHistory.complete();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('timeline-history-loading')), findsNothing);
+    },
+  );
+
   testWidgets('long Matrix timelines request history only at the oldest edge', (
     tester,
   ) async {
@@ -710,6 +779,7 @@ void main() {
         },
       ),
     );
+    _markSyncReady(cache);
     var historyRequests = 0;
 
     await tester.pumpWidget(
@@ -784,6 +854,7 @@ void main() {
           },
         ),
       );
+      _markSyncReady(cache);
       final historyStarted = Completer<void>();
       final releaseHistory = Completer<void>();
       var historyRequests = 0;
@@ -986,6 +1057,12 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(failed.sendState.value, TimelineSendState.failed);
     },
+  );
+}
+
+void _markSyncReady(MatrixPresentationCache cache) {
+  cache.applySync(
+    const MatrixSyncBatch(cursor: 'ready', rooms: <MatrixRoomDelta>[]),
   );
 }
 

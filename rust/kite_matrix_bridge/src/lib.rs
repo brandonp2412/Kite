@@ -143,6 +143,18 @@ fn persist_session_if_access_token_changed(
         .map_err(|_| ())
 }
 
+fn replace_backwards_pagination_tokens<'a>(
+    tokens: &mut HashMap<String, String>,
+    room_prev_batches: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
+) {
+    tokens.clear();
+    for (room_id, prev_batch) in room_prev_batches {
+        if let Some(prev_batch) = prev_batch.filter(|value| !value.is_empty()) {
+            tokens.insert(room_id.to_owned(), prev_batch.to_owned());
+        }
+    }
+}
+
 fn timeline_events_json<'a>(
     runtime: &Runtime,
     room: Option<&matrix_sdk::Room>,
@@ -973,6 +985,17 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         return json_to_c_string(&json!({
             "error": {"code": "session_persist_failed"},
         }));
+    }
+
+    if replace_invites {
+        replace_backwards_pagination_tokens(
+            &mut client.backwards_pagination_tokens,
+            response
+                .rooms
+                .joined
+                .iter()
+                .map(|(room_id, update)| (room_id.as_str(), update.timeline.prev_batch.as_deref())),
+        );
     }
 
     let hydrate_room_metadata = !client.room_metadata_hydrated;
@@ -2949,6 +2972,32 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
+
+    #[test]
+    fn cold_sync_replaces_stale_backwards_pagination_tokens() {
+        let mut tokens = HashMap::from([
+            ("!old:example.org".to_owned(), "stale-token".to_owned()),
+            ("!kept:example.org".to_owned(), "older-token".to_owned()),
+        ]);
+
+        replace_backwards_pagination_tokens(
+            &mut tokens,
+            [
+                ("!kept:example.org", Some("fresh-token")),
+                ("!empty:example.org", None),
+                ("!blank:example.org", Some("")),
+            ],
+        );
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(
+            tokens.get("!kept:example.org").map(String::as_str),
+            Some("fresh-token")
+        );
+        assert!(!tokens.contains_key("!old:example.org"));
+        assert!(!tokens.contains_key("!empty:example.org"));
+        assert!(!tokens.contains_key("!blank:example.org"));
+    }
 
     fn temporary_store() -> std::path::PathBuf {
         let nonce = SystemTime::now()

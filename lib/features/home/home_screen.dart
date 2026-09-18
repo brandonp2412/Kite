@@ -72,6 +72,7 @@ class HomeScreen extends StatelessWidget {
     this.profileAvatarImageProvider,
     this.timelineMediaImageProvider,
     this.roomListLoading = false,
+    this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -91,6 +92,7 @@ class HomeScreen extends StatelessWidget {
   final AvatarImageProvider? profileAvatarImageProvider;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
   final bool roomListLoading;
+  final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -141,6 +143,7 @@ class HomeScreen extends StatelessWidget {
                         memberManagement: memberManagement,
                         calls: calls,
                         onTimelineHistoryRequested: onTimelineHistoryRequested,
+                        timelineReloading: timelineReloading,
                         roomMembersLoader: roomMembersLoader,
                         memberModerationEnabled: memberModerationEnabled,
                       ),
@@ -190,6 +193,7 @@ class HomeScreen extends StatelessWidget {
                   memberManagement: memberManagement,
                   calls: calls,
                   onTimelineHistoryRequested: onTimelineHistoryRequested,
+                  timelineReloading: timelineReloading,
                   roomMembersLoader: roomMembersLoader,
                   memberModerationEnabled: memberModerationEnabled,
                 ),
@@ -992,6 +996,7 @@ class _CompactChatScreen extends StatelessWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -1004,6 +1009,7 @@ class _CompactChatScreen extends StatelessWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -1038,6 +1044,7 @@ class _CompactChatScreen extends StatelessWidget {
           memberManagement: memberManagement,
           calls: calls,
           onTimelineHistoryRequested: onTimelineHistoryRequested,
+          timelineReloading: timelineReloading,
           roomMembersLoader: roomMembersLoader,
           memberModerationEnabled: memberModerationEnabled,
         ),
@@ -1613,6 +1620,7 @@ class _ChatPanel extends StatefulWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
   });
@@ -1623,6 +1631,7 @@ class _ChatPanel extends StatefulWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
 
@@ -1662,6 +1671,7 @@ class _ChatPanelState extends State<_ChatPanel> {
             onReply: _reply,
             onEdit: _edit,
             onTimelineHistoryRequested: widget.onTimelineHistoryRequested,
+            timelineReloading: widget.timelineReloading,
           ),
         ),
         const _TypingIndicator(),
@@ -1863,11 +1873,13 @@ class _Timeline extends StatefulWidget {
     required this.onReply,
     required this.onEdit,
     this.onTimelineHistoryRequested,
+    this.timelineReloading = false,
   });
 
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final bool timelineReloading;
 
   @override
   State<_Timeline> createState() => _TimelineState();
@@ -1883,6 +1895,7 @@ class _TimelineState extends State<_Timeline> {
   List<TimelineMessage>? _pendingTailMessages;
   String? _lastHistoryRequestKey;
   bool _historyProbeScheduled = false;
+  bool _historyLoading = false;
 
   @override
   void initState() {
@@ -1916,7 +1929,9 @@ class _TimelineState extends State<_Timeline> {
   }
 
   void _scheduleHistoryProbe(String roomId, int messageCount) {
-    if (_historyProbeScheduled || widget.onTimelineHistoryRequested == null) {
+    if (widget.timelineReloading ||
+        _historyProbeScheduled ||
+        widget.onTimelineHistoryRequested == null) {
       return;
     }
     _historyProbeScheduled = true;
@@ -1928,6 +1943,7 @@ class _TimelineState extends State<_Timeline> {
   }
 
   void _requestHistoryIfNearOldest(String roomId, int messageCount) {
+    if (widget.timelineReloading) return;
     final request = widget.onTimelineHistoryRequested;
     if (request == null || !_scrollController.hasClients) return;
     final requestKey = '$roomId:$messageCount';
@@ -1937,14 +1953,20 @@ class _TimelineState extends State<_Timeline> {
       }
       return;
     }
-    if (_lastHistoryRequestKey == requestKey) return;
+    if (_lastHistoryRequestKey == requestKey || _historyLoading) return;
     _lastHistoryRequestKey = requestKey;
+    setState(() => _historyLoading = true);
     unawaited(
-      request(roomId, 0).catchError((Object _) {
-        if (mounted && _lastHistoryRequestKey == requestKey) {
-          _lastHistoryRequestKey = null;
-        }
-      }),
+      request(roomId, 0)
+          .catchError((Object _) {
+            if (mounted && _lastHistoryRequestKey == requestKey) {
+              _lastHistoryRequestKey = null;
+            }
+          })
+          .whenComplete(() {
+            if (!mounted) return;
+            setState(() => _historyLoading = false);
+          }),
     );
   }
 
@@ -2126,6 +2148,34 @@ class _TimelineState extends State<_Timeline> {
                 ],
               ),
             ),
+            if (widget.timelineReloading || _historyLoading)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Semantics(
+                  liveRegion: true,
+                  label: widget.timelineReloading
+                      ? 'Loading recent messages'
+                      : 'Loading more messages',
+                  child: const _IndeterminateHistoryBar(
+                    key: Key('timeline-history-loading'),
+                  ),
+                ),
+              ),
+            if (messages.isEmpty &&
+                (widget.timelineReloading || _historyLoading))
+              Center(
+                child: Text(
+                  widget.timelineReloading
+                      ? 'Loading recent messages…'
+                      : 'Loading messages…',
+                  key: const Key('timeline-history-loading-label'),
+                  style: KiteTypography.body.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             Positioned(
               right: KiteSpacing.md,
               bottom: KiteSpacing.md,
@@ -2200,6 +2250,34 @@ class _TimelineState extends State<_Timeline> {
       key: messageKey,
       markerKey: _unreadMarkerKey,
       child: row,
+    );
+  }
+}
+
+class _IndeterminateHistoryBar extends StatelessWidget {
+  const _IndeterminateHistoryBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 4,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: colors.surfaceContainerHighest),
+        child: Align(
+          alignment: Alignment.center,
+          child: FractionallySizedBox(
+            widthFactor: 0.34,
+            heightFactor: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.primary,
+                borderRadius: BorderRadius.circular(KiteRadii.sm),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

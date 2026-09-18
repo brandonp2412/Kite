@@ -4,6 +4,14 @@ enum EncryptedBackupState { unknown, unavailable, ready, needsRecovery }
 
 enum HistoricalRecoveryState { idle, available, recovering, complete }
 
+enum EncryptionRecoveryOperation {
+  refreshStatus,
+  createBackup,
+  restoreBackup,
+  recoverHistory,
+  importRoomKeys,
+}
+
 final class RoomKeyBackupImportResult {
   const RoomKeyBackupImportResult({
     required this.importedCount,
@@ -75,6 +83,8 @@ final class EncryptionRecoveryController {
   final status = signal<EncryptionRecoveryStatus?>(null);
   final roomKeyImportResult = signal<RoomKeyBackupImportResult?>(null);
   final isBusy = signal(false);
+  final activeOperation = signal<EncryptionRecoveryOperation?>(null);
+  final successMessage = signal<String?>(null);
   final errorMessage = signal<String?>(null);
 
   bool get needsRecoveryAttention =>
@@ -85,6 +95,8 @@ final class EncryptionRecoveryController {
     status.value = null;
     roomKeyImportResult.value = null;
     isBusy.value = false;
+    activeOperation.value = null;
+    successMessage.value = null;
     errorMessage.value = null;
     return true;
   }
@@ -92,6 +104,7 @@ final class EncryptionRecoveryController {
   Future<bool> refresh() {
     return _run(
       _gateway.loadRecoveryStatus,
+      operation: EncryptionRecoveryOperation.refreshStatus,
       failureMessage: 'Kite could not read encryption recovery status.',
     );
   }
@@ -99,37 +112,48 @@ final class EncryptionRecoveryController {
   Future<bool> createEncryptedBackup() {
     return _run(
       _gateway.createEncryptedBackup,
+      operation: EncryptionRecoveryOperation.createBackup,
       validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
+      successMessage: 'Encrypted backup enabled.',
       failureMessage: 'Kite could not enable encrypted backup.',
     );
   }
 
   Future<bool> restoreWithRecoveryKey(String recoveryKey) {
     final secret = recoveryKey.trim();
+    successMessage.value = null;
     if (secret.isEmpty) {
       errorMessage.value = 'Enter your recovery key.';
       return Future<bool>.value(false);
     }
     return _run(
       () => _gateway.restoreWithRecoveryKey(secret),
+      operation: EncryptionRecoveryOperation.restoreBackup,
       validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
+      successMessage:
+          'Encrypted messages restored. Recent chat history is reloading.',
       failureMessage: 'Kite could not restore encrypted backup.',
     );
   }
 
   Future<bool> restoreWithPassphrase(String passphrase) {
+    successMessage.value = null;
     if (passphrase.isEmpty) {
       errorMessage.value = 'Enter your recovery passphrase.';
       return Future<bool>.value(false);
     }
     return _run(
       () => _gateway.restoreWithPassphrase(passphrase),
+      operation: EncryptionRecoveryOperation.restoreBackup,
       validateStatus: (next) => next.backupState == EncryptedBackupState.ready,
+      successMessage:
+          'Encrypted messages restored. Recent chat history is reloading.',
       failureMessage: 'Kite could not restore encrypted backup.',
     );
   }
 
   Future<bool> recoverHistoricalMessages() {
+    successMessage.value = null;
     if (status.value?.historicalRecoveryState !=
         HistoricalRecoveryState.available) {
       errorMessage.value = 'Encrypted history recovery is not available.';
@@ -137,9 +161,11 @@ final class EncryptionRecoveryController {
     }
     return _run(
       _gateway.recoverHistoricalMessages,
+      operation: EncryptionRecoveryOperation.recoverHistory,
       validateStatus: (next) =>
           next.historicalRecoveryState == HistoricalRecoveryState.recovering ||
           next.historicalRecoveryState == HistoricalRecoveryState.complete,
+      successMessage: 'Encrypted message history restored. Recent chat history is reloading.',
       failureMessage: 'Kite could not recover encrypted message history.',
     );
   }
@@ -148,6 +174,7 @@ final class EncryptionRecoveryController {
     required String path,
     required String passphrase,
   }) async {
+    successMessage.value = null;
     if (path.trim().isEmpty) {
       errorMessage.value = 'Choose your Element room-key backup file.';
       return false;
@@ -160,11 +187,14 @@ final class EncryptionRecoveryController {
 
     final generation = _accountGeneration;
     isBusy.value = true;
+    activeOperation.value = EncryptionRecoveryOperation.importRoomKeys;
+    successMessage.value = null;
     errorMessage.value = null;
     roomKeyImportResult.value = null;
     final importer = _gateway;
     if (importer is! RoomKeyBackupImportGateway) {
       isBusy.value = false;
+      activeOperation.value = null;
       errorMessage.value = 'Room-key backup import is not available.';
       return false;
     }
@@ -173,6 +203,9 @@ final class EncryptionRecoveryController {
           .importRoomKeyBackup(path: path, passphrase: passphrase);
       if (generation != _accountGeneration) return false;
       roomKeyImportResult.value = result;
+      successMessage.value =
+          'Imported ${result.importedCount} of ${result.totalCount} room keys. '
+          'Recent chat history is reloading.';
       return true;
     } catch (_) {
       if (generation == _accountGeneration) {
@@ -182,19 +215,24 @@ final class EncryptionRecoveryController {
     } finally {
       if (generation == _accountGeneration) {
         isBusy.value = false;
+        activeOperation.value = null;
       }
     }
   }
 
   Future<bool> _run(
     Future<EncryptionRecoveryStatus> Function() action, {
+    required EncryptionRecoveryOperation operation,
     bool Function(EncryptionRecoveryStatus status)? validateStatus,
+    String? successMessage,
     required String failureMessage,
   }) async {
     if (isBusy.value) return false;
 
     final generation = _accountGeneration;
     isBusy.value = true;
+    activeOperation.value = operation;
+    this.successMessage.value = null;
     errorMessage.value = null;
     try {
       final next = await action();
@@ -204,6 +242,7 @@ final class EncryptionRecoveryController {
         return false;
       }
       status.value = next;
+      this.successMessage.value = successMessage;
       return true;
     } catch (_) {
       if (generation == _accountGeneration) {
@@ -213,6 +252,7 @@ final class EncryptionRecoveryController {
     } finally {
       if (generation == _accountGeneration) {
         isBusy.value = false;
+        activeOperation.value = null;
       }
     }
   }
@@ -222,6 +262,8 @@ final class EncryptionRecoveryController {
     status.dispose();
     roomKeyImportResult.dispose();
     isBusy.dispose();
+    activeOperation.dispose();
+    successMessage.dispose();
     errorMessage.dispose();
   }
 }

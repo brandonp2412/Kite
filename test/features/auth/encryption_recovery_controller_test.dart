@@ -120,6 +120,8 @@ void main() {
 
     expect(controller.resetForAccountChange(), isTrue);
     expect(controller.status.value, isNull);
+    expect(controller.activeOperation.value, isNull);
+    expect(controller.successMessage.value, isNull);
     expect(controller.errorMessage.value, isNull);
     expect(controller.needsRecoveryAttention, isFalse);
   });
@@ -165,6 +167,11 @@ void main() {
     );
     expect(gateway.recoveryKey, 'OPAQUE-RECOVERY-KEY');
     expect(controller.status.value.toString(), isNot(contains('OPAQUE')));
+    expect(controller.activeOperation.value, isNull);
+    expect(
+      controller.successMessage.value,
+      'Encrypted messages restored. Recent chat history is reloading.',
+    );
 
     expect(
       await controller.restoreWithPassphrase('correct horse battery staple'),
@@ -174,6 +181,10 @@ void main() {
     expect(
       controller.status.value.toString(),
       isNot(contains('correct horse')),
+    );
+    expect(
+      controller.successMessage.value,
+      'Encrypted messages restored. Recent chat history is reloading.',
     );
   });
 
