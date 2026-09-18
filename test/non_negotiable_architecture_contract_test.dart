@@ -32,17 +32,36 @@ void main() {
         reason:
             'Matrix cryptography and encrypted storage must stay in matrix-sdk',
       );
-      for (final crate in <String>[
-        'vodozemac',
-        'olm-rs',
-        'matrix-sdk-crypto',
-      ]) {
+      for (final crate in <String>['vodozemac', 'olm-rs']) {
         expect(
           RegExp('^$crate\\s*=\\s*', multiLine: true).hasMatch(cargo),
           isFalse,
           reason: '$crate must not bypass the audited Matrix SDK boundary',
         );
       }
+
+      expect(
+        RegExp(
+          r'^matrix-sdk-crypto\s*=\s*"0\.18\.0"\s*$',
+          multiLine: true,
+        ).hasMatch(cargo),
+        isTrue,
+        reason: 'Legacy backup-key recovery may use only the Matrix SDK crypto crate version matched to matrix-sdk',
+      );
+      final bridgeSource = File('rust/kite_matrix_bridge/src/lib.rs')
+          .readAsStringSync();
+      expect(
+        RegExp(
+          r'use matrix_sdk_crypto::\{store::types::BackupDecryptionKey, types::RoomKeyBackupInfo\};',
+        ).allMatches(bridgeSource).length,
+        1,
+        reason: 'The direct Matrix crypto dependency is restricted to legacy backup-key recovery types',
+      );
+      expect(
+        RegExp(r'\bmatrix_sdk_crypto::').allMatches(bridgeSource).length,
+        1,
+        reason: 'Matrix crypto access outside the audited legacy backup-key adapter is forbidden',
+      );
     },
   );
 
