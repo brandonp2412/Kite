@@ -172,6 +172,7 @@ final class RoomListStateStore {
        selectedFilter = signal(RoomListFilter.all),
        selectedSpaceId = signal<String?>(null),
        collapsedSectionIds = signal<Set<String>>(const <String>{}),
+       hiddenRoomIds = signal<Set<String>>(const <String>{}),
        sectionLayoutRevision = signal(0),
        visibleRoomIds = signal<List<String>>(
          List<String>.unmodifiable(rooms.map((room) => room.id)),
@@ -218,6 +219,7 @@ final class RoomListStateStore {
   final Signal<RoomListFilter> selectedFilter;
   final Signal<String?> selectedSpaceId;
   final Signal<Set<String>> collapsedSectionIds;
+  final Signal<Set<String>> hiddenRoomIds;
   final Signal<int> sectionLayoutRevision;
   final Signal<List<String>> visibleRoomIds;
 
@@ -304,6 +306,10 @@ final class RoomListStateStore {
         }
       }
       _roomIds = List<String>.unmodifiable(ids);
+      final retainedHidden = hiddenRoomIds.peek().intersection(incomingIds);
+      if (!setEquals(hiddenRoomIds.peek(), retainedHidden)) {
+        hiddenRoomIds.value = Set<String>.unmodifiable(retainedHidden);
+      }
       _refreshVisibleRoomIds();
     });
   }
@@ -387,6 +393,28 @@ final class RoomListStateStore {
     collapsedSectionIds.value = Set<String>.unmodifiable(next);
   }
 
+  void hideRoom(String roomId) {
+    if (!_rooms.containsKey(roomId)) {
+      throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
+    }
+    final next = <String>{...hiddenRoomIds.value};
+    if (!next.add(roomId)) return;
+    hiddenRoomIds.value = Set<String>.unmodifiable(next);
+    _refreshVisibleRoomIds();
+  }
+
+  void showRoom(String roomId) {
+    if (!_rooms.containsKey(roomId)) {
+      throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
+    }
+    final next = <String>{...hiddenRoomIds.value};
+    if (!next.remove(roomId)) return;
+    hiddenRoomIds.value = Set<String>.unmodifiable(next);
+    _refreshVisibleRoomIds();
+  }
+
+  bool isRoomHidden(String roomId) => hiddenRoomIds.value.contains(roomId);
+
   void setFavourite(String roomId, bool isFavourite) {
     final target = _rooms[roomId];
     if (target == null) {
@@ -426,7 +454,8 @@ final class RoomListStateStore {
   }
 
   bool _matches(RoomListEntry room, RoomListFilter filter, String? spaceId) {
-    return room.matches(filter) &&
+    return !hiddenRoomIds.value.contains(room.id) &&
+        room.matches(filter) &&
         (spaceId == null || room.spaceIds.contains(spaceId));
   }
 
@@ -464,6 +493,7 @@ bool _sameRoom(RoomListEntry left, RoomListEntry right) {
       left.name == right.name &&
       left.latestEventBody == right.latestEventBody &&
       left.latestSender == right.latestSender &&
+      left.avatarUrl == right.avatarUrl &&
       left.unreadCount == right.unreadCount &&
       left.unreadThreadCount == right.unreadThreadCount &&
       left.hasMention == right.hasMention &&

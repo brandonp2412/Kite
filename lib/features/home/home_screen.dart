@@ -2,7 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show RenderAbstractViewport, RenderSliver, ScrollCacheExtent;
+    show
+        RenderAbstractViewport,
+        RenderSliver,
+        ScrollCacheExtent,
+        ScrollDirection;
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
@@ -22,6 +26,7 @@ import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/media/media_viewer.dart';
+import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
@@ -310,6 +315,8 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   final TextEditingController _searchController = TextEditingController();
   final List<void Function()> _disposeThreadUnreadEffects = <void Function()>[];
   String _searchQuery = '';
+  bool _headerVisible = true;
+  UserProfileController? _loadedProfileController;
 
   RoomListStateStore get store => widget.store ?? _ownedStore!;
   RoomInviteStore get inviteStore => widget.inviteStore ?? _ownedInviteStore!;
@@ -324,6 +331,20 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
     }
     _bindThreadUnreadState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = AuthenticatedAccountScope.maybeOf(context)
+        ?.profileController;
+    if (identical(controller, _loadedProfileController)) return;
+    _loadedProfileController = controller;
+    if (controller != null &&
+        controller.ownProfile.peek() == null &&
+        !controller.isLoading.peek()) {
+      unawaited(controller.loadOwnProfile());
+    }
   }
 
   @override
@@ -388,7 +409,8 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         canOpenProfile: account.profileController != null,
         canOpenRecovery: account.recoveryController != null,
         inviteCount: inviteStore.visibleInviteIds.value.length,
-        selectedFilter: store.selectedFilter.value,
+        profileController: account.profileController,
+        avatarImageProvider: widget.profileAvatarImageProvider,
       ),
     );
     if (!mounted || action == null) return;
@@ -422,10 +444,6 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     }
     if (action == _HomeAccountAction.invites) {
       await _openInvitesSheet();
-      return;
-    }
-    if (action == _HomeAccountAction.filterChats) {
-      await _openRoomFilterSheet();
       return;
     }
     if (action == _HomeAccountAction.markAllRead) {
@@ -503,14 +521,6 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     );
   }
 
-  Future<void> _openRoomFilterSheet() {
-    return showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => _RoomFilterSheet(store: store),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final account = AuthenticatedAccountScope.maybeOf(context);
@@ -555,42 +565,90 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       ),
       onChanged: (value) => setState(() => _searchQuery = value),
     );
-    return Column(
+    final canCreateRoom = widget.roomCreation != null;
+    return Stack(
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            KiteSpacing.md,
-            KiteSpacing.md,
-            KiteSpacing.md,
-            KiteSpacing.sm,
-          ),
-          child: account == null
-              ? searchField
-              : Row(
-                  children: <Widget>[
-                    Expanded(child: searchField),
-                    const SizedBox(width: KiteSpacing.sm),
-                    IconButton(
-                      key: const Key('home-account-menu'),
-                      tooltip: 'Account',
-                      onPressed: () => _openAccountMenu(account),
-                      icon: CircleAvatar(
-                        radius: 18,
-                        child: Text(_accountInitial(account.session.userId)),
+        Column(
+          children: <Widget>[
+            AnimatedSize(
+              key: const Key('home-scroll-away-header'),
+              alignment: Alignment.topCenter,
+              duration: KiteMotion.resolve(context, KiteMotion.standard),
+              curve: KiteMotion.standardCurve,
+              child: _headerVisible
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        KiteSpacing.md,
+                        KiteSpacing.md,
+                        KiteSpacing.md,
+                        KiteSpacing.sm,
                       ),
+                      child: account == null
+                          ? searchField
+                          : Row(
+                              children: <Widget>[
+                                Expanded(child: searchField),
+                                const SizedBox(width: KiteSpacing.sm),
+                                IconButton(
+                                  key: const Key('home-account-menu'),
+                                  tooltip: 'Account',
+                                  onPressed: () => _openAccountMenu(account),
+                                  icon: _AccountAvatar(
+                                    session: account.session,
+                                    controller: account.profileController,
+                                    imageProvider:
+                                        widget.profileAvatarImageProvider,
+                                    radius: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            Expanded(
+              child: _RoomList(
+                store: store,
+                onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
+                onRoomTap: widget.onRoomTap,
+                query: _searchQuery,
+                roomListLoading: widget.roomListLoading,
+                bottomPadding: canCreateRoom ? 92 : 0,
+                onUserScroll: (direction) {
+                  if (direction == ScrollDirection.idle) return;
+                  final visible = direction == ScrollDirection.forward;
+                  if (_headerVisible == visible) return;
+                  setState(() => _headerVisible = visible);
+                },
+              ),
+            ),
+          ],
+        ),
+        if (canCreateRoom)
+          Positioned(
+            right: KiteSpacing.md,
+            bottom: KiteSpacing.md,
+            child: AnimatedSwitcher(
+              duration: KiteMotion.resolve(context, KiteMotion.standard),
+              switchInCurve: KiteMotion.standardCurve,
+              switchOutCurve: KiteMotion.standardCurve,
+              child: _headerVisible
+                  ? FloatingActionButton.extended(
+                      key: const Key('new-chat-fab-extended'),
+                      heroTag: 'kite-new-chat-expanded',
+                      onPressed: _openRoomCreation,
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text('New chat'),
+                    )
+                  : FloatingActionButton(
+                      key: const Key('new-chat-fab-compact'),
+                      heroTag: 'kite-new-chat-compact',
+                      onPressed: _openRoomCreation,
+                      tooltip: 'New chat',
+                      child: const Icon(Icons.edit_rounded),
                     ),
-                  ],
-                ),
-        ),
-        Expanded(
-          child: _RoomList(
-            store: store,
-            onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
-            onRoomTap: widget.onRoomTap,
-            query: _searchQuery,
-            roomListLoading: widget.roomListLoading,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -601,7 +659,6 @@ enum _HomeAccountAction {
   encryptionRecovery,
   newConversation,
   invites,
-  filterChats,
   markAllRead,
   signOut,
 }
@@ -614,7 +671,8 @@ class _HomeAccountSheet extends StatelessWidget {
     required this.canOpenProfile,
     required this.canOpenRecovery,
     required this.inviteCount,
-    required this.selectedFilter,
+    this.profileController,
+    this.avatarImageProvider,
   });
 
   final AuthenticatedSession session;
@@ -623,7 +681,8 @@ class _HomeAccountSheet extends StatelessWidget {
   final bool canOpenProfile;
   final bool canOpenRecovery;
   final int inviteCount;
-  final RoomListFilter selectedFilter;
+  final UserProfileController? profileController;
+  final AvatarImageProvider? avatarImageProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -643,8 +702,11 @@ class _HomeAccountSheet extends StatelessWidget {
               ListTile(
                 key: canOpenProfile ? const Key('home-account-profile') : null,
                 contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  child: Text(_accountInitial(session.userId)),
+                leading: _AccountAvatar(
+                  session: session,
+                  controller: profileController,
+                  imageProvider: avatarImageProvider,
+                  radius: 20,
                 ),
                 title: Text(
                   session.userId,
@@ -696,15 +758,6 @@ class _HomeAccountSheet extends StatelessWidget {
                   onTap: () =>
                       Navigator.of(context).pop(_HomeAccountAction.invites),
                 ),
-              ListTile(
-                key: const Key('home-account-filter-chats'),
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.tune_rounded),
-                title: const Text('Filter chats'),
-                trailing: Text(selectedFilter.label),
-                onTap: () =>
-                    Navigator.of(context).pop(_HomeAccountAction.filterChats),
-              ),
               if (canMarkAllRead)
                 ListTile(
                   key: const Key('home-account-mark-all-read'),
@@ -724,61 +777,6 @@ class _HomeAccountSheet extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoomFilterSheet extends StatelessWidget {
-  const _RoomFilterSheet({required this.store});
-
-  final RoomListStateStore store;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          KiteSpacing.lg,
-          0,
-          KiteSpacing.lg,
-          KiteSpacing.lg,
-        ),
-        child: Column(
-          key: const Key('room-filter-sheet'),
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text('Filter chats', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: KiteSpacing.sm),
-            SignalBuilder(
-              builder: (context) {
-                final selected = store.selectedFilter.value;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    for (final filter in RoomListFilter.values)
-                      ListTile(
-                        key: Key('room-filter-option-${filter.name}'),
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          filter == selected
-                              ? Icons.check_circle_rounded
-                              : Icons.circle_outlined,
-                        ),
-                        title: Text(filter.label),
-                        onTap: () {
-                          store.selectFilter(filter);
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
         ),
       ),
     );
@@ -941,6 +939,49 @@ String _accountInitial(String userId) {
   return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
 }
 
+class _AccountAvatar extends StatelessWidget {
+  const _AccountAvatar({
+    required this.session,
+    required this.controller,
+    required this.imageProvider,
+    required this.radius,
+  });
+
+  final AuthenticatedSession session;
+  final UserProfileController? controller;
+  final AvatarImageProvider? imageProvider;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final profileController = controller;
+    if (profileController == null) {
+      return _AvatarCircle(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        image: null,
+        fallback: Text(_accountInitial(session.userId)),
+      );
+    }
+    return SignalBuilder(
+      builder: (context) {
+        final avatarUri = profileController.ownProfile.value?.avatarUri;
+        return _AvatarCircle(
+          key: const Key('home-account-avatar'),
+          radius: radius,
+          backgroundColor: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
+          image: avatarUri == null ? null : imageProvider?.call(avatarUri),
+          fallback: Text(_accountInitial(session.userId)),
+        );
+      },
+    );
+  }
+}
+
 class _CompactChatScreen extends StatelessWidget {
   const _CompactChatScreen({
     required this.timeline,
@@ -1012,6 +1053,8 @@ class _RoomList extends StatelessWidget {
     this.onRoomTap,
     this.query = '',
     this.roomListLoading = false,
+    this.onUserScroll,
+    this.bottomPadding = 0,
   });
 
   final RoomListStateStore store;
@@ -1019,9 +1062,10 @@ class _RoomList extends StatelessWidget {
   final ValueChanged<String>? onRoomTap;
   final String query;
   final bool roomListLoading;
+  final ValueChanged<ScrollDirection>? onUserScroll;
+  final double bottomPadding;
 
-  Future<void> _showMoveSectionSheet(BuildContext context, String roomId) {
-    final currentSectionId = store.sectionIdFor(roomId);
+  Future<void> _showRoomOptionsSheet(BuildContext context, String roomId) {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -1087,33 +1131,34 @@ class _RoomList extends StatelessWidget {
                 },
               ),
               const Divider(height: KiteSpacing.lg),
-              Text(
-                'Move to section',
-                style: Theme.of(sheetContext).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: KiteSpacing.xs),
-              for (final section in store.sections)
-                ListTile(
-                  key: Key('room-section-move-$roomId-${section.id}'),
-                  contentPadding: EdgeInsets.zero,
-                  minTileHeight: 52,
-                  leading: Icon(
-                    section.id == currentSectionId
-                        ? Icons.check_circle_rounded
-                        : Icons.circle_outlined,
-                    color: section.id == currentSectionId
-                        ? Theme.of(sheetContext).colorScheme.primary
-                        : Theme.of(sheetContext).colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(section.name),
-                  onTap: section.id == currentSectionId
-                      ? null
-                      : () {
-                          store.moveRoomToSection(roomId, section.id);
-                          Navigator.of(sheetContext).pop();
-                        },
+              ListTile(
+                key: Key('room-hide-$roomId'),
+                contentPadding: EdgeInsets.zero,
+                minTileHeight: 52,
+                leading: Icon(
+                  Icons.visibility_off_outlined,
+                  color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
                 ),
+                title: const Text('Hide chat on this device'),
+                subtitle: const Text(
+                  'This does not leave or change the Matrix room.',
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  store.hideRoom(roomId);
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      SnackBar(
+                        content: const Text('Chat hidden on this device.'),
+                        action: SnackBarAction(
+                          label: 'Undo',
+                          onPressed: () => store.showRoom(roomId),
+                        ),
+                      ),
+                    );
+                },
+              ),
             ],
           ),
         ),
@@ -1134,7 +1179,7 @@ class _RoomList extends StatelessWidget {
             key: ValueKey<String>(room.id),
             room: room,
             unreadThreadCount: unreadThreadCount,
-            onLongPress: () => _showMoveSectionSheet(context, room.id),
+            onLongPress: () => _showRoomOptionsSheet(context, room.id),
             onTap: () {
               final handler = onRoomTap;
               if (handler != null) {
@@ -1187,12 +1232,19 @@ class _RoomList extends StatelessWidget {
               ),
             );
           }
-          return ListView.builder(
-            key: const Key('room-list'),
-            itemCount: ids.length,
-            itemExtent: rowExtent,
-            itemBuilder: (context, index) =>
-                _roomRow(context, ids[index], rowExtent),
+          return NotificationListener<UserScrollNotification>(
+            onNotification: (notification) {
+              onUserScroll?.call(notification.direction);
+              return false;
+            },
+            child: ListView.builder(
+              key: const Key('room-list'),
+              padding: EdgeInsets.only(bottom: bottomPadding),
+              itemCount: ids.length,
+              itemExtent: rowExtent,
+              itemBuilder: (context, index) =>
+                  _roomRow(context, ids[index], rowExtent),
+            ),
           );
         },
       ),
@@ -1369,16 +1421,16 @@ class _RoomListRowState extends State<_RoomListRow> {
             overflow: TextOverflow.ellipsis,
             style: previewStyle,
           ),
-          trailing: SizedBox(
-            width: 52,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: _RoomIndicators(
-                room: room,
-                unreadThreadCount: unreadThreadCount,
-              ),
-            ),
-          ),
+          trailing:
+              room.hasMention ||
+                  room.hasMutedActivity ||
+                  room.unreadCount > 0 ||
+                  unreadThreadCount > 0
+              ? _RoomIndicators(
+                  room: room,
+                  unreadThreadCount: unreadThreadCount,
+                )
+              : null,
         ),
       ),
     );
@@ -3804,6 +3856,7 @@ class _DeleteMessageDialog extends StatelessWidget {
 
 class _AvatarCircle extends StatelessWidget {
   const _AvatarCircle({
+    super.key,
     required this.radius,
     required this.backgroundColor,
     required this.foregroundColor,
@@ -4607,7 +4660,7 @@ class _ComposerState extends State<_Composer> {
                       height: 76,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
-                          KiteSpacing.sm,
+                          KiteSpacing.xxs,
                           KiteSpacing.xs,
                           KiteSpacing.md,
                           KiteSpacing.xs,
@@ -4621,6 +4674,11 @@ class _ComposerState extends State<_Composer> {
                               onPressed: activeMode == _ComposerMode.edit
                                   ? null
                                   : () => _pickAttachment(roomId),
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size.square(40),
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                               icon: const Icon(
                                 Icons.add_circle_outline_rounded,
                               ),

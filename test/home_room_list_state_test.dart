@@ -42,10 +42,17 @@ final class _HomeRecoveryGateway implements EncryptionRecoveryGateway {
 
 final class _HomeProfileGateway implements UserProfileGateway {
   Uri? avatarUri;
+  int ownProfileLoads = 0;
+  MatrixUserProfile ownProfile = const MatrixUserProfile(
+    userId: '@me:example.org',
+    displayName: 'Me',
+  );
 
   @override
-  Future<MatrixUserProfile> loadOwnProfile() async =>
-      const MatrixUserProfile(userId: '@me:example.org', displayName: 'Me');
+  Future<MatrixUserProfile> loadOwnProfile() async {
+    ownProfileLoads += 1;
+    return ownProfile;
+  }
 
   @override
   Future<MatrixUserProfile> loadProfile(String userId) async =>
@@ -87,11 +94,42 @@ void main() {
     final store = RoomListStateStore(rooms);
     final before = store.roomSignal('alice');
 
-    store.update(before.value.copyWith(unreadCount: 4, hasMention: true));
+    store.update(
+      before.value.copyWith(
+        unreadCount: 4,
+        hasMention: true,
+        avatarUrl: 'mxc://example.org/alice-avatar',
+      ),
+    );
 
     expect(store.roomSignal('alice'), same(before));
     expect(before.value.unreadCount, 4);
     expect(before.value.hasMention, isTrue);
+    expect(before.value.avatarUrl, 'mxc://example.org/alice-avatar');
+  });
+
+  test('client-side hidden rooms stay hidden across sync reconciliation', () {
+    final rooms = deterministicRoomListEntries(BenchmarkFixture.rooms);
+    final store = RoomListStateStore(rooms);
+
+    store.hideRoom('alice');
+    expect(store.visibleRoomIds.value, isNot(contains('alice')));
+
+    store.reconcile(
+      rooms
+          .map(
+            (room) => room.id == 'alice'
+                ? room.copyWith(latestEventBody: 'New synced activity')
+                : room,
+          )
+          .toList(growable: false),
+    );
+
+    expect(store.isRoomHidden('alice'), isTrue);
+    expect(store.visibleRoomIds.value, isNot(contains('alice')));
+
+    store.showRoom('alice');
+    expect(store.visibleRoomIds.value, contains('alice'));
   });
 
   test('room-list filters preserve deterministic ordering and membership', () {
@@ -342,9 +380,7 @@ void main() {
     );
   });
 
-  testWidgets('room options move chats without replacing room state', (
-    tester,
-  ) async {
+  testWidgets('room options hide chats locally and allow undo', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -374,8 +410,9 @@ void main() {
     await tester.longPress(find.byKey(const Key('room-alice')));
     await tester.pumpAndSettle();
     expect(find.text('Room options'), findsOneWidget);
-    expect(find.text('Move to section'), findsOneWidget);
+    expect(find.text('Move to section'), findsNothing);
     expect(find.text('Add to favourites'), findsOneWidget);
+    expect(find.byKey(const Key('room-hide-alice')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
     await tester.pumpAndSettle();
@@ -383,14 +420,20 @@ void main() {
     expect(favouriteWrites, <({String roomId, bool isFavourite})>[
       (roomId: 'alice', isFavourite: true),
     ]);
-    expect(store.sectionIdFor('alice'), 'people');
     expect(find.text('Remove from favourites'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('room-section-move-alice-rooms')));
+    await tester.tap(find.byKey(const Key('room-hide-alice')));
     await tester.pumpAndSettle();
 
-    expect(store.sectionIdFor('alice'), 'rooms');
+    expect(store.isRoomHidden('alice'), isTrue);
+    expect(find.byKey(const Key('room-alice')), findsNothing);
     expect(store.roomSignal('alice'), same(aliceSignal));
+    expect(find.text('Chat hidden on this device.'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(store.isRoomHidden('alice'), isFalse);
+    expect(find.byKey(const Key('room-alice')), findsOneWidget);
   });
 
   testWidgets('failed favourite persistence rolls optimistic state back', (
@@ -426,6 +469,62 @@ void main() {
     expect(aliceSignal.value.isFavourite, isFalse);
     expect(find.text('Add to favourites'), findsOneWidget);
     expect(find.text('Could not update favourite.'), findsOneWidget);
+  });
+
+  testWidgets('own Matrix avatar loads into the home account button', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final profileGateway = _HomeProfileGateway()
+      ..ownProfile = MatrixUserProfile(
+        userId: '@me:example.org',
+        displayName: 'Me',
+        avatarUri: Uri.parse('mxc://example.org/me-avatar'),
+      );
+    final profile = UserProfileController(profileGateway);
+    addTearDown(profile.dispose);
+    final session = AuthenticatedSession(
+      userId: '@me:example.org',
+      deviceId: 'KITE',
+      homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+    );
+    var imageProviderCalls = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: AuthenticatedAccountScope(
+          session: session,
+          signOut: () async {},
+          profileController: profile,
+          child: HomeScreen(
+            profileAvatarImageProvider: (avatarUri) {
+              imageProviderCalls += 1;
+              expect(avatarUri, Uri.parse('mxc://example.org/me-avatar'));
+              return MemoryImage(DeterministicImageFixtures.transparentPng1x1);
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(profileGateway.ownProfileLoads, 1);
+    expect(imageProviderCalls, greaterThan(0));
+    final accountButton = find.byKey(const Key('home-account-menu'));
+    expect(accountButton, findsOneWidget);
+    expect(
+      find.descendant(of: accountButton, matching: find.byType(Image)),
+      findsOneWidget,
+    );
+    final accountImage = tester.widget<Image>(
+      find.descendant(of: accountButton, matching: find.byType(Image)),
+    );
+    expect(accountImage.image, isA<MemoryImage>());
   });
 
   testWidgets('own profile stays contextual and opens from the account sheet', (
@@ -558,33 +657,65 @@ void main() {
 
     await tester.tap(find.byKey(const Key('home-account-menu')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('home-account-filter-chats')), findsOneWidget);
-    expect(find.text('All'), findsOneWidget);
+    expect(find.byKey(const Key('home-account-filter-chats')), findsNothing);
+    expect(find.byKey(const Key('room-filter-sheet')), findsNothing);
+    expect(store.selectedFilter.value, RoomListFilter.all);
+  });
 
-    await tester.tap(find.byKey(const Key('home-account-filter-chats')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('room-filter-sheet')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('room-filter-option-people')));
+  testWidgets('new-chat FAB collapses with the scroll-away header', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final coordinator = RoomManagementCoordinator(
+      rooms: DeterministicRoomManagementPort(),
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    final rooms = List<RoomListEntry>.generate(
+      30,
+      (index) => RoomListEntry(
+        id: '!room-$index:example.org',
+        name: 'Room $index',
+        latestEventBody: 'Message $index',
+      ),
+    );
+    final store = RoomListStateStore(rooms);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(roomListStore: store, roomCreation: coordinator),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(store.selectedFilter.value, RoomListFilter.people);
-    expect(find.byKey(const Key('room-alice')), findsOneWidget);
-    expect(find.byKey(const Key('room-bob')), findsOneWidget);
-    expect(find.byKey(const Key('room-kite')), findsNothing);
-    expect(find.byKey(const Key('room-room-3')), findsNothing);
+    expect(find.byKey(const Key('home-search')), findsOneWidget);
+    expect(find.byKey(const Key('new-chat-fab-extended')), findsOneWidget);
+    expect(find.byKey(const Key('new-chat-fab-compact')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('home-account-menu')));
-    await tester.pumpAndSettle();
-    expect(find.text('People'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('home-account-filter-chats')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('room-filter-option-favourites')));
+    await tester.fling(
+      find.byKey(const Key('room-list')),
+      const Offset(0, -700),
+      2400,
+    );
     await tester.pumpAndSettle();
 
-    expect(store.selectedFilter.value, RoomListFilter.favourites);
-    expect(find.byKey(const Key('room-room-3')), findsOneWidget);
-    expect(find.byKey(const Key('room-alice')), findsNothing);
-    expect(find.byKey(const Key('room-filter-row')), findsNothing);
+    expect(find.byKey(const Key('home-search')), findsNothing);
+    expect(find.byKey(const Key('new-chat-fab-extended')), findsNothing);
+    expect(find.byKey(const Key('new-chat-fab-compact')), findsOneWidget);
+
+    await tester.fling(
+      find.byKey(const Key('room-list')),
+      const Offset(0, 700),
+      2400,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home-search')), findsOneWidget);
+    expect(find.byKey(const Key('new-chat-fab-extended')), findsOneWidget);
   });
 
   testWidgets('room creation stays in the contextual account menu', (

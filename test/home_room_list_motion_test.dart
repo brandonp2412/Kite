@@ -112,7 +112,8 @@ void main() {
         expect(tester.getRect(list), listRect);
         expect(tester.takeException(), isNull);
       }
-      expect(find.text('Move to section'), findsOneWidget);
+      expect(find.text('Move to section'), findsNothing);
+      expect(find.byKey(const Key('room-hide-alice')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('room-favourite-toggle-alice')));
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
