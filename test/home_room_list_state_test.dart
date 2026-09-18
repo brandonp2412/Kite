@@ -332,6 +332,7 @@ void main() {
       ),
     );
     expect(avatarImage.image, isA<MemoryImage>());
+    expect(avatarImage.errorBuilder, isNotNull);
     expect(
       find.descendant(
         of: find.byKey(const Key('room-alice')),

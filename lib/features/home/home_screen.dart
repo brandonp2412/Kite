@@ -1614,7 +1614,7 @@ class _ChatPanelState extends State<_ChatPanel> {
         ),
         const _TypingIndicator(),
         const Divider(height: 1),
-        _Composer(key: _composerKey),
+        SafeArea(top: false, child: _Composer(key: _composerKey)),
       ],
     );
   }
@@ -3841,6 +3841,12 @@ class _AvatarCircle extends StatelessWidget {
                     fit: BoxFit.cover,
                     filterQuality: FilterQuality.high,
                     gaplessPlayback: true,
+                    errorBuilder: (context, error, stackTrace) => Center(
+                      child: DefaultTextStyle.merge(
+                        style: TextStyle(color: foregroundColor),
+                        child: fallback,
+                      ),
+                    ),
                   ),
           ),
         ),

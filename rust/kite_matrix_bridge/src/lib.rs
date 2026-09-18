@@ -57,6 +57,7 @@ use tokio::{
 
 const KITE_MATRIX_ABI_VERSION: u32 = 27;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
+const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2386,6 +2387,37 @@ pub unsafe extern "C" fn kite_matrix_client_upload_media(
     ok_json(json!({"contentUri": response.content_uri.as_str()}))
 }
 
+async fn prefetch_media_item(
+    matrix_client: Client,
+    content_uri: String,
+    source: MediaSource,
+    width: UInt,
+    height: UInt,
+) -> (String, Option<Vec<u8>>) {
+    let thumbnail = MediaRequestParameters {
+        source: source.clone(),
+        format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
+    };
+    let file = MediaRequestParameters {
+        source,
+        format: MediaFormat::File,
+    };
+    let bytes = match matrix_client
+        .media()
+        .get_media_content(&thumbnail, true)
+        .await
+    {
+        Ok(bytes) if !bytes.is_empty() => Some(bytes),
+        _ => matrix_client
+            .media()
+            .get_media_content(&file, true)
+            .await
+            .ok()
+            .filter(|bytes| !bytes.is_empty()),
+    };
+    (content_uri, bytes)
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_prefetch_media(
     client: *mut KiteMatrixClient,
@@ -2443,22 +2475,19 @@ pub unsafe extern "C" fn kite_matrix_client_prefetch_media(
         .map(|session| session.tokens.access_token);
 
     let (items, failed) = client.runtime.block_on(async {
+        let mut pending = sources.into_iter();
         let mut tasks = JoinSet::new();
-        for (content_uri, source) in sources {
-            let matrix_client = matrix_client.clone();
-            tasks.spawn(async move {
-                let thumbnail = MediaRequestParameters {
-                    source: source.clone(),
-                    format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
-                };
-                let bytes = matrix_client
-                    .media()
-                    .get_media_content(&thumbnail, true)
-                    .await
-                    .ok()
-                    .filter(|bytes| !bytes.is_empty());
-                (content_uri, bytes)
-            });
+        for _ in 0..KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY {
+            let Some((content_uri, source)) = pending.next() else {
+                break;
+            };
+            tasks.spawn(prefetch_media_item(
+                matrix_client.clone(),
+                content_uri,
+                source,
+                width,
+                height,
+            ));
         }
 
         let mut items = Vec::new();
@@ -2470,6 +2499,15 @@ pub unsafe extern "C" fn kite_matrix_client_prefetch_media(
                     "data": BASE64_STANDARD.encode(bytes),
                 })),
                 _ => failed += 1,
+            }
+            if let Some((content_uri, source)) = pending.next() {
+                tasks.spawn(prefetch_media_item(
+                    matrix_client.clone(),
+                    content_uri,
+                    source,
+                    width,
+                    height,
+                ));
             }
         }
         (items, failed)
