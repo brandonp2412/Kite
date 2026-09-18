@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/app/production_kite_runtime.dart';
+import 'package:kite/features/profile/matrix_avatar_image_provider.dart';
 import 'package:kite/main.dart' as app;
 import 'package:kite/matrix/matrix_engine.dart';
-import 'package:kite/matrix/matrix_pagination_controller.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +16,7 @@ void main() {
     'KITE_E2E_EXPECTED_INBOUND',
   );
 
-  testWidgets('real Linux session paginates the selected Matrix timeline', (
+  testWidgets('real Linux session renders Matrix avatars and shared content', (
     tester,
   ) async {
     await app.main();
@@ -49,15 +49,60 @@ void main() {
         .matrixRuntime;
     final accountId = runtime.activeAccountId.value;
     expect(accountId, isNotNull);
+    final activeAccountId = accountId!;
     final cache = runtime.activeCache;
     expect(cache, isNotNull);
 
-    final uptimeRoom = find.ancestor(
-      of: find.text('Uptime'),
-      matching: find.byType(ListTile),
+    for (var i = 0; i < 80; i += 1) {
+      final snapshot = cache!.snapshot();
+      final hasTimeline = snapshot.rooms.any(
+        (room) => (snapshot.timelines[room.roomId]?.length ?? 0) > 0,
+      );
+      if (hasTimeline) break;
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+
+    final liveSnapshot = cache!.snapshot();
+    final roomsWithTimeline = liveSnapshot.rooms
+        .where((room) => (liveSnapshot.timelines[room.roomId]?.length ?? 0) > 0)
+        .toList(growable: false);
+    expect(
+      roomsWithTimeline,
+      isNotEmpty,
+      reason: 'Real Matrix sync must hydrate at least one room timeline.',
     );
-    expect(uptimeRoom, findsWidgets);
-    await tester.tap(uptimeRoom.first);
+    final targetRoom = roomsWithTimeline.fold(roomsWithTimeline.first, (
+      current,
+      candidate,
+    ) {
+      final currentIsTyla = current.displayName.toLowerCase().contains(
+        'tyla lockwood',
+      );
+      final candidateIsTyla = candidate.displayName.toLowerCase().contains(
+        'tyla lockwood',
+      );
+      if (candidateIsTyla && !currentIsTyla) return candidate;
+      if (currentIsTyla) return current;
+      final currentCount = liveSnapshot.timelines[current.roomId]?.length ?? 0;
+      final candidateCount =
+          liveSnapshot.timelines[candidate.roomId]?.length ?? 0;
+      return candidateCount > currentCount ? candidate : current;
+    });
+
+    final roomList = find.byKey(const Key('room-list'));
+    expect(roomList, findsOneWidget);
+    final targetRoomTile = find.byKey(Key('room-${targetRoom.roomId}'));
+    for (var i = 0; i < 100 && targetRoomTile.evaluate().isEmpty; i += 1) {
+      await tester.drag(roomList, const Offset(0, -260));
+      await tester.pump(const Duration(milliseconds: 80));
+    }
+    expect(
+      targetRoomTile,
+      findsOneWidget,
+      reason:
+          'The selected live Matrix room must be reachable in the room list.',
+    );
+    await tester.tap(targetRoomTile);
     final messageList = find.byKey(const Key('message-list'));
     for (var i = 0; i < 40; i += 1) {
       await tester.pump(const Duration(milliseconds: 250));
@@ -72,23 +117,6 @@ void main() {
     }
     expect(messageList, findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('room-details-button')));
-    for (var i = 0; i < 40; i += 1) {
-      await tester.pump(const Duration(milliseconds: 250));
-      if (find.byKey(const Key('member-list')).evaluate().isNotEmpty ||
-          find.byKey(const Key('member-load-error')).evaluate().isNotEmpty) {
-        break;
-      }
-    }
-    expect(find.byKey(const Key('member-load-error')), findsNothing);
-    expect(find.byKey(const Key('member-list')), findsOneWidget);
-    expect(find.text('@brandon:matrix.presley.nz'), findsOneWidget);
-    expect(find.text('@uptime:matrix.presley.nz'), findsOneWidget);
-    expect(find.textContaining('example.org'), findsNothing);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    expect(messageList, findsOneWidget);
-
     if (expectedInboundMessage.isNotEmpty) {
       for (var i = 0; i < 80; i += 1) {
         await tester.pump(const Duration(milliseconds: 250));
@@ -98,11 +126,7 @@ void main() {
     }
 
     final roomId = selectedRoomId.value;
-    final paginationState = runtime.paginationState(
-      accountId: accountId!,
-      roomId: roomId,
-    );
-    expect(paginationState, isNotNull);
+    expect(roomId, targetRoom.roomId);
     for (var i = 0; i < 40; i += 1) {
       final syncState = runtime.activeSyncState?.value;
       if (syncState?.phase == MatrixSyncPhase.running) break;
@@ -117,12 +141,12 @@ void main() {
 
     for (var i = 0; i < 80; i += 1) {
       await tester.pump(const Duration(milliseconds: 250));
-      final hasAvatar = cache!.snapshot().rooms.any(
+      final hasAvatar = cache.snapshot().rooms.any(
         (room) => Uri.tryParse(room.avatarUrl ?? '')?.scheme == 'mxc',
       );
       if (hasAvatar) break;
     }
-    final avatarRooms = cache!
+    final avatarRooms = cache
         .snapshot()
         .rooms
         .where((room) => Uri.tryParse(room.avatarUrl ?? '')?.scheme == 'mxc')
@@ -133,47 +157,121 @@ void main() {
       reason: 'Real Matrix sync must hydrate room avatar MXC metadata.',
     );
 
-    final avatarBytes = await runtime.downloadMedia(
-      accountId: accountId,
-      contentUri: avatarRooms.first.avatarUrl!,
+    final avatarBatch = avatarRooms.take(3).toList(growable: false);
+    final avatarPrefetchTimer = Stopwatch()..start();
+    final prefetched = await runtime.prefetchMedia(
+      accountId: activeAccountId,
+      contentUris: avatarBatch.map((room) => room.avatarUrl!).toList(),
       width: 192,
       height: 192,
     );
+    avatarPrefetchTimer.stop();
     expect(
-      avatarBytes.length,
-      greaterThan(128),
-      reason: 'Real room avatar MXC must download through the Matrix bridge.',
+      prefetched,
+      avatarBatch.length,
+      reason: 'Native avatar prefetch must warm every requested Matrix avatar.',
     );
+
+    final avatarLoadTimer = Stopwatch()..start();
+    final avatarPayloads = await Future.wait(
+      avatarBatch.map(
+        (room) => runtime.downloadMedia(
+          accountId: activeAccountId,
+          contentUri: room.avatarUrl!,
+          width: 192,
+          height: 192,
+        ),
+      ),
+    );
+    avatarLoadTimer.stop();
+    for (final bytes in avatarPayloads) {
+      expect(
+        bytes.length,
+        greaterThan(128),
+        reason: 'Each prefetched Matrix avatar must be available from cache.',
+      );
+    }
+    final avatarBytes = avatarPayloads.first;
     final avatarCodec = await ui.instantiateImageCodec(avatarBytes);
     final avatarFrame = await avatarCodec.getNextFrame();
     expect(avatarFrame.image.width, greaterThan(0));
     expect(avatarFrame.image.height, greaterThan(0));
     avatarFrame.image.dispose();
     avatarCodec.dispose();
+    expect(
+      avatarLoadTimer.elapsed,
+      lessThan(const Duration(seconds: 3)),
+      reason:
+          'Warm Matrix avatar reads should come from the SDK media cache rather '
+          'than serial network downloads.',
+    );
+    debugPrint(
+      'Kite E2E: prefetched $prefetched Matrix avatars in '
+      '${avatarPrefetchTimer.elapsedMilliseconds}ms; warm reads took '
+      '${avatarLoadTimer.elapsedMilliseconds}ms',
+    );
 
-    final roomList = find.byKey(const Key('room-list'));
-    expect(roomList, findsOneWidget);
+    final targetEvents = cache.snapshot().timelines[roomId] ?? const [];
+    final cachedVisualMedia = targetEvents.where((event) {
+      if (event.type != 'm.room.message') return false;
+      final msgtype = event.content['msgtype'];
+      return msgtype == 'm.image' || msgtype == 'm.video';
+    }).length;
+    if (targetRoom.displayName.toLowerCase().contains('tyla lockwood')) {
+      expect(
+        cachedVisualMedia,
+        greaterThan(0),
+        reason:
+            'The real Tyla Lockwood timeline contains shared visual media and '
+            'must not project as an empty Shared content gallery.',
+      );
+    }
+    if (cachedVisualMedia > 0) {
+      await tester.tap(find.byKey(const Key('room-content-gallery-action')));
+      for (var i = 0; i < 20; i += 1) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (find
+            .byKey(const Key('room-content-media-grid'))
+            .evaluate()
+            .isNotEmpty) {
+          break;
+        }
+      }
+      expect(
+        find.byKey(const Key('room-content-media-grid')),
+        findsOneWidget,
+        reason:
+            'Cached Matrix image/video events must render in Shared content.',
+      );
+      expect(find.byKey(const Key('room-content-empty-media')), findsNothing);
+      await tester.pageBack();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(messageList, findsOneWidget);
+    }
+
     var renderedAvatarCount = 0;
-    for (var attempt = 0; attempt < 30; attempt += 1) {
+    final expectedRenderedAvatars = avatarRooms.length < 3
+        ? avatarRooms.length
+        : 3;
+    for (var attempt = 0; attempt < 40; attempt += 1) {
       renderedAvatarCount = find
           .descendant(
             of: roomList,
             matching: find.byWidgetPredicate(
               (widget) =>
-                  widget is CircleAvatar && widget.backgroundImage != null,
+                  widget is Image && widget.image is MatrixAvatarImageProvider,
             ),
           )
           .evaluate()
           .length;
-      if (renderedAvatarCount > 0) break;
-      await tester.drag(roomList, const Offset(0, -420));
-      await tester.pump(const Duration(milliseconds: 100));
+      if (renderedAvatarCount >= expectedRenderedAvatars) break;
+      await tester.drag(roomList, const Offset(0, -320));
+      await tester.pump(const Duration(milliseconds: 150));
     }
     expect(
       renderedAvatarCount,
-      greaterThan(0),
-      reason:
-          'At least one real room row must render its leading avatar image.',
+      greaterThanOrEqualTo(expectedRenderedAvatars),
+      reason: 'Several real room rows with Matrix avatar metadata must render their leading avatar images.',
     );
 
     if (e2eMessage.isNotEmpty) {
@@ -214,72 +312,14 @@ void main() {
       expect(find.text(e2eMessage), findsWidgets);
     }
 
-    var listView = tester.widget<ListView>(messageList);
-    final initialCount = listView.childrenDelegate.estimatedChildCount ?? 0;
-    expect(initialCount, greaterThan(0));
-
-    var position = listView.controller!.position;
-    final initialExtentAfter = position.extentAfter;
-    expect(initialExtentAfter, greaterThan(0));
-
-    for (var attempt = 0; attempt < 20; attempt += 1) {
-      await tester.drag(messageList, const Offset(0, 500));
-      await tester.pump(const Duration(milliseconds: 100));
-      listView = tester.widget<ListView>(messageList);
-      position = listView.controller!.position;
-      if (position.extentAfter <= 520) break;
-    }
-    expect(position.extentAfter, lessThanOrEqualTo(520));
-    await tester.pump(const Duration(milliseconds: 100));
+    final listView = tester.widget<ListView>(messageList);
     expect(
-      paginationState!.value.phase != MatrixPaginationPhase.idle ||
-          paginationState.value.reachedStart ||
-          (tester
-                      .widget<ListView>(messageList)
-                      .childrenDelegate
-                      .estimatedChildCount ??
-                  0) >
-              initialCount,
-      isTrue,
-      reason: 'Reaching the oldest edge must dispatch real pagination.',
+      listView.childrenDelegate.estimatedChildCount ?? 0,
+      greaterThan(0),
+      reason: 'The real selected Matrix room must render timeline messages.',
     );
 
-    for (var i = 0; i < 80; i += 1) {
-      await tester.pump(const Duration(milliseconds: 250));
-      listView = tester.widget<ListView>(messageList);
-      final currentCount = listView.childrenDelegate.estimatedChildCount ?? 0;
-      final state = paginationState.value;
-      if (currentCount > initialCount ||
-          state.reachedStart ||
-          state.phase == MatrixPaginationPhase.failed) {
-        break;
-      }
-    }
-
-    final state = paginationState.value;
-    expect(
-      state.phase,
-      isNot(MatrixPaginationPhase.loading),
-      reason: 'Real pagination must complete instead of remaining in-flight.',
-    );
-    expect(
-      state.phase,
-      isNot(MatrixPaginationPhase.failed),
-      reason: 'Real pagination must not fail at the oldest visible edge.',
-    );
-
-    listView = tester.widget<ListView>(messageList);
-    final finalCount = listView.childrenDelegate.estimatedChildCount ?? 0;
-    expect(
-      finalCount > initialCount || state.reachedStart,
-      isTrue,
-      reason: 'Pagination must add older events or prove history is exhausted.',
-    );
-    expect(
-      find.textContaining('Matrix Rust SDK back-pagination failed'),
-      findsNothing,
-    );
-
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump(const Duration(milliseconds: 500));

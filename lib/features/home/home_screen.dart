@@ -108,6 +108,7 @@ class HomeScreen extends StatelessWidget {
         roomListStore: roomListStore,
         avatarImageProvider: profileAvatarImageProvider,
         timelineMediaImageProvider: timelineMediaImageProvider,
+        timelineHistoryRequest: onTimelineHistoryRequested,
         child: Scaffold(
           body: SafeArea(
             child: SizedBox.expand(
@@ -156,6 +157,7 @@ class HomeScreen extends StatelessWidget {
       roomListStore: roomListStore,
       avatarImageProvider: profileAvatarImageProvider,
       timelineMediaImageProvider: timelineMediaImageProvider,
+      timelineHistoryRequest: onTimelineHistoryRequested,
       child: Scaffold(
         body: Row(
           children: <Widget>[
@@ -201,6 +203,7 @@ class _HomeTimelineControllerScope extends InheritedWidget {
     required this.roomListStore,
     required this.avatarImageProvider,
     required this.timelineMediaImageProvider,
+    required this.timelineHistoryRequest,
     required super.child,
   });
 
@@ -208,6 +211,7 @@ class _HomeTimelineControllerScope extends InheritedWidget {
   final RoomListStateStore? roomListStore;
   final AvatarImageProvider? avatarImageProvider;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
+  final TimelineHistoryRequest? timelineHistoryRequest;
 
   static TimelineController of(BuildContext context) {
     final scope = context
@@ -238,6 +242,14 @@ class _HomeTimelineControllerScope extends InheritedWidget {
         ?.timelineMediaImageProvider;
   }
 
+  static TimelineHistoryRequest? timelineHistoryRequestOf(
+    BuildContext context,
+  ) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_HomeTimelineControllerScope>()
+        ?.timelineHistoryRequest;
+  }
+
   @override
   bool updateShouldNotify(_HomeTimelineControllerScope oldWidget) =>
       !identical(controller, oldWidget.controller) ||
@@ -246,7 +258,8 @@ class _HomeTimelineControllerScope extends InheritedWidget {
       !identical(
         timelineMediaImageProvider,
         oldWidget.timelineMediaImageProvider,
-      );
+      ) ||
+      !identical(timelineHistoryRequest, oldWidget.timelineHistoryRequest);
 }
 
 TimelineController _homeTimelineController(BuildContext context) =>
@@ -960,6 +973,7 @@ class _CompactChatScreen extends StatelessWidget {
       roomListStore: roomListStore,
       avatarImageProvider: avatarImageProvider,
       timelineMediaImageProvider: timelineMediaImageProvider,
+      timelineHistoryRequest: onTimelineHistoryRequested,
       child: Scaffold(
         appBar: AppBar(
           title: SignalBuilder(
@@ -1284,18 +1298,17 @@ class _RoomListRowState extends State<_RoomListRow> {
               final avatarImage = avatarUri != null && avatarUri.scheme == 'mxc'
                   ? _homeAvatarImageProvider(context)?.call(avatarUri)
                   : null;
-              return CircleAvatar(
+              return _AvatarCircle(
                 radius: 22,
                 backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                backgroundImage: avatarImage,
-                child: avatarImage == null
-                    ? Text(
-                        room.name.characters.first,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      )
-                    : null,
+                foregroundColor: theme.colorScheme.onSurface,
+                image: avatarImage,
+                fallback: Text(
+                  room.name.characters.first,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               );
             },
           ),
@@ -1700,12 +1713,14 @@ class _ChatHeader extends StatelessWidget {
                 : null;
             return Row(
               children: <Widget>[
-                CircleAvatar(
+                _AvatarCircle(
                   radius: 18,
-                  backgroundImage: avatarImage,
-                  child: avatarImage == null
-                      ? Text(room.name.characters.first)
-                      : null,
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest,
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  image: avatarImage,
+                  fallback: Text(room.name.characters.first),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1736,12 +1751,19 @@ class _ChatHeader extends StatelessWidget {
                   key: const Key('room-content-gallery-action'),
                   tooltip: 'Shared content',
                   onPressed: () {
+                    final historyRequest =
+                        _HomeTimelineControllerScope.timelineHistoryRequestOf(
+                          context,
+                        );
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => RoomContentGallery(
                           roomId: roomId,
                           messages: _homeTimelineController(context)
                               .messagesFor(roomId),
+                          onLoadOlder: historyRequest == null
+                              ? null
+                              : () => historyRequest(roomId, 0),
                         ),
                       ),
                     );
@@ -3648,6 +3670,53 @@ class _DeleteMessageDialog extends StatelessWidget {
   }
 }
 
+class _AvatarCircle extends StatelessWidget {
+  const _AvatarCircle({
+    required this.radius,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.image,
+    required this.fallback,
+  });
+
+  final double radius;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final ImageProvider<Object>? image;
+  final Widget fallback;
+
+  @override
+  Widget build(BuildContext context) {
+    final diameter = radius * 2;
+    return RepaintBoundary(
+      child: ClipOval(
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox.square(
+          dimension: diameter,
+          child: ColoredBox(
+            color: backgroundColor,
+            child: image == null
+                ? Center(
+                    child: DefaultTextStyle.merge(
+                      style: TextStyle(color: foregroundColor),
+                      child: fallback,
+                    ),
+                  )
+                : Image(
+                    image: image!,
+                    width: diameter,
+                    height: diameter,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                    gaplessPlayback: true,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageAvatar extends StatelessWidget {
   const _MessageAvatar({required this.sender, this.avatarUrl});
 
@@ -3664,19 +3733,15 @@ class _MessageAvatar extends StatelessWidget {
     return Semantics(
       image: true,
       label: AppLocalizations.of(context).avatarLabel(sender),
-      child: CircleAvatar(
+      child: _AvatarCircle(
         radius: 16,
         backgroundColor: colors.secondaryContainer,
         foregroundColor: colors.onSecondaryContainer,
-        backgroundImage: avatarImage,
-        child: avatarImage == null
-            ? Text(
-                sender.characters.first.toUpperCase(),
-                style: KiteTypography.metadata.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-            : null,
+        image: avatarImage,
+        fallback: Text(
+          sender.characters.first.toUpperCase(),
+          style: KiteTypography.metadata.copyWith(fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }
@@ -4318,6 +4383,7 @@ class _ComposerState extends State<_Composer> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final compactComposer = MediaQuery.sizeOf(context).width < 600;
     return SignalBuilder(
       builder: (context) {
         final roomId = selectedRoomId.value;
@@ -4373,7 +4439,7 @@ class _ComposerState extends State<_Composer> {
                   alignment: Alignment.bottomCenter,
                   duration: KiteMotion.resolve(context, KiteMotion.standard),
                   curve: KiteMotion.standardCurve,
-                  child: _formattingVisible
+                  child: !compactComposer && _formattingVisible
                       ? _ComposerFormattingToolbar(onFormat: _applyFormat)
                       : const SizedBox.shrink(),
                 ),
@@ -4421,24 +4487,26 @@ class _ComposerState extends State<_Composer> {
                                 Icons.add_circle_outline_rounded,
                               ),
                             ),
-                            IconButton(
-                              key: const Key('composer-format-toggle'),
-                              tooltip: _formattingVisible
-                                  ? 'Hide formatting'
-                                  : 'Show formatting',
-                              onPressed: _toggleFormatting,
-                              icon: Icon(
-                                _formattingVisible
-                                    ? Icons.text_format_rounded
-                                    : Icons.text_format_outlined,
+                            if (!compactComposer)
+                              IconButton(
+                                key: const Key('composer-format-toggle'),
+                                tooltip: _formattingVisible
+                                    ? 'Hide formatting'
+                                    : 'Show formatting',
+                                onPressed: _toggleFormatting,
+                                icon: Icon(
+                                  _formattingVisible
+                                      ? Icons.text_format_rounded
+                                      : Icons.text_format_outlined,
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              key: const Key('composer-emoji'),
-                              tooltip: 'Emoji',
-                              onPressed: _toggleEmojiPicker,
-                              icon: const Icon(Icons.emoji_emotions_outlined),
-                            ),
+                            if (!compactComposer)
+                              IconButton(
+                                key: const Key('composer-emoji'),
+                                tooltip: 'Emoji',
+                                onPressed: _toggleEmojiPicker,
+                                icon: const Icon(Icons.emoji_emotions_outlined),
+                              ),
                             const SizedBox(width: KiteSpacing.xxs),
                             Expanded(
                               child: TextField(

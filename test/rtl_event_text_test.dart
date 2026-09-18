@@ -56,10 +56,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final row = find.byKey(const Key('room-alice'));
-    final avatar = find.descendant(
-      of: row,
-      matching: find.byType(CircleAvatar),
-    );
+    final avatar = find.descendant(of: row, matching: find.byType(ClipOval));
     final title = find.descendant(of: row, matching: find.text('Alice'));
     expect(
       tester.getCenter(avatar).dx,

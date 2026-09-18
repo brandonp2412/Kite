@@ -13,7 +13,7 @@ void main() {
     expect(find.byKey(const Key('composer')), findsOneWidget);
   });
 
-  testWidgets('KiteApp keeps every route inside system safe areas', (
+  testWidgets('KiteApp lets routes draw edge to edge around system bars', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -37,7 +37,7 @@ void main() {
 
     expect(
       tester.getRect(find.byKey(const Key('safe-area-content'))),
-      const Rect.fromLTRB(10, 24, 380, 812),
+      const Rect.fromLTRB(0, 0, 390, 844),
     );
   });
 

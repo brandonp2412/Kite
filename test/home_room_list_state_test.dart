@@ -325,13 +325,20 @@ void main() {
 
     final tile = tester.widget<ListTile>(find.byKey(const Key('room-alice')));
     expect(tile.selected, isFalse);
-    final avatar = tester.widget<CircleAvatar>(
+    final avatarImage = tester.widget<Image>(
       find.descendant(
         of: find.byKey(const Key('room-alice')),
-        matching: find.byType(CircleAvatar),
+        matching: find.byType(Image),
       ),
     );
-    expect(avatar.backgroundImage, isA<MemoryImage>());
+    expect(avatarImage.image, isA<MemoryImage>());
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('room-alice')),
+        matching: find.byType(ClipOval),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('room options move chats without replacing room state', (

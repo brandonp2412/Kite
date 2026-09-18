@@ -53,7 +53,7 @@ class KiteApp extends StatelessWidget {
           data: motionAwareTheme,
           child: AnnotatedRegion<SystemUiOverlayStyle>(
             value: KiteSystemBars.forTheme(theme),
-            child: SafeArea(child: child ?? const SizedBox.shrink()),
+            child: child ?? const SizedBox.shrink(),
           ),
         );
       },

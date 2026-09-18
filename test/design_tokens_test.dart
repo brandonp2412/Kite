@@ -251,23 +251,17 @@ void main() {
     expect(theme.navigationRailTheme.backgroundColor, Colors.black);
     expect(bars.statusBarColor, Colors.transparent);
     expect(bars.statusBarIconBrightness, Brightness.light);
-    expect(bars.systemNavigationBarColor, Colors.black);
+    expect(bars.systemNavigationBarColor, Colors.transparent);
     expect(bars.systemNavigationBarIconBrightness, Brightness.light);
 
     final darkBars = KiteSystemBars.forTheme(KiteTheme.dark);
     expect(darkBars.statusBarIconBrightness, Brightness.light);
-    expect(
-      darkBars.systemNavigationBarColor,
-      KiteTheme.dark.scaffoldBackgroundColor,
-    );
+    expect(darkBars.systemNavigationBarColor, Colors.transparent);
     expect(darkBars.systemNavigationBarIconBrightness, Brightness.light);
 
     final lightBars = KiteSystemBars.forTheme(KiteTheme.light);
     expect(lightBars.statusBarIconBrightness, Brightness.dark);
-    expect(
-      lightBars.systemNavigationBarColor,
-      KiteTheme.light.scaffoldBackgroundColor,
-    );
+    expect(lightBars.systemNavigationBarColor, Colors.transparent);
     expect(lightBars.systemNavigationBarIconBrightness, Brightness.dark);
   });
 
@@ -294,7 +288,7 @@ void main() {
         .widget<AnnotatedRegion<SystemUiOverlayStyle>>(
           find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
         );
-    expect(annotatedRegion.value.systemNavigationBarColor, Colors.black);
+    expect(annotatedRegion.value.systemNavigationBarColor, Colors.transparent);
     expect(
       annotatedRegion.value.systemNavigationBarIconBrightness,
       Brightness.light,

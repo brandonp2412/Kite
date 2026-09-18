@@ -572,6 +572,11 @@ void main() {
       await tester.tap(find.byKey(const Key('room-!mobile:example.org')));
       await tester.pumpAndSettle();
       expect(find.text('Cached mobile message'), findsOneWidget);
+      expect(find.byKey(const Key('composer-attach')), findsOneWidget);
+      expect(find.byKey(const Key('composer-field')), findsOneWidget);
+      expect(find.byKey(const Key('composer-send')), findsOneWidget);
+      expect(find.byKey(const Key('composer-format-toggle')), findsNothing);
+      expect(find.byKey(const Key('composer-emoji')), findsNothing);
 
       await tester.enterText(
         find.byKey(const Key('composer-field')),

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kite/app/kite_runtime.dart';
 import 'package:kite/app/platform_matrix_bootstrap_gateway.dart';
@@ -24,6 +25,7 @@ import 'package:kite/matrix/matrix_rust_native_bridge.dart';
 import 'package:kite/matrix/matrix_runtime_bindings.dart';
 import 'package:kite/matrix/native_matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_cache.dart';
+import 'package:signals/signals.dart';
 
 final class ProductionKiteRuntime extends StatefulWidget {
   const ProductionKiteRuntime._({
@@ -141,7 +143,10 @@ final class _AuthenticatedMatrixHomeState
   late Future<MatrixPresentationCache> _activation;
   final MatrixSessionExpiryBinding _sessionExpiryBinding =
       MatrixSessionExpiryBinding();
+  final Set<String> _scheduledAvatarPrefetches = <String>{};
+  void Function()? _disposeAvatarPrefetchEffect;
   var _activationGeneration = 0;
+  var _avatarPrefetchGeneration = 0;
 
   @override
   void initState() {
@@ -162,6 +167,7 @@ final class _AuthenticatedMatrixHomeState
 
   Future<MatrixPresentationCache> _startActivation() {
     _sessionExpiryBinding.detach();
+    _detachAvatarPrefetch();
     _activationGeneration += 1;
     return _activate(_activationGeneration);
   }
@@ -171,20 +177,79 @@ final class _AuthenticatedMatrixHomeState
       accountId: widget.session.userId,
       homeserver: widget.session.homeserver.uri,
     );
-    final cache = await widget.runtime.activate(widget.session.userId);
+    late final MatrixPresentationCache cache;
+    try {
+      cache = await widget.runtime.activate(widget.session.userId);
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('Kite Matrix activation failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+      rethrow;
+    }
     if (mounted && generation == _activationGeneration) {
       _sessionExpiryBinding.attach(
         widget.runtime.activeSyncState,
         widget.onSessionExpired,
       );
+      _attachAvatarPrefetch(cache);
     }
     return cache;
+  }
+
+  void _attachAvatarPrefetch(MatrixPresentationCache cache) {
+    _detachAvatarPrefetch();
+    final generation = _avatarPrefetchGeneration;
+    _disposeAvatarPrefetchEffect = effect(() {
+      final snapshot = cache.snapshot(
+        roomLimit: 6,
+        timelineEventLimitPerRoom: 1,
+      );
+      final pending = <String>[];
+      for (final room in snapshot.rooms) {
+        final avatarUrl = room.avatarUrl;
+        final uri = avatarUrl == null ? null : Uri.tryParse(avatarUrl);
+        if (uri?.scheme != 'mxc') continue;
+        if (_scheduledAvatarPrefetches.add(avatarUrl!)) {
+          pending.add(avatarUrl);
+        }
+      }
+      if (pending.isNotEmpty) {
+        unawaited(_prefetchAvatars(generation, pending));
+      }
+    });
+  }
+
+  Future<void> _prefetchAvatars(
+    int generation,
+    List<String> contentUris,
+  ) async {
+    try {
+      await widget.runtime.prefetchMedia(
+        accountId: widget.session.userId,
+        contentUris: contentUris,
+        width: 192,
+        height: 192,
+      );
+    } catch (_) {
+      if (mounted && generation == _avatarPrefetchGeneration) {
+        _scheduledAvatarPrefetches.removeAll(contentUris);
+      }
+    }
+  }
+
+  void _detachAvatarPrefetch() {
+    _avatarPrefetchGeneration += 1;
+    _disposeAvatarPrefetchEffect?.call();
+    _disposeAvatarPrefetchEffect = null;
+    _scheduledAvatarPrefetches.clear();
   }
 
   @override
   void dispose() {
     _activationGeneration += 1;
     _sessionExpiryBinding.detach();
+    _detachAvatarPrefetch();
     super.dispose();
   }
 
@@ -222,8 +287,8 @@ final class _AuthenticatedMatrixHomeState
       loadBytes: (contentUri) => widget.runtime.downloadMedia(
         accountId: widget.session.userId,
         contentUri: contentUri.toString(),
-        width: 384,
-        height: 384,
+        width: 192,
+        height: 192,
       ),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/media/media_viewer.dart';
@@ -51,7 +53,7 @@ List<RoomContentLink> roomContentLinks(Iterable<TimelineMessage> messages) {
   return List<RoomContentLink>.unmodifiable(links.reversed);
 }
 
-class RoomContentGallery extends StatelessWidget {
+class RoomContentGallery extends StatefulWidget {
   const RoomContentGallery({
     super.key,
     required this.roomId,
@@ -59,6 +61,7 @@ class RoomContentGallery extends StatelessWidget {
     this.mediaResolver = const DeterministicTimelineMediaResolver(),
     this.mediaActionPort = const DeterministicTimelineMediaActionPort(),
     this.onOpenLink,
+    this.onLoadOlder,
   });
 
   final String roomId;
@@ -66,6 +69,53 @@ class RoomContentGallery extends StatelessWidget {
   final TimelineMediaResolver mediaResolver;
   final TimelineMediaActionPort mediaActionPort;
   final ValueChanged<Uri>? onOpenLink;
+  final Future<void> Function()? onLoadOlder;
+
+  @override
+  State<RoomContentGallery> createState() => _RoomContentGalleryState();
+}
+
+class _RoomContentGalleryState extends State<RoomContentGallery> {
+  bool _loadingOlder = false;
+  bool _historyExhausted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.onLoadOlder != null &&
+        !_hasSharedContent(widget.messages.peek())) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_loadOlder(maxPages: 8));
+      });
+    }
+  }
+
+  bool _hasSharedContent(List<TimelineMessage> messages) {
+    for (final message in messages) {
+      if (!message.redacted && message.attachment != null) return true;
+    }
+    return roomContentLinks(messages).isNotEmpty;
+  }
+
+  Future<void> _loadOlder({int maxPages = 8}) async {
+    final loadOlder = widget.onLoadOlder;
+    if (loadOlder == null || _loadingOlder || _historyExhausted) return;
+    setState(() => _loadingOlder = true);
+    try {
+      for (var page = 0; page < maxPages && mounted; page += 1) {
+        final before = widget.messages.peek().length;
+        await loadOlder();
+        if (!mounted) return;
+        final after = widget.messages.peek().length;
+        if (after <= before) {
+          _historyExhausted = true;
+          break;
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +127,15 @@ class RoomContentGallery extends StatelessWidget {
         appBar: AppBar(
           key: const Key('room-content-gallery-header'),
           title: const Text('Shared content'),
+          actions: <Widget>[
+            if (widget.onLoadOlder != null && !_historyExhausted)
+              IconButton(
+                key: const Key('room-content-load-older'),
+                tooltip: 'Load older shared content',
+                onPressed: _loadingOlder ? null : () => _loadOlder(),
+                icon: const Icon(Icons.history_rounded),
+              ),
+          ],
           bottom: const TabBar(
             key: Key('room-content-tabs'),
             tabs: <Widget>[
@@ -86,43 +145,55 @@ class RoomContentGallery extends StatelessWidget {
             ],
           ),
         ),
-        body: SignalBuilder(
-          builder: (context) {
-            final current = messages.value;
-            final mediaMessages = current
-                .where(
-                  (message) =>
-                      !message.redacted &&
-                      message.attachment != null &&
-                      message.attachment!.kind.isVisualMedia,
-                )
-                .toList(growable: false);
-            final fileMessages = current
-                .where(
-                  (message) =>
-                      !message.redacted &&
-                      message.attachment != null &&
-                      !message.attachment!.kind.isVisualMedia,
-                )
-                .toList(growable: false)
-                .reversed
-                .toList(growable: false);
-            final links = roomContentLinks(current);
-            return TabBarView(
-              key: const Key('room-content-tab-view'),
-              children: <Widget>[
-                _MediaGrid(
-                  roomId: roomId,
-                  allMessages: current,
-                  messages: mediaMessages.reversed.toList(growable: false),
-                  mediaResolver: mediaResolver,
-                  mediaActionPort: mediaActionPort,
-                ),
-                _FileList(messages: fileMessages),
-                _LinkList(links: links, onOpenLink: onOpenLink),
-              ],
-            );
-          },
+        body: Column(
+          children: <Widget>[
+            if (_loadingOlder)
+              const LinearProgressIndicator(
+                key: Key('room-content-history-loading'),
+              ),
+            Expanded(
+              child: SignalBuilder(
+                builder: (context) {
+                  final current = widget.messages.value;
+                  final mediaMessages = current
+                      .where(
+                        (message) =>
+                            !message.redacted &&
+                            message.attachment != null &&
+                            message.attachment!.kind.isVisualMedia,
+                      )
+                      .toList(growable: false);
+                  final fileMessages = current
+                      .where(
+                        (message) =>
+                            !message.redacted &&
+                            message.attachment != null &&
+                            !message.attachment!.kind.isVisualMedia,
+                      )
+                      .toList(growable: false)
+                      .reversed
+                      .toList(growable: false);
+                  final links = roomContentLinks(current);
+                  return TabBarView(
+                    key: const Key('room-content-tab-view'),
+                    children: <Widget>[
+                      _MediaGrid(
+                        roomId: widget.roomId,
+                        allMessages: current,
+                        messages: mediaMessages.reversed.toList(
+                          growable: false,
+                        ),
+                        mediaResolver: widget.mediaResolver,
+                        mediaActionPort: widget.mediaActionPort,
+                      ),
+                      _FileList(messages: fileMessages),
+                      _LinkList(links: links, onOpenLink: widget.onOpenLink),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

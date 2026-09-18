@@ -91,13 +91,17 @@ void main() {
     );
     expect(
       tester
-          .getSemantics(find.byKey(const Key('room-content-media-photo-message')))
+          .getSemantics(
+            find.byKey(const Key('room-content-media-photo-message')),
+          )
           .label,
       contains('Image: harbour.jpg, open media'),
     );
     expect(
       tester
-          .getSemantics(find.byKey(const Key('room-content-media-video-message')))
+          .getSemantics(
+            find.byKey(const Key('room-content-media-video-message')),
+          )
           .label,
       contains('Video: motion.mp4, open media'),
     );
@@ -124,6 +128,66 @@ void main() {
     await tester.tap(find.byKey(const Key('room-content-link-link-message-0')));
     await tester.pump();
     expect(openedLink.toString(), 'https://matrix.org/docs/');
+  });
+
+  testWidgets('cached shared content renders before requesting older history', (
+    tester,
+  ) async {
+    final messages = signal<List<TimelineMessage>>(_messages());
+    var loadOlderCalls = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomContentGallery(
+          roomId: 'design',
+          messages: messages,
+          onLoadOlder: () async {
+            loadOlderCalls += 1;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(loadOlderCalls, 0);
+    expect(find.byKey(const Key('room-content-media-grid')), findsOneWidget);
+    expect(
+      find.byKey(const Key('room-content-media-photo-message')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('opening shared content back-paginates older Matrix history', (
+    tester,
+  ) async {
+    final messages = signal<List<TimelineMessage>>(const <TimelineMessage>[]);
+    var loadOlderCalls = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomContentGallery(
+          roomId: 'design',
+          messages: messages,
+          onLoadOlder: () async {
+            loadOlderCalls += 1;
+            if (loadOlderCalls == 1) {
+              messages.value = _messages();
+            }
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(loadOlderCalls, greaterThanOrEqualTo(2));
+    expect(find.byKey(const Key('room-content-media-grid')), findsOneWidget);
+    expect(
+      find.byKey(const Key('room-content-media-photo-message')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('room-content-history-loading')), findsNothing);
   });
 
   testWidgets('live message updates populate the active empty tab in place', (
