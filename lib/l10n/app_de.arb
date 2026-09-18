@@ -1,6 +1,7 @@
 {
   "@@locale": "de",
   "messageHint": "Nachricht",
+  "jumpToRepliedMessageLabel": "Zur beantworteten Nachricht springen",
   "roomCount": "{count, plural, =0{Keine Räume} =1{1 Raum} other{{count} Räume}}",
   "@roomCount": {
     "placeholders": {

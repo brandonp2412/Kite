@@ -165,6 +165,12 @@ abstract class AppLocalizations {
   /// **'Reply'**
   String get replyAction;
 
+  /// No description provided for @jumpToRepliedMessageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to replied message'**
+  String get jumpToRepliedMessageLabel;
+
   /// No description provided for @copyTextAction.
   ///
   /// In en, this message translates to:
