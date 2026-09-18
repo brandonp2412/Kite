@@ -12,7 +12,7 @@ printf '%s\n' 'Kite quality gate: release audit'
 
 printf '%s\n' 'Kite quality gate: Matrix Rust bridge'
 cargo fmt --manifest-path rust/kite_matrix_bridge/Cargo.toml --check
-cargo test --manifest-path rust/kite_matrix_bridge/Cargo.toml --locked
+cargo test --manifest-path rust/kite_matrix_bridge/Cargo.toml --locked -- --test-threads=1
 cargo build --manifest-path rust/kite_matrix_bridge/Cargo.toml --locked
 
 printf '%s\n' 'Kite quality gate: analyze'
