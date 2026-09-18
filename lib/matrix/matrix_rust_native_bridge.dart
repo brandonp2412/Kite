@@ -12,7 +12,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 26;
+const int kiteMatrixNativeAbiVersion = 27;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -258,6 +258,18 @@ typedef _ClientUploadMediaDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
   Pointer<Uint8>,
+  int,
+);
+typedef _ClientPrefetchMediaNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Uint64,
+  Uint64,
+);
+typedef _ClientPrefetchMediaDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  int,
   int,
 );
 typedef _ClientDownloadMediaNative = Pointer<Char> Function(
@@ -1385,6 +1397,113 @@ final class _MatrixNativeDownloadMediaOperation {
   }
 }
 
+final class _MatrixNativePrefetchMediaOperation {
+  const _MatrixNativePrefetchMediaOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.contentUrisJson,
+    required this.width,
+    required this.height,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String contentUrisJson;
+  final int width;
+  final int height;
+
+  Map<String, Uint8List> call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final prefetch = library
+        .lookupFunction<_ClientPrefetchMediaNative, _ClientPrefetchMediaDart>(
+          'kite_matrix_client_prefetch_media',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final contentUrisUtf8 = contentUrisJson.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        prefetch(
+          Pointer<Void>.fromAddress(address),
+          contentUrisUtf8.cast<Char>(),
+          width,
+          height,
+        ),
+        freeString,
+        'media prefetch',
+      );
+      final decoded = _decodeNativeEnvelope(payload);
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media prefetch data.',
+        );
+      }
+      final requested = decoded['requested'];
+      final completed = decoded['completed'];
+      final failed = decoded['failed'];
+      final items = decoded['items'];
+      if (requested is! int ||
+          completed is! int ||
+          failed is! int ||
+          items is! List ||
+          requested < 0 ||
+          completed < 0 ||
+          failed < 0 ||
+          completed + failed != requested ||
+          items.length != completed) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage:
+              'The Matrix native bridge returned invalid media prefetch data.',
+        );
+      }
+      final result = <String, Uint8List>{};
+      for (final item in items) {
+        if (item is! Map<String, dynamic>) {
+          throw const MatrixRustNativeException(
+            code: 'invalid_native_response',
+            publicMessage: 'The Matrix native bridge returned invalid media prefetch data.',
+          );
+        }
+        final contentUri = item['contentUri'];
+        final encoded = item['data'];
+        if (contentUri is! String ||
+            !contentUri.startsWith('mxc://') ||
+            encoded is! String ||
+            encoded.isEmpty) {
+          throw const MatrixRustNativeException(
+            code: 'invalid_native_response',
+            publicMessage: 'The Matrix native bridge returned invalid media prefetch data.',
+          );
+        }
+        Uint8List bytes;
+        try {
+          bytes = base64Decode(encoded);
+        } on FormatException {
+          throw const MatrixRustNativeException(
+            code: 'invalid_native_response',
+            publicMessage: 'The Matrix native bridge returned invalid media prefetch data.',
+          );
+        }
+        if (bytes.isEmpty || result.containsKey(contentUri)) {
+          throw const MatrixRustNativeException(
+            code: 'invalid_native_response',
+            publicMessage: 'The Matrix native bridge returned invalid media prefetch data.',
+          );
+        }
+        result[contentUri] = bytes;
+      }
+      return Map<String, Uint8List>.unmodifiable(result);
+    } finally {
+      calloc.free(contentUrisUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeRoomSettingsOperation {
   const _MatrixNativeRoomSettingsOperation({
     required this.libraryPath,
@@ -1667,6 +1786,14 @@ abstract interface class MatrixRustRoomLifecycleClient {
   });
 }
 
+abstract interface class MatrixRustMediaPrefetchClient {
+  Future<Map<String, Uint8List>> prefetchMedia({
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  });
+}
+
 abstract interface class MatrixRustMediaClient {
   Future<String> uploadMedia({
     required String mimeType,
@@ -1898,6 +2025,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
         MatrixRustRoomSettingsClient,
+        MatrixRustMediaPrefetchClient,
         MatrixRustMediaClient,
         MatrixRustProfileClient,
         MatrixRustEncryptionRecoveryClient,
@@ -2307,6 +2435,63 @@ final class MatrixRustNativeClient
           address: _requireAddress(),
           mimeType: normalizedMimeType,
           bytes: copiedBytes,
+        ).call,
+      );
+    });
+  }
+
+  @override
+  Future<Map<String, Uint8List>> prefetchMedia({
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  }) {
+    final normalizedUris = <String>[];
+    final seen = <String>{};
+    for (final contentUri in contentUris) {
+      final normalized = contentUri.trim();
+      if (!normalized.startsWith('mxc://') || normalized.contains('\u0000')) {
+        return Future<Map<String, Uint8List>>.error(
+          ArgumentError.value(
+            contentUri,
+            'contentUris',
+            'must contain only valid Matrix content URIs without NUL bytes',
+          ),
+        );
+      }
+      if (seen.add(normalized)) normalizedUris.add(normalized);
+    }
+    if (normalizedUris.length > 32) {
+      return Future<Map<String, Uint8List>>.error(
+        ArgumentError.value(
+          contentUris,
+          'contentUris',
+          'must contain at most 32 unique Matrix content URIs',
+        ),
+      );
+    }
+    if (normalizedUris.isEmpty) {
+      return Future<Map<String, Uint8List>>.value(const <String, Uint8List>{});
+    }
+    if (width <= 0 || width > 4096) {
+      return Future<Map<String, Uint8List>>.error(
+        ArgumentError.value(width, 'width', 'must be between 1 and 4096'),
+      );
+    }
+    if (height <= 0 || height > 4096) {
+      return Future<Map<String, Uint8List>>.error(
+        ArgumentError.value(height, 'height', 'must be between 1 and 4096'),
+      );
+    }
+    final contentUrisJson = jsonEncode(normalizedUris);
+    return _enqueue<Map<String, Uint8List>>(() async {
+      return Isolate.run<Map<String, Uint8List>>(
+        _MatrixNativePrefetchMediaOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          contentUrisJson: contentUrisJson,
+          width: width,
+          height: height,
         ).call,
       );
     });
@@ -2980,6 +3165,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
         MatrixSdkMediaManager,
+        MatrixSdkMediaPrefetcher,
         MatrixSdkProfileManager,
         MatrixSdkEncryptionRecoveryManager,
         MatrixSdkDeviceManager,
@@ -3125,6 +3311,25 @@ final class MatrixRustSdkBoundary
         );
       }
       return contentUri;
+    });
+  }
+
+  @override
+  Future<Map<String, Uint8List>> prefetchMedia({
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  }) {
+    return _enqueue<Map<String, Uint8List>>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustMediaPrefetchClient) {
+        return const <String, Uint8List>{};
+      }
+      return (client as MatrixRustMediaPrefetchClient).prefetchMedia(
+        contentUris: contentUris,
+        width: width,
+        height: height,
+      );
     });
   }
 

@@ -50,9 +50,12 @@ use matrix_sdk::{
 use matrix_sdk_crypto::{store::types::BackupDecryptionKey, types::RoomKeyBackupInfo};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tokio::runtime::{Builder, Runtime};
+use tokio::{
+    runtime::{Builder, Runtime},
+    task::JoinSet,
+};
 
-const KITE_MATRIX_ABI_VERSION: u32 = 26;
+const KITE_MATRIX_ABI_VERSION: u32 = 27;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 
 #[derive(Deserialize)]
@@ -2384,6 +2387,116 @@ pub unsafe extern "C" fn kite_matrix_client_upload_media(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_prefetch_media(
+    client: *mut KiteMatrixClient,
+    content_uris_json: *const c_char,
+    width: u64,
+    height: u64,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix media prefetch is unavailable.");
+    }
+    let Some(content_uris_json) = (unsafe { required_utf8(content_uris_json) }) else {
+        return error_json(
+            "invalid_media",
+            "The Matrix media prefetch list is invalid.",
+        );
+    };
+    let Ok(content_uris) = serde_json::from_str::<Vec<String>>(content_uris_json) else {
+        return error_json(
+            "invalid_media",
+            "The Matrix media prefetch list is invalid.",
+        );
+    };
+    if content_uris.len() > 32 {
+        return error_json(
+            "invalid_media",
+            "Matrix media prefetch supports at most 32 items at once.",
+        );
+    }
+    let Some(width) = UInt::new(width) else {
+        return error_json("invalid_media_size", "The Matrix media size is invalid.");
+    };
+    let Some(height) = UInt::new(height) else {
+        return error_json("invalid_media_size", "The Matrix media size is invalid.");
+    };
+    if width == UInt::MIN || height == UInt::MIN {
+        return error_json("invalid_media_size", "The Matrix media size is invalid.");
+    }
+
+    let mut sources = Vec::with_capacity(content_uris.len());
+    for content_uri in content_uris {
+        let owned_uri = OwnedMxcUri::from(content_uri.clone());
+        if !owned_uri.is_valid() {
+            return error_json("invalid_media", "The Matrix media URI is invalid.");
+        }
+        sources.push((content_uri, MediaSource::Plain(owned_uri)));
+    }
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix media prefetch is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+
+    let (items, failed) = client.runtime.block_on(async {
+        let mut tasks = JoinSet::new();
+        for (content_uri, source) in sources {
+            let matrix_client = matrix_client.clone();
+            tasks.spawn(async move {
+                let thumbnail = MediaRequestParameters {
+                    source: source.clone(),
+                    format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
+                };
+                let bytes = matrix_client
+                    .media()
+                    .get_media_content(&thumbnail, true)
+                    .await
+                    .ok()
+                    .filter(|bytes| !bytes.is_empty());
+                (content_uri, bytes)
+            });
+        }
+
+        let mut items = Vec::new();
+        let mut failed = 0usize;
+        while let Some(result) = tasks.join_next().await {
+            match result {
+                Ok((content_uri, Some(bytes))) => items.push(json!({
+                    "contentUri": content_uri,
+                    "data": BASE64_STANDARD.encode(bytes),
+                })),
+                _ => failed += 1,
+            }
+        }
+        (items, failed)
+    });
+
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "requested": items.len() + failed,
+        "completed": items.len(),
+        "failed": failed,
+        "items": items,
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_download_media(
     client: *mut KiteMatrixClient,
     content_uri: *const c_char,
@@ -2698,16 +2811,24 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
         .get(room_id.as_str())
         .cloned();
     let mut options = MessagesOptions::backward().from(from.as_deref());
-    options.limit = UInt::from(100_u8);
+    options.limit = UInt::from(30_u8);
     let previous_access_token = matrix_client
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
-    let messages = match client.runtime.block_on(room.messages(options)) {
-        Ok(messages) => messages,
-        Err(error) => {
+    let messages = match client.runtime.block_on(tokio::time::timeout(
+        Duration::from_secs(45),
+        room.messages(options),
+    )) {
+        Ok(Ok(messages)) => messages,
+        Ok(Err(error)) => {
             return json_to_c_string(&json!({
                 "error": format!("pagination failed: {error}"),
+            }));
+        }
+        Err(_) => {
+            return json_to_c_string(&json!({
+                "error": "pagination timed out",
             }));
         }
     };
@@ -2779,7 +2900,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 26);
+        assert_eq!(kite_matrix_abi_version(), 27);
     }
 
     #[test]

@@ -148,6 +148,23 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.uploadMedia(mimeType: mimeType, bytes: bytes);
   }
 
+  Future<int> prefetchMedia({
+    required String accountId,
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot prefetch Matrix media for an inactive account',
+    );
+    return active.engine.prefetchMedia(
+      contentUris: contentUris,
+      width: width,
+      height: height,
+    );
+  }
+
   Future<Uint8List> downloadMedia({
     required String accountId,
     required String contentUri,

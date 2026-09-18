@@ -17,6 +17,21 @@ val hasReleaseSigning = keystorePropertiesFile.exists() &&
         !keystoreProperties.getProperty(key).isNullOrBlank()
     }
 
+val repoRoot = rootProject.projectDir.parentFile
+val buildKiteMatrixBridge by tasks.registering(Exec::class) {
+    workingDir(repoRoot)
+    commandLine("bash", "tool/build_android_matrix_bridge.sh")
+    inputs.file(File(repoRoot, "tool/build_android_matrix_bridge.sh"))
+    inputs.file(File(repoRoot, "rust/kite_matrix_bridge/Cargo.toml"))
+    inputs.file(File(repoRoot, "rust/kite_matrix_bridge/Cargo.lock"))
+    inputs.dir(File(repoRoot, "rust/kite_matrix_bridge/src"))
+    outputs.dir(File(repoRoot, "build/kite_matrix_bridge/jniLibs"))
+}
+
+tasks.named("preBuild") {
+    dependsOn(buildKiteMatrixBridge)
+}
+
 android {
     namespace = "nz.presley.kite"
 

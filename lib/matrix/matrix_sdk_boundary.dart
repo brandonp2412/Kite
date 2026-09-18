@@ -194,6 +194,14 @@ abstract interface class MatrixSdkMediaManager {
   });
 }
 
+abstract interface class MatrixSdkMediaPrefetcher {
+  Future<Map<String, Uint8List>> prefetchMedia({
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  });
+}
+
 abstract interface class MatrixSdkProfileManager {
   Future<MatrixSdkProfileDetails> loadOwnProfile();
   Future<MatrixSdkProfileDetails> loadProfile(String userId);
@@ -384,6 +392,10 @@ final class MatrixBoundaryEngine implements MatrixEngine {
   final MatrixSdkStoreConfiguration _store;
   final MatrixSdkSyncConfiguration Function() _syncConfigurationProvider;
 
+  static const int _smallMediaCacheLimit = 64;
+
+  final Map<(String, int, int), Uint8List> _smallMediaCache =
+      <(String, int, int), Uint8List>{};
   bool _opened = false;
   bool _started = false;
   bool _needsSyncReset = false;
@@ -615,6 +627,80 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     );
   }
 
+  Future<int> prefetchMedia({
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  }) async {
+    final prefetcher = _boundary;
+    if (prefetcher is! MatrixSdkMediaPrefetcher || contentUris.isEmpty) {
+      return 0;
+    }
+    final normalizedUris = <String>[];
+    final seen = <String>{};
+    for (final contentUri in contentUris) {
+      final normalized = contentUri.trim();
+      final uri = Uri.tryParse(normalized);
+      if (uri == null ||
+          uri.scheme != 'mxc' ||
+          uri.host.isEmpty ||
+          uri.userInfo.isNotEmpty ||
+          uri.hasQuery ||
+          uri.hasFragment ||
+          uri.pathSegments.length != 1 ||
+          uri.pathSegments.single.isEmpty ||
+          normalized.contains('\u0000')) {
+        throw ArgumentError.value(
+          contentUri,
+          'contentUris',
+          'must contain only valid Matrix content URIs without NUL bytes',
+        );
+      }
+      if (seen.add(normalized)) normalizedUris.add(normalized);
+    }
+    if (normalizedUris.length > 32) {
+      throw ArgumentError.value(
+        contentUris,
+        'contentUris',
+        'must contain at most 32 unique Matrix content URIs',
+      );
+    }
+    if (width <= 0 || width > 4096) {
+      throw ArgumentError.value(width, 'width', 'must be between 1 and 4096');
+    }
+    if (height <= 0 || height > 4096) {
+      throw ArgumentError.value(height, 'height', 'must be between 1 and 4096');
+    }
+    var completed = 0;
+    final pendingUris = <String>[];
+    for (final contentUri in normalizedUris) {
+      if (_smallMediaCache.containsKey((contentUri, width, height))) {
+        completed += 1;
+      } else {
+        pendingUris.add(contentUri);
+      }
+    }
+    if (pendingUris.isEmpty) return completed;
+
+    await _ensureOpen();
+    final prefetched = await (prefetcher as MatrixSdkMediaPrefetcher)
+        .prefetchMedia(contentUris: pendingUris, width: width, height: height);
+    for (final entry in prefetched.entries) {
+      if (!seen.contains(entry.key) || entry.value.isEmpty) {
+        throw const MatrixSdkContractException(
+          'Matrix SDK boundary returned invalid prefetched media',
+        );
+      }
+      _rememberSmallMedia(
+        contentUri: entry.key,
+        width: width,
+        height: height,
+        bytes: entry.value,
+      );
+    }
+    return completed + prefetched.length;
+  }
+
   Future<Uint8List> downloadMedia({
     required String contentUri,
     Map<String, Object?>? encryptedFile,
@@ -660,6 +746,10 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     if (height <= 0 || height > 4096) {
       throw ArgumentError.value(height, 'height', 'must be between 1 and 4096');
     }
+    if (encryptedFile == null && width <= 256 && height <= 256) {
+      final cached = _smallMediaCache[(normalizedContentUri, width, height)];
+      if (cached != null) return cached;
+    }
     await _ensureOpen();
     final bytes = await (manager as MatrixSdkMediaManager).downloadMedia(
       contentUri: normalizedContentUri,
@@ -670,6 +760,14 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     if (bytes.isEmpty) {
       throw const MatrixSdkContractException(
         'Matrix SDK boundary returned empty media data',
+      );
+    }
+    if (encryptedFile == null && width <= 256 && height <= 256) {
+      _rememberSmallMedia(
+        contentUri: normalizedContentUri,
+        width: width,
+        height: height,
+        bytes: bytes,
       );
     }
     return bytes;
@@ -1220,9 +1318,24 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   Future<void> close() async {
     await stop();
+    _smallMediaCache.clear();
     if (!_opened) return;
     await _boundary.close();
     _opened = false;
+  }
+
+  void _rememberSmallMedia({
+    required String contentUri,
+    required int width,
+    required int height,
+    required Uint8List bytes,
+  }) {
+    final key = (contentUri, width, height);
+    _smallMediaCache.remove(key);
+    _smallMediaCache[key] = bytes;
+    while (_smallMediaCache.length > _smallMediaCacheLimit) {
+      _smallMediaCache.remove(_smallMediaCache.keys.first);
+    }
   }
 
   Future<void> _ensureOpen() async {

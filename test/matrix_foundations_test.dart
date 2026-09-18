@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,6 +105,54 @@ void main() {
         expect(boundary.startCalls, 0);
       },
     );
+
+    test('prefetched small media is served from the in-memory cache', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+      const contentUri = 'mxc://kite.test/avatar';
+      final avatarBytes = Uint8List.fromList(<int>[1, 2, 3, 4]);
+      boundary.mediaBytes[contentUri] = avatarBytes;
+
+      expect(
+        await engine.prefetchMedia(
+          contentUris: const <String>[contentUri],
+          width: 192,
+          height: 192,
+        ),
+        1,
+      );
+      expect(boundary.prefetchCalls, 1);
+
+      final loaded = await engine.downloadMedia(
+        contentUri: contentUri,
+        width: 192,
+        height: 192,
+      );
+      expect(loaded, avatarBytes);
+      expect(boundary.mediaDownloadCalls, 0);
+
+      expect(
+        await engine.prefetchMedia(
+          contentUris: const <String>[contentUri],
+          width: 192,
+          height: 192,
+        ),
+        1,
+      );
+      expect(
+        boundary.prefetchCalls,
+        1,
+        reason: 'Already-prefetched media must not re-enter the SDK boundary.',
+      );
+
+      await engine.close();
+    });
 
     test('failed SDK sync start is stopped before retry', () async {
       final boundary = _FakeSdkBoundary(
@@ -761,7 +810,11 @@ const _store = MatrixSdkStoreConfiguration(
   encryptionKeyId: 'platform-key-alias',
 );
 
-final class _FakeSdkBoundary implements MatrixSdkBoundary {
+final class _FakeSdkBoundary
+    implements
+        MatrixSdkBoundary,
+        MatrixSdkMediaManager,
+        MatrixSdkMediaPrefetcher {
   _FakeSdkBoundary({
     required this.capabilities,
     this.startBatch,
@@ -784,6 +837,9 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
   MatrixSdkStoreConfiguration? openedStore;
   MatrixSdkSyncConfiguration? lastSyncConfiguration;
   final List<String> paginatedRooms = <String>[];
+  final Map<String, Uint8List> mediaBytes = <String, Uint8List>{};
+  int prefetchCalls = 0;
+  int mediaDownloadCalls = 0;
 
   @override
   Stream<MatrixSyncBatch> get syncBatches => _sync.stream;
@@ -820,6 +876,35 @@ final class _FakeSdkBoundary implements MatrixSdkBoundary {
           events: const <MatrixTimelineEvent>[],
           reachedStart: false,
         );
+  }
+
+  @override
+  Future<String> uploadMedia({
+    required String mimeType,
+    required Uint8List bytes,
+  }) async => 'mxc://kite.test/uploaded';
+
+  @override
+  Future<Map<String, Uint8List>> prefetchMedia({
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  }) async {
+    prefetchCalls += 1;
+    return <String, Uint8List>{
+      for (final contentUri in contentUris) contentUri: ?mediaBytes[contentUri],
+    };
+  }
+
+  @override
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+    required int width,
+    required int height,
+  }) async {
+    mediaDownloadCalls += 1;
+    return mediaBytes[contentUri] ?? Uint8List.fromList(<int>[9]);
   }
 
   @override

@@ -14,8 +14,10 @@ import 'package:kite/matrix/presentation_cache.dart';
 import 'package:kite/matrix/presentation_store.dart';
 import 'package:signals/signals.dart';
 
-typedef MatrixProductionBoundaryBuilder =
-    MatrixSdkBoundary Function(String accountId, Uri homeserver);
+typedef MatrixProductionBoundaryBuilder = MatrixSdkBoundary Function(
+  String accountId,
+  Uri homeserver,
+);
 
 String matrixRustNativeLibraryPath() {
   if (Platform.isAndroid || Platform.isLinux) {
@@ -209,6 +211,18 @@ final class MatrixProductionRuntime
     accountId: accountId,
     mimeType: mimeType,
     bytes: bytes,
+  );
+
+  Future<int> prefetchMedia({
+    required String accountId,
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  }) => accounts.prefetchMedia(
+    accountId: accountId,
+    contentUris: contentUris,
+    width: width,
+    height: height,
   );
 
   Future<Uint8List> downloadMedia({
