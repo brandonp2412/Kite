@@ -72,6 +72,46 @@ void main() {
     expect(shared.single, contains('%24event%3Aexample.org'));
   });
 
+  test('Matrix home binding preserves the injected moderation port', () async {
+    final cache = MatrixPresentationCache();
+    final reports = <({String roomId, String eventId, String reason})>[];
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+      moderationPort: MatrixTimelineModerationPort(({
+        required roomId,
+        required eventId,
+        required reason,
+      }) async {
+        reports.add((roomId: roomId, eventId: eventId, reason: reason));
+      }),
+    );
+    addTearDown(binding.dispose);
+
+    await binding.controller.reportMessage(
+      '!room:example.org',
+      TimelineMessage(
+        id: r'$event:example.org',
+        sender: 'Spammer',
+        body: 'Spam',
+        mine: false,
+        timeLabel: '03:13',
+      ),
+      '  abuse  ',
+    );
+
+    expect(reports, <({String roomId, String eventId, String reason})>[
+      (
+        roomId: '!room:example.org',
+        eventId: r'$event:example.org',
+        reason: 'abuse',
+      ),
+    ]);
+  });
+
   test('Matrix timeline send port preserves reply targets', () async {
     final plainBodies = <String>[];
     final replies = <({String body, String eventId})>[];

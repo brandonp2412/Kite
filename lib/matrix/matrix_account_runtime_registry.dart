@@ -422,6 +422,23 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.reportUser(roomId, userId, reason: reason);
   }
 
+  Future<void> reportEvent({
+    required String accountId,
+    required String roomId,
+    required String eventId,
+    String? reason,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<void>.error(
+        StateError('Cannot report a Matrix event for an inactive account'),
+      );
+    }
+    return active.engine.reportEvent(roomId, eventId, reason: reason);
+  }
+
   Future<void> leaveRoom({required String accountId, required String roomId}) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
