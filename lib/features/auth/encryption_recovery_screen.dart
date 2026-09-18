@@ -110,7 +110,7 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  _RecoveryOverview(status: status),
+                  _RecoveryOverview(status: status, error: error),
                   const SizedBox(height: KiteSpacing.md),
                   _RecoveryCard(
                     icon: Icons.key_rounded,
@@ -355,31 +355,48 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
 }
 
 class _RecoveryOverview extends StatelessWidget {
-  const _RecoveryOverview({required this.status});
+  const _RecoveryOverview({required this.status, required this.error});
 
   final EncryptionRecoveryStatus? status;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
-    final backupReady = status?.backupState == EncryptedBackupState.ready;
-    final needsRecovery =
-        status?.backupState == EncryptedBackupState.needsRecovery;
+    final backupState = status?.backupState;
     final colors = Theme.of(context).colorScheme;
-    final icon = backupReady
-        ? Icons.verified_user_rounded
-        : needsRecovery
-        ? Icons.warning_amber_rounded
-        : Icons.shield_outlined;
-    final title = backupReady
-        ? 'Recovery is set up'
-        : needsRecovery
-        ? 'Recovery needs attention'
-        : 'Check your recovery setup';
-    final detail = backupReady
-        ? 'Encrypted backup is available for this account.'
-        : needsRecovery
-        ? 'Restore your encryption keys to read older encrypted messages.'
-        : 'Kite is checking the Matrix backup and session state.';
+    final (icon, title, detail) = error != null && backupState == null
+        ? (
+            Icons.error_outline_rounded,
+            'Recovery status could not be checked',
+            'Kite could not read the Matrix backup state. Retry when the connection is available.',
+          )
+        : switch (backupState) {
+            EncryptedBackupState.ready => (
+              Icons.verified_user_rounded,
+              'Recovery is set up',
+              'Encrypted backup is available for this account.',
+            ),
+            EncryptedBackupState.needsRecovery => (
+              Icons.warning_amber_rounded,
+              'Recovery needs attention',
+              'Restore your encryption keys to read older encrypted messages.',
+            ),
+            EncryptedBackupState.unavailable => (
+              Icons.cloud_off_outlined,
+              'No encrypted backup found',
+              'This session is active, but Matrix does not report an encrypted key backup for this account.',
+            ),
+            EncryptedBackupState.unknown => (
+              Icons.sync_problem_rounded,
+              'Recovery status is not available yet',
+              'Matrix has not reported enough backup state to determine whether recovery is configured.',
+            ),
+            null => (
+              Icons.shield_outlined,
+              'Checking recovery setup',
+              'Kite is checking the Matrix backup and session state.',
+            ),
+          };
 
     return Container(
       key: const Key('encryption-recovery-summary'),

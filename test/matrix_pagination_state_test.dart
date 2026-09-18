@@ -90,38 +90,45 @@ void main() {
     },
   );
 
-  test('pagination skips duplicate-only pages until cache changes', () async {
+  test('duplicate-only pagination yields before another edge request', () async {
     final engine = _PaginationFakeMatrixEngine();
     var appliedPages = 0;
     final controller = MatrixBackPaginationController(
       engine: engine,
       applyPage: (_) {
         appliedPages += 1;
-        return appliedPages > 1;
+        return false;
       },
     );
     final state = controller.stateSignal('!room:kite.test');
 
-    final pagination = controller.maybePaginate(
+    final first = controller.maybePaginate(
       roomId: '!room:kite.test',
       firstVisibleIndex: 0,
       hasMoreHistory: true,
     );
     engine.completePagination();
-    await Future<void>.delayed(Duration.zero);
+    await first;
+
+    expect(engine.paginationCalls, <String>['!room:kite.test']);
+    expect(appliedPages, 1);
+    expect(state.value.phase, MatrixPaginationPhase.idle);
+    expect(state.value.reachedStart, isFalse);
+
+    final second = controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    engine.completePagination();
+    await second;
 
     expect(engine.paginationCalls, <String>[
       '!room:kite.test',
       '!room:kite.test',
     ]);
-    expect(state.value.phase, MatrixPaginationPhase.loading);
-
-    engine.completePagination();
-    await pagination;
-
     expect(appliedPages, 2);
     expect(state.value.phase, MatrixPaginationPhase.idle);
-    expect(state.value.reachedStart, isFalse);
     await engine.close();
   });
 

@@ -127,23 +127,17 @@ final class MatrixBackPaginationController {
     int generation,
   ) async {
     try {
-      while (true) {
-        final page = await engine.paginateBackwards(roomId);
-        if (generation != _generation) return;
-        if (page.roomId != roomId) {
-          throw StateError('Matrix pagination room mismatch');
-        }
-        var changed = false;
-        batch(() {
-          changed = applyPage(page);
-          if (changed || page.reachedStart) {
-            state.value = MatrixPaginationState.idle(
-              reachedStart: page.reachedStart,
-            );
-          }
-        });
-        if (changed || page.reachedStart) return;
+      final page = await engine.paginateBackwards(roomId);
+      if (generation != _generation) return;
+      if (page.roomId != roomId) {
+        throw StateError('Matrix pagination room mismatch');
       }
+      batch(() {
+        applyPage(page);
+        state.value = MatrixPaginationState.idle(
+          reachedStart: page.reachedStart,
+        );
+      });
     } catch (error, stackTrace) {
       if (generation != _generation) return;
       state.value = MatrixPaginationState.failed(

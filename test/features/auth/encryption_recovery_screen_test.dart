@@ -100,12 +100,19 @@ void main() {
   ) async {
     final controller = EncryptionRecoveryController(_FakeRecoveryGateway());
     addTearDown(controller.dispose);
+    controller.status.value = const EncryptionRecoveryStatus(
+      backupState: EncryptedBackupState.unknown,
+      historicalRecoveryState: HistoricalRecoveryState.idle,
+      hasUnverifiedSessions: false,
+    );
 
     await tester.pumpWidget(_app(controller));
 
-    expect(find.text('Check your recovery setup'), findsOneWidget);
+    expect(find.text('Recovery status is not available yet'), findsOneWidget);
     expect(
-      find.text('Kite is checking the Matrix backup and session state.'),
+      find.text(
+        'Matrix has not reported enough backup state to determine whether recovery is configured.',
+      ),
       findsOneWidget,
     );
     expect(

@@ -511,6 +511,26 @@ fn recovery_status_value(matrix_client: &Client) -> Value {
     })
 }
 
+fn recovery_status_value_with_server_probe(runtime: &Runtime, matrix_client: &Client) -> Value {
+    let mut status = recovery_status_value(matrix_client);
+    if status["backupExistsOnServer"].as_bool() == Some(false) {
+        let backup_exists = runtime.block_on(async {
+            matches!(
+                tokio::time::timeout(
+                    Duration::from_secs(12),
+                    matrix_client.send(get_latest_backup_info::v3::Request::new()),
+                )
+                .await,
+                Ok(Ok(_))
+            )
+        });
+        if backup_exists {
+            status["backupExistsOnServer"] = Value::Bool(true);
+        }
+    }
+    status
+}
+
 async fn download_recoverable_room_keys(matrix_client: &Client) -> Result<(), MatrixError> {
     for room in matrix_client.rooms() {
         matrix_client
@@ -591,7 +611,10 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
     }
 
     match action {
-        "status" => ok_json(recovery_status_value(matrix_client)),
+        "status" => ok_json(recovery_status_value_with_server_probe(
+            &client.runtime,
+            matrix_client,
+        )),
         "create_backup" => {
             if client
                 .runtime
@@ -779,7 +802,6 @@ pub unsafe extern "C" fn kite_matrix_client_restore_session(
     ok_json(session_json(&session, matrix_client.homeserver().as_str()))
 }
 
-#[unsafe(no_mangle)]
 fn text_message_content(
     body: &str,
     reply_to_event_id: Option<OwnedEventId>,
@@ -795,6 +817,7 @@ fn text_message_content(
     content
 }
 
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_send_text(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -2854,10 +2877,9 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
-    let messages = match client.runtime.block_on(tokio::time::timeout(
-        Duration::from_secs(45),
-        room.messages(options),
-    )) {
+    let messages = match client.runtime.block_on(async {
+        tokio::time::timeout(Duration::from_secs(45), room.messages(options)).await
+    }) {
         Ok(Ok(messages)) => messages,
         Ok(Err(error)) => {
             return json_to_c_string(&json!({

@@ -99,7 +99,8 @@ final class MatrixTimelineSendPort implements TimelineSendPort {
         await _send(roomId: roomId, transactionId: transactionId, body: body);
       }
       return TimelineSendOutcome.sent;
-    } catch (_) {
+    } catch (error) {
+      debugPrint('Matrix timeline send failed: $error');
       return TimelineSendOutcome.failed;
     }
   }
