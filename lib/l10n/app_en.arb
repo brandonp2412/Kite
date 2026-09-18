@@ -11,6 +11,7 @@
   "retrySendingLabel": "Retry sending",
   "messageFailedRetryLabel": "Message failed. Retry sending",
   "replyAction": "Reply",
+  "jumpToRepliedMessageLabel": "Jump to replied message",
   "copyTextAction": "Copy text",
   "editMessageAction": "Edit message",
   "deleteMessageAction": "Delete message",

@@ -1825,7 +1825,9 @@ class _TimelineState extends State<_Timeline> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _currentTimelineSliverKey = GlobalKey();
   final GlobalKey _unreadMarkerKey = GlobalKey();
+  final GlobalKey _focusedMessageKey = GlobalKey();
   String? _displayedRoomId;
+  String? _focusedMessageId;
   String? _historyBoundaryMessageId;
   List<TimelineMessage> _displayedMessages = const <TimelineMessage>[];
   List<TimelineMessage>? _pendingTailMessages;
@@ -1894,6 +1896,68 @@ class _TimelineState extends State<_Timeline> {
         }
       }),
     );
+  }
+
+  Future<void> _jumpToEvent(String roomId, String eventId) async {
+    if (!_scrollController.hasClients) return;
+    final messages = _homeTimelineController(context)
+        .messagesFor(roomId)
+        .peek();
+    final targetIndex = messages.indexWhere((message) => message.id == eventId);
+    if (targetIndex < 0) return;
+
+    if (_focusedMessageId != eventId) {
+      setState(() => _focusedMessageId = eventId);
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_scrollController.hasClients) return;
+    }
+    if (!mounted) return;
+
+    final retainedContext = _focusedMessageKey.currentContext;
+    final retained = retainedContext?.findRenderObject();
+    if (retainedContext != null &&
+        retainedContext.mounted &&
+        retained != null &&
+        retained.attached) {
+      await Scrollable.ensureVisible(
+        retainedContext,
+        alignment: 0.34,
+        duration: KiteMotion.resolve(context, KiteMotion.standard),
+        curve: KiteMotion.standardCurve,
+      );
+      return;
+    }
+
+    final reverseIndex = messages.length - 1 - targetIndex;
+    final denominator = messages.length <= 1 ? 1 : messages.length - 1;
+    final position = _scrollController.position;
+    final targetOffset = position.maxScrollExtent * reverseIndex / denominator;
+    final clampedOffset = targetOffset.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    final distance = (clampedOffset - position.pixels).abs();
+    if (distance > position.viewportDimension) {
+      position.jumpTo(clampedOffset);
+    } else {
+      await position.animateTo(
+        clampedOffset,
+        duration: KiteMotion.resolve(context, KiteMotion.deliberate),
+        curve: KiteMotion.standardCurve,
+      );
+    }
+    if (!mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final targetContext = _focusedMessageKey.currentContext;
+    if (targetContext != null && targetContext.mounted) {
+      await Scrollable.ensureVisible(
+        targetContext,
+        alignment: 0.34,
+        duration: KiteMotion.resolve(context, KiteMotion.standard),
+        curve: KiteMotion.standardCurve,
+      );
+    }
   }
 
   Future<void> _jumpToUnread(String roomId) async {
@@ -1965,6 +2029,7 @@ class _TimelineState extends State<_Timeline> {
             .value;
         if (_displayedRoomId != roomId) {
           _displayedRoomId = roomId;
+          _focusedMessageId = null;
           _displayedMessages = sourceMessages;
           _historyBoundaryMessageId = sourceMessages.isEmpty
               ? null
@@ -2135,6 +2200,7 @@ class _TimelineState extends State<_Timeline> {
   }) {
     final messageKey = ValueKey<String>(message.id);
     final isUnreadMarker = message.id == unreadMarkerEventId;
+    final isFocused = message.id == _focusedMessageId;
     final row = _MessageRow(
       key: isUnreadMarker ? null : messageKey,
       roomId: roomId,
@@ -2142,6 +2208,9 @@ class _TimelineState extends State<_Timeline> {
       semanticsOrder: semanticsOrder,
       onReply: widget.onReply,
       onEdit: widget.onEdit,
+      onJumpToEvent: (eventId) => unawaited(_jumpToEvent(roomId, eventId)),
+      focusAnchorKey: isFocused ? _focusedMessageKey : null,
+      focused: isFocused,
     );
     if (!isUnreadMarker) return row;
     return _UnreadMarkerOverlay(
@@ -2298,6 +2367,9 @@ class _MessageRow extends StatelessWidget {
     required this.semanticsOrder,
     required this.onReply,
     required this.onEdit,
+    required this.onJumpToEvent,
+    this.focusAnchorKey,
+    this.focused = false,
   });
 
   final String roomId;
@@ -2305,6 +2377,9 @@ class _MessageRow extends StatelessWidget {
   final double semanticsOrder;
   final _ComposerAction onReply;
   final _ComposerAction onEdit;
+  final ValueChanged<String> onJumpToEvent;
+  final Key? focusAnchorKey;
+  final bool focused;
 
   void _openMedia(BuildContext context) {
     final model = TimelineMediaViewerModel.fromMessages(
@@ -2627,7 +2702,12 @@ class _MessageRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   if (message.isReply) ...<Widget>[
-                    _MessageReplyPreview(message: message),
+                    _MessageReplyPreview(
+                      message: message,
+                      onTap: message.replyToMessageId == null
+                          ? null
+                          : () => onJumpToEvent(message.replyToMessageId!),
+                    ),
                     const SizedBox(height: KiteSpacing.xs),
                   ],
                   SignalBuilder(
@@ -2799,7 +2879,7 @@ class _MessageRow extends StatelessWidget {
       ],
     );
 
-    return Semantics(
+    final row = Semantics(
       sortKey: OrdinalSortKey(semanticsOrder),
       child: Padding(
         key: Key('message-row-${message.id}'),
@@ -2851,6 +2931,21 @@ class _MessageRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+    if (!focused || focusAnchorKey == null) return row;
+    return KeyedSubtree(
+      key: focusAnchorKey,
+      child: DecoratedBox(
+        key: Key('focused-message-${message.id}'),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: colors.primary.withValues(alpha: 0.72),
+            width: KiteStroke.emphasis,
+          ),
+          borderRadius: BorderRadius.circular(KiteRadii.md),
+        ),
+        child: row,
       ),
     );
   }
@@ -3061,48 +3156,62 @@ class _ThreadSummaryButton extends StatelessWidget {
 }
 
 class _MessageReplyPreview extends StatelessWidget {
-  const _MessageReplyPreview({required this.message});
+  const _MessageReplyPreview({required this.message, this.onTap});
 
   final TimelineMessage message;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      key: Key('reply-preview-${message.id}'),
-      constraints: const BoxConstraints(minWidth: 132, maxWidth: 460),
-      padding: const EdgeInsets.only(left: KiteSpacing.xs),
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(color: colors.primary, width: KiteStroke.emphasis),
+    return Semantics(
+      button: onTap != null,
+      label: onTap == null
+          ? null
+          : AppLocalizations.of(context).jumpToRepliedMessageLabel,
+      child: GestureDetector(
+        key: Key('reply-preview-${message.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 132, maxWidth: 460),
+          padding: const EdgeInsets.only(left: KiteSpacing.xs),
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: colors.primary,
+                width: KiteStroke.emphasis,
+              ),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                message.replyToSender ?? 'Message',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                message.replyToBody ?? '',
+                maxLines: 1,
+                textDirection: _eventTextDirection(
+                  message.replyToBody ?? '',
+                  Directionality.of(context),
+                ),
+                overflow: TextOverflow.ellipsis,
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            message.replyToSender ?? 'Message',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: KiteTypography.metadata.copyWith(
-              color: colors.primary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            message.replyToBody ?? '',
-            maxLines: 1,
-            textDirection: _eventTextDirection(
-              message.replyToBody ?? '',
-              Directionality.of(context),
-            ),
-            overflow: TextOverflow.ellipsis,
-            style: KiteTypography.metadata.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
     );
   }
