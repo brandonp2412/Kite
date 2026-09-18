@@ -43,6 +43,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get replyAction => 'Reply';
 
   @override
+  String get jumpToRepliedMessageLabel => 'Jump to replied message';
+
+  @override
   String get copyTextAction => 'Copy text';
 
   @override

@@ -43,6 +43,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get replyAction => 'Reply';
 
   @override
+  String get jumpToRepliedMessageLabel =>
+      'Zur beantworteten Nachricht springen';
+
+  @override
   String get copyTextAction => 'Copy text';
 
   @override
