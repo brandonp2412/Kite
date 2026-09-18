@@ -409,8 +409,9 @@ final class DeterministicTimelineSharePort implements TimelineSharePort {
   }
 }
 
-typedef TimelineFixtureProvider =
-    List<BenchmarkMessage> Function(String roomId);
+typedef TimelineFixtureProvider = List<BenchmarkMessage> Function(
+  String roomId,
+);
 
 abstract interface class TimelineSendPort {
   Future<TimelineSendOutcome> sendText({
@@ -721,9 +722,9 @@ class TimelineController implements TimelineLocationShareDelegate {
     String eventId,
     TimelineLocation location,
   ) {
-    final matches = messagesFor(
-      roomId,
-    ).peek().where((candidate) => candidate.id == eventId);
+    final matches = messagesFor(roomId)
+        .peek()
+        .where((candidate) => candidate.id == eventId);
     if (matches.isEmpty) return;
     final target = matches.single;
     final current = target.locationState.peek();
@@ -736,9 +737,9 @@ class TimelineController implements TimelineLocationShareDelegate {
     String eventId,
     Iterable<String> readers,
   ) {
-    final message = messagesFor(
-      roomId,
-    ).peek().where((candidate) => candidate.id == eventId);
+    final message = messagesFor(roomId)
+        .peek()
+        .where((candidate) => candidate.id == eventId);
     if (message.isEmpty) return;
     final target = message.single;
     if (!target.mine || target.redacted) return;
@@ -1014,9 +1015,9 @@ class TimelineController implements TimelineLocationShareDelegate {
   }
 
   void updatePoll(String roomId, String eventId, TimelinePoll poll) {
-    final matches = messagesFor(
-      roomId,
-    ).peek().where((candidate) => candidate.id == eventId);
+    final matches = messagesFor(roomId)
+        .peek()
+        .where((candidate) => candidate.id == eventId);
     if (matches.isEmpty) return;
     final message = matches.single;
     if (message.pollState.peek() == null) return;

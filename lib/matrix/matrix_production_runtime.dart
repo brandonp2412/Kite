@@ -403,6 +403,20 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<void> reportEvent({
+    required String accountId,
+    required String roomId,
+    required String eventId,
+    String? reason,
+  }) {
+    return accounts.reportEvent(
+      accountId: accountId,
+      roomId: roomId,
+      eventId: eventId,
+      reason: reason,
+    );
+  }
+
   Future<void> leaveRoom({required String accountId, required String roomId}) {
     return accounts.leaveRoom(accountId: accountId, roomId: roomId);
   }
