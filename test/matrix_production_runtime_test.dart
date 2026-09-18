@@ -195,6 +195,16 @@ void main() {
       expect(boundary.sentReplyTargets, <String?>[r'$original', null]);
       expect(boundary.sentReplacementTargets, <String?>[null, r'$original']);
 
+      await runtime.reportEvent(
+        accountId: '@alice:example.org',
+        roomId: '!room:example.org',
+        eventId: r'$original',
+        reason: 'spam',
+      );
+      expect(boundary.eventReports, <(String, String, String?)>[
+        ('!room:example.org', r'$original', 'spam'),
+      ]);
+
       await runtime.setRoomFavourite(
         accountId: '@alice:example.org',
         roomId: '!room:example.org',
@@ -354,7 +364,8 @@ final class _FakeBoundary
         MatrixSdkProfileManager,
         MatrixSdkDeviceManager,
         MatrixSdkRoomFavouriteManager,
-        MatrixSdkRoomReadManager {
+        MatrixSdkRoomReadManager,
+        MatrixSdkTimelineModerationManager {
   final StreamController<MatrixSyncBatch> _sync =
       StreamController<MatrixSyncBatch>.broadcast(sync: true);
 
@@ -369,6 +380,8 @@ final class _FakeBoundary
   final List<String?> sentReplacementTargets = <String?>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
+  final List<(String, String, String?)> eventReports =
+      <(String, String, String?)>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<String> userSearches = <String>[];
   final Set<String> ignoredUserIds = <String>{'@spam:example.org'};
@@ -520,6 +533,15 @@ final class _FakeBoundary
   @override
   Future<void> markRoomRead(String roomId, String eventId) async {
     readReceipts.add((roomId, eventId));
+  }
+
+  @override
+  Future<void> reportEvent(
+    String roomId,
+    String eventId, {
+    String? reason,
+  }) async {
+    eventReports.add((roomId, eventId, reason));
   }
 
   @override
