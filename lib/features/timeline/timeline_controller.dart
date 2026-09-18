@@ -1238,11 +1238,13 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineEditPort? editPort,
     TimelineLinkOpenPort? linkOpenPort,
     TimelineSharePort? sharePort,
+    TimelineModerationPort? moderationPort,
   }) {
     _sendPort = sendPort;
     _editPort = editPort ?? const DeterministicTimelineEditPort();
     _linkOpenPort = linkOpenPort ?? DeterministicTimelineLinkOpenPort();
     _sharePort = sharePort ?? DeterministicTimelineSharePort();
+    _moderationPort = moderationPort ?? DeterministicTimelineModerationPort();
   }
 
   void reset({

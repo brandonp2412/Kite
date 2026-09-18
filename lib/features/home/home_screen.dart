@@ -2992,8 +2992,22 @@ class _MessageRow extends StatelessWidget {
           (_) => _ReportMessageSheet(message: message),
         );
         if (!context.mounted || reason == null) return;
-        await _homeTimelineController(context)
-            .reportMessage(roomId, message, reason);
+        try {
+          await _homeTimelineController(context)
+              .reportMessage(roomId, message, reason);
+        } catch (_) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text('Could not send report. Try again.'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          return;
+        }
         if (!context.mounted) return;
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()

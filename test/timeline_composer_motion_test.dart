@@ -17,6 +17,13 @@ class _RecordingModerationPort implements TimelineModerationPort {
   }
 }
 
+class _FailingModerationPort implements TimelineModerationPort {
+  @override
+  Future<void> reportMessage(TimelineReportRequest request) {
+    return Future<void>.error(StateError('report failed'));
+  }
+}
+
 class _RecordingSharePort implements TimelineSharePort {
   final List<TimelineShareRequest> requests = <TimelineShareRequest>[];
 
@@ -581,6 +588,44 @@ void main() {
     expect(request.eventId, 'alice-98');
     expect(request.reason, 'Harassment or abuse');
     expect(find.text('Report sent'), findsOneWidget);
+    _expectSameRect(
+      initialLatest,
+      _rectOf(tester, anchoredLatest),
+      'latest row',
+    );
+    _expectSameRect(initialList, _rectOf(tester, messageList), 'message list');
+  });
+
+  testWidgets('report failure keeps the timeline stable and offers retry', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      moderationPort: _FailingModerationPort(),
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(const KiteApp(themeMode: ThemeMode.light));
+    await tester.pumpAndSettle();
+
+    final anchoredLatest = find.byKey(const Key('message-row-alice-99'));
+    final messageList = find.byKey(const Key('message-list'));
+    final initialLatest = _rectOf(tester, anchoredLatest);
+    final initialList = _rectOf(tester, messageList);
+
+    await tester.longPress(find.byKey(const Key('message-bubble-alice-98')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-action-report')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('report-reason-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not send report. Try again.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     _expectSameRect(
       initialLatest,
       _rectOf(tester, anchoredLatest),

@@ -154,6 +154,11 @@ void main() {
         reason: 'spam',
       );
       await boundary.unbanRoomMember('!room:kite.test', '@bob:kite.test');
+      await boundary.reportEvent(
+        '!room:kite.test',
+        r'$abusive:kite.test',
+        reason: 'spam event',
+      );
       await boundary.reportRoom('!room:kite.test', reason: 'spam room');
       await boundary.reportUser(
         '!room:kite.test',
@@ -258,6 +263,9 @@ void main() {
         ('!room:kite.test', '@bob:kite.test', 'kick', 0, null),
         ('!room:kite.test', '@bob:kite.test', 'ban', 0, 'spam'),
         ('!room:kite.test', '@bob:kite.test', 'unban', 0, null),
+      ]);
+      expect(client.eventReports, <(String, String, String?)>[
+        ('!room:kite.test', r'$abusive:kite.test', 'spam event'),
       ]);
       expect(client.roomManagement, <(String, String, String?, String?)>[
         ('!room:kite.test', 'report_room', null, 'spam room'),
@@ -1189,6 +1197,7 @@ final class _FakeRustClient
         MatrixRustRoomMemberInviterClient,
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
+        MatrixRustTimelineModerationClient,
         MatrixRustRoomSettingsClient,
         MatrixRustMediaClient,
         MatrixRustProfileClient,
@@ -1211,6 +1220,8 @@ final class _FakeRustClient
       <(String, String, String, int, String?)>[];
   final List<(String, String, String?, String?)> roomManagement =
       <(String, String, String?, String?)>[];
+  final List<(String, String, String?)> eventReports =
+      <(String, String, String?)>[];
   final List<(String, String, String?)> roomSettingCalls =
       <(String, String, String?)>[];
   final List<(String?, String, String?)> profileCalls =
@@ -1307,6 +1318,15 @@ final class _FakeRustClient
     String? reason,
   }) async {
     roomManagement.add((roomId, action, userId, reason));
+  }
+
+  @override
+  Future<void> reportContent({
+    required String roomId,
+    required String eventId,
+    String? reason,
+  }) async {
+    eventReports.add((roomId, eventId, reason));
   }
 
   @override

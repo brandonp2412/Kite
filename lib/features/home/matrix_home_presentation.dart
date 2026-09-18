@@ -47,6 +47,27 @@ typedef MatrixTextEditor = Future<void> Function({
   required String body,
 });
 
+typedef MatrixEventReporter = Future<void> Function({
+  required String roomId,
+  required String eventId,
+  required String reason,
+});
+
+final class MatrixTimelineModerationPort implements TimelineModerationPort {
+  const MatrixTimelineModerationPort(this._report);
+
+  final MatrixEventReporter _report;
+
+  @override
+  Future<void> reportMessage(TimelineReportRequest request) {
+    return _report(
+      roomId: request.roomId,
+      eventId: request.eventId,
+      reason: request.reason,
+    );
+  }
+}
+
 final class MatrixTimelineEditPort implements TimelineEditPort {
   const MatrixTimelineEditPort(this._edit);
 
@@ -115,6 +136,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     this.editPort,
     this.linkOpenPort,
     this.sharePort,
+    this.moderationPort,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
@@ -134,6 +156,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final TimelineEditPort? editPort;
   final TimelineLinkOpenPort? linkOpenPort;
   final TimelineSharePort? sharePort;
+  final TimelineModerationPort? moderationPort;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
@@ -172,12 +195,14 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
     if (!identical(oldWidget.sendPort, widget.sendPort) ||
         !identical(oldWidget.editPort, widget.editPort) ||
         !identical(oldWidget.linkOpenPort, widget.linkOpenPort) ||
-        !identical(oldWidget.sharePort, widget.sharePort)) {
+        !identical(oldWidget.sharePort, widget.sharePort) ||
+        !identical(oldWidget.moderationPort, widget.moderationPort)) {
       _binding.updateTransport(
         sendPort: widget.sendPort,
         editPort: widget.editPort,
         linkOpenPort: widget.linkOpenPort,
         sharePort: widget.sharePort,
+        moderationPort: widget.moderationPort,
       );
     }
   }
@@ -190,6 +215,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       editPort: widget.editPort,
       linkOpenPort: widget.linkOpenPort,
       sharePort: widget.sharePort,
+      moderationPort: widget.moderationPort,
       invitePort: widget.onRoomInviteResponse == null
           ? null
           : MatrixRoomInvitePort(widget.onRoomInviteResponse!),
@@ -288,6 +314,7 @@ final class MatrixHomePresentationBinding {
     TimelineEditPort? editPort,
     TimelineLinkOpenPort? linkOpenPort,
     TimelineSharePort? sharePort,
+    TimelineModerationPort? moderationPort,
     TimelineController? controller,
     Signal<String>? selectedRoom,
     RoomInvitePort? invitePort,
@@ -299,6 +326,7 @@ final class MatrixHomePresentationBinding {
              editPort: editPort,
              linkOpenPort: linkOpenPort,
              sharePort: sharePort,
+             moderationPort: moderationPort,
              fixtureProvider: (_) => const [],
            ),
        selectedRoom = selectedRoom ?? selectedRoomId,
@@ -312,6 +340,7 @@ final class MatrixHomePresentationBinding {
       editPort: editPort,
       linkOpenPort: linkOpenPort,
       sharePort: sharePort,
+      moderationPort: moderationPort,
       fixtureProvider: (_) => const [],
     );
     _projectCache();
@@ -371,12 +400,14 @@ final class MatrixHomePresentationBinding {
     TimelineEditPort? editPort,
     TimelineLinkOpenPort? linkOpenPort,
     TimelineSharePort? sharePort,
+    TimelineModerationPort? moderationPort,
   }) {
     controller.updateTransport(
       sendPort: sendPort,
       editPort: editPort,
       linkOpenPort: linkOpenPort,
       sharePort: sharePort,
+      moderationPort: moderationPort,
     );
   }
 

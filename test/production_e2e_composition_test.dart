@@ -106,6 +106,20 @@ void main() {
   });
   });
 
+  test(
+    'production report action routes exact Matrix events to the runtime',
+    () {
+      expect(
+        runtimeSource,
+        contains('moderationPort: MatrixTimelineModerationPort('),
+      );
+      expect(runtimeSource, contains('return widget.runtime.reportEvent('));
+      expect(runtimeSource, contains('eventId: eventId'));
+      expect(homeSource, contains('moderationPort: widget.moderationPort'));
+      expect(homeSource, contains('moderationPort: moderationPort'));
+    },
+  );
+
   test('Android release can reach Matrix homeservers', () {
     expect(
       androidManifestSource,

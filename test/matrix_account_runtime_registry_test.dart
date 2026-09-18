@@ -317,6 +317,12 @@ void main() {
       addTearDown(registry.dispose);
 
       await registry.activate('@alice:example.org');
+      await registry.reportEvent(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        eventId: r'$abusive:example.org',
+        reason: 'spam event',
+      );
       await registry.reportRoom(
         accountId: '@alice:example.org',
         roomId: '!alice:example.org',
@@ -337,6 +343,12 @@ void main() {
         roomId: '!alice:example.org',
       );
 
+      expect(
+        boundaries['@alice:example.org']!.eventReports,
+        <(String, String, String?)>[
+          ('!alice:example.org', r'$abusive:example.org', 'spam event'),
+        ],
+      );
       expect(
         boundaries['@alice:example.org']!.roomLifecycleActions,
         <(String, String, String?, String?)>[
@@ -1939,6 +1951,7 @@ final class _FakeAccountBoundary
         MatrixSdkDeviceManager,
         MatrixSdkRoomFavouriteManager,
         MatrixSdkRoomLifecycleManager,
+        MatrixSdkTimelineModerationManager,
         MatrixSdkRoomMemberInviter,
         MatrixSdkRoomMemberModerator {
   _FakeAccountBoundary({
@@ -1993,6 +2006,8 @@ final class _FakeAccountBoundary
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String, String?, String?)> roomLifecycleActions =
       <(String, String, String?, String?)>[];
+  final List<(String, String, String?)> eventReports =
+      <(String, String, String?)>[];
   final List<(String, String)> memberInvites = <(String, String)>[];
   final List<(String, String, String, int, String?)> memberModerations =
       <(String, String, String, int, String?)>[];
@@ -2101,6 +2116,15 @@ final class _FakeAccountBoundary
   Future<String> openDirectMessage(String userId) async {
     final localpart = userId.substring(1, userId.indexOf(':'));
     return '!dm-$localpart:example.org';
+  }
+
+  @override
+  Future<void> reportEvent(
+    String roomId,
+    String eventId, {
+    String? reason,
+  }) async {
+    eventReports.add((roomId, eventId, reason));
   }
 
   @override

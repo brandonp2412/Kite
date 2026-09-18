@@ -261,6 +261,10 @@ abstract interface class MatrixSdkRoomLifecycleManager {
   Future<void> forgetRoom(String roomId);
 }
 
+abstract interface class MatrixSdkTimelineModerationManager {
+  Future<void> reportEvent(String roomId, String eventId, {String? reason});
+}
+
 abstract interface class MatrixSdkRoomMemberDirectory {
   Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
 }
@@ -1012,6 +1016,25 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await (manager as MatrixSdkRoomLifecycleManager).reportUser(
       roomId,
       userId,
+      reason: reason,
+    );
+  }
+
+  Future<void> reportEvent(
+    String roomId,
+    String eventId, {
+    String? reason,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkTimelineModerationManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support event reporting',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkTimelineModerationManager).reportEvent(
+      roomId,
+      eventId,
       reason: reason,
     );
   }
