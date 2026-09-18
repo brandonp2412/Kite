@@ -244,6 +244,7 @@ void main() {
     expect(message, isNotNull);
     expect(message!.body, 'Hello rich');
     expect(message.formattedBody, '<p>Hello <strong>rich</strong></p>');
+    expect(message.sentAt, DateTime.utc(2026, 9, 16, 10, 1).toLocal());
   });
 
   test('Matrix room projection uses replacement content for edit previews', () {

@@ -2402,6 +2402,9 @@ class _TimelineState extends State<_Timeline> {
                       return _buildMessageRow(
                         roomId: roomId,
                         message: messages[sourceIndex],
+                        previousMessage: sourceIndex > 0
+                            ? messages[sourceIndex - 1]
+                            : null,
                         semanticsOrder: sourceIndex.toDouble(),
                         unreadMarkerEventId: unreadMarkerEventId,
                       );
@@ -2421,6 +2424,9 @@ class _TimelineState extends State<_Timeline> {
                       return _buildMessageRow(
                         roomId: roomId,
                         message: messages[sourceIndex],
+                        previousMessage: sourceIndex > 0
+                            ? messages[sourceIndex - 1]
+                            : null,
                         semanticsOrder: sourceIndex.toDouble(),
                         unreadMarkerEventId: unreadMarkerEventId,
                       );
@@ -2516,24 +2522,92 @@ class _TimelineState extends State<_Timeline> {
   Widget _buildMessageRow({
     required String roomId,
     required TimelineMessage message,
+    required TimelineMessage? previousMessage,
     required double semanticsOrder,
     required String? unreadMarkerEventId,
   }) {
     final messageKey = ValueKey<String>(message.id);
     final isUnreadMarker = message.id == unreadMarkerEventId;
+    final showDateSeparator = _startsNewTimelineDay(previousMessage, message);
     final row = _MessageRow(
-      key: isUnreadMarker ? null : messageKey,
+      key: isUnreadMarker || showDateSeparator ? null : messageKey,
       roomId: roomId,
       message: message,
       semanticsOrder: semanticsOrder,
       onReply: widget.onReply,
       onEdit: widget.onEdit,
     );
-    if (!isUnreadMarker) return row;
-    return _UnreadMarkerOverlay(
+    final messageRow = isUnreadMarker
+        ? _UnreadMarkerOverlay(
+            key: showDateSeparator ? null : messageKey,
+            markerKey: _unreadMarkerKey,
+            child: row,
+          )
+        : row;
+    if (!showDateSeparator) return messageRow;
+    return KeyedSubtree(
       key: messageKey,
-      markerKey: _unreadMarkerKey,
-      child: row,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _TimelineDateSeparator(eventId: message.id, date: message.sentAt!),
+          messageRow,
+        ],
+      ),
+    );
+  }
+}
+
+bool _startsNewTimelineDay(
+  TimelineMessage? previousMessage,
+  TimelineMessage message,
+) {
+  final current = message.sentAt;
+  if (current == null) return false;
+  if (previousMessage == null) return true;
+  final previous = previousMessage.sentAt;
+  if (previous == null) return false;
+  return previous.year != current.year ||
+      previous.month != current.month ||
+      previous.day != current.day;
+}
+
+class _TimelineDateSeparator extends StatelessWidget {
+  const _TimelineDateSeparator({required this.eventId, required this.date});
+
+  final String eventId;
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final label = MaterialLocalizations.of(context).formatMediumDate(date);
+    return Semantics(
+      header: true,
+      label: label,
+      child: Padding(
+        key: Key('date-separator-$eventId'),
+        padding: const EdgeInsets.symmetric(
+          horizontal: KiteSpacing.md,
+          vertical: KiteSpacing.xs,
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(child: Divider(color: colors.outlineVariant)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.sm),
+              child: Text(
+                label,
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: colors.outlineVariant)),
+          ],
+        ),
+      ),
     );
   }
 }

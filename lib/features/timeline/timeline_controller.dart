@@ -509,6 +509,7 @@ class TimelineMessage {
     this.senderId,
     this.senderAvatarUrl,
     required this.timeLabel,
+    this.sentAt,
     this.replyToMessageId,
     this.replyToSender,
     this.replyToBody,
@@ -579,6 +580,7 @@ class TimelineMessage {
       mine: event.senderId == currentUserId,
       senderId: event.senderId,
       senderAvatarUrl: event.senderAvatarUrl,
+      sentAt: localTime,
       timeLabel:
           '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
       replyToMessageId: replyToMessageId,
@@ -596,6 +598,7 @@ class TimelineMessage {
   final String? senderId;
   final String? senderAvatarUrl;
   final String timeLabel;
+  final DateTime? sentAt;
   final String? replyToMessageId;
   final String? replyToSender;
   final String? replyToBody;
@@ -870,6 +873,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       body: body,
       mine: true,
       timeLabel: 'now',
+      sentAt: DateTime.now(),
       replyToMessageId: replyTo?.id,
       replyToSender: replyTo?.sender,
       replyToBody: replyTo?.body,
@@ -899,6 +903,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       body: body,
       mine: true,
       timeLabel: 'now',
+      sentAt: DateTime.now(),
       replyToMessageId: replyTo?.id,
       replyToSender: replyTo?.sender,
       replyToBody: replyTo?.body,
@@ -932,6 +937,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       body: '',
       mine: true,
       timeLabel: 'now',
+      sentAt: DateTime.now(),
       location: location,
       sendState: TimelineSendState.sending,
     );
@@ -994,6 +1000,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       body: '',
       mine: true,
       timeLabel: 'now',
+      sentAt: DateTime.now(),
       poll: poll,
       sendState: TimelineSendState.sending,
     );
