@@ -139,6 +139,27 @@ void main() {
     },
   );
 
+  test('Matrix timeline projection preserves custom HTML formatted bodies', () {
+    final message = TimelineMessage.fromMatrixEvent(
+      _event(
+        eventId: r'$formatted',
+        streamPosition: 1,
+        senderId: '@alice:example.org',
+        msgtype: 'm.text',
+        body: 'Hello rich',
+        extra: const <String, Object?>{
+          'format': 'org.matrix.custom.html',
+          'formatted_body': '<p>Hello <strong>rich</strong></p>',
+        },
+      ),
+      currentUserId: '@me:example.org',
+    );
+
+    expect(message, isNotNull);
+    expect(message!.body, 'Hello rich');
+    expect(message.formattedBody, '<p>Hello <strong>rich</strong></p>');
+  });
+
   test('Matrix room projection uses replacement content for edit previews', () {
     final cache = MatrixPresentationCache();
     cache.applySync(
@@ -392,6 +413,8 @@ void main() {
             'm.new_content': <String, Object?>{
               'msgtype': 'm.text',
               'body': 'Edited message',
+              'format': 'org.matrix.custom.html',
+              'formatted_body': '<p>Edited <strong>message</strong></p>',
             },
             'm.relates_to': <String, Object?>{
               'rel_type': 'm.replace',
@@ -409,6 +432,10 @@ void main() {
       final first = controller.messagesFor('!alpha:example.org').value.single;
       expect(first.id, r'$original');
       expect(first.body, 'Edited message');
+      expect(
+        first.formattedBody,
+        '<p>Edited <strong>message</strong></p>',
+      );
       expect(first.edited, isTrue);
       expect(first.editHistory, <String>['Original message']);
 

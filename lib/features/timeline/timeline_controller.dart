@@ -505,6 +505,7 @@ class TimelineMessage {
     required this.sender,
     required String body,
     required this.mine,
+    String? formattedBody,
     this.senderId,
     this.senderAvatarUrl,
     required this.timeLabel,
@@ -522,6 +523,7 @@ class TimelineMessage {
     Map<String, TimelineReactionSummary> reactions = const {},
     List<String> readBy = const <String>[],
   }) : bodyText = signal(body),
+       formattedBodyText = signal(formattedBody),
        editedState = signal(edited),
        redactedState = signal(redacted),
        editHistoryState = signal<List<String>>(
@@ -568,10 +570,12 @@ class TimelineMessage {
     final localTime = event.originServerTimestamp.toLocal();
     final mediaBody = attachment == null ? body : _matrixMediaCaption(content);
     final replyToMessageId = _matrixReplyToEventId(content);
+    final formattedBody = _matrixFormattedBody(content);
     return TimelineMessage(
       id: event.eventId,
       sender: event.senderDisplayName ?? event.senderId,
       body: mediaBody,
+      formattedBody: attachment == null ? formattedBody : null,
       mine: event.senderId == currentUserId,
       senderId: event.senderId,
       senderAvatarUrl: event.senderAvatarUrl,
@@ -587,6 +591,7 @@ class TimelineMessage {
   final String id;
   final String sender;
   final Signal<String> bodyText;
+  final Signal<String?> formattedBodyText;
   final bool mine;
   final String? senderId;
   final String? senderAvatarUrl;
@@ -607,6 +612,7 @@ class TimelineMessage {
   final Signal<TimelineSendState> sendState;
 
   String get body => bodyText.value;
+  String? get formattedBody => formattedBodyText.value;
   bool get edited => editedState.value;
   bool get redacted => redactedState.value;
   List<String> get editHistory => editHistoryState.value;
@@ -785,7 +791,12 @@ class TimelineController implements TimelineLocationShareDelegate {
               .putIfAbsent(replacement.eventId, () => <MatrixTimelineEvent>[])
               .add(event);
         } else {
-          _applyMatrixReplacement(replacementTarget, event, replacement.body);
+          _applyMatrixReplacement(
+            replacementTarget,
+            event,
+            replacement.body,
+            replacement.formattedBody,
+          );
         }
         continue;
       }
@@ -805,7 +816,12 @@ class TimelineController implements TimelineLocationShareDelegate {
         for (final replacementEvent in deferredReplacements) {
           final deferred = _matrixReplacement(replacementEvent.content);
           if (deferred != null) {
-            _applyMatrixReplacement(mapped, replacementEvent, deferred.body);
+            _applyMatrixReplacement(
+              mapped,
+              replacementEvent,
+              deferred.body,
+              deferred.formattedBody,
+            );
           }
         }
       }
@@ -1326,7 +1342,7 @@ String _secureTransactionNamespace() {
   return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
 }
 
-({String eventId, String body})? _matrixReplacement(
+({String eventId, String body, String? formattedBody})? _matrixReplacement(
   Map<String, Object?> content,
 ) {
   final relatesTo = content['m.relates_to'];
@@ -1343,19 +1359,33 @@ String _secureTransactionNamespace() {
       (msgtype != 'm.text' && msgtype != 'm.notice' && msgtype != 'm.emote')) {
     return null;
   }
-  return (eventId: normalizedEventId, body: normalizedBody);
+  return (
+    eventId: normalizedEventId,
+    body: normalizedBody,
+    formattedBody: _matrixFormattedBody(Map<String, Object?>.from(newContent)),
+  );
+}
+
+String? _matrixFormattedBody(Map<String, Object?> content) {
+  if (content['format'] != 'org.matrix.custom.html') return null;
+  final formattedBody = content['formatted_body'];
+  if (formattedBody is! String) return null;
+  final normalized = formattedBody.trim();
+  return normalized.isEmpty ? null : normalized;
 }
 
 void _applyMatrixReplacement(
   TimelineMessage target,
   MatrixTimelineEvent replacementEvent,
   String body,
+  String? formattedBody,
 ) {
   if (target.redacted ||
       target.attachment != null ||
       target.senderId == null ||
       target.senderId != replacementEvent.senderId ||
-      target.body == body) {
+      (target.body == body &&
+          target.formattedBodyText.peek() == formattedBody)) {
     return;
   }
   batch(() {
@@ -1364,6 +1394,7 @@ void _applyMatrixReplacement(
       target.body,
     ]);
     target.bodyText.value = body;
+    target.formattedBodyText.value = formattedBody;
     target.editedState.value = true;
   });
 }
@@ -1512,6 +1543,10 @@ void _applyMatrixProjectionLeaves(
   batch(() {
     if (target.bodyText.peek() != projection.bodyText.peek()) {
       target.bodyText.value = projection.bodyText.peek();
+    }
+    if (target.formattedBodyText.peek() !=
+        projection.formattedBodyText.peek()) {
+      target.formattedBodyText.value = projection.formattedBodyText.peek();
     }
     if (target.editedState.peek() != projection.editedState.peek()) {
       target.editedState.value = projection.editedState.peek();

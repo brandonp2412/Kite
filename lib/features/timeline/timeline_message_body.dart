@@ -16,6 +16,135 @@ class TimelineBodyBlock {
   final String? language;
 }
 
+abstract final class TimelineFormattedBodySanitizer {
+  static final RegExp _prePattern = RegExp(
+    r'<pre\b[^>]*>\s*<code\b([^>]*)>([\s\S]*?)</code>\s*</pre>',
+    caseSensitive: false,
+  );
+  static final RegExp _blockquotePattern = RegExp(
+    r'<blockquote\b[^>]*>([\s\S]*?)</blockquote>',
+    caseSensitive: false,
+  );
+  static final RegExp _discardedContentPattern = RegExp(
+    r'<(?:script|style|mx-reply)\b[^>]*>[\s\S]*?</(?:script|style|mx-reply)>',
+    caseSensitive: false,
+  );
+
+  static String? toMarkdown(String? formattedBody) {
+    if (formattedBody == null || formattedBody.trim().isEmpty) return null;
+
+    final codeBlocks = <String>[];
+    var value = formattedBody.replaceAll(_discardedContentPattern, '');
+    value = value.replaceAllMapped(_prePattern, (match) {
+      final attributes = match.group(1) ?? '';
+      final rawCode = match.group(2) ?? '';
+      final languageMatch = RegExp(
+        r'''class\s*=\s*["'][^"']*language-([A-Za-z0-9_+.-]+)[^"']*["']''',
+        caseSensitive: false,
+      ).firstMatch(attributes);
+      final language = languageMatch?.group(1) ?? '';
+      final code = _decodeEntities(_stripTags(rawCode)).trimRight();
+      final placeholder = 'KITE_FORMATTED_CODE_${codeBlocks.length}_BLOCK';
+      codeBlocks.add('```$language\n$code\n```');
+      return placeholder;
+    });
+
+    value = value.replaceAllMapped(_blockquotePattern, (match) {
+      final quote = _convertFragment(match.group(1) ?? '').trim();
+      if (quote.isEmpty) return '';
+      return quote
+          .split('\n')
+          .map((line) => line.isEmpty ? '>' : '> $line')
+          .join('\n');
+    });
+
+    value = _convertFragment(value);
+    for (var index = 0; index < codeBlocks.length; index++) {
+      value = value.replaceAll(
+        'KITE_FORMATTED_CODE_${index}_BLOCK',
+        codeBlocks[index],
+      );
+    }
+
+    final normalized = value
+        .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  static String _convertFragment(String html) {
+    var value = html;
+    value = value.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+    value = value.replaceAll(
+      RegExp(r'<li\b[^>]*>', caseSensitive: false),
+      '- ',
+    );
+    value = value.replaceAll(RegExp(r'</li\s*>', caseSensitive: false), '\n');
+    value = value.replaceAll(
+      RegExp(r'</(?:p|div|ul|ol|h[1-6])\s*>', caseSensitive: false),
+      '\n\n',
+    );
+    value = value.replaceAll(
+      RegExp(r'<(?:p|div|ul|ol|h[1-6])\b[^>]*>', caseSensitive: false),
+      '',
+    );
+    value = _wrapTag(value, const <String>['strong', 'b'], '**');
+    value = _wrapTag(value, const <String>['em', 'i'], '*');
+    value = _wrapTag(value, const <String>['del', 's', 'strike'], '~~');
+    value = _wrapTag(value, const <String>['code'], '`');
+    value = value.replaceAll(RegExp(r'</?a\b[^>]*>', caseSensitive: false), '');
+    value = _stripTags(value);
+    return _decodeEntities(value);
+  }
+
+  static String _wrapTag(String input, List<String> tags, String marker) {
+    var value = input;
+    for (final tag in tags) {
+      value = value.replaceAll(
+        RegExp('<$tag\\b[^>]*>', caseSensitive: false),
+        marker,
+      );
+      value = value.replaceAll(
+        RegExp('</$tag\\s*>', caseSensitive: false),
+        marker,
+      );
+    }
+    return value;
+  }
+
+  static String _stripTags(String input) {
+    return input.replaceAll(RegExp(r'<[^>]*>'), '');
+  }
+
+  static String _decodeEntities(String input) {
+    var value = input
+        .replaceAll('&nbsp;', '\u00a0')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&amp;', '&');
+
+    value = value.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+      final codePoint = int.tryParse(match.group(1) ?? '');
+      if (codePoint == null || codePoint < 0 || codePoint > 0x10ffff) {
+        return match.group(0) ?? '';
+      }
+      return String.fromCharCode(codePoint);
+    });
+    value = value.replaceAllMapped(RegExp(r'&#x([0-9A-Fa-f]+);'), (match) {
+      final codePoint = int.tryParse(match.group(1) ?? '', radix: 16);
+      if (codePoint == null || codePoint < 0 || codePoint > 0x10ffff) {
+        return match.group(0) ?? '';
+      }
+      return String.fromCharCode(codePoint);
+    });
+    return value;
+  }
+}
+
 abstract final class TimelineBodyParser {
   static List<TimelineBodyBlock> parse(String body) {
     final lines = body.replaceAll('\r\n', '\n').split('\n');
@@ -93,14 +222,22 @@ abstract final class TimelineBodyParser {
 }
 
 class TimelineMessageBody extends StatelessWidget {
-  const TimelineMessageBody({super.key, required this.body, this.textKey});
+  const TimelineMessageBody({
+    super.key,
+    required this.body,
+    this.formattedBody,
+    this.textKey,
+  });
 
   final String body;
+  final String? formattedBody;
   final Key? textKey;
 
   @override
   Widget build(BuildContext context) {
-    final blocks = TimelineBodyParser.parse(body);
+    final renderedBody =
+        TimelineFormattedBodySanitizer.toMarkdown(formattedBody) ?? body;
+    final blocks = TimelineBodyParser.parse(renderedBody);
     if (blocks.isEmpty) return const SizedBox.shrink();
 
     return Column(

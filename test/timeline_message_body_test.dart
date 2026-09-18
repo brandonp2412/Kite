@@ -143,4 +143,52 @@ void main() {
       expect(richText.textDirection, TextDirection.rtl);
     },
   );
+
+  test('Matrix formatted body sanitizer keeps supported formatting only', () {
+    final rendered = TimelineFormattedBodySanitizer.toMarkdown(
+      '<mx-reply><blockquote>Old reply</blockquote></mx-reply>'
+      '<p>Hello <strong>bold</strong> &amp; <em>italic</em>.</p>'
+      '<blockquote>Keep<br>shape</blockquote>'
+      '<pre><code class="language-dart">final x = &lt;int&gt;[];</code></pre>'
+      '<script>ignored()</script>',
+    );
+
+    expect(rendered, isNotNull);
+    expect(rendered, contains('Hello **bold** & *italic*.'));
+    expect(rendered, contains('> Keep\n> shape'));
+    expect(rendered, contains('```dart\nfinal x = <int>[];\n```'));
+    expect(rendered, isNot(contains('Old reply')));
+    expect(rendered, isNot(contains('ignored()')));
+    expect(rendered, isNot(contains('<strong>')));
+  });
+
+  testWidgets('formatted Matrix body overrides its plain fallback safely', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: const Scaffold(
+          body: TimelineMessageBody(
+            body: 'Plain fallback',
+            formattedBody: '<p>Rendered <strong>rich</strong> text</p>',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('Plain fallback'), findsNothing);
+    final richText = tester.widget<RichText>(
+      find.descendant(
+        of: find.byKey(const Key('timeline-body-paragraph')),
+        matching: find.byType(RichText),
+      ),
+    );
+    final spans = _textSpans(richText.text).toList(growable: false);
+    expect(
+      spans.singleWhere((span) => span.text == 'rich').style?.fontWeight,
+      FontWeight.w700,
+    );
+    expect(richText.text.toPlainText(), 'Rendered rich text');
+  });
 }

@@ -2721,6 +2721,7 @@ class _MessageRow extends StatelessWidget {
                           if (message.body.isNotEmpty)
                             TimelineMessageBody(
                               body: message.body,
+                              formattedBody: message.formattedBody,
                               textKey: Key('message-body-${message.id}'),
                             ),
                           if (linkPreview != null) ...<Widget>[
