@@ -2558,6 +2558,16 @@ class _TimelineState extends State<_Timeline> {
   }
 }
 
+String _timelineTimestampLabel(BuildContext context, TimelineMessage message) {
+  if (message.id.startsWith('kite-local-')) return message.timeLabel;
+  final sentAt = message.sentAt;
+  if (sentAt == null) return message.timeLabel;
+  return MaterialLocalizations.of(context).formatTimeOfDay(
+    TimeOfDay.fromDateTime(sentAt),
+    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+  );
+}
+
 bool _startsNewTimelineDay(
   TimelineMessage? previousMessage,
   TimelineMessage message,
@@ -3323,7 +3333,8 @@ class _MessageRow extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       Text(
-                        message.timeLabel,
+                        _timelineTimestampLabel(context, message),
+                        key: Key('message-time-${message.id}'),
                         style: KiteTypography.metadata.copyWith(
                           color: colors.onSurfaceVariant,
                           fontSize: 11,
