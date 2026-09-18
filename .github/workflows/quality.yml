@@ -124,11 +124,12 @@ jobs:
 
       - name: Build signed ARM64 APK
         run: |
+          build_number="$((2100 + GITHUB_RUN_NUMBER))"
           flutter build apk \
             --release \
             --split-per-abi \
             --target-platform android-arm64 \
-            --build-number "$GITHUB_RUN_NUMBER"
+            --build-number "$build_number"
           tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
           mkdir -p build/release
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/release/kite-arm64-v8a.apk
@@ -164,5 +165,5 @@ jobs:
             build/release/kite-arm64-v8a.apk \
             --target "$GITHUB_SHA" \
             --title 'Kite Android (latest)' \
-            --notes "ARM64 Android build signed with the F-Droid signing key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}." \
+            --notes "ARM64 Android build signed with the F-Droid signing key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}, Flutter build number $((2100 + GITHUB_RUN_NUMBER))." \
             --latest
