@@ -12,6 +12,7 @@ import 'package:kite/features/rooms/matrix_room_member_management_adapter.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
+import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 import 'package:kite/matrix/matrix_production_device_api.dart';
@@ -223,6 +224,26 @@ final class _AuthenticatedMatrixHomeState
         contentUri: contentUri.toString(),
         width: 384,
         height: 384,
+      ),
+    );
+  }
+
+  ImageProvider<Object>? _timelineMediaImageProvider(
+    TimelineAttachment attachment,
+  ) {
+    final contentUri = attachment.contentUri;
+    if (contentUri == null) return null;
+    final uri = Uri.tryParse(contentUri);
+    if (uri == null || uri.scheme != 'mxc') return null;
+    return MatrixAvatarImageProvider(
+      avatarUri: uri,
+      cacheNamespace: widget.runtime,
+      loadBytes: (_) => widget.runtime.downloadMedia(
+        accountId: widget.session.userId,
+        contentUri: contentUri,
+        encryptedFile: attachment.encryptedFile,
+        width: 1280,
+        height: 1280,
       ),
     );
   }
@@ -444,6 +465,7 @@ final class _AuthenticatedMatrixHomeState
                 ),
             profileAvatarPicker: _pickProfileAvatar,
             profileAvatarImageProvider: _profileAvatarImageProvider,
+            timelineMediaImageProvider: _timelineMediaImageProvider,
             roomCreation: _roomCreationCoordinator(),
             memberManagement: _roomMemberManagementCoordinator(),
             onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {

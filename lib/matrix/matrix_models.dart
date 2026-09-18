@@ -6,6 +6,7 @@ final class MatrixTimelineEvent {
     required this.roomId,
     required this.senderId,
     this.senderDisplayName,
+    this.senderAvatarUrl,
     required this.type,
     required this.originServerTimestamp,
     required this.streamPosition,
@@ -17,6 +18,7 @@ final class MatrixTimelineEvent {
   final String roomId;
   final String senderId;
   final String? senderDisplayName;
+  final String? senderAvatarUrl;
   final String type;
   final DateTime originServerTimestamp;
   final int streamPosition;
@@ -67,6 +69,7 @@ final class MatrixRoomSummary {
     required this.lastActivity,
     required this.streamPosition,
     this.lastEventId,
+    this.avatarUrl,
     this.unreadCount = 0,
     this.highlightCount = 0,
     this.hasActiveCall = false,
@@ -80,6 +83,7 @@ final class MatrixRoomSummary {
   final DateTime lastActivity;
   final int streamPosition;
   final String? lastEventId;
+  final String? avatarUrl;
   final int unreadCount;
   final int highlightCount;
   final bool hasActiveCall;

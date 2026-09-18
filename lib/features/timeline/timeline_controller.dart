@@ -300,6 +300,8 @@ final class TimelineAttachment {
     required this.name,
     required this.sizeLabel,
     this.durationLabel,
+    this.contentUri,
+    this.encryptedFile,
   });
 
   final String id;
@@ -307,6 +309,8 @@ final class TimelineAttachment {
   final String name;
   final String sizeLabel;
   final String? durationLabel;
+  final String? contentUri;
+  final Map<String, Object?>? encryptedFile;
 }
 
 abstract interface class TimelineAttachmentSendPort {
@@ -405,9 +409,8 @@ final class DeterministicTimelineSharePort implements TimelineSharePort {
   }
 }
 
-typedef TimelineFixtureProvider = List<BenchmarkMessage> Function(
-  String roomId,
-);
+typedef TimelineFixtureProvider =
+    List<BenchmarkMessage> Function(String roomId);
 
 abstract interface class TimelineSendPort {
   Future<TimelineSendOutcome> sendText({
@@ -503,6 +506,7 @@ class TimelineMessage {
     required String body,
     required this.mine,
     this.senderId,
+    this.senderAvatarUrl,
     required this.timeLabel,
     this.replyToMessageId,
     this.replyToSender,
@@ -570,6 +574,7 @@ class TimelineMessage {
       body: mediaBody,
       mine: event.senderId == currentUserId,
       senderId: event.senderId,
+      senderAvatarUrl: event.senderAvatarUrl,
       timeLabel:
           '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
       replyToMessageId: replyToMessageId,
@@ -584,6 +589,7 @@ class TimelineMessage {
   final Signal<String> bodyText;
   final bool mine;
   final String? senderId;
+  final String? senderAvatarUrl;
   final String timeLabel;
   final String? replyToMessageId;
   final String? replyToSender;
@@ -706,9 +712,9 @@ class TimelineController implements TimelineLocationShareDelegate {
     String eventId,
     TimelineLocation location,
   ) {
-    final matches = messagesFor(roomId)
-        .peek()
-        .where((candidate) => candidate.id == eventId);
+    final matches = messagesFor(
+      roomId,
+    ).peek().where((candidate) => candidate.id == eventId);
     if (matches.isEmpty) return;
     final target = matches.single;
     final current = target.locationState.peek();
@@ -721,9 +727,9 @@ class TimelineController implements TimelineLocationShareDelegate {
     String eventId,
     Iterable<String> readers,
   ) {
-    final message = messagesFor(roomId)
-        .peek()
-        .where((candidate) => candidate.id == eventId);
+    final message = messagesFor(
+      roomId,
+    ).peek().where((candidate) => candidate.id == eventId);
     if (message.isEmpty) return;
     final target = message.single;
     if (!target.mine || target.redacted) return;
@@ -985,9 +991,9 @@ class TimelineController implements TimelineLocationShareDelegate {
   }
 
   void updatePoll(String roomId, String eventId, TimelinePoll poll) {
-    final matches = messagesFor(roomId)
-        .peek()
-        .where((candidate) => candidate.id == eventId);
+    final matches = messagesFor(
+      roomId,
+    ).peek().where((candidate) => candidate.id == eventId);
     if (matches.isEmpty) return;
     final message = matches.single;
     if (message.pollState.peek() == null) return;
@@ -1411,18 +1417,26 @@ TimelineAttachment? _matrixAttachment(
       : null;
   final url = event.content['url'];
   final file = event.content['file'];
-  final encryptedUrl = file is Map ? file['url'] : null;
-  final attachmentId = switch ((url, encryptedUrl)) {
-    (final String value, _) when value.isNotEmpty => value,
-    (_, final String value) when value.isNotEmpty => value,
-    _ => event.eventId,
+  final encryptedFile = file is Map
+      ? Map<String, Object?>.unmodifiable(<String, Object?>{
+          for (final entry in file.entries)
+            if (entry.key is String) entry.key as String: entry.value,
+        })
+      : null;
+  final encryptedUrl = encryptedFile?['url'];
+  final contentUri = switch ((url, encryptedUrl)) {
+    (final String value, _) when value.startsWith('mxc://') => value,
+    (_, final String value) when value.startsWith('mxc://') => value,
+    _ => null,
   };
   return TimelineAttachment(
-    id: attachmentId,
+    id: contentUri ?? event.eventId,
     kind: kind,
     name: name,
     sizeLabel: sizeLabel,
     durationLabel: durationLabel,
+    contentUri: contentUri,
+    encryptedFile: encryptedFile,
   );
 }
 

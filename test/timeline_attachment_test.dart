@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
+import 'package:kite/testing/deterministic_adapters.dart';
 
 class _RecordingTimelineMediaActionPort implements TimelineMediaActionPort {
   final List<({String action, String roomId, String eventId})> calls =
@@ -32,6 +33,37 @@ void main() {
       attachmentSendPort: const DeterministicTimelineAttachmentSendPort(),
     );
     selectRoom('kite');
+  });
+
+  testWidgets('timeline media visual renders downloaded image bytes', (
+    tester,
+  ) async {
+    final provider = MemoryImage(DeterministicImageFixtures.transparentPng1x1);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 250,
+            height: 132,
+            child: TimelineMediaVisual(
+              attachment: const TimelineAttachment(
+                id: 'mxc://example.org/image',
+                kind: TimelineAttachmentKind.image,
+                name: 'image.png',
+                sizeLabel: 'Image',
+                contentUri: 'mxc://example.org/image',
+              ),
+              imageProvider: provider,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.image, same(provider));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('composer previews, captions, and sends deterministic media', (

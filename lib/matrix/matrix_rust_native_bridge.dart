@@ -1675,6 +1675,7 @@ abstract interface class MatrixRustMediaClient {
 
   Future<Uint8List> downloadMedia({
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   });
@@ -2314,6 +2315,7 @@ final class MatrixRustNativeClient
   @override
   Future<Uint8List> downloadMedia({
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   }) {
@@ -2338,12 +2340,15 @@ final class MatrixRustNativeClient
         ArgumentError.value(height, 'height', 'must be between 1 and 4096'),
       );
     }
+    final mediaSource = encryptedFile == null
+        ? normalizedContentUri
+        : jsonEncode(<String, Object?>{'file': encryptedFile});
     return _enqueue<Uint8List>(() async {
       return Isolate.run<Uint8List>(
         _MatrixNativeDownloadMediaOperation(
           libraryPath: libraryPath,
           address: _requireAddress(),
-          contentUri: normalizedContentUri,
+          contentUri: mediaSource,
           width: width,
           height: height,
         ).call,
@@ -3126,6 +3131,7 @@ final class MatrixRustSdkBoundary
   @override
   Future<Uint8List> downloadMedia({
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   }) {
@@ -3138,6 +3144,7 @@ final class MatrixRustSdkBoundary
       }
       final bytes = await (client as MatrixRustMediaClient).downloadMedia(
         contentUri: contentUri,
+        encryptedFile: encryptedFile,
         width: width,
         height: height,
       );

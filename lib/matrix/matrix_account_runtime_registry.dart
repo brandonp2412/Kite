@@ -151,6 +151,7 @@ final class MatrixAccountRuntimeRegistry {
   Future<Uint8List> downloadMedia({
     required String accountId,
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   }) {
@@ -160,6 +161,7 @@ final class MatrixAccountRuntimeRegistry {
     );
     return active.engine.downloadMedia(
       contentUri: contentUri,
+      encryptedFile: encryptedFile,
       width: width,
       height: height,
     );

@@ -5,6 +5,7 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_list_view.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
@@ -475,7 +476,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('room-threads-action')));
+      expect(find.byKey(const Key('room-threads-action')), findsNothing);
+      Navigator.of(tester.element(find.byKey(const Key('chat-panel'))))
+          .push(ThreadListRoute(roomId: 'alice', reduceMotion: false));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);
@@ -514,9 +517,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byKey(const Key('compact-room-threads-action')),
-        findsOneWidget,
+        findsNothing,
       );
-      await tester.tap(find.byKey(const Key('compact-room-threads-action')));
+      Navigator.of(tester.element(find.byKey(const Key('chat-panel'))))
+          .push(ThreadListRoute(roomId: 'alice', reduceMotion: false));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('thread-list-panel')), findsOneWidget);

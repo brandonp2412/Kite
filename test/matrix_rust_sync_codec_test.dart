@@ -23,6 +23,7 @@ void main() {
           {
             "roomId": "!alpha:kite.test",
             "displayName": "Alpha",
+            "avatarUrl": "mxc://kite.test/alpha-avatar",
             "unreadCount": 3,
             "highlightCount": 2,
             "hasActiveCall": true,
@@ -43,6 +44,7 @@ void main() {
                 "event_id": "$event2",
                 "sender": "@bob:kite.test",
                 "sender_display_name": "Bob",
+                "sender_avatar_url": "mxc://kite.test/bob-avatar",
                 "type": "m.room.message",
                 "origin_server_ts": 2000,
                 "unsigned": {"transaction_id": "kite-local-7"},
@@ -66,6 +68,7 @@ void main() {
 
     final alpha = decoded.batch.rooms.first;
     expect(alpha.summary!.displayName, 'Alpha');
+    expect(alpha.summary!.avatarUrl, 'mxc://kite.test/alpha-avatar');
     expect(alpha.summary!.unreadCount, 3);
     expect(alpha.summary!.highlightCount, 2);
     expect(alpha.summary!.hasActiveCall, isTrue);
@@ -81,6 +84,10 @@ void main() {
     ]);
     expect(alpha.timelineEvents.last.content['body'], 'two');
     expect(alpha.timelineEvents.last.senderDisplayName, 'Bob');
+    expect(
+      alpha.timelineEvents.last.senderAvatarUrl,
+      'mxc://kite.test/bob-avatar',
+    );
     expect(alpha.timelineEvents.last.transactionId, 'kite-local-7');
 
     final empty = decoded.batch.rooms.last;

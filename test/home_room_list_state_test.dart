@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/auth/authenticated_account_scope.dart';
@@ -9,6 +10,7 @@ import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/testing/deterministic_adapters.dart';
 import 'package:kite/testing/deterministic_room_management_adapter.dart';
 
 final class _HomeRecoveryGateway implements EncryptionRecoveryGateway {
@@ -289,6 +291,47 @@ void main() {
     expect(find.byKey(const Key('room-unread-room-3')), findsOne);
     expect(find.byKey(const Key('room-favourite-room-3')), findsOne);
     expect(find.text('4'), findsOne);
+  });
+
+  testWidgets('room rows stay neutral and render Matrix avatars', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(() => selectRoom('kite'));
+
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: 'alice',
+        name: 'Alice',
+        latestEventBody: 'Hello',
+        avatarUrl: 'mxc://example.org/alice-avatar',
+      ),
+    ]);
+    selectRoom('alice');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(
+          roomListStore: store,
+          profileAvatarImageProvider: (_) =>
+              MemoryImage(DeterministicImageFixtures.transparentPng1x1),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tile = tester.widget<ListTile>(find.byKey(const Key('room-alice')));
+    expect(tile.selected, isFalse);
+    final avatar = tester.widget<CircleAvatar>(
+      find.descendant(
+        of: find.byKey(const Key('room-alice')),
+        matching: find.byType(CircleAvatar),
+      ),
+    );
+    expect(avatar.backgroundImage, isA<MemoryImage>());
   });
 
   testWidgets('room options move chats without replacing room state', (

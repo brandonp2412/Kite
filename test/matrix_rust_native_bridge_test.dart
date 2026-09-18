@@ -1346,6 +1346,7 @@ final class _FakeRustClient
   @override
   Future<Uint8List> downloadMedia({
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   }) async {

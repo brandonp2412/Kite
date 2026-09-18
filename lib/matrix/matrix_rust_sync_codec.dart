@@ -52,6 +52,7 @@ final class MatrixRustSyncCodec {
             lastEventId:
                 _optionalIdentifier(room['latestEventId'], 'latestEventId') ??
                 lastEvent?.eventId,
+            avatarUrl: _optionalString(room['avatarUrl']),
             unreadCount: _optionalNonNegativeInt(room['unreadCount']) ?? 0,
             highlightCount:
                 _optionalNonNegativeInt(room['highlightCount']) ?? 0,
@@ -181,6 +182,7 @@ final class MatrixRustSyncCodec {
       roomId: roomId,
       senderId: _requiredIdentifier(event, 'sender'),
       senderDisplayName: _optionalDisplayName(event['sender_display_name']),
+      senderAvatarUrl: _optionalString(event['sender_avatar_url']),
       type: _requiredIdentifier(event, 'type'),
       originServerTimestamp: _dateTimeFromMilliseconds(
         timestamp,

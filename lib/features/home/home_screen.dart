@@ -25,7 +25,6 @@ import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
-import 'package:kite/features/threads/thread_list_view.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -66,6 +65,7 @@ class HomeScreen extends StatelessWidget {
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
     this.profileAvatarImageProvider,
+    this.timelineMediaImageProvider,
     this.roomListLoading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -84,6 +84,7 @@ class HomeScreen extends StatelessWidget {
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
   final AvatarImageProvider? profileAvatarImageProvider;
+  final TimelineMediaImageProvider? timelineMediaImageProvider;
   final bool roomListLoading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -105,6 +106,8 @@ class HomeScreen extends StatelessWidget {
       return _HomeTimelineControllerScope(
         controller: homeTimeline,
         roomListStore: roomListStore,
+        avatarImageProvider: profileAvatarImageProvider,
+        timelineMediaImageProvider: timelineMediaImageProvider,
         child: Scaffold(
           body: SafeArea(
             child: SizedBox.expand(
@@ -126,6 +129,8 @@ class HomeScreen extends StatelessWidget {
                       builder: (_) => _CompactChatScreen(
                         timeline: homeTimeline,
                         roomListStore: roomListStore,
+                        avatarImageProvider: profileAvatarImageProvider,
+                        timelineMediaImageProvider: timelineMediaImageProvider,
                         roomManagement: roomManagement,
                         memberManagement: memberManagement,
                         calls: calls,
@@ -149,6 +154,8 @@ class HomeScreen extends StatelessWidget {
     return _HomeTimelineControllerScope(
       controller: homeTimeline,
       roomListStore: roomListStore,
+      avatarImageProvider: profileAvatarImageProvider,
+      timelineMediaImageProvider: timelineMediaImageProvider,
       child: Scaffold(
         body: Row(
           children: <Widget>[
@@ -192,11 +199,15 @@ class _HomeTimelineControllerScope extends InheritedWidget {
   const _HomeTimelineControllerScope({
     required this.controller,
     required this.roomListStore,
+    required this.avatarImageProvider,
+    required this.timelineMediaImageProvider,
     required super.child,
   });
 
   final TimelineController controller;
   final RoomListStateStore? roomListStore;
+  final AvatarImageProvider? avatarImageProvider;
+  final TimelineMediaImageProvider? timelineMediaImageProvider;
 
   static TimelineController of(BuildContext context) {
     final scope = context
@@ -213,10 +224,29 @@ class _HomeTimelineControllerScope extends InheritedWidget {
         ?.roomListStore;
   }
 
+  static AvatarImageProvider? avatarImageProviderOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_HomeTimelineControllerScope>()
+        ?.avatarImageProvider;
+  }
+
+  static TimelineMediaImageProvider? timelineMediaImageProviderOf(
+    BuildContext context,
+  ) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_HomeTimelineControllerScope>()
+        ?.timelineMediaImageProvider;
+  }
+
   @override
   bool updateShouldNotify(_HomeTimelineControllerScope oldWidget) =>
       !identical(controller, oldWidget.controller) ||
-      !identical(roomListStore, oldWidget.roomListStore);
+      !identical(roomListStore, oldWidget.roomListStore) ||
+      !identical(avatarImageProvider, oldWidget.avatarImageProvider) ||
+      !identical(
+        timelineMediaImageProvider,
+        oldWidget.timelineMediaImageProvider,
+      );
 }
 
 TimelineController _homeTimelineController(BuildContext context) =>
@@ -224,6 +254,13 @@ TimelineController _homeTimelineController(BuildContext context) =>
 
 RoomListStateStore? _homeRoomListStore(BuildContext context) =>
     _HomeTimelineControllerScope.roomListStoreOf(context);
+
+AvatarImageProvider? _homeAvatarImageProvider(BuildContext context) =>
+    _HomeTimelineControllerScope.avatarImageProviderOf(context);
+
+TimelineMediaImageProvider? _homeTimelineMediaImageProvider(
+  BuildContext context,
+) => _HomeTimelineControllerScope.timelineMediaImageProviderOf(context);
 
 class _HomeSidebar extends StatefulWidget {
   const _HomeSidebar({
@@ -895,6 +932,8 @@ class _CompactChatScreen extends StatelessWidget {
   const _CompactChatScreen({
     required this.timeline,
     this.roomListStore,
+    this.avatarImageProvider,
+    this.timelineMediaImageProvider,
     this.roomManagement,
     this.memberManagement,
     this.calls,
@@ -905,6 +944,8 @@ class _CompactChatScreen extends StatelessWidget {
 
   final TimelineController timeline;
   final RoomListStateStore? roomListStore;
+  final AvatarImageProvider? avatarImageProvider;
+  final TimelineMediaImageProvider? timelineMediaImageProvider;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
@@ -917,6 +958,8 @@ class _CompactChatScreen extends StatelessWidget {
     return _HomeTimelineControllerScope(
       controller: timeline,
       roomListStore: roomListStore,
+      avatarImageProvider: avatarImageProvider,
+      timelineMediaImageProvider: timelineMediaImageProvider,
       child: Scaffold(
         appBar: AppBar(
           title: SignalBuilder(
@@ -932,19 +975,6 @@ class _CompactChatScreen extends StatelessWidget {
               return Text(BenchmarkFixture.room(roomId).name);
             },
           ),
-          actions: <Widget>[
-            IconButton(
-              key: const Key('compact-room-threads-action'),
-              tooltip: 'Threads',
-              onPressed: () => Navigator.of(context).push(
-                ThreadListRoute(
-                  roomId: selectedRoomId.value,
-                  reduceMotion: KiteMotion.prefersReducedMotion(context),
-                ),
-              ),
-              icon: const Icon(Icons.forum_outlined),
-            ),
-          ],
         ),
         body: _ChatPanel(
           showHeader: false,
@@ -1083,14 +1113,12 @@ class _RoomList extends StatelessWidget {
       child: SignalBuilder(
         builder: (context) {
           final room = store.roomSignal(roomId).value;
-          final selected = selectedRoomId.value == room.id;
           final unreadThreadCount = threadController
               .unreadThreadCountForRoom(room.id)
               .value;
           return _RoomListRow(
             key: ValueKey<String>(room.id),
             room: room,
-            selected: selected,
             unreadThreadCount: unreadThreadCount,
             onLongPress: () => _showMoveSectionSheet(context, room.id),
             onTap: () {
@@ -1162,14 +1190,12 @@ class _RoomListRow extends StatefulWidget {
   const _RoomListRow({
     super.key,
     required this.room,
-    required this.selected,
     required this.unreadThreadCount,
     required this.onTap,
     this.onLongPress,
   });
 
   final RoomListEntry room;
-  final bool selected;
   final int unreadThreadCount;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
@@ -1205,7 +1231,6 @@ class _RoomListRowState extends State<_RoomListRow> {
   @override
   Widget build(BuildContext context) {
     final room = widget.room;
-    final selected = widget.selected;
     final unreadThreadCount = widget.unreadThreadCount;
     final theme = Theme.of(context);
     final colors =
@@ -1243,30 +1268,36 @@ class _RoomListRowState extends State<_RoomListRow> {
         borderRadius: BorderRadius.circular(KiteRadii.sm),
       ),
       child: Material(
-        color: selected
-            ? colors.selected.withValues(alpha: 0.62)
-            : Colors.transparent,
+        color: Colors.transparent,
         child: ListTile(
           key: Key('room-${room.id}'),
           focusNode: _focusNode,
           focusColor: Colors.transparent,
-          selected: selected,
           onTap: widget.onTap,
           onLongPress: widget.onLongPress,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: KiteSpacing.md,
           ),
-          leading: CircleAvatar(
-            radius: 22,
-            backgroundColor: selected
-                ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHighest,
-            child: Text(
-              room.name.characters.first,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          leading: Builder(
+            builder: (context) {
+              final avatarUri = Uri.tryParse(room.avatarUrl ?? '');
+              final avatarImage = avatarUri != null && avatarUri.scheme == 'mxc'
+                  ? _homeAvatarImageProvider(context)?.call(avatarUri)
+                  : null;
+              return CircleAvatar(
+                radius: 22,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                backgroundImage: avatarImage,
+                child: avatarImage == null
+                    ? Text(
+                        room.name.characters.first,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    : null,
+              );
+            },
           ),
           title: Semantics(
             label: semantics,
@@ -1279,7 +1310,7 @@ class _RoomListRowState extends State<_RoomListRow> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: selected || room.unreadCount > 0
+                      fontWeight: room.unreadCount > 0
                           ? FontWeight.w700
                           : FontWeight.w600,
                     ),
@@ -1663,11 +1694,18 @@ class _ChatHeader extends StatelessWidget {
                 child: Text('Select a room'),
               );
             }
+            final avatarUri = Uri.tryParse(room.avatarUrl ?? '');
+            final avatarImage = avatarUri != null && avatarUri.scheme == 'mxc'
+                ? _homeAvatarImageProvider(context)?.call(avatarUri)
+                : null;
             return Row(
               children: <Widget>[
                 CircleAvatar(
                   radius: 18,
-                  child: Text(room.name.characters.first),
+                  backgroundImage: avatarImage,
+                  child: avatarImage == null
+                      ? Text(room.name.characters.first)
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1693,17 +1731,6 @@ class _ChatHeader extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-                IconButton(
-                  key: const Key('room-threads-action'),
-                  tooltip: 'Threads',
-                  onPressed: () => Navigator.of(context).push(
-                    ThreadListRoute(
-                      roomId: roomId,
-                      reduceMotion: KiteMotion.prefersReducedMotion(context),
-                    ),
-                  ),
-                  icon: const Icon(Icons.forum_outlined, size: 20),
                 ),
                 IconButton(
                   key: const Key('room-content-gallery-action'),
@@ -2131,6 +2158,7 @@ class _MessageRow extends StatelessWidget {
       roomId: roomId,
       messages: _homeTimelineController(context).messagesFor(roomId).peek(),
       initialMessageId: message.id,
+      imageProvider: _homeTimelineMediaImageProvider(context),
     );
     Navigator.of(context).push(
       MediaViewerRoute(
@@ -2488,6 +2516,9 @@ class _MessageRow extends StatelessWidget {
                               messageId: message.id,
                               attachment: attachment,
                               audioPlaybackState: message.audioPlaybackState,
+                              imageProvider: _homeTimelineMediaImageProvider(
+                                context,
+                              )?.call(attachment),
                               heroTag: attachment.kind.isVisualMedia
                                   ? timelineMediaHeroTag(message)
                                   : null,
@@ -2629,7 +2660,10 @@ class _MessageRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: <Widget>[
             if (!mine) ...<Widget>[
-              _MessageAvatar(sender: message.sender),
+              _MessageAvatar(
+                sender: message.sender,
+                avatarUrl: message.senderAvatarUrl,
+              ),
               const SizedBox(width: KiteSpacing.xs),
             ],
             Flexible(
@@ -3615,13 +3649,18 @@ class _DeleteMessageDialog extends StatelessWidget {
 }
 
 class _MessageAvatar extends StatelessWidget {
-  const _MessageAvatar({required this.sender});
+  const _MessageAvatar({required this.sender, this.avatarUrl});
 
   final String sender;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final avatarUri = Uri.tryParse(avatarUrl ?? '');
+    final avatarImage = avatarUri != null && avatarUri.scheme == 'mxc'
+        ? _homeAvatarImageProvider(context)?.call(avatarUri)
+        : null;
     return Semantics(
       image: true,
       label: AppLocalizations.of(context).avatarLabel(sender),
@@ -3629,10 +3668,15 @@ class _MessageAvatar extends StatelessWidget {
         radius: 16,
         backgroundColor: colors.secondaryContainer,
         foregroundColor: colors.onSecondaryContainer,
-        child: Text(
-          sender.characters.first.toUpperCase(),
-          style: KiteTypography.metadata.copyWith(fontWeight: FontWeight.w700),
-        ),
+        backgroundImage: avatarImage,
+        child: avatarImage == null
+            ? Text(
+                sender.characters.first.toUpperCase(),
+                style: KiteTypography.metadata.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+            : null,
       ),
     );
   }

@@ -22,8 +22,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
 
   @override
   Future<MatrixPresentationSnapshot?> load(String accountId) async {
-    final contents = await RecoverableFile(_fileFor(accountId))
-        .readCandidates();
+    final contents = await RecoverableFile(
+      _fileFor(accountId),
+    ).readCandidates();
     if (contents.isEmpty) return null;
 
     return Isolate.run<MatrixPresentationSnapshot?>(() {
@@ -98,6 +99,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             'lastActivityMs': room.lastActivity.millisecondsSinceEpoch,
             'streamPosition': room.streamPosition,
             if (room.lastEventId != null) 'lastEventId': room.lastEventId,
+            if (room.avatarUrl != null) 'avatarUrl': room.avatarUrl,
             'unreadCount': room.unreadCount,
             'highlightCount': room.highlightCount,
             'hasActiveCall': room.hasActiveCall,
@@ -116,6 +118,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
                 'senderId': event.senderId,
                 if (event.senderDisplayName != null)
                   'senderDisplayName': event.senderDisplayName,
+                if (event.senderAvatarUrl != null)
+                  'senderAvatarUrl': event.senderAvatarUrl,
                 'type': event.type,
                 'originServerTimestampMs':
                     event.originServerTimestamp.millisecondsSinceEpoch,
@@ -228,6 +232,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final lastActivityMs = value['lastActivityMs'];
     final streamPosition = value['streamPosition'];
     final lastEventId = value['lastEventId'];
+    final avatarUrl = value['avatarUrl'];
     final unreadCount = value['unreadCount'];
     final highlightCount = value['highlightCount'] ?? 0;
     final hasActiveCall = value['hasActiveCall'] ?? false;
@@ -241,6 +246,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         streamPosition is! int ||
         (lastEventId != null &&
             (lastEventId is! String || !_isSafeIdentifier(lastEventId))) ||
+        (avatarUrl != null &&
+            (avatarUrl is! String || !_isSafeIdentifier(avatarUrl))) ||
         unreadCount is! int ||
         highlightCount is! int ||
         highlightCount < 0 ||
@@ -259,6 +266,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       ),
       streamPosition: streamPosition,
       lastEventId: lastEventId as String?,
+      avatarUrl: avatarUrl as String?,
       unreadCount: unreadCount,
       highlightCount: highlightCount,
       hasActiveCall: hasActiveCall,
@@ -276,6 +284,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final roomId = value['roomId'];
     final senderId = value['senderId'];
     final senderDisplayName = value['senderDisplayName'];
+    final senderAvatarUrl = value['senderAvatarUrl'];
     final type = value['type'];
     final timestampMs = value['originServerTimestampMs'];
     final streamPosition = value['streamPosition'];
@@ -291,6 +300,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             (senderDisplayName is! String ||
                 senderDisplayName.trim().isEmpty ||
                 senderDisplayName.contains('\u0000'))) ||
+        (senderAvatarUrl != null &&
+            (senderAvatarUrl is! String ||
+                !_isSafeIdentifier(senderAvatarUrl))) ||
         type is! String ||
         !_isSafeIdentifier(type) ||
         timestampMs is! int ||
@@ -305,6 +317,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       roomId: roomId,
       senderId: senderId,
       senderDisplayName: senderDisplayName as String?,
+      senderAvatarUrl: senderAvatarUrl as String?,
       type: type,
       originServerTimestamp: DateTime.fromMillisecondsSinceEpoch(
         timestampMs,

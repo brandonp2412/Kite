@@ -85,6 +85,60 @@ void main() {
     expect(entry.latestEventBody, 'Image');
   });
 
+  test(
+    'Matrix media projection preserves image sources and sender avatars',
+    () {
+      final plain = TimelineMessage.fromMatrixEvent(
+        _event(
+          eventId: r'$plain-image',
+          streamPosition: 1,
+          senderId: '@alice:example.org',
+          senderDisplayName: 'Alice',
+          senderAvatarUrl: 'mxc://example.org/alice-avatar',
+          msgtype: 'm.image',
+          body: 'photo.jpg',
+          extra: const <String, Object?>{
+            'url': 'mxc://example.org/plain-image',
+          },
+        ),
+        currentUserId: '@me:example.org',
+      );
+      expect(plain, isNotNull);
+      expect(plain!.senderAvatarUrl, 'mxc://example.org/alice-avatar');
+      expect(plain.attachment!.contentUri, 'mxc://example.org/plain-image');
+      expect(plain.attachment!.encryptedFile, isNull);
+
+      final encrypted = TimelineMessage.fromMatrixEvent(
+        _event(
+          eventId: r'$encrypted-image',
+          streamPosition: 2,
+          senderId: '@alice:example.org',
+          msgtype: 'm.image',
+          body: 'secret.jpg',
+          extra: const <String, Object?>{
+            'file': <String, Object?>{
+              'url': 'mxc://example.org/encrypted-image',
+              'v': 'v2',
+              'iv': 'fixture-iv',
+              'key': <String, Object?>{'kty': 'oct', 'k': 'fixture-key'},
+              'hashes': <String, Object?>{'sha256': 'fixture-hash'},
+            },
+          },
+        ),
+        currentUserId: '@me:example.org',
+      );
+      expect(encrypted, isNotNull);
+      expect(
+        encrypted!.attachment!.contentUri,
+        'mxc://example.org/encrypted-image',
+      );
+      expect(
+        encrypted.attachment!.encryptedFile?['url'],
+        'mxc://example.org/encrypted-image',
+      );
+    },
+  );
+
   test('Matrix room projection uses replacement content for edit previews', () {
     final cache = MatrixPresentationCache();
     cache.applySync(
@@ -660,6 +714,7 @@ MatrixTimelineEvent _event({
   required int streamPosition,
   required String senderId,
   String? senderDisplayName,
+  String? senderAvatarUrl,
   required String msgtype,
   required String body,
   Map<String, Object?>? info,
@@ -671,6 +726,7 @@ MatrixTimelineEvent _event({
     roomId: '!alpha:example.org',
     senderId: senderId,
     senderDisplayName: senderDisplayName,
+    senderAvatarUrl: senderAvatarUrl,
     type: 'm.room.message',
     originServerTimestamp: DateTime.utc(2026, 9, 16, 10, streamPosition),
     streamPosition: streamPosition,

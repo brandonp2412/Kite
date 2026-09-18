@@ -188,6 +188,7 @@ abstract interface class MatrixSdkMediaManager {
 
   Future<Uint8List> downloadMedia({
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   });
@@ -616,6 +617,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   Future<Uint8List> downloadMedia({
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   }) async {
@@ -642,6 +644,16 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         'must be a valid Matrix content URI without NUL bytes',
       );
     }
+    if (encryptedFile != null) {
+      final encryptedUrl = encryptedFile['url'];
+      if (encryptedUrl != normalizedContentUri) {
+        throw ArgumentError.value(
+          encryptedFile,
+          'encryptedFile',
+          'must describe the requested Matrix content URI',
+        );
+      }
+    }
     if (width <= 0 || width > 4096) {
       throw ArgumentError.value(width, 'width', 'must be between 1 and 4096');
     }
@@ -651,6 +663,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await _ensureOpen();
     final bytes = await (manager as MatrixSdkMediaManager).downloadMedia(
       contentUri: normalizedContentUri,
+      encryptedFile: encryptedFile,
       width: width,
       height: height,
     );

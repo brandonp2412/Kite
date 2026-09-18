@@ -209,7 +209,7 @@ void main() {
     expect(find.byKey(const Key('message-action-copy')), findsOneWidget);
   });
 
-  testWidgets('selection and unread state have non-colour visual cues', (
+  testWidgets('room selection stays neutral while unread state has a cue', (
     tester,
   ) async {
     await setViewport(tester, const Size(1200, 800));
@@ -228,7 +228,7 @@ void main() {
     final unselectedTitle = tester.widget<Text>(
       find.byKey(const Key('room-title-bob')),
     );
-    expect(selectedTitle.style?.fontWeight, FontWeight.w700);
+    expect(selectedTitle.style?.fontWeight, isNot(FontWeight.w700));
     expect(unselectedTitle.style?.fontWeight, isNot(FontWeight.w700));
     expect(find.byKey(const Key('room-thread-unread-alice')), findsOneWidget);
 
@@ -237,7 +237,7 @@ void main() {
     );
     expect(
       selectedSemantics.getSemanticsData().flagsCollection.isSelected,
-      Tristate.isTrue,
+      Tristate.isFalse,
     );
   });
 

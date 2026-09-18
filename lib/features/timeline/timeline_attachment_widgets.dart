@@ -87,9 +87,9 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
           ),
           icon: _icons[index],
           label: _labels[index],
-          onTap: () =>
-              Navigator.of(context)
-                  .pop(deterministicComposerAttachments[index]),
+          onTap: () => Navigator.of(
+            context,
+          ).pop(deterministicComposerAttachments[index]),
         ),
       if (onLocationSelected != null)
         _ComposerAttachmentActionTile(
@@ -137,8 +137,9 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
         children: <Widget>[
           Text(
             'Add attachment',
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: KiteSpacing.md),
           GridView.count(
@@ -278,8 +279,9 @@ class ComposerAttachmentPreview extends StatelessWidget {
                       key: const Key('composer-attachment-name'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     Text(
                       attachment.sizeLabel,
@@ -313,6 +315,7 @@ class TimelineAttachmentCard extends StatelessWidget {
     required this.messageId,
     required this.attachment,
     this.audioPlaybackState,
+    this.imageProvider,
     this.heroTag,
     this.onTap,
     this.onToggleAudio,
@@ -321,6 +324,7 @@ class TimelineAttachmentCard extends StatelessWidget {
   final String messageId;
   final TimelineAttachment attachment;
   final ReadonlySignal<TimelineAudioPlaybackState>? audioPlaybackState;
+  final ImageProvider<Object>? imageProvider;
   final Object? heroTag;
   final VoidCallback? onTap;
   final VoidCallback? onToggleAudio;
@@ -331,7 +335,10 @@ class TimelineAttachmentCard extends StatelessWidget {
     final visualMedia = attachment.kind.isVisualMedia;
     final audio = attachment.kind.isAudio;
     final borderRadius = BorderRadius.circular(KiteRadii.sm);
-    final media = TimelineMediaVisual(attachment: attachment);
+    final media = TimelineMediaVisual(
+      attachment: attachment,
+      imageProvider: imageProvider,
+    );
     final content = visualMedia
         ? heroTag == null
               ? media

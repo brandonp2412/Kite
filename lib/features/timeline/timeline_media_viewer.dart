@@ -35,6 +35,9 @@ final class DeterministicTimelineMediaActionPort
   }
 }
 
+typedef TimelineMediaImageProvider =
+    ImageProvider<Object>? Function(TimelineAttachment attachment);
+
 abstract interface class TimelineMediaResolver {
   MediaVisualBuilder thumbnailFor(TimelineMessage message);
 
@@ -43,19 +46,28 @@ abstract interface class TimelineMediaResolver {
 
 final class DeterministicTimelineMediaResolver
     implements TimelineMediaResolver {
-  const DeterministicTimelineMediaResolver();
+  const DeterministicTimelineMediaResolver({this.imageProvider});
+
+  final TimelineMediaImageProvider? imageProvider;
 
   @override
   MediaVisualBuilder thumbnailFor(TimelineMessage message) {
     final attachment = message.attachment!;
-    return (context) => TimelineMediaVisual(attachment: attachment);
+    return (context) => TimelineMediaVisual(
+      attachment: attachment,
+      imageProvider: imageProvider?.call(attachment),
+    );
   }
 
   @override
   Future<MediaVisualBuilder> loadFullResolution(TimelineMessage message) {
     final attachment = message.attachment!;
     return Future<MediaVisualBuilder>.value(
-      (context) => TimelineMediaVisual(attachment: attachment, detailed: true),
+      (context) => TimelineMediaVisual(
+        attachment: attachment,
+        imageProvider: imageProvider?.call(attachment),
+        detailed: true,
+      ),
     );
   }
 }
@@ -73,7 +85,8 @@ final class TimelineMediaViewerModel {
     required String roomId,
     required List<TimelineMessage> messages,
     required String initialMessageId,
-    TimelineMediaResolver resolver = const DeterministicTimelineMediaResolver(),
+    TimelineMediaResolver? resolver,
+    TimelineMediaImageProvider? imageProvider,
     TimelineMediaActionPort actionPort =
         const DeterministicTimelineMediaActionPort(),
   }) {
@@ -96,6 +109,9 @@ final class TimelineMediaViewerModel {
       );
     }
 
+    final resolvedResolver =
+        resolver ??
+        DeterministicTimelineMediaResolver(imageProvider: imageProvider);
     final messageById = <String, TimelineMessage>{
       for (final message in mediaMessages) message.id: message,
     };
@@ -107,8 +123,9 @@ final class TimelineMediaViewerModel {
             id: message.id,
             heroTag: timelineMediaHeroTag(message),
             semanticLabel: timelineMediaSemanticLabel(message),
-            thumbnailBuilder: resolver.thumbnailFor(message),
-            loadFullResolution: () => resolver.loadFullResolution(message),
+            thumbnailBuilder: resolvedResolver.thumbnailFor(message),
+            loadFullResolution: () =>
+                resolvedResolver.loadFullResolution(message),
             caption: message.body.isEmpty ? null : TextSpan(text: message.body),
           ),
       ]),
@@ -144,10 +161,12 @@ class TimelineMediaVisual extends StatelessWidget {
   const TimelineMediaVisual({
     super.key,
     required this.attachment,
+    this.imageProvider,
     this.detailed = false,
   });
 
   final TimelineAttachment attachment;
+  final ImageProvider<Object>? imageProvider;
   final bool detailed;
 
   int get _seed => attachment.id.codeUnits.fold<int>(
@@ -163,7 +182,7 @@ class TimelineMediaVisual extends StatelessWidget {
     final accent = Color.lerp(colors.primary, tint, 0.34)!;
     final base = Color.lerp(colors.surfaceContainerHighest, tint, 0.14)!;
 
-    return DecoratedBox(
+    final fallback = DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -171,61 +190,83 @@ class TimelineMediaVisual extends StatelessWidget {
           colors: <Color>[base, accent.withValues(alpha: 0.72)],
         ),
       ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Center(
-            child: Icon(
-              switch (attachment.kind) {
-                TimelineAttachmentKind.video => Icons.play_circle_fill_rounded,
-                TimelineAttachmentKind.image => Icons.image_rounded,
-                TimelineAttachmentKind.file => Icons.insert_drive_file_rounded,
-                TimelineAttachmentKind.audio => Icons.graphic_eq_rounded,
-                TimelineAttachmentKind.voice => Icons.mic_rounded,
-              },
-              size: detailed ? 88 : 42,
-              color: colors.onPrimary.withValues(alpha: detailed ? 0.64 : 0.78),
-            ),
-          ),
-          Positioned(
-            left: KiteSpacing.sm,
-            right: KiteSpacing.sm,
-            bottom: KiteSpacing.xs,
-            child: Text(
-              attachment.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: KiteTypography.metadata.copyWith(
-                color: colors.onSurface,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          if (detailed)
-            Positioned(
-              right: KiteSpacing.sm,
-              top: KiteSpacing.sm,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.42),
-                  borderRadius: BorderRadius.circular(KiteRadii.pill),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KiteSpacing.sm,
-                    vertical: KiteSpacing.xs,
-                  ),
-                  child: Text(
-                    attachment.sizeLabel,
-                    style: KiteTypography.metadata.copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
+      child: Center(
+        child: Icon(
+          switch (attachment.kind) {
+            TimelineAttachmentKind.video => Icons.play_circle_fill_rounded,
+            TimelineAttachmentKind.image => Icons.image_rounded,
+            TimelineAttachmentKind.file => Icons.insert_drive_file_rounded,
+            TimelineAttachmentKind.audio => Icons.graphic_eq_rounded,
+            TimelineAttachmentKind.voice => Icons.mic_rounded,
+          },
+          size: detailed ? 88 : 42,
+          color: colors.onPrimary.withValues(alpha: detailed ? 0.64 : 0.78),
+        ),
       ),
+    );
+    final provider = imageProvider;
+    final visual =
+        attachment.kind == TimelineAttachmentKind.image && provider != null
+        ? Image(
+            image: provider,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => fallback,
+          )
+        : fallback;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        visual,
+        Positioned(
+          left: KiteSpacing.sm,
+          right: KiteSpacing.sm,
+          bottom: KiteSpacing.xs,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.34),
+              borderRadius: BorderRadius.circular(KiteRadii.sm),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: KiteSpacing.xs,
+                vertical: 2,
+              ),
+              child: Text(
+                attachment.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: KiteTypography.metadata.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (detailed)
+          Positioned(
+            right: KiteSpacing.sm,
+            top: KiteSpacing.sm,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.42),
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: KiteSpacing.sm,
+                  vertical: KiteSpacing.xs,
+                ),
+                child: Text(
+                  attachment.sizeLabel,
+                  style: KiteTypography.metadata.copyWith(color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -424,6 +424,7 @@ final class _FakeBoundary
   @override
   Future<Uint8List> downloadMedia({
     required String contentUri,
+    Map<String, Object?>? encryptedFile,
     required int width,
     required int height,
   }) async {

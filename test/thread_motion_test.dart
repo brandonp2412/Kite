@@ -7,6 +7,7 @@ import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/navigation/app_destination.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/threads/thread_list_view.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
@@ -533,7 +534,9 @@ void main() {
       await tester.pump();
       final roomOffset = roomScrollState.position.pixels;
 
-      await tester.tap(find.byKey(const Key('room-threads-action')));
+      expect(find.byKey(const Key('room-threads-action')), findsNothing);
+      Navigator.of(tester.element(find.byKey(const Key('chat-panel'))))
+          .push(ThreadListRoute(roomId: 'alice', reduceMotion: false));
       await tester.pump();
       await tester.pump(PerformanceContract.motionFrame);
 

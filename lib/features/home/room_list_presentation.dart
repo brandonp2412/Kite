@@ -56,6 +56,7 @@ final class RoomListEntry {
     required this.name,
     required this.latestEventBody,
     this.latestSender,
+    this.avatarUrl,
     this.unreadCount = 0,
     this.unreadThreadCount = 0,
     this.hasMention = false,
@@ -86,6 +87,7 @@ final class RoomListEntry {
           ? ''
           : _latestEventPreview(latestEvent),
       latestSender: latestEvent?.senderDisplayName ?? latestEvent?.senderId,
+      avatarUrl: summary.avatarUrl,
       unreadCount: summary.unreadCount,
       hasMention: summary.highlightCount > 0,
       hasMutedActivity: summary.isMuted && summary.unreadCount > 0,
@@ -100,6 +102,7 @@ final class RoomListEntry {
   final String name;
   final String latestEventBody;
   final String? latestSender;
+  final String? avatarUrl;
   final int unreadCount;
   final int unreadThreadCount;
   final bool hasMention;
@@ -125,6 +128,7 @@ final class RoomListEntry {
   RoomListEntry copyWith({
     String? latestEventBody,
     String? latestSender,
+    String? avatarUrl,
     int? unreadCount,
     int? unreadThreadCount,
     bool? hasMention,
@@ -140,6 +144,7 @@ final class RoomListEntry {
       name: name,
       latestEventBody: latestEventBody ?? this.latestEventBody,
       latestSender: latestSender ?? this.latestSender,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       unreadCount: unreadCount ?? this.unreadCount,
       unreadThreadCount: unreadThreadCount ?? this.unreadThreadCount,
       hasMention: hasMention ?? this.hasMention,

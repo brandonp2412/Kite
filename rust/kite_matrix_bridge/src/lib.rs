@@ -155,24 +155,29 @@ fn timeline_events_json<'a>(
         .filter_map(|event| event.get("sender").and_then(Value::as_str))
         .map(str::to_owned)
         .collect::<HashSet<_>>();
-    let display_names = runtime.block_on(async {
+    let (display_names, avatar_urls) = runtime.block_on(async {
         let mut display_names = HashMap::new();
+        let mut avatar_urls = HashMap::new();
         for sender in senders {
             let Ok(user_id) = UserId::parse(sender.as_str()) else {
                 continue;
             };
-            let display_name = room
-                .get_member_no_sync(&user_id)
-                .await
-                .ok()
-                .flatten()
+            let member = room.get_member_no_sync(&user_id).await.ok().flatten();
+            let display_name = member
+                .as_ref()
                 .and_then(|member| member.display_name().map(str::to_owned))
                 .filter(|display_name| !display_name.trim().is_empty());
+            let avatar_url = member
+                .as_ref()
+                .and_then(|member| member.avatar_url().map(|url| url.to_string()));
             if let Some(display_name) = display_name {
-                display_names.insert(sender, display_name);
+                display_names.insert(sender.clone(), display_name);
+            }
+            if let Some(avatar_url) = avatar_url {
+                avatar_urls.insert(sender, avatar_url);
             }
         }
-        display_names
+        (display_names, avatar_urls)
     });
     for event in &mut events {
         let Some(sender) = event
@@ -182,14 +187,19 @@ fn timeline_events_json<'a>(
         else {
             continue;
         };
-        let Some(display_name) = display_names.get(&sender) else {
-            continue;
-        };
         if let Some(event) = event.as_object_mut() {
-            event.insert(
-                "sender_display_name".to_owned(),
-                Value::String(display_name.clone()),
-            );
+            if let Some(display_name) = display_names.get(&sender) {
+                event.insert(
+                    "sender_display_name".to_owned(),
+                    Value::String(display_name.clone()),
+                );
+            }
+            if let Some(avatar_url) = avatar_urls.get(&sender) {
+                event.insert(
+                    "sender_avatar_url".to_owned(),
+                    Value::String(avatar_url.clone()),
+                );
+            }
         }
     }
     events
@@ -1022,9 +1032,32 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             let is_favourite = room.as_ref().is_some_and(|room| room.is_favourite());
             let is_muted = muted_room_ids.contains(room_id);
             let is_direct = direct_room_ids.contains(room_id);
+            let avatar_url = room.as_ref().and_then(|room| {
+                if let Some(avatar_url) = room.avatar_url() {
+                    return Some(avatar_url.to_string());
+                }
+                if !is_direct {
+                    return None;
+                }
+                let direct_user_ids = room
+                    .direct_targets()
+                    .into_iter()
+                    .filter_map(|target| target.into_user_id())
+                    .collect::<Vec<_>>();
+                if direct_user_ids.len() != 1 {
+                    return None;
+                }
+                client
+                    .runtime
+                    .block_on(room.get_member_no_sync(&direct_user_ids[0]))
+                    .ok()
+                    .flatten()
+                    .and_then(|member| member.avatar_url().map(|url| url.to_string()))
+            });
             json!({
                 "roomId": room_id.as_str(),
                 "displayName": display_name,
+                "avatarUrl": avatar_url,
                 "unreadCount": unread_count,
                 "highlightCount": highlight_count,
                 "hasActiveCall": has_active_call,
@@ -2285,12 +2318,22 @@ pub unsafe extern "C" fn kite_matrix_client_download_media(
         return error_json("client_closed", "Matrix media download is unavailable.");
     }
     let Some(content_uri) = (unsafe { required_utf8(content_uri) }) else {
-        return error_json("invalid_media", "The Matrix media URI is invalid.");
+        return error_json("invalid_media", "The Matrix media source is invalid.");
     };
-    let content_uri = OwnedMxcUri::from(content_uri.to_owned());
-    if !content_uri.is_valid() {
-        return error_json("invalid_media", "The Matrix media URI is invalid.");
-    }
+    let source = if content_uri.trim_start().starts_with('{') {
+        match serde_json::from_str::<MediaSource>(content_uri) {
+            Ok(source) => source,
+            Err(_) => {
+                return error_json("invalid_media", "The Matrix media source is invalid.");
+            }
+        }
+    } else {
+        let content_uri = OwnedMxcUri::from(content_uri.to_owned());
+        if !content_uri.is_valid() {
+            return error_json("invalid_media", "The Matrix media URI is invalid.");
+        }
+        MediaSource::Plain(content_uri)
+    };
     let Some(width) = UInt::new(width) else {
         return error_json("invalid_media_size", "The Matrix media size is invalid.");
     };
@@ -2310,11 +2353,11 @@ pub unsafe extern "C" fn kite_matrix_client_download_media(
         .session()
         .map(|session| session.tokens.access_token);
     let thumbnail = MediaRequestParameters {
-        source: MediaSource::Plain(content_uri.clone()),
+        source: source.clone(),
         format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
     };
     let file = MediaRequestParameters {
-        source: MediaSource::Plain(content_uri),
+        source,
         format: MediaFormat::File,
     };
     let result = client.runtime.block_on(async {
