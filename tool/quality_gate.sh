@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+export GRADLE_USER_HOME="${KITE_GRADLE_USER_HOME:-$repo_root/.dart_tool/gradle-user-home}"
+
 printf '%s\n' 'Kite quality gate: Waydroid lock self-test'
 "$(dirname "$0")/verify_waydroid_lock.sh"
 

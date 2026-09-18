@@ -76,6 +76,15 @@ void main() {
     );
   });
 
+  test('production link previews use the external platform launcher', () {
+    expect(
+      runtimeSource,
+      contains('linkOpenPort: const PlatformTimelineLinkOpenPort()'),
+    );
+    expect(homeSource, contains('linkOpenPort: widget.linkOpenPort'));
+    expect(homeSource, contains('linkOpenPort: linkOpenPort'));
+  });
+
   test('Android release can reach Matrix homeservers', () {
     expect(
       androidManifestSource,

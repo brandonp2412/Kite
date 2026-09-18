@@ -14,6 +14,7 @@ import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 import 'package:kite/matrix/matrix_production_device_api.dart';
@@ -539,6 +540,7 @@ final class _AuthenticatedMatrixHomeState
                 replacementEventId: eventId,
               );
             }),
+            linkOpenPort: const PlatformTimelineLinkOpenPort(),
             onRoomFavouriteChanged: (roomId, isFavourite) =>
                 widget.runtime.setRoomFavourite(
                   accountId: widget.session.userId,

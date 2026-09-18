@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 @immutable
 final class TimelineLinkPreviewData {
@@ -16,6 +17,26 @@ final class TimelineLinkPreviewData {
 
 abstract interface class TimelineLinkOpenPort {
   Future<void> open(Uri uri);
+}
+
+typedef TimelineExternalUriLauncher = Future<bool> Function(Uri uri);
+
+final class PlatformTimelineLinkOpenPort implements TimelineLinkOpenPort {
+  const PlatformTimelineLinkOpenPort({this.launcher});
+
+  final TimelineExternalUriLauncher? launcher;
+
+  @override
+  Future<void> open(Uri uri) async {
+    if ((uri.scheme != 'http' && uri.scheme != 'https') || !uri.hasAuthority) {
+      return;
+    }
+    await (launcher ?? _launchExternal)(uri);
+  }
+
+  static Future<bool> _launchExternal(Uri uri) {
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 }
 
 final class DeterministicTimelineLinkOpenPort implements TimelineLinkOpenPort {

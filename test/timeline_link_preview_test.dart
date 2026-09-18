@@ -28,6 +28,22 @@ void main() {
     expect(preview.description, 'docs › client-server-api');
   });
 
+  test('platform link port launches only external http links', () async {
+    final opened = <Uri>[];
+    final port = PlatformTimelineLinkOpenPort(
+      launcher: (uri) async {
+        opened.add(uri);
+        return true;
+      },
+    );
+
+    await port.open(Uri.parse('https://matrix.org/docs'));
+    await port.open(Uri.parse('matrix:roomid/room:example.org'));
+    await port.open(Uri.parse('javascript:alert(1)'));
+
+    expect(opened, <Uri>[Uri.parse('https://matrix.org/docs')]);
+  });
+
   testWidgets('timeline link preview opens through the platform boundary', (
     tester,
   ) async {
