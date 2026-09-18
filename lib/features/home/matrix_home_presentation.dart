@@ -7,6 +7,7 @@ import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals_flutter.dart';
@@ -111,6 +112,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.currentUserId,
     required this.sendPort,
     this.editPort,
+    this.linkOpenPort,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
@@ -128,6 +130,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final String currentUserId;
   final TimelineSendPort sendPort;
   final TimelineEditPort? editPort;
+  final TimelineLinkOpenPort? linkOpenPort;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
@@ -159,7 +162,8 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
     if (identical(oldWidget.cache, widget.cache) &&
         oldWidget.currentUserId == widget.currentUserId &&
         identical(oldWidget.sendPort, widget.sendPort) &&
-        identical(oldWidget.editPort, widget.editPort)) {
+        identical(oldWidget.editPort, widget.editPort) &&
+        identical(oldWidget.linkOpenPort, widget.linkOpenPort)) {
       return;
     }
     _binding.dispose();
@@ -172,6 +176,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       currentUserId: widget.currentUserId,
       sendPort: widget.sendPort,
       editPort: widget.editPort,
+      linkOpenPort: widget.linkOpenPort,
       invitePort: widget.onRoomInviteResponse == null
           ? null
           : MatrixRoomInvitePort(widget.onRoomInviteResponse!),
@@ -213,6 +218,7 @@ final class MatrixHomePresentationBinding {
     required String currentUserId,
     required TimelineSendPort sendPort,
     TimelineEditPort? editPort,
+    TimelineLinkOpenPort? linkOpenPort,
     TimelineController? controller,
     Signal<String>? selectedRoom,
     RoomInvitePort? invitePort,
@@ -222,6 +228,7 @@ final class MatrixHomePresentationBinding {
            TimelineController(
              sendPort: sendPort,
              editPort: editPort,
+             linkOpenPort: linkOpenPort,
              fixtureProvider: (_) => const [],
            ),
        selectedRoom = selectedRoom ?? selectedRoomId,
@@ -233,6 +240,7 @@ final class MatrixHomePresentationBinding {
     this.controller.reset(
       sendPort: sendPort,
       editPort: editPort,
+      linkOpenPort: linkOpenPort,
       fixtureProvider: (_) => const [],
     );
     _projectCache();
