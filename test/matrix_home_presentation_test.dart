@@ -413,6 +413,26 @@ void main() {
         ),
       );
       expect(find.text('From production composer'), findsOneWidget);
+
+      await tester.pumpWidget(
+        KiteApp(
+          home: MatrixHomeScreen(
+            cache: cache,
+            currentUserId: '@me:example.org',
+            sendPort: MatrixTimelineSendPort(
+              ({
+                required roomId,
+                required transactionId,
+                required body,
+              }) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('From production composer'), findsOneWidget);
+      expect(find.text('Cached before send'), findsOneWidget);
     },
   );
 

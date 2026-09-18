@@ -41,6 +41,33 @@ void main() {
     );
   });
 
+  testWidgets('phone chat composer stays above the system navigation inset', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.padding = const FakeViewPadding(
+      left: 0,
+      top: 24,
+      right: 0,
+      bottom: 32,
+    );
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(() => selectRoom('kite'));
+
+    selectRoom('kite');
+    await tester.pumpWidget(const KiteApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('room-alice')));
+    await tester.pumpAndSettle();
+
+    final composerRect = tester.getRect(find.byKey(const Key('composer')));
+    expect(composerRect.bottom, lessThanOrEqualTo(812.0));
+  });
+
   testWidgets('home search reduces the chat list without extra filter chrome', (
     tester,
   ) async {

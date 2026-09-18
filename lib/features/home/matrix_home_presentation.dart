@@ -156,14 +156,19 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
   @override
   void didUpdateWidget(MatrixHomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (identical(oldWidget.cache, widget.cache) &&
-        oldWidget.currentUserId == widget.currentUserId &&
-        identical(oldWidget.sendPort, widget.sendPort) &&
-        identical(oldWidget.editPort, widget.editPort)) {
+    if (!identical(oldWidget.cache, widget.cache) ||
+        oldWidget.currentUserId != widget.currentUserId) {
+      _binding.dispose();
+      _binding = _createBinding();
       return;
     }
-    _binding.dispose();
-    _binding = _createBinding();
+    if (!identical(oldWidget.sendPort, widget.sendPort) ||
+        !identical(oldWidget.editPort, widget.editPort)) {
+      _binding.updateTransport(
+        sendPort: widget.sendPort,
+        editPort: widget.editPort,
+      );
+    }
   }
 
   MatrixHomePresentationBinding _createBinding() {
@@ -261,6 +266,13 @@ final class MatrixHomePresentationBinding {
 
     if (roomIds.isEmpty || roomIds.contains(selectedRoom.peek())) return;
     selectedRoom.value = roomIds.first;
+  }
+
+  void updateTransport({
+    required TimelineSendPort sendPort,
+    TimelineEditPort? editPort,
+  }) {
+    controller.updateTransport(sendPort: sendPort, editPort: editPort);
   }
 
   void dispose() => _disposeProjection();
