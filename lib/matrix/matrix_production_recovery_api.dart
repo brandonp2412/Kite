@@ -24,19 +24,21 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
 
   @override
   Future<MatrixSdkRecoveryStatus> restoreBackup(String secret) async {
-    return _status(
-      await _runtime.recoverEncryption(
-        accountId: _activeAccountId(),
-        secret: secret,
-      ),
+    final accountId = _activeAccountId();
+    final status = _status(
+      await _runtime.recoverEncryption(accountId: accountId, secret: secret),
     );
+    await _runtime.refreshAfterEncryptionRecovery(accountId: accountId);
+    return status;
   }
 
   @override
   Future<MatrixSdkRecoveryStatus> recoverHistoricalMessages() async {
+    final accountId = _activeAccountId();
     final status = _status(
-      await _runtime.recoverEncryptedHistory(accountId: _activeAccountId()),
+      await _runtime.recoverEncryptedHistory(accountId: accountId),
     );
+    await _runtime.refreshAfterEncryptionRecovery(accountId: accountId);
     return MatrixSdkRecoveryStatus(
       backupState: status.backupState,
       historicalRecoveryState: MatrixSdkHistoricalRecoveryState.complete,
@@ -48,12 +50,15 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
   Future<MatrixSdkRoomKeyImportResult> importRoomKeyBackup({
     required String path,
     required String passphrase,
-  }) {
-    return _runtime.importRoomKeyBackup(
-      accountId: _activeAccountId(),
+  }) async {
+    final accountId = _activeAccountId();
+    final result = await _runtime.importRoomKeyBackup(
+      accountId: accountId,
       path: path,
       passphrase: passphrase,
     );
+    await _runtime.refreshAfterEncryptionRecovery(accountId: accountId);
+    return result;
   }
 
   String _activeAccountId() {

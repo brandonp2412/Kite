@@ -83,6 +83,16 @@ final class MatrixBackPaginationController {
     });
   }
 
+  void reset() {
+    _generation += 1;
+    _inFlight.clear();
+    batch(() {
+      for (final state in _states.values) {
+        state.value = const MatrixPaginationState.idle();
+      }
+    });
+  }
+
   Future<void> maybePaginate({
     required String roomId,
     required int firstVisibleIndex,

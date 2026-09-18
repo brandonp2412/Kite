@@ -950,6 +950,77 @@ void main() {
     },
   );
 
+  test(
+    'post-recovery refresh clears stale presentation and restarts full sync',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final presentationStore = _MemoryPresentationStore(
+        <String, MatrixPresentationSnapshot>{},
+      );
+      final registry = _registry(
+        boundaries,
+        presentationStore: presentationStore,
+      );
+      addTearDown(registry.dispose);
+
+      final cache = await registry.activate('@alice:example.org');
+      final boundary = boundaries['@alice:example.org']!;
+      final staleEvent = MatrixTimelineEvent(
+        eventId: r'$encrypted:example.org',
+        roomId: '!alice:example.org',
+        senderId: '@bob:example.org',
+        type: 'm.room.encrypted',
+        originServerTimestamp: DateTime.utc(2026, 9, 15, 4),
+        streamPosition: 4,
+        content: const <String, Object?>{'algorithm': 'm.megolm.v1.aes-sha2'},
+      );
+      boundary.emit(
+        MatrixSyncBatch(
+          cursor: 'encrypted-cursor',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!alice:example.org',
+              timelineEvents: <MatrixTimelineEvent>[staleEvent],
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        cache.timelineSignal('!alice:example.org').value.single.type,
+        'm.room.encrypted',
+      );
+      expect(cache.lastSyncCursor, 'encrypted-cursor');
+
+      await registry.flushPresentationWrites('@alice:example.org');
+      expect(
+        presentationStore
+            .snapshots['@alice:example.org']!
+            .timelines['!alice:example.org']!
+            .single
+            .eventId,
+        staleEvent.eventId,
+      );
+
+      final startCallsBeforeRefresh = boundary.startCalls;
+      await registry.refreshAfterEncryptionRecovery(
+        accountId: '@alice:example.org',
+      );
+
+      expect(identical(registry.activeCache, cache), isTrue);
+      expect(boundary.startCalls, startCallsBeforeRefresh + 1);
+      expect(boundary.stopCalls, greaterThanOrEqualTo(1));
+      expect(boundary.syncConfigurations.last.resumeFromCursor, isNull);
+      expect(cache.timelineSignal('!alice:example.org').value, isEmpty);
+      expect(presentationStore.clearCalls, 1);
+      expect(
+        cache.roomSummarySignal('!alice:example.org').value?.displayName,
+        'Alice room',
+      );
+    },
+  );
+
   test('incremental sync mutates only the owning account cache', () async {
     final boundaries = <String, _FakeAccountBoundary>{};
     final registry = _registry(boundaries);
@@ -2204,12 +2275,14 @@ final class _MemoryPresentationStore implements MatrixPresentationStore {
   final Map<String, MatrixPresentationSnapshot> snapshots;
   int loadCalls = 0;
   int saveCalls = 0;
+  int clearCalls = 0;
   int failLoadCallsRemaining = 0;
   int failSaveCallsRemaining = 0;
   Completer<void>? blockNextSave;
 
   @override
   Future<void> clear(String accountId) async {
+    clearCalls += 1;
     snapshots.remove(accountId);
   }
 

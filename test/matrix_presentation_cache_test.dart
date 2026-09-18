@@ -24,6 +24,55 @@ void main() {
     expect(cache.snapshot().syncCursor, isNull);
   });
 
+  test(
+    'encryption recovery invalidation clears stale history but preserves rooms',
+    () {
+      final cachedEvent = _event(
+        eventId: r'$encrypted',
+        roomId: '!alpha:kite.test',
+        position: 4,
+        second: 4,
+      );
+      final cache = MatrixPresentationCache(
+        initialSnapshot: MatrixPresentationSnapshot(
+          syncCursor: 'stale-cursor',
+          rooms: <MatrixRoomSummary>[
+            _summary(
+              roomId: '!alpha:kite.test',
+              displayName: 'Alpha',
+              position: 4,
+              second: 4,
+              lastEventId: cachedEvent.eventId,
+            ),
+          ],
+          timelines: <String, List<MatrixTimelineEvent>>{
+            '!alpha:kite.test': <MatrixTimelineEvent>[cachedEvent],
+          },
+        ),
+      );
+      cache.applySync(
+        const MatrixSyncBatch(
+          cursor: 'incremental-cursor',
+          rooms: <MatrixRoomDelta>[],
+        ),
+      );
+
+      expect(cache.hasReceivedSyncBatch.value, isTrue);
+      expect(cache.timelineSignal('!alpha:kite.test').value, isNotEmpty);
+
+      cache.invalidateEncryptedHistory();
+
+      expect(cache.roomOrder.value, <String>['!alpha:kite.test']);
+      expect(
+        cache.roomSummarySignal('!alpha:kite.test').value?.displayName,
+        'Alpha',
+      );
+      expect(cache.timelineSignal('!alpha:kite.test').value, isEmpty);
+      expect(cache.lastSyncCursor, isNull);
+      expect(cache.hasReceivedSyncBatch.value, isFalse);
+    },
+  );
+
   test('restored presentation data is readable synchronously before sync', () {
     final cachedEvent = _event(
       eventId: r'$cached',

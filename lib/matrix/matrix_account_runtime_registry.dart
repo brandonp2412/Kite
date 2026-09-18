@@ -695,6 +695,26 @@ final class MatrixAccountRuntimeRegistry {
     });
   }
 
+  Future<void> refreshAfterEncryptionRecovery({required String accountId}) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    return _enqueue<void>(() async {
+      final active = _requireActiveAccount(
+        normalizedAccountId,
+        'Cannot refresh Matrix history for an inactive account',
+      );
+      await active.runtime.stop();
+      try {
+        await flushPresentationWrites(normalizedAccountId);
+        active.runtime.resetPagination();
+        active.cache.invalidateEncryptedHistory();
+        await presentationStore?.clear(normalizedAccountId);
+      } finally {
+        await active.runtime.start();
+      }
+    });
+  }
+
   Future<void> updateActivity(MatrixAppActivity activity) {
     _ensureNotDisposed();
     return _enqueue<void>(() async {

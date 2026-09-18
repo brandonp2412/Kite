@@ -54,6 +54,10 @@ final class MatrixRuntimeCoordinator
     return _pagination.stateSignal(roomId);
   }
 
+  void resetPagination() {
+    _pagination.reset();
+  }
+
   Future<void> onTimelineViewportChanged({
     required String roomId,
     required int oldestVisibleIndex,

@@ -66,6 +66,18 @@ final class MatrixPresentationCache {
     );
   }
 
+  void invalidateEncryptedHistory() {
+    batch(() {
+      lastSyncCursor = null;
+      hasReceivedSyncBatch.value = false;
+      for (final timeline in _timelines.values) {
+        if (timeline.value.isNotEmpty) {
+          timeline.value = const <MatrixTimelineEvent>[];
+        }
+      }
+    });
+  }
+
   void restore(MatrixPresentationSnapshot snapshot) {
     _validateSnapshot(snapshot);
     batch(() {

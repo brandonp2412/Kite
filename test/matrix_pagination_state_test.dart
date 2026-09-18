@@ -318,6 +318,23 @@ void main() {
       hasMoreHistory: true,
     );
     expect(engine.paginationCalls, <String>['!room:kite.test']);
+
+    controller.reset();
+    expect(state.value.phase, MatrixPaginationPhase.idle);
+    expect(state.value.reachedStart, isFalse);
+
+    final afterReset = controller.maybePaginate(
+      roomId: '!room:kite.test',
+      firstVisibleIndex: 0,
+      hasMoreHistory: true,
+    );
+    expect(engine.paginationCalls, <String>[
+      '!room:kite.test',
+      '!room:kite.test',
+    ]);
+    engine.completePagination();
+    await afterReset;
+
     await engine.close();
   });
 }

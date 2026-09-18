@@ -171,6 +171,9 @@ final class MatrixProductionRuntime
 
   Future<void> resumeActive() => accounts.resumeActive();
 
+  Future<void> refreshAfterEncryptionRecovery({required String accountId}) =>
+      accounts.refreshAfterEncryptionRecovery(accountId: accountId);
+
   @override
   Future<void> updateActivity(MatrixAppActivity activity) =>
       accounts.updateActivity(activity);
