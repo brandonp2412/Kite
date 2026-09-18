@@ -1,7 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+
+Widget _appWithClockPreference(bool alwaysUse24HourFormat) {
+  return KiteApp(
+    themeMode: ThemeMode.light,
+    locale: const Locale('en', 'US'),
+    home: Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(alwaysUse24HourFormat: alwaysUse24HourFormat),
+        child: const HomeScreen(),
+      ),
+    ),
+  );
+}
 
 void main() {
   setUp(() {
@@ -56,6 +71,91 @@ void main() {
     expect(find.text('Just after midnight'), findsOneWidget);
     expect(find.text('Later that morning'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('synced timestamps follow locale and 12-hour preference', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    timelineController.messagesFor('alice').value = <TimelineMessage>[
+      TimelineMessage(
+        id: 'localized-time',
+        sender: 'Alice',
+        body: 'Evening message',
+        mine: false,
+        timeLabel: '21:05',
+        sentAt: DateTime(2026, 9, 18, 21, 5),
+      ),
+    ];
+
+    await tester.pumpWidget(_appWithClockPreference(false));
+    await tester.pump();
+
+    final timestamp = tester.widget<Text>(
+      find.byKey(const Key('message-time-localized-time')),
+    );
+    expect(timestamp.data, '9:05 PM');
+  });
+
+  testWidgets('optimistic local messages keep their explicit now label', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    timelineController.messagesFor('alice').value = <TimelineMessage>[
+      TimelineMessage(
+        id: 'kite-local-0',
+        sender: 'You',
+        body: 'Sending now',
+        mine: true,
+        timeLabel: 'now',
+        sentAt: DateTime(2026, 9, 18, 21, 5),
+        sendState: TimelineSendState.sending,
+      ),
+    ];
+
+    await tester.pumpWidget(_appWithClockPreference(false));
+    await tester.pump();
+
+    final timestamp = tester.widget<Text>(
+      find.byKey(const Key('message-time-kite-local-0')),
+    );
+    expect(timestamp.data, 'now');
+  });
+
+  testWidgets('synced timestamps respect the platform 24-hour preference', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    timelineController.messagesFor('alice').value = <TimelineMessage>[
+      TimelineMessage(
+        id: '24-hour-time',
+        sender: 'Alice',
+        body: 'Evening message',
+        mine: false,
+        timeLabel: '9:05 PM',
+        sentAt: DateTime(2026, 9, 18, 21, 5),
+      ),
+    ];
+
+    await tester.pumpWidget(_appWithClockPreference(true));
+    await tester.pump();
+
+    final timestamp = tester.widget<Text>(
+      find.byKey(const Key('message-time-24-hour-time')),
+    );
+    expect(timestamp.data, '21:05');
   });
 
   testWidgets('messages without calendar timestamps keep existing geometry', (
