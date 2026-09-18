@@ -134,7 +134,7 @@ void main() {
     );
 
     final avatarBytes = await runtime.downloadMedia(
-      accountId: accountId!,
+      accountId: accountId,
       contentUri: avatarRooms.first.avatarUrl!,
       width: 192,
       height: 192,
