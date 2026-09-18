@@ -3180,6 +3180,8 @@ class _MessageRow extends StatelessWidget {
           );
       case _MessageAction.endPoll:
         await _homeTimelineController(context).endPoll(roomId, message);
+      case _MessageAction.share:
+        await _homeTimelineController(context).shareMessage(roomId, message);
       case _MessageAction.redact:
         final route = DialogRoute<bool>(
           context: context,
@@ -3194,7 +3196,6 @@ class _MessageRow extends StatelessWidget {
         if (confirmed == true) {
           _homeTimelineController(context).redactText(message);
         }
-      case _MessageAction.share:
       case _MessageAction.forward:
       case _MessageAction.report:
       case _MessageAction.reactionPicker:
@@ -3249,6 +3250,14 @@ class _MessageRow extends StatelessWidget {
                     ): () => unawaited(
                       _performAccessibleAction(context, _MessageAction.copy),
                     ),
+                  if (message.poll == null)
+                    const CustomSemanticsAction(label: 'Share'): () =>
+                        unawaited(
+                          _performAccessibleAction(
+                            context,
+                            _MessageAction.share,
+                          ),
+                        ),
                   if (message.mine && message.poll == null)
                     CustomSemanticsAction(
                       label: localizations.editMessageAction,
