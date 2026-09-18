@@ -122,6 +122,7 @@ void main() {
               position: 4,
               second: 4,
               lastEventId: r'$cached',
+              avatarUrl: 'mxc://kite.test/alpha',
               hasActiveCall: true,
               isMuted: true,
             ),
@@ -140,6 +141,7 @@ void main() {
       expect(after.lastActivity, before.lastActivity);
       expect(after.streamPosition, before.streamPosition);
       expect(after.lastEventId, before.lastEventId);
+      expect(after.avatarUrl, 'mxc://kite.test/alpha');
       expect(after.hasActiveCall, isTrue);
       expect(after.isMuted, isTrue);
       expect(cache.lastSyncCursor, 'sync-1');
@@ -159,6 +161,7 @@ void main() {
             position: 4,
             second: 4,
             lastEventId: r'$cached',
+            avatarUrl: 'mxc://kite.test/alpha',
             unreadCount: 3,
             highlightCount: 2,
             hasActiveCall: true,
@@ -175,6 +178,7 @@ void main() {
     expect(after.unreadCount, 0);
     expect(after.highlightCount, 0);
     expect(after.lastEventId, r'$cached');
+    expect(after.avatarUrl, 'mxc://kite.test/alpha');
     expect(after.hasActiveCall, isTrue);
     expect(after.isMuted, isTrue);
     expect(cache.lastSyncCursor, 'sync-1');
@@ -248,6 +252,45 @@ void main() {
       );
     },
   );
+
+  test('sync applies avatar-only room metadata changes', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        syncCursor: 'sync-1',
+        rooms: <MatrixRoomSummary>[
+          _summary(
+            roomId: '!alpha:kite.test',
+            displayName: 'Alpha',
+            position: 4,
+            second: 4,
+          ),
+        ],
+      ),
+    );
+
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 'sync-2',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:kite.test',
+            summary: _summary(
+              roomId: '!alpha:kite.test',
+              displayName: 'Alpha',
+              position: 4,
+              second: 4,
+              avatarUrl: 'mxc://kite.test/alpha',
+            ),
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      cache.roomSummarySignal('!alpha:kite.test').value?.avatarUrl,
+      'mxc://kite.test/alpha',
+    );
+  });
 
   test('sync deduplicates and deterministically orders overlapping events', () {
     final cache = MatrixPresentationCache();
@@ -1099,6 +1142,7 @@ MatrixRoomSummary _summary({
   required int position,
   required int second,
   String? lastEventId,
+  String? avatarUrl,
   int unreadCount = 0,
   int highlightCount = 0,
   bool hasActiveCall = false,
@@ -1110,6 +1154,7 @@ MatrixRoomSummary _summary({
     lastActivity: DateTime.utc(2026, 9, 14, 11, 20, second),
     streamPosition: position,
     lastEventId: lastEventId,
+    avatarUrl: avatarUrl,
     unreadCount: unreadCount,
     highlightCount: highlightCount,
     hasActiveCall: hasActiveCall,

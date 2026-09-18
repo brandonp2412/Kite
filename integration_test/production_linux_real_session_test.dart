@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -41,6 +43,14 @@ void main() {
     expect(find.byKey(const Key('home-search')), findsOneWidget);
     expect(find.text('Matrix runtime is unavailable.'), findsNothing);
     expect(find.text('Could not start Matrix sync.'), findsNothing);
+
+    final runtime = tester
+        .widget<ProductionKiteRuntime>(find.byType(ProductionKiteRuntime))
+        .matrixRuntime;
+    final accountId = runtime.activeAccountId.value;
+    expect(accountId, isNotNull);
+    final cache = runtime.activeCache;
+    expect(cache, isNotNull);
 
     final uptimeRoom = find.ancestor(
       of: find.text('Uptime'),
@@ -87,11 +97,6 @@ void main() {
       expect(find.text(expectedInboundMessage), findsWidgets);
     }
 
-    final runtime = tester
-        .widget<ProductionKiteRuntime>(find.byType(ProductionKiteRuntime))
-        .matrixRuntime;
-    final accountId = runtime.activeAccountId.value;
-    expect(accountId, isNotNull);
     final roomId = selectedRoomId.value;
     final paginationState = runtime.paginationState(
       accountId: accountId!,
@@ -108,6 +113,67 @@ void main() {
       syncState?.phase,
       MatrixSyncPhase.running,
       reason: 'Real Matrix sync must be running: ${syncState?.error}',
+    );
+
+    for (var i = 0; i < 80; i += 1) {
+      await tester.pump(const Duration(milliseconds: 250));
+      final hasAvatar = cache!.snapshot().rooms.any(
+        (room) => Uri.tryParse(room.avatarUrl ?? '')?.scheme == 'mxc',
+      );
+      if (hasAvatar) break;
+    }
+    final avatarRooms = cache!
+        .snapshot()
+        .rooms
+        .where((room) => Uri.tryParse(room.avatarUrl ?? '')?.scheme == 'mxc')
+        .toList(growable: false);
+    expect(
+      avatarRooms,
+      isNotEmpty,
+      reason: 'Real Matrix sync must hydrate room avatar MXC metadata.',
+    );
+
+    final avatarBytes = await runtime.downloadMedia(
+      accountId: accountId!,
+      contentUri: avatarRooms.first.avatarUrl!,
+      width: 192,
+      height: 192,
+    );
+    expect(
+      avatarBytes.length,
+      greaterThan(128),
+      reason: 'Real room avatar MXC must download through the Matrix bridge.',
+    );
+    final avatarCodec = await ui.instantiateImageCodec(avatarBytes);
+    final avatarFrame = await avatarCodec.getNextFrame();
+    expect(avatarFrame.image.width, greaterThan(0));
+    expect(avatarFrame.image.height, greaterThan(0));
+    avatarFrame.image.dispose();
+    avatarCodec.dispose();
+
+    final roomList = find.byKey(const Key('room-list'));
+    expect(roomList, findsOneWidget);
+    var renderedAvatarCount = 0;
+    for (var attempt = 0; attempt < 30; attempt += 1) {
+      renderedAvatarCount = find
+          .descendant(
+            of: roomList,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is CircleAvatar && widget.backgroundImage != null,
+            ),
+          )
+          .evaluate()
+          .length;
+      if (renderedAvatarCount > 0) break;
+      await tester.drag(roomList, const Offset(0, -420));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(
+      renderedAvatarCount,
+      greaterThan(0),
+      reason:
+          'At least one real room row must render its leading avatar image.',
     );
 
     if (e2eMessage.isNotEmpty) {

@@ -73,6 +73,7 @@ pub struct KiteMatrixClient {
     client: Option<Client>,
     runtime: Runtime,
     backwards_pagination_tokens: HashMap<String, String>,
+    room_metadata_hydrated: bool,
 }
 
 #[unsafe(no_mangle)]
@@ -285,6 +286,7 @@ pub unsafe extern "C" fn kite_matrix_client_new(
         client: Some(client),
         runtime,
         backwards_pagination_tokens: HashMap::new(),
+        room_metadata_hydrated: false,
     }))
 }
 
@@ -404,6 +406,7 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
         );
     }
 
+    client.room_metadata_hydrated = false;
     ok_json(session_json(&session, matrix_client.homeserver().as_str()))
 }
 
@@ -428,6 +431,7 @@ pub unsafe extern "C" fn kite_matrix_client_logout(client: *mut KiteMatrixClient
             "Could not sign out from the Matrix server.",
         );
     }
+    client.room_metadata_hydrated = false;
     ok_json(Value::Null)
 }
 
@@ -767,6 +771,7 @@ pub unsafe extern "C" fn kite_matrix_client_restore_session(
             "Could not restore the Matrix session.",
         );
     }
+    client.room_metadata_hydrated = false;
     ok_json(session_json(&session, matrix_client.homeserver().as_str()))
 }
 
@@ -943,21 +948,31 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         }));
     }
 
+    let hydrate_room_metadata = !client.room_metadata_hydrated;
+    let metadata_room_ids = if hydrate_room_metadata {
+        matrix_client
+            .joined_rooms()
+            .into_iter()
+            .map(|room| room.room_id().to_owned())
+            .collect::<Vec<_>>()
+    } else {
+        response.rooms.joined.keys().cloned().collect::<Vec<_>>()
+    };
     let (muted_room_ids, direct_room_ids) = client.runtime.block_on(async {
         let settings = matrix_client.notification_settings().await;
         let mut muted = HashSet::new();
         let mut direct = HashSet::new();
-        for room_id in response.rooms.joined.keys() {
+        for room_id in metadata_room_ids {
             if settings
-                .get_user_defined_room_notification_mode(room_id)
+                .get_user_defined_room_notification_mode(&room_id)
                 .await
                 == Some(RoomNotificationMode::Mute)
             {
                 muted.insert(room_id.clone());
             }
-            if let Some(room) = matrix_client.get_room(room_id) {
+            if let Some(room) = matrix_client.get_room(&room_id) {
                 if room.is_direct().await.unwrap_or(false) {
-                    direct.insert(room_id.clone());
+                    direct.insert(room_id);
                 }
             }
         }
@@ -1005,7 +1020,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         .map(|room_id| room_id.as_str())
         .collect::<Vec<_>>();
 
-    let rooms = response
+    let mut rooms = response
         .rooms
         .joined
         .iter()
@@ -1075,6 +1090,67 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             })
         })
         .collect::<Vec<_>>();
+
+    if hydrate_room_metadata {
+        for room in matrix_client.joined_rooms() {
+            let room_id = room.room_id();
+            if response.rooms.joined.contains_key(room_id) {
+                continue;
+            }
+            let display_name = room
+                .cached_display_name()
+                .map(|name| name.to_string())
+                .unwrap_or_else(|| room_id.as_str().to_owned());
+            let latest_event = room.latest_event();
+            let latest_event_timestamp = latest_event
+                .timestamp()
+                .map(|timestamp| Into::<u64>::into(timestamp.get()));
+            let latest_event_id = latest_event.event_id().map(|event_id| event_id.to_string());
+            let unread_count = room.num_unread_messages();
+            let highlight_count = room.num_unread_mentions();
+            let has_active_call = room.has_active_room_call();
+            let is_favourite = room.is_favourite();
+            let is_muted = muted_room_ids.contains(room_id);
+            let is_direct = direct_room_ids.contains(room_id);
+            let avatar_url = if let Some(avatar_url) = room.avatar_url() {
+                Some(avatar_url.to_string())
+            } else if is_direct {
+                let direct_user_ids = room
+                    .direct_targets()
+                    .into_iter()
+                    .filter_map(|target| target.into_user_id())
+                    .collect::<Vec<_>>();
+                if direct_user_ids.len() == 1 {
+                    client
+                        .runtime
+                        .block_on(room.get_member_no_sync(&direct_user_ids[0]))
+                        .ok()
+                        .flatten()
+                        .and_then(|member| member.avatar_url().map(|url| url.to_string()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            rooms.push(json!({
+                "roomId": room_id.as_str(),
+                "displayName": display_name,
+                "avatarUrl": avatar_url,
+                "unreadCount": unread_count,
+                "highlightCount": highlight_count,
+                "hasActiveCall": has_active_call,
+                "isFavourite": is_favourite,
+                "isMuted": is_muted,
+                "isDirect": is_direct,
+                "latestEventTimestamp": latest_event_timestamp,
+                "latestEventId": latest_event_id,
+                "prevBatch": Value::Null,
+                "events": [],
+            }));
+        }
+        client.room_metadata_hydrated = true;
+    }
 
     json_to_c_string(&json!({
         "cursor": response.next_batch,

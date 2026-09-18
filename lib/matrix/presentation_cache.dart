@@ -153,6 +153,7 @@ final class MatrixPresentationCache {
       lastActivity: current.lastActivity,
       streamPosition: current.streamPosition,
       lastEventId: current.lastEventId,
+      avatarUrl: current.avatarUrl,
       unreadCount: current.unreadCount,
       highlightCount: current.highlightCount,
       hasActiveCall: current.hasActiveCall,
@@ -177,6 +178,7 @@ final class MatrixPresentationCache {
       lastActivity: current.lastActivity,
       streamPosition: current.streamPosition,
       lastEventId: current.lastEventId,
+      avatarUrl: current.avatarUrl,
       unreadCount: 0,
       highlightCount: 0,
       hasActiveCall: current.hasActiveCall,
@@ -482,6 +484,7 @@ final class MatrixPresentationCache {
         left.lastActivity == right.lastActivity &&
         left.streamPosition == right.streamPosition &&
         left.lastEventId == right.lastEventId &&
+        left.avatarUrl == right.avatarUrl &&
         left.unreadCount == right.unreadCount &&
         left.highlightCount == right.highlightCount &&
         left.hasActiveCall == right.hasActiveCall &&
