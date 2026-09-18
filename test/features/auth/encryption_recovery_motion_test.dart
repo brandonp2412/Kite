@@ -91,7 +91,10 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(_rectOf(tester, summary), initialSummary);
-    expect(_rectOf(tester, statusSlot), initialStatusSlot);
+    final settledSummary = _rectOf(tester, summary);
+    expect(settledSummary.topLeft, initialSummary.topLeft);
+    expect(settledSummary.width, initialSummary.width);
+    expect(_rectOf(tester, statusSlot).size, initialStatusSlot.size);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -85,6 +85,15 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
   );
 }
 
+Future<void> _expandOtherRecoveryMethods(WidgetTester tester) async {
+  final otherMethods = find.byKey(
+    const Key('encryption-recovery-other-methods'),
+  );
+  await _scrollTo(tester, otherMethods);
+  await tester.tap(otherMethods);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('unknown recovery state never claims sessions are verified', (
     tester,
@@ -94,9 +103,15 @@ void main() {
 
     await tester.pumpWidget(_app(controller));
 
-    expect(find.text('Checking backup status'), findsOneWidget);
-    expect(find.text('Session verification status unknown.'), findsOneWidget);
-    expect(find.text('No unverified sessions reported.'), findsNothing);
+    expect(find.text('Check your recovery setup'), findsOneWidget);
+    expect(
+      find.text('Kite is checking the Matrix backup and session state.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Some signed-in sessions are not verified.'),
+      findsNothing,
+    );
   });
 
   testWidgets('renders SDK recovery state and delegates recovery actions', (
@@ -109,14 +124,25 @@ void main() {
 
     await tester.pumpWidget(_app(controller));
 
-    expect(find.text('Recovery required'), findsOneWidget);
-    expect(find.text('History recovery available'), findsOneWidget);
-    expect(find.text('Some sessions are not verified.'), findsOneWidget);
+    expect(find.text('Recovery needs attention'), findsOneWidget);
+    expect(
+      find.text(
+        'Restore your encryption keys to read older encrypted messages.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Some signed-in sessions are not verified.'),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byKey(const Key('create-encrypted-backup')));
+    final createBackup = find.byKey(const Key('create-encrypted-backup'));
+    await _scrollTo(tester, createBackup);
+    await tester.tap(createBackup);
     await tester.pump();
     expect(gateway.createCalls, 1);
-    expect(find.text('Backup ready'), findsOneWidget);
+    expect(find.text('Recovery is set up'), findsOneWidget);
+    expect(find.text('Encrypted backup is ready'), findsOneWidget);
 
     final recoverHistory = find.byKey(const Key('recover-history'));
     await _scrollTo(tester, recoverHistory);
@@ -139,6 +165,7 @@ void main() {
     await controller.refresh();
     await tester.pumpWidget(_app(controller));
 
+    await _expandOtherRecoveryMethods(tester);
     final passphraseField = find.byKey(const Key('recovery-passphrase-field'));
     await _scrollTo(tester, passphraseField);
     await tester.enterText(passphraseField, 'unused secret');
@@ -199,6 +226,7 @@ void main() {
       );
       expect(find.textContaining('OPAQUE-KEY'), findsNothing);
 
+      await _expandOtherRecoveryMethods(tester);
       final passphraseField = find.byKey(
         const Key('recovery-passphrase-field'),
       );
