@@ -120,9 +120,8 @@ jobs:
           } > android/key.properties
 
       - name: Build signed Android APKs
-        env:
-          KITE_ANDROID_NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
         run: |
+          export KITE_ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358"
           build_number="$((2100 + GITHUB_RUN_NUMBER))"
           flutter build apk \
             --release \
