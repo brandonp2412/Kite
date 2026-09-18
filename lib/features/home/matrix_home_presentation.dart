@@ -113,6 +113,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.sendPort,
     this.editPort,
     this.linkOpenPort,
+    this.sharePort,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
@@ -131,6 +132,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final TimelineSendPort sendPort;
   final TimelineEditPort? editPort;
   final TimelineLinkOpenPort? linkOpenPort;
+  final TimelineSharePort? sharePort;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
@@ -167,11 +169,13 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
     }
     if (!identical(oldWidget.sendPort, widget.sendPort) ||
         !identical(oldWidget.editPort, widget.editPort) ||
-        !identical(oldWidget.linkOpenPort, widget.linkOpenPort)) {
+        !identical(oldWidget.linkOpenPort, widget.linkOpenPort) ||
+        !identical(oldWidget.sharePort, widget.sharePort)) {
       _binding.updateTransport(
         sendPort: widget.sendPort,
         editPort: widget.editPort,
         linkOpenPort: widget.linkOpenPort,
+        sharePort: widget.sharePort,
       );
     }
   }
@@ -183,6 +187,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       sendPort: widget.sendPort,
       editPort: widget.editPort,
       linkOpenPort: widget.linkOpenPort,
+      sharePort: widget.sharePort,
       invitePort: widget.onRoomInviteResponse == null
           ? null
           : MatrixRoomInvitePort(widget.onRoomInviteResponse!),
@@ -225,6 +230,7 @@ final class MatrixHomePresentationBinding {
     required TimelineSendPort sendPort,
     TimelineEditPort? editPort,
     TimelineLinkOpenPort? linkOpenPort,
+    TimelineSharePort? sharePort,
     TimelineController? controller,
     Signal<String>? selectedRoom,
     RoomInvitePort? invitePort,
@@ -235,6 +241,7 @@ final class MatrixHomePresentationBinding {
              sendPort: sendPort,
              editPort: editPort,
              linkOpenPort: linkOpenPort,
+             sharePort: sharePort,
              fixtureProvider: (_) => const [],
            ),
        selectedRoom = selectedRoom ?? selectedRoomId,
@@ -247,6 +254,7 @@ final class MatrixHomePresentationBinding {
       sendPort: sendPort,
       editPort: editPort,
       linkOpenPort: linkOpenPort,
+      sharePort: sharePort,
       fixtureProvider: (_) => const [],
     );
     _projectCache();
@@ -281,11 +289,13 @@ final class MatrixHomePresentationBinding {
     required TimelineSendPort sendPort,
     TimelineEditPort? editPort,
     TimelineLinkOpenPort? linkOpenPort,
+    TimelineSharePort? sharePort,
   }) {
     controller.updateTransport(
       sendPort: sendPort,
       editPort: editPort,
       linkOpenPort: linkOpenPort,
+      sharePort: sharePort,
     );
   }
 
