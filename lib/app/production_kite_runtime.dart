@@ -143,6 +143,11 @@ final class _AuthenticatedMatrixHomeState
   late Future<MatrixPresentationCache> _activation;
   final MatrixSessionExpiryBinding _sessionExpiryBinding =
       MatrixSessionExpiryBinding();
+  static const int _avatarPrefetchLimit = 32;
+  static const int _avatarTimelineEventLimit = 8;
+  static const int _avatarPrefetchAttempts = 3;
+  static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
+
   final Set<String> _scheduledAvatarPrefetches = <String>{};
   void Function()? _disposeAvatarPrefetchEffect;
   var _activationGeneration = 0;
@@ -202,16 +207,30 @@ final class _AuthenticatedMatrixHomeState
     final generation = _avatarPrefetchGeneration;
     _disposeAvatarPrefetchEffect = effect(() {
       final snapshot = cache.snapshot(
-        roomLimit: 6,
-        timelineEventLimitPerRoom: 1,
+        roomLimit: _avatarPrefetchLimit,
+        timelineEventLimitPerRoom: _avatarTimelineEventLimit,
       );
       final pending = <String>[];
-      for (final room in snapshot.rooms) {
-        final avatarUrl = room.avatarUrl;
-        final uri = avatarUrl == null ? null : Uri.tryParse(avatarUrl);
-        if (uri?.scheme != 'mxc') continue;
-        if (_scheduledAvatarPrefetches.add(avatarUrl!)) {
+
+      void schedule(String? avatarUrl) {
+        if (pending.length >= _avatarPrefetchLimit || avatarUrl == null) return;
+        final uri = Uri.tryParse(avatarUrl);
+        if (uri?.scheme != 'mxc') return;
+        if (_scheduledAvatarPrefetches.add(avatarUrl)) {
           pending.add(avatarUrl);
+        }
+      }
+
+      for (final room in snapshot.rooms) {
+        schedule(room.avatarUrl);
+      }
+      if (pending.length < _avatarPrefetchLimit) {
+        for (final events in snapshot.timelines.values) {
+          for (final event in events.reversed) {
+            schedule(event.senderAvatarUrl);
+            if (pending.length >= _avatarPrefetchLimit) break;
+          }
+          if (pending.length >= _avatarPrefetchLimit) break;
         }
       }
       if (pending.isNotEmpty) {
@@ -224,18 +243,25 @@ final class _AuthenticatedMatrixHomeState
     int generation,
     List<String> contentUris,
   ) async {
-    try {
-      await widget.runtime.prefetchMedia(
-        accountId: widget.session.userId,
-        contentUris: contentUris,
-        width: 192,
-        height: 192,
-      );
-    } catch (_) {
-      if (mounted && generation == _avatarPrefetchGeneration) {
-        _scheduledAvatarPrefetches.removeAll(contentUris);
+    for (var attempt = 0; attempt < _avatarPrefetchAttempts; attempt += 1) {
+      try {
+        final completed = await widget.runtime.prefetchMedia(
+          accountId: widget.session.userId,
+          contentUris: contentUris,
+          width: 192,
+          height: 192,
+        );
+        if (!mounted || generation != _avatarPrefetchGeneration) return;
+        if (completed == contentUris.length) return;
+      } catch (_) {
+        if (!mounted || generation != _avatarPrefetchGeneration) return;
+      }
+      if (attempt + 1 < _avatarPrefetchAttempts) {
+        await Future<void>.delayed(_avatarPrefetchRetryDelay * (attempt + 1));
+        if (!mounted || generation != _avatarPrefetchGeneration) return;
       }
     }
+    _scheduledAvatarPrefetches.removeAll(contentUris);
   }
 
   void _detachAvatarPrefetch() {

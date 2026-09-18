@@ -157,7 +157,14 @@ void main() {
       reason: 'Real Matrix sync must hydrate room avatar MXC metadata.',
     );
 
-    final avatarBatch = avatarRooms.take(3).toList(growable: false);
+    final avatarBatch = avatarRooms.take(12).toList(growable: false);
+    expect(
+      avatarBatch.length,
+      greaterThan(3),
+      reason:
+          'The real-session avatar regression check needs more than the old '
+          'three-avatar happy path.',
+    );
     final avatarPrefetchTimer = Stopwatch()..start();
     final prefetched = await runtime.prefetchMedia(
       accountId: activeAccountId,
@@ -312,9 +319,9 @@ void main() {
       expect(find.text(e2eMessage), findsWidgets);
     }
 
-    final listView = tester.widget<ListView>(messageList);
+    final scrollView = tester.widget<CustomScrollView>(messageList);
     expect(
-      listView.childrenDelegate.estimatedChildCount ?? 0,
+      scrollView.semanticChildCount ?? 0,
       greaterThan(0),
       reason: 'The real selected Matrix room must render timeline messages.',
     );
