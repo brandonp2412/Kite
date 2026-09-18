@@ -59,7 +59,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: static-contract
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     concurrency:
       group: kite-android-release
       cancel-in-progress: false
@@ -78,7 +78,7 @@ jobs:
       - name: Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android
+          targets: aarch64-linux-android,x86_64-linux-android
 
       - name: Flutter
         uses: subosito/flutter-action@v2
@@ -119,36 +119,40 @@ jobs:
             printf 'storeFile=keystore.jks\n'
           } > android/key.properties
 
-      - name: Build ARM64 Matrix bridge
-        run: KITE_ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" tool/build_android_matrix_bridge.sh arm64-v8a
-
-      - name: Build signed ARM64 APK
+      - name: Build signed Android APKs
+        env:
+          KITE_ANDROID_NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
         run: |
           build_number="$((2100 + GITHUB_RUN_NUMBER))"
           flutter build apk \
             --release \
             --split-per-abi \
-            --target-platform android-arm64 \
+            --target-platform android-arm64,android-x64 \
             --build-number "$build_number"
           tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
+          tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-x86_64-release.apk x86_64
           mkdir -p build/release
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/release/kite-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk build/release/kite-x86_64.apk
 
-      - name: Verify signed APK
+      - name: Verify signed APKs
         run: |
           set -euo pipefail
-          apk='build/release/kite-arm64-v8a.apk'
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -n "$apksigner"
-          actual="$($apksigner verify --print-certs "$apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
           expected='c5afe55b3b7c50f43aaa1f14f8e38e922c0ffc814324b3a5009bc1c070e4284b'
-          test "$actual" = "$expected"
+          for apk in build/release/kite-arm64-v8a.apk build/release/kite-x86_64.apk; do
+            actual="$($apksigner verify --print-certs "$apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+            test "$actual" = "$expected"
+          done
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kite-arm64-v8a
-          path: build/release/kite-arm64-v8a.apk
+          name: kite-android
+          path: |
+            build/release/kite-arm64-v8a.apk
+            build/release/kite-x86_64.apk
           if-no-files-found: error
 
       - name: Publish latest Android release
@@ -163,7 +167,8 @@ jobs:
           gh release delete android-latest --cleanup-tag --yes >/dev/null 2>&1 || true
           gh release create android-latest \
             build/release/kite-arm64-v8a.apk \
+            build/release/kite-x86_64.apk \
             --target "$GITHUB_SHA" \
             --title 'Kite Android (latest)' \
-            --notes "ARM64 Android build signed with the F-Droid signing key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}, Flutter build number $((2100 + GITHUB_RUN_NUMBER))." \
+            --notes "ARM64 and x86_64 Android builds signed with the F-Droid signing key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}, Flutter build number $((2100 + GITHUB_RUN_NUMBER))." \
             --latest

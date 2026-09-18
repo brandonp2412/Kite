@@ -18,9 +18,26 @@ val hasReleaseSigning = keystorePropertiesFile.exists() &&
     }
 
 val repoRoot = rootProject.projectDir.parentFile
+val flutterTargetPlatforms = providers.gradleProperty("target-platform").orNull
+    ?.split(",")
+    ?.filter(String::isNotBlank)
+    .orEmpty()
+val matrixBridgeAbis = flutterTargetPlatforms.mapNotNull { platform ->
+    when (platform) {
+        "android-arm" -> "armeabi-v7a"
+        "android-arm64" -> "arm64-v8a"
+        "android-x64" -> "x86_64"
+        else -> null
+    }
+}.distinct()
+
 val buildKiteMatrixBridge by tasks.registering(Exec::class) {
     workingDir(repoRoot)
-    commandLine("bash", "tool/build_android_matrix_bridge.sh")
+    commandLine(
+        listOf("bash", "tool/build_android_matrix_bridge.sh") +
+            matrixBridgeAbis,
+    )
+    inputs.property("flutterTargetPlatforms", flutterTargetPlatforms.joinToString(","))
     inputs.file(File(repoRoot, "tool/build_android_matrix_bridge.sh"))
     inputs.file(File(repoRoot, "rust/kite_matrix_bridge/Cargo.toml"))
     inputs.file(File(repoRoot, "rust/kite_matrix_bridge/Cargo.lock"))

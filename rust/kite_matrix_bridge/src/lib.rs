@@ -312,7 +312,7 @@ pub unsafe extern "C" fn kite_matrix_discover_authentication(
     };
     let result = runtime.block_on(async {
         let client = Client::builder()
-            .server_name_or_homeserver_url(homeserver)
+            .homeserver_url(homeserver)
             .build()
             .await
             .map_err(|_| ())?;
