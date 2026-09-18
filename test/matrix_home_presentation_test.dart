@@ -8,6 +8,7 @@ import 'package:kite/features/home/matrix_home_presentation.dart';
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
+import 'package:kite/features/timeline/timeline_share.dart';
 import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
@@ -36,6 +37,39 @@ void main() {
     await binding.controller.openLink(uri);
 
     expect(opened, <Uri>[uri]);
+  });
+
+  test('Matrix home binding preserves the injected share port', () async {
+    final cache = MatrixPresentationCache();
+    final shared = <String>[];
+    final sharePort = PlatformTimelineSharePort(
+      launcher: (text) async {
+        shared.add(text);
+      },
+    );
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+      sharePort: sharePort,
+    );
+    addTearDown(binding.dispose);
+
+    await binding.controller.shareMessage(
+      '!room:example.org',
+      TimelineMessage(
+        id: r'$event:example.org',
+        sender: 'Me',
+        body: 'Production share',
+        mine: true,
+        timeLabel: '03:12',
+      ),
+    );
+
+    expect(shared.single, contains('Production share'));
+    expect(shared.single, contains('%24event%3Aexample.org'));
   });
 
   test('Matrix timeline send port preserves reply targets', () async {

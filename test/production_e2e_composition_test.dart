@@ -76,6 +76,15 @@ void main() {
     );
   });
 
+  test('production share action uses the platform share sheet', () {
+    expect(
+      runtimeSource,
+      contains('sharePort: const PlatformTimelineSharePort()'),
+    );
+    expect(homeSource, contains('sharePort: widget.sharePort'));
+    expect(homeSource, contains('sharePort: sharePort'));
+  });
+
   test('Android release can reach Matrix homeservers', () {
     expect(
       androidManifestSource,
