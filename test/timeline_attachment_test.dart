@@ -206,7 +206,10 @@ void main() {
     );
     expect(find.byKey(Key('message-attachment-open-${file.id}')), findsNothing);
 
-    await tester.tap(find.byKey(Key('message-attachment-open-${first.id}')));
+    final firstMedia = find.byKey(Key('message-attachment-open-${first.id}'));
+    await tester.ensureVisible(firstMedia);
+    await tester.pumpAndSettle();
+    await tester.tap(firstMedia);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('media-viewer')), findsOneWidget);

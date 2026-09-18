@@ -35,8 +35,9 @@ final class DeterministicTimelineMediaActionPort
   }
 }
 
-typedef TimelineMediaImageProvider =
-    ImageProvider<Object>? Function(TimelineAttachment attachment);
+typedef TimelineMediaImageProvider = ImageProvider<Object>? Function(
+  TimelineAttachment attachment,
+);
 
 abstract interface class TimelineMediaResolver {
   MediaVisualBuilder thumbnailFor(TimelineMessage message);
@@ -219,39 +220,31 @@ class TimelineMediaVisual extends StatelessWidget {
       fit: StackFit.expand,
       children: <Widget>[
         visual,
-        Positioned(
-          left: KiteSpacing.sm,
-          right: KiteSpacing.sm,
-          bottom: KiteSpacing.xs,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.34),
-              borderRadius: BorderRadius.circular(KiteRadii.sm),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: KiteSpacing.xs,
-                vertical: 2,
+        if (attachment.kind == TimelineAttachmentKind.video)
+          Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
               ),
-              child: Text(
-                attachment.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: KiteTypography.metadata.copyWith(
+              child: const SizedBox.square(
+                dimension: 56,
+                child: Icon(
+                  Icons.play_arrow_rounded,
+                  size: 34,
                   color: Colors.white,
-                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           ),
-        ),
         if (detailed)
           Positioned(
+            left: KiteSpacing.sm,
             right: KiteSpacing.sm,
-            top: KiteSpacing.sm,
+            bottom: KiteSpacing.sm,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.42),
+                color: Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(KiteRadii.pill),
               ),
               child: Padding(
@@ -259,9 +252,27 @@ class TimelineMediaVisual extends StatelessWidget {
                   horizontal: KiteSpacing.sm,
                   vertical: KiteSpacing.xs,
                 ),
-                child: Text(
-                  attachment.sizeLabel,
-                  style: KiteTypography.metadata.copyWith(color: Colors.white),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        attachment.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KiteTypography.metadata.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: KiteSpacing.sm),
+                    Text(
+                      attachment.sizeLabel,
+                      style: KiteTypography.metadata.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

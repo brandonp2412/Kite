@@ -87,9 +87,9 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
           ),
           icon: _icons[index],
           label: _labels[index],
-          onTap: () => Navigator.of(
-            context,
-          ).pop(deterministicComposerAttachments[index]),
+          onTap: () =>
+              Navigator.of(context)
+                  .pop(deterministicComposerAttachments[index]),
         ),
       if (onLocationSelected != null)
         _ComposerAttachmentActionTile(
@@ -137,9 +137,8 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
         children: <Widget>[
           Text(
             'Add attachment',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: KiteSpacing.md),
           GridView.count(
@@ -279,9 +278,8 @@ class ComposerAttachmentPreview extends StatelessWidget {
                       key: const Key('composer-attachment-name'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
                       attachment.sizeLabel,
@@ -334,7 +332,11 @@ class TimelineAttachmentCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final visualMedia = attachment.kind.isVisualMedia;
     final audio = attachment.kind.isAudio;
-    final borderRadius = BorderRadius.circular(KiteRadii.sm);
+    final borderRadius = BorderRadius.circular(KiteRadii.md);
+    final visualWidth = (MediaQuery.sizeOf(context).width * 0.72).clamp(
+      240.0,
+      360.0,
+    );
     final media = TimelineMediaVisual(
       attachment: attachment,
       imageProvider: imageProvider,
@@ -393,9 +395,13 @@ class TimelineAttachmentCard extends StatelessWidget {
           : attachment.name,
       child: SizedBox(
         key: Key('message-attachment-$messageId'),
-        width: visualMedia || audio ? 250 : 230,
+        width: visualMedia
+            ? visualWidth
+            : audio
+            ? 250
+            : 230,
         height: visualMedia
-            ? 132
+            ? visualWidth * 0.68
             : audio
             ? 76
             : 58,
@@ -403,10 +409,12 @@ class TimelineAttachmentCard extends StatelessWidget {
           color: colors.surface.withValues(alpha: 0.45),
           shape: RoundedRectangleBorder(
             borderRadius: borderRadius,
-            side: BorderSide(
-              color: colors.outlineVariant.withValues(alpha: 0.7),
-              width: KiteStroke.hairline,
-            ),
+            side: visualMedia
+                ? BorderSide.none
+                : BorderSide(
+                    color: colors.outlineVariant.withValues(alpha: 0.7),
+                    width: KiteStroke.hairline,
+                  ),
           ),
           clipBehavior: Clip.antiAlias,
           child: !visualMedia || onTap == null
