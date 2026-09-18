@@ -28,6 +28,25 @@ void main() {
     expect(preview.description, 'docs › client-server-api');
   });
 
+  test('platform link opener launches only http and https targets', () async {
+    final opened = <Uri>[];
+    final port = PlatformTimelineLinkOpenPort(
+      launcher: (uri) async {
+        opened.add(uri);
+        return true;
+      },
+    );
+
+    await port.open(Uri.parse('https://element.io/help'));
+    await port.open(Uri.parse('http://matrix.org/docs'));
+    await port.open(Uri.parse('matrix:r/example.org'));
+
+    expect(opened, <Uri>[
+      Uri.parse('https://element.io/help'),
+      Uri.parse('http://matrix.org/docs'),
+    ]);
+  });
+
   testWidgets('timeline link preview opens through the platform boundary', (
     tester,
   ) async {
