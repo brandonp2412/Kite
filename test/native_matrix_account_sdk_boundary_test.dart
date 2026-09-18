@@ -196,6 +196,10 @@ void main() {
 
     expect(
       boundary.accountCapabilities,
+      contains(MatrixAccountSdkCapability.auditedEncryption),
+    );
+    expect(
+      boundary.accountCapabilities,
       contains(MatrixAccountSdkCapability.encryptedBackup),
     );
     expect(

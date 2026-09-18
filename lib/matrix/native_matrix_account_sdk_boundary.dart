@@ -79,6 +79,7 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
         MatrixAccountSdkCapability.homeserverDiscovery,
         MatrixAccountSdkCapability.passwordAuthentication,
         MatrixAccountSdkCapability.sessionPersistence,
+        MatrixAccountSdkCapability.auditedEncryption,
         if (_devices != null) ...<MatrixAccountSdkCapability>{
           MatrixAccountSdkCapability.deviceListing,
           MatrixAccountSdkCapability.deviceManagement,
