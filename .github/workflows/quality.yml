@@ -122,27 +122,35 @@ jobs:
       - name: Build signed Android APKs
         run: |
           export KITE_ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358"
-          build_number="$((2100 + GITHUB_RUN_NUMBER))"
           flutter build apk \
             --release \
             --split-per-abi \
-            --target-platform android-arm64,android-x64 \
-            --build-number "$build_number"
+            --target-platform android-arm64,android-x64
           tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
           tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-x86_64-release.apk x86_64
           mkdir -p build/release
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/release/kite-arm64-v8a.apk
           cp build/app/outputs/flutter-apk/app-x86_64-release.apk build/release/kite-x86_64.apk
 
-      - name: Verify signed APKs
+      - name: Verify signed APKs and pubspec version
         run: |
           set -euo pipefail
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           test -n "$apksigner"
-          expected='c5afe55b3b7c50f43aaa1f14f8e38e922c0ffc814324b3a5009bc1c070e4284b'
+          test -n "$aapt"
+          expected_fingerprint='c5afe55b3b7c50f43aaa1f14f8e38e922c0ffc814324b3a5009bc1c070e4284b'
+          app_version="$(sed -n 's/^version: //p' pubspec.yaml)"
+          expected_version_code="${app_version##*+}"
+          expected_version_name="${app_version%%+*}"
           for apk in build/release/kite-arm64-v8a.apk build/release/kite-x86_64.apk; do
-            actual="$($apksigner verify --print-certs "$apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
-            test "$actual" = "$expected"
+            actual_fingerprint="$($apksigner verify --print-certs "$apk" | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+            badging="$($aapt dump badging "$apk" | head -1)"
+            actual_version_code="$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<<"$badging")"
+            actual_version_name="$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<<"$badging")"
+            test "$actual_fingerprint" = "$expected_fingerprint"
+            test "$actual_version_code" = "$expected_version_code"
+            test "$actual_version_name" = "$expected_version_name"
           done
 
       - name: Upload workflow artifact
@@ -163,11 +171,12 @@ jobs:
             printf 'Skipping release publish because main advanced to %s.\n' "$latest_sha"
             exit 0
           fi
+          app_version="$(sed -n 's/^version: //p' pubspec.yaml)"
           gh release delete android-latest --cleanup-tag --yes >/dev/null 2>&1 || true
           gh release create android-latest \
             build/release/kite-arm64-v8a.apk \
             build/release/kite-x86_64.apk \
             --target "$GITHUB_SHA" \
             --title 'Kite Android (latest)' \
-            --notes "ARM64 and x86_64 Android builds signed with the F-Droid signing key from ${GITHUB_SHA:0:7}. CI run ${GITHUB_RUN_NUMBER}, Flutter build number $((2100 + GITHUB_RUN_NUMBER))." \
+            --notes "ARM64 and x86_64 Android builds signed with the F-Droid signing key from ${GITHUB_SHA:0:7}. Version ${app_version} from pubspec.yaml. CI run ${GITHUB_RUN_NUMBER}." \
             --latest
