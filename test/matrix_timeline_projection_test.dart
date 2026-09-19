@@ -49,6 +49,51 @@ void main() {
     },
   );
 
+  test('Matrix room projection keeps the newest message preview when state follows it', () {
+    final cache = MatrixPresentationCache();
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 's1',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:example.org',
+            summary: MatrixRoomSummary(
+              roomId: '!alpha:example.org',
+              displayName: 'Alpha',
+              lastActivity: DateTime.utc(2026, 9, 16, 10, 31),
+              streamPosition: 2,
+              lastEventId: r'$membership',
+            ),
+            timelineEvents: <MatrixTimelineEvent>[
+              _event(
+                eventId: r'$message',
+                streamPosition: 1,
+                senderId: '@alice:example.org',
+                senderDisplayName: 'Alice',
+                msgtype: 'm.text',
+                body: 'Newest useful message',
+              ),
+              MatrixTimelineEvent(
+                eventId: r'$membership',
+                roomId: '!alpha:example.org',
+                senderId: '@alice:example.org',
+                type: 'm.room.member',
+                originServerTimestamp: DateTime.utc(2026, 9, 16, 10, 31),
+                streamPosition: 2,
+                content: const <String, Object?>{'membership': 'join'},
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final entry = matrixRoomListEntries(cache).single;
+
+    expect(entry.latestSender, 'Alice');
+    expect(entry.latestEventBody, 'Newest useful message');
+  });
+
   test('Matrix room projection uses event-aware media previews', () {
     final cache = MatrixPresentationCache();
     cache.applySync(
@@ -432,10 +477,7 @@ void main() {
       final first = controller.messagesFor('!alpha:example.org').value.single;
       expect(first.id, r'$original');
       expect(first.body, 'Edited message');
-      expect(
-        first.formattedBody,
-        '<p>Edited <strong>message</strong></p>',
-      );
+      expect(first.formattedBody, '<p>Edited <strong>message</strong></p>');
       expect(first.edited, isTrue);
       expect(first.editHistory, <String>['Original message']);
 

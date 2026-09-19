@@ -147,6 +147,8 @@ final class _AuthenticatedMatrixHomeState
   static const int _avatarPrefetchLimit = 32;
   static const int _avatarTimelineEventLimit = 8;
   static const int _avatarPrefetchAttempts = 3;
+  static const int _avatarWarmupLimit = 16;
+  static const Duration _avatarWarmupBudget = Duration(milliseconds: 180);
   static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
 
   final Set<String> _scheduledAvatarPrefetches = <String>{};
@@ -185,7 +187,8 @@ final class _AuthenticatedMatrixHomeState
     );
     late final MatrixPresentationCache cache;
     try {
-      cache = await widget.runtime.activate(widget.session.userId);
+      cache = await widget.runtime.activateCached(widget.session.userId);
+      await _warmCachedAvatars(cache, generation);
     } catch (error, stackTrace) {
       if (kDebugMode) {
         debugPrint('Kite Matrix activation failed: $error');
@@ -199,8 +202,57 @@ final class _AuthenticatedMatrixHomeState
         widget.onSessionExpired,
       );
       _attachAvatarPrefetch(cache);
+      unawaited(_resumeSync(generation));
     }
     return cache;
+  }
+
+  Future<void> _warmCachedAvatars(
+    MatrixPresentationCache cache,
+    int generation,
+  ) async {
+    if (!mounted || generation != _activationGeneration) return;
+    final snapshot = cache.snapshot(
+      roomLimit: _avatarWarmupLimit,
+      timelineEventLimitPerRoom: _avatarTimelineEventLimit,
+    );
+    final contentUris = <String>[];
+    final seen = <String>{};
+    for (final room in snapshot.rooms) {
+      final avatarUrl = room.avatarUrl;
+      if (contentUris.length >= _avatarWarmupLimit) break;
+      if (avatarUrl == null) continue;
+      final uri = Uri.tryParse(avatarUrl);
+      if (uri?.scheme == 'mxc' && seen.add(avatarUrl)) {
+        contentUris.add(avatarUrl);
+      }
+    }
+    if (contentUris.isEmpty) return;
+    final warmup = widget.runtime
+        .prefetchMedia(
+          accountId: widget.session.userId,
+          contentUris: contentUris,
+          width: 192,
+          height: 192,
+        )
+        .then<void>((_) {}, onError: (_) {});
+    await Future.any<void>(<Future<void>>[
+      warmup,
+      Future<void>.delayed(_avatarWarmupBudget),
+    ]);
+  }
+
+  Future<void> _resumeSync(int generation) async {
+    if (!mounted || generation != _activationGeneration) return;
+    try {
+      await widget.runtime.resumeActive();
+    } catch (error, stackTrace) {
+      if (!mounted || generation != _activationGeneration) return;
+      if (kDebugMode) {
+        debugPrint('Kite Matrix background sync failed to start: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
   }
 
   void _attachAvatarPrefetch(MatrixPresentationCache cache) {
