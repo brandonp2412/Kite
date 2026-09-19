@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString, c_char};
 use std::path::{Path, PathBuf};
 use std::ptr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use matrix_sdk::{
@@ -20,7 +20,7 @@ use matrix_sdk::{
         RoomAliasId, RoomId, UInt, UserId,
         api::{
             client::{
-                backup::get_latest_backup_info,
+                backup::{get_backup_keys, get_latest_backup_info},
                 filter::{FilterDefinition, RoomEventFilter, RoomFilter},
                 profile::{AvatarUrl, DisplayName},
                 receipt::create_receipt,
@@ -47,7 +47,10 @@ use matrix_sdk::{
         },
     },
 };
-use matrix_sdk_crypto::{store::types::BackupDecryptionKey, types::RoomKeyBackupInfo};
+use matrix_sdk_crypto::{
+    encrypt_room_key_export, olm::ExportedRoomKey, store::types::BackupDecryptionKey,
+    types::RoomKeyBackupInfo,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::{
@@ -569,25 +572,53 @@ async fn recover_with_backup_recovery_key(
         return Err(());
     }
 
-    {
-        let olm_machine = matrix_client.olm_machine_for_testing().await;
-        let olm_machine = olm_machine.as_ref().ok_or(())?;
-        let backup_machine = olm_machine.backup_machine();
-        let backup_key = decryption_key.megolm_v1_public_key();
-        backup_key.set_version(current_version.version.clone());
-        backup_machine
-            .save_decryption_key(Some(decryption_key), Some(current_version.version.clone()))
-            .await
-            .map_err(|_| ())?;
-        backup_machine
-            .enable_backup_v1(backup_key)
-            .await
-            .map_err(|_| ())?;
+    let response = matrix_client
+        .send(get_backup_keys::v3::Request::new(current_version.version))
+        .await
+        .map_err(|_| ())?;
+    let mut exported_room_keys = Vec::new();
+
+    for (room_id, room_keys) in response.rooms {
+        for (session_id, room_key) in room_keys.sessions {
+            let room_key = room_key.deserialize().map_err(|_| ())?;
+            let backed_up_room_key = decryption_key
+                .decrypt_session_data(room_key.session_data)
+                .map_err(|_| ())?;
+            exported_room_keys.push(ExportedRoomKey::from_backed_up_room_key(
+                room_id.to_owned(),
+                session_id,
+                backed_up_room_key,
+            ));
+        }
     }
 
-    download_recoverable_room_keys(matrix_client)
-        .await
-        .map_err(|_| ())
+    if exported_room_keys.is_empty() {
+        return Ok(());
+    }
+
+    // The Matrix SDK only exposes raw room-key imports through its internal
+    // OlmMachine. Keep production builds off the SDK's `testing` feature by
+    // round-tripping the already-decrypted keys through its public encrypted
+    // key-export importer. The file lives only in the app-private temp dir and
+    // is removed immediately after import.
+    let encrypted_export =
+        encrypt_room_key_export(&exported_room_keys, recovery_key, 100_000).map_err(|_| ())?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let import_path = std::env::temp_dir().join(format!(
+        "kite-matrix-room-key-import-{}-{nonce}.txt",
+        std::process::id()
+    ));
+    std::fs::write(&import_path, encrypted_export).map_err(|_| ())?;
+    let import_result = matrix_client
+        .encryption()
+        .import_room_keys(import_path.clone(), recovery_key)
+        .await;
+    let _ = std::fs::remove_file(import_path);
+
+    import_result.map(|_| ()).map_err(|_| ())
 }
 
 #[unsafe(no_mangle)]
