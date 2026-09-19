@@ -4753,7 +4753,7 @@ class _ComposerState extends State<_Composer> {
                                   ? null
                                   : () => _pickAttachment(roomId),
                               style: IconButton.styleFrom(
-                                minimumSize: const Size.square(40),
+                                minimumSize: const Size.square(48),
                                 padding: EdgeInsets.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
@@ -4851,7 +4851,7 @@ class _ComposerState extends State<_Composer> {
                                             .sendMessageTooltip,
                                   onPressed: enabled ? _send : null,
                                   style: IconButton.styleFrom(
-                                    minimumSize: const Size.square(44),
+                                    minimumSize: const Size.square(48),
                                     backgroundColor: enabled
                                         ? colors.primary
                                         : colors.surfaceContainerHighest,
