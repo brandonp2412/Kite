@@ -471,6 +471,49 @@ void main() {
     expect(find.text('Could not update favourite.'), findsOneWidget);
   });
 
+  testWidgets('cached Matrix avatar paints before profile hydration', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final session = AuthenticatedSession(
+      userId: '@me:example.org',
+      deviceId: 'KITE',
+      homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+    );
+    final cachedAvatar = Uri.parse('mxc://example.org/cached-me-avatar');
+    var imageProviderCalls = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: AuthenticatedAccountScope(
+          session: session,
+          signOut: () async {},
+          child: HomeScreen(
+            profileAvatarFallbackUri: cachedAvatar,
+            profileAvatarImageProvider: (avatarUri) {
+              imageProviderCalls += 1;
+              expect(avatarUri, cachedAvatar);
+              return MemoryImage(DeterministicImageFixtures.transparentPng1x1);
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(imageProviderCalls, greaterThan(0));
+    final accountButton = find.byKey(const Key('home-account-menu'));
+    expect(
+      find.descendant(of: accountButton, matching: find.byType(Image)),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('own Matrix avatar loads into the home account button', (
     tester,
   ) async {

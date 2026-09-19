@@ -70,6 +70,7 @@ class HomeScreen extends StatelessWidget {
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
     this.profileAvatarImageProvider,
+    this.profileAvatarFallbackUri,
     this.timelineMediaImageProvider,
     this.roomListLoading = false,
     this.timelineReloading = false,
@@ -90,6 +91,7 @@ class HomeScreen extends StatelessWidget {
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
   final AvatarImageProvider? profileAvatarImageProvider;
+  final Uri? profileAvatarFallbackUri;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
   final bool roomListLoading;
   final bool timelineReloading;
@@ -129,6 +131,7 @@ class HomeScreen extends StatelessWidget {
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
                 profileAvatarPicker: profileAvatarPicker,
                 profileAvatarImageProvider: profileAvatarImageProvider,
+                profileAvatarFallbackUri: profileAvatarFallbackUri,
                 roomListLoading: roomListLoading,
                 onRoomTap: (roomId) {
                   selectRoom(roomId);
@@ -181,6 +184,7 @@ class HomeScreen extends StatelessWidget {
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
                 profileAvatarPicker: profileAvatarPicker,
                 profileAvatarImageProvider: profileAvatarImageProvider,
+                profileAvatarFallbackUri: profileAvatarFallbackUri,
                 roomListLoading: roomListLoading,
               ),
             ),
@@ -294,6 +298,7 @@ class _HomeSidebar extends StatefulWidget {
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
     this.profileAvatarImageProvider,
+    this.profileAvatarFallbackUri,
     this.roomListLoading = false,
     this.onRoomTap,
   });
@@ -306,6 +311,7 @@ class _HomeSidebar extends StatefulWidget {
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
   final AvatarImageProvider? profileAvatarImageProvider;
+  final Uri? profileAvatarFallbackUri;
   final bool roomListLoading;
   final ValueChanged<String>? onRoomTap;
 
@@ -415,6 +421,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         inviteCount: inviteStore.visibleInviteIds.value.length,
         profileController: account.profileController,
         avatarImageProvider: widget.profileAvatarImageProvider,
+        fallbackAvatarUri: widget.profileAvatarFallbackUri,
       ),
     );
     if (!mounted || action == null) return;
@@ -602,6 +609,8 @@ class _HomeSidebarState extends State<_HomeSidebar> {
                                     controller: account.profileController,
                                     imageProvider:
                                         widget.profileAvatarImageProvider,
+                                    fallbackAvatarUri:
+                                        widget.profileAvatarFallbackUri,
                                     radius: 18,
                                   ),
                                 ),
@@ -677,6 +686,7 @@ class _HomeAccountSheet extends StatelessWidget {
     required this.inviteCount,
     this.profileController,
     this.avatarImageProvider,
+    this.fallbackAvatarUri,
   });
 
   final AuthenticatedSession session;
@@ -687,6 +697,7 @@ class _HomeAccountSheet extends StatelessWidget {
   final int inviteCount;
   final UserProfileController? profileController;
   final AvatarImageProvider? avatarImageProvider;
+  final Uri? fallbackAvatarUri;
 
   @override
   Widget build(BuildContext context) {
@@ -948,12 +959,14 @@ class _AccountAvatar extends StatelessWidget {
     required this.session,
     required this.controller,
     required this.imageProvider,
+    this.fallbackAvatarUri,
     required this.radius,
   });
 
   final AuthenticatedSession session;
   final UserProfileController? controller;
   final AvatarImageProvider? imageProvider;
+  final Uri? fallbackAvatarUri;
   final double radius;
 
   @override
@@ -964,13 +977,16 @@ class _AccountAvatar extends StatelessWidget {
         radius: radius,
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
-        image: null,
+        image: fallbackAvatarUri == null
+            ? null
+            : imageProvider?.call(fallbackAvatarUri!),
         fallback: Text(_accountInitial(session.userId)),
       );
     }
     return SignalBuilder(
       builder: (context) {
-        final avatarUri = profileController.ownProfile.value?.avatarUri;
+        final avatarUri =
+            profileController.ownProfile.value?.avatarUri ?? fallbackAvatarUri;
         return _AvatarCircle(
           key: const Key('home-account-avatar'),
           radius: radius,

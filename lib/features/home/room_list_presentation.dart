@@ -485,7 +485,11 @@ List<RoomListEntry> matrixRoomListEntries(MatrixPresentationCache cache) {
 }
 
 MatrixTimelineEvent? _latestTimelineEvent(List<MatrixTimelineEvent> events) {
-  return events.isEmpty ? null : events.last;
+  if (events.isEmpty) return null;
+  for (final event in events.reversed) {
+    if (event.type == 'm.room.message') return event;
+  }
+  return events.last;
 }
 
 bool _sameRoom(RoomListEntry left, RoomListEntry right) {

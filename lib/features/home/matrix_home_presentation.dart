@@ -211,12 +211,40 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         onMarkAllRoomsRead: widget.onMarkAllRoomsRead,
         profileAvatarPicker: widget.profileAvatarPicker,
         profileAvatarImageProvider: widget.profileAvatarImageProvider,
+        profileAvatarFallbackUri: _cachedOwnAvatarUri(
+          widget.cache,
+          widget.currentUserId,
+        ),
         timelineMediaImageProvider: widget.timelineMediaImageProvider,
         roomMembersLoader: widget.roomMembersLoader,
         memberModerationEnabled: widget.memberModerationEnabled,
       ),
     );
   }
+}
+
+Uri? _cachedOwnAvatarUri(MatrixPresentationCache cache, String currentUserId) {
+  final normalizedUserId = currentUserId.trim();
+  if (normalizedUserId.isEmpty) return null;
+
+  final snapshot = cache.snapshot(roomLimit: 32, timelineEventLimitPerRoom: 8);
+  DateTime? newestTimestamp;
+  Uri? newestAvatar;
+  for (final events in snapshot.timelines.values) {
+    for (final event in events) {
+      if (event.senderId != normalizedUserId) continue;
+      final rawAvatar = event.senderAvatarUrl?.trim();
+      if (rawAvatar == null || rawAvatar.isEmpty) continue;
+      final avatarUri = Uri.tryParse(rawAvatar);
+      if (avatarUri == null || avatarUri.scheme != 'mxc') continue;
+      if (newestTimestamp == null ||
+          event.originServerTimestamp.isAfter(newestTimestamp)) {
+        newestTimestamp = event.originServerTimestamp;
+        newestAvatar = avatarUri;
+      }
+    }
+  }
+  return newestAvatar;
 }
 
 final class MatrixHomePresentationBinding {

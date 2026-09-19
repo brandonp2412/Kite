@@ -27,6 +27,15 @@ void main() {
     expect(runtimeSource, contains('authenticatedHomeBuilder:'));
   });
 
+  test(
+    'production home renders cached Matrix state before live sync starts',
+    () {
+      expect(runtimeSource, contains('widget.runtime.activateCached('));
+      expect(runtimeSource, contains('unawaited(_resumeSync(generation))'));
+      expect(runtimeSource, contains('await widget.runtime.resumeActive()'));
+    },
+  );
+
   test('production rooms and timeline come only from the Matrix cache', () {
     expect(runtimeSource, contains('return MatrixHomeScreen('));
     expect(runtimeSource, contains('cache: cache'));
