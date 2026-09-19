@@ -7,7 +7,13 @@ cd "$repo_root"
 properties_file="${KITE_ANDROID_KEY_PROPERTIES:-$HOME/.config/android-signing/fdroid.properties}"
 github_repo="${KITE_GITHUB_REPO:-brandonp2412/Kite}"
 flexify_repo="${KITE_FLEXIFY_REPO:-brandonp2412/Flexify}"
-build_number="${KITE_BUILD_NUMBER:-$(date +%s)}"
+app_version="$(sed -n 's/^version: //p' pubspec.yaml)"
+if [[ "$app_version" != *+* ]]; then
+  printf 'pubspec.yaml version must include an Android build number.\n' >&2
+  exit 1
+fi
+expected_version_code="${app_version##*+}"
+expected_version_name="${app_version%%+*}"
 
 if [[ ! -f "$properties_file" ]]; then
   printf 'Android signing properties are missing.\n' >&2
@@ -35,10 +41,10 @@ flutter analyze
 mapfile -t tests < <(find test -type f -name '*_test.dart' ! -name 'golden_*' | sort)
 flutter test "${tests[@]}"
 
-flutter build apk --release --build-number "$build_number"
+flutter build apk --release
 mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/kite.apk
 tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/kite.apk arm64-v8a armeabi-v7a x86_64
-flutter build apk --release --split-per-abi --target-platform android-arm64 --build-number "$build_number"
+flutter build apk --release --split-per-abi --target-platform android-arm64
 tool/verify_android_matrix_bridge.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk arm64-v8a
 
 if [[ -z "${GH_TOKEN:-}" && -f "$HOME/.config/shell/private.env" ]]; then
@@ -65,6 +71,28 @@ if [[ -z "$apksigner" ]]; then
   exit 1
 fi
 
+aapt="${KITE_AAPT:-$(command -v aapt || true)}"
+if [[ -z "$aapt" && -d /opt/android-sdk/build-tools ]]; then
+  aapt="$(find /opt/android-sdk/build-tools -type f -name aapt 2>/dev/null | sort -V | tail -1)"
+fi
+if [[ -z "$aapt" && -n "${ANDROID_HOME:-}" && -d "$ANDROID_HOME/build-tools" ]]; then
+  aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt 2>/dev/null | sort -V | tail -1)"
+fi
+if [[ -z "$aapt" ]]; then
+  printf 'aapt was not found.\n' >&2
+  exit 1
+fi
+
+for apk in build/app/outputs/flutter-apk/kite.apk build/app/outputs/flutter-apk/app-arm64-v8a-release.apk; do
+  badging="$($aapt dump badging "$apk" | head -1)"
+  actual_version_code="$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<<"$badging")"
+  actual_version_name="$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<<"$badging")"
+  if [[ "$actual_version_code" != "$expected_version_code" || "$actual_version_name" != "$expected_version_name" ]]; then
+    printf 'APK version %s (%s) does not match pubspec.yaml %s.\n' "$actual_version_name" "$actual_version_code" "$app_version" >&2
+    exit 1
+  fi
+done
+
 kite_fingerprint="$($apksigner verify --print-certs build/app/outputs/flutter-apk/kite.apk | sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
 reference_dir="$(mktemp -d)"
 pages_repo=""
@@ -90,7 +118,7 @@ gh release create android-latest \
   --repo "$github_repo" \
   --target "$sha" \
   --title 'Kite Android (latest)' \
-  --notes "Signed Android build from ${sha:0:7}. Build number ${build_number}." \
+  --notes "Signed Android build from ${sha:0:7}. Version ${app_version} from pubspec.yaml." \
   --latest
 
 pages_repo="$(mktemp -d)"
@@ -112,4 +140,4 @@ git -C "$pages_repo" add .nojekyll index.html kite.apk
 git -C "$pages_repo" -c user.name='Kite Release' -c user.email='action@github.com' commit --quiet -m 'Publish Kite Android APK'
 git -C "$pages_repo" push --force --quiet origin HEAD:gh-pages
 
-printf 'Published signed Kite APK for %s (build %s).\n' "${sha:0:7}" "$build_number"
+printf 'Published signed Kite APK for %s (version %s from pubspec.yaml).\n' "${sha:0:7}" "$app_version"
