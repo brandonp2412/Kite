@@ -135,6 +135,32 @@ void main() {
     expect(controller.ownProfile.value?.avatarUri, selectedAvatar);
   });
 
+  testWidgets('own profile paints cached fallback without a loader', (
+    tester,
+  ) async {
+    _useLargeView(tester);
+    final controller = UserProfileController(_FakeProfileGateway());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserProfileScreen.own(
+          controller: controller,
+          loadOnInit: false,
+          fallbackProfile: const MatrixUserProfile(
+            userId: '@brandon:example.org',
+            displayName: 'Brandon cached',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Brandon cached'), findsWidgets);
+    expect(find.text('@brandon:example.org'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
   testWidgets(
     'changing viewed user reloads without showing the previous profile',
     (tester) async {

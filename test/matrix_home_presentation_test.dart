@@ -348,6 +348,76 @@ void main() {
     );
   });
 
+  test('recent Matrix timelines are projected eagerly', () async {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!alpha:example.org',
+            displayName: 'Alpha',
+            lastActivity: DateTime.utc(2026, 9, 16, 11, 10),
+            streamPosition: 2,
+            lastEventId: r'$alpha',
+          ),
+          MatrixRoomSummary(
+            roomId: '!beta:example.org',
+            displayName: 'Beta',
+            lastActivity: DateTime.utc(2026, 9, 16, 11),
+            streamPosition: 1,
+            lastEventId: r'$beta',
+          ),
+        ],
+        timelines: <String, List<MatrixTimelineEvent>>{
+          '!alpha:example.org': <MatrixTimelineEvent>[
+            _event(
+              eventId: r'$alpha',
+              body: 'Alpha message',
+              streamPosition: 2,
+              roomId: '!alpha:example.org',
+            ),
+          ],
+          '!beta:example.org': <MatrixTimelineEvent>[
+            _event(
+              eventId: r'$beta',
+              body: 'Beta message',
+              streamPosition: 1,
+              roomId: '!beta:example.org',
+            ),
+          ],
+        },
+      ),
+    );
+    final controller = TimelineController();
+    final selectedRoom = signal('!alpha:example.org');
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      controller: controller,
+      selectedRoom: selectedRoom,
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+    );
+    addTearDown(binding.dispose);
+
+    expect(
+      controller.messagesFor('!alpha:example.org').value.single.body,
+      'Alpha message',
+    );
+    expect(
+      controller.messagesFor('!beta:example.org').value.single.body,
+      'Beta message',
+    );
+
+    selectedRoom.value = '!beta:example.org';
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      controller.messagesFor('!beta:example.org').value.single.body,
+      'Beta message',
+    );
+  });
+
   testWidgets(
     'Matrix home composer sends through its production timeline port',
     (tester) async {

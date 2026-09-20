@@ -24,6 +24,7 @@ import 'package:kite/matrix/matrix_production_runtime.dart';
 import 'package:kite/matrix/matrix_rust_auth_session_api.dart';
 import 'package:kite/matrix/matrix_rust_native_bridge.dart';
 import 'package:kite/matrix/matrix_runtime_bindings.dart';
+import 'package:kite/matrix/matrix_sdk_boundary.dart';
 import 'package:kite/matrix/native_matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
@@ -147,9 +148,16 @@ final class _AuthenticatedMatrixHomeState
   static const int _avatarPrefetchLimit = 32;
   static const int _avatarTimelineEventLimit = 8;
   static const int _avatarPrefetchAttempts = 3;
+  static const int _timelineMediaPrefetchLimit = 6;
+  static const int _roomMemberPrefetchLimit = 6;
   static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
 
   final Set<String> _scheduledAvatarPrefetches = <String>{};
+  final Set<String> _scheduledTimelineMediaPrefetches = <String>{};
+  final Map<String, List<MatrixSdkRoomMember>> _roomMemberCache =
+      <String, List<MatrixSdkRoomMember>>{};
+  final Map<String, Future<List<MatrixSdkRoomMember>>> _roomMemberLoads =
+      <String, Future<List<MatrixSdkRoomMember>>>{};
   void Function()? _disposeAvatarPrefetchEffect;
   var _activationGeneration = 0;
   var _avatarPrefetchGeneration = 0;
@@ -174,6 +182,8 @@ final class _AuthenticatedMatrixHomeState
   Future<MatrixPresentationCache> _startActivation() {
     _sessionExpiryBinding.detach();
     _detachAvatarPrefetch();
+    _roomMemberCache.clear();
+    _roomMemberLoads.clear();
     _activationGeneration += 1;
     return _activate(_activationGeneration);
   }
@@ -199,6 +209,7 @@ final class _AuthenticatedMatrixHomeState
         widget.onSessionExpired,
       );
       _attachAvatarPrefetch(cache);
+      unawaited(_prefetchRecentRoomMembers(cache, generation));
       unawaited(_resumeSync(generation));
     }
     return cache;
@@ -248,10 +259,67 @@ final class _AuthenticatedMatrixHomeState
           if (pending.length >= _avatarPrefetchLimit) break;
         }
       }
+      final seenMedia = <String>{};
+      final media = <({DateTime timestamp, TimelineAttachment attachment})>[];
+      for (final events in snapshot.timelines.values) {
+        for (final event in events.reversed) {
+          final message = TimelineMessage.fromMatrixEvent(
+            event,
+            currentUserId: widget.session.userId,
+          );
+          final attachment = message?.attachment;
+          final contentUri = attachment?.contentUri;
+          if (attachment?.kind != TimelineAttachmentKind.image ||
+              contentUri == null ||
+              !seenMedia.add(contentUri)) {
+            continue;
+          }
+          media.add((
+            timestamp: event.originServerTimestamp,
+            attachment: attachment!,
+          ));
+        }
+      }
+      media.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      if (media.isNotEmpty) {
+        unawaited(
+          _prefetchTimelineMedia(
+            generation,
+            media
+                .take(_timelineMediaPrefetchLimit)
+                .map((item) => item.attachment)
+                .toList(growable: false),
+          ),
+        );
+      }
       if (pending.isNotEmpty) {
         unawaited(_prefetchAvatars(generation, pending));
       }
     });
+  }
+
+  Future<void> _prefetchTimelineMedia(
+    int generation,
+    List<TimelineAttachment> attachments,
+  ) async {
+    for (final attachment in attachments) {
+      if (!mounted || generation != _avatarPrefetchGeneration) return;
+      final contentUri = attachment.contentUri;
+      if (contentUri == null ||
+          !_scheduledTimelineMediaPrefetches.add(contentUri)) {
+        continue;
+      }
+      final provider = _timelineMediaImageProvider(attachment);
+      if (provider == null) {
+        _scheduledTimelineMediaPrefetches.remove(contentUri);
+        continue;
+      }
+      try {
+        await precacheImage(provider, context);
+      } catch (_) {
+        _scheduledTimelineMediaPrefetches.remove(contentUri);
+      }
+    }
   }
 
   Future<void> _prefetchAvatars(
@@ -284,6 +352,7 @@ final class _AuthenticatedMatrixHomeState
     _disposeAvatarPrefetchEffect?.call();
     _disposeAvatarPrefetchEffect = null;
     _scheduledAvatarPrefetches.clear();
+    _scheduledTimelineMediaPrefetches.clear();
   }
 
   @override
@@ -294,11 +363,66 @@ final class _AuthenticatedMatrixHomeState
     super.dispose();
   }
 
-  Future<RoomMembersStore> _loadRoomMembers(String roomId) async {
-    final snapshots = await widget.runtime.roomMembers(
-      accountId: widget.session.userId,
-      roomId: roomId,
+  Future<List<MatrixSdkRoomMember>> _refreshRoomMembers(
+    String roomId,
+    int generation,
+  ) {
+    final pending = _roomMemberLoads[roomId];
+    if (pending != null) return pending;
+    late final Future<List<MatrixSdkRoomMember>> guarded;
+    guarded = widget.runtime
+        .roomMembers(accountId: widget.session.userId, roomId: roomId)
+        .then((members) {
+          final result = List<MatrixSdkRoomMember>.unmodifiable(members);
+          if (mounted && generation == _activationGeneration) {
+            _roomMemberCache[roomId] = result;
+          }
+          return result;
+        });
+    _roomMemberLoads[roomId] = guarded;
+    void cleanup() {
+      if (identical(_roomMemberLoads[roomId], guarded)) {
+        _roomMemberLoads.remove(roomId);
+      }
+    }
+
+    unawaited(
+      guarded.then<void>(
+        (_) => cleanup(),
+        onError: (Object _, StackTrace _) => cleanup(),
+      ),
     );
+    return guarded;
+  }
+
+  Future<void> _prefetchRecentRoomMembers(
+    MatrixPresentationCache cache,
+    int generation,
+  ) async {
+    final roomIds = cache.roomOrder.peek().take(_roomMemberPrefetchLimit);
+    await Future.wait<void>(
+      roomIds.map((roomId) async {
+        try {
+          await _refreshRoomMembers(roomId, generation);
+        } catch (_) {
+          return;
+        }
+      }),
+    );
+  }
+
+  Future<RoomMembersStore> _loadRoomMembers(String roomId) async {
+    final cached = _roomMemberCache[roomId];
+    final snapshots =
+        cached ?? await _refreshRoomMembers(roomId, _activationGeneration);
+    if (cached != null) {
+      unawaited(
+        _refreshRoomMembers(
+          roomId,
+          _activationGeneration,
+        ).then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+      );
+    }
     final members = snapshots
         .map(
           (member) => RoomMember(

@@ -99,6 +99,49 @@ void main() {
     );
   });
 
+  testWidgets('new conversation defaults to focused cached people search', (
+    tester,
+  ) async {
+    final fixture = _fixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomCreationScreen(
+          coordinator: fixture.coordinator,
+          recentPeople: const <KiteUserSearchResult>[
+            KiteUserSearchResult(
+              userId: '@nik:example.org',
+              displayName: 'Nik',
+              avatarUrl: null,
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final mode = tester.widget<SegmentedButton<RoomCreationMode>>(
+      find.byKey(const Key('room-creation-mode')),
+    );
+    expect(mode.selected, <RoomCreationMode>{RoomCreationMode.directMessage});
+    final field = find.byKey(const Key('room-create-user-id'));
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: field, matching: find.byType(EditableText)),
+    );
+    expect(editable.focusNode.hasFocus, isTrue);
+    expect(find.text('Nik'), findsOneWidget);
+    expect(
+      fixture.rooms.invocations.where(
+        (entry) => entry.type == RoomManagementInvocationType.searchUsers,
+      ),
+      isEmpty,
+    );
+
+    await tester.enterText(field, 'n');
+    await tester.pump();
+    expect(find.text('Nik'), findsOneWidget);
+  });
+
   testWidgets('private room exposes only server-supported join rules', (
     tester,
   ) async {

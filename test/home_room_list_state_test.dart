@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
@@ -759,6 +760,78 @@ void main() {
 
     expect(find.byKey(const Key('home-search')), findsOneWidget);
     expect(find.byKey(const Key('new-chat-fab-extended')), findsOneWidget);
+  });
+
+  testWidgets('desktop right-click uses a room context menu', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light.copyWith(platform: TargetPlatform.linux),
+        home: HomeScreen(roomListStore: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final room = find.byKey(const Key('room-kite'));
+    final detector = tester
+        .widgetList<GestureDetector>(
+          find.ancestor(of: room, matching: find.byType(GestureDetector)),
+        )
+        .firstWhere((widget) => widget.onSecondaryTapDown != null);
+    detector.onSecondaryTapDown!(
+      TapDownDetails(globalPosition: tester.getCenter(room)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add to favourites'), findsOneWidget);
+    expect(find.text('Hide chat on this device'), findsOneWidget);
+    expect(find.byKey(const Key('room-options-sheet-kite')), findsNothing);
+  });
+
+  testWidgets('Ctrl+K jumps to a chat on desktop', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(() => selectRoom('kite'));
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light.copyWith(platform: TargetPlatform.linux),
+        home: HomeScreen(roomListStore: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('chat-jump-dialog')), findsOneWidget);
+    final search = find.byKey(const Key('chat-jump-search'));
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: search, matching: find.byType(EditableText)),
+    );
+    expect(editable.focusNode.hasFocus, isTrue);
+
+    await tester.enterText(search, 'Alice');
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.go);
+    await tester.pumpAndSettle();
+
+    expect(selectedRoomId.value, 'alice');
+    expect(find.byKey(const Key('chat-jump-dialog')), findsNothing);
   });
 
   testWidgets('room creation stays in the contextual account menu', (
