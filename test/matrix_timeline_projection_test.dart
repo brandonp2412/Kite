@@ -94,6 +94,47 @@ void main() {
     expect(entry.latestEventBody, 'Newest useful message');
   });
 
+  test('Matrix room projection labels undecryptable encrypted messages', () {
+    final cache = MatrixPresentationCache();
+    cache.applySync(
+      MatrixSyncBatch(
+        cursor: 's1',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: '!alpha:example.org',
+            summary: MatrixRoomSummary(
+              roomId: '!alpha:example.org',
+              displayName: 'Alpha',
+              lastActivity: DateTime.utc(2026, 9, 16, 10, 31),
+              streamPosition: 1,
+              lastEventId: r'$encrypted',
+            ),
+            timelineEvents: <MatrixTimelineEvent>[
+              MatrixTimelineEvent(
+                eventId: r'$encrypted',
+                roomId: '!alpha:example.org',
+                senderId: '@alice:example.org',
+                senderDisplayName: 'Alice',
+                type: 'm.room.encrypted',
+                originServerTimestamp: DateTime.utc(2026, 9, 16, 10, 31),
+                streamPosition: 1,
+                content: const <String, Object?>{
+                  'algorithm': 'm.megolm.v1.aes-sha2',
+                  'ciphertext': '<redacted>',
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final entry = matrixRoomListEntries(cache).single;
+
+    expect(entry.latestSender, 'Alice');
+    expect(entry.latestEventBody, 'Unable to decrypt message');
+  });
+
   test('Matrix room projection uses event-aware media previews', () {
     final cache = MatrixPresentationCache();
     cache.applySync(
