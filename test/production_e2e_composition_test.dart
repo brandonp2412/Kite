@@ -31,8 +31,10 @@ void main() {
     'production home renders cached Matrix state before live sync starts',
     () {
       expect(runtimeSource, contains('widget.runtime.activateCached('));
+      expect(runtimeSource, contains('_attachAvatarPrefetch(cache)'));
       expect(runtimeSource, contains('unawaited(_resumeSync(generation))'));
       expect(runtimeSource, contains('await widget.runtime.resumeActive()'));
+      expect(runtimeSource, isNot(contains('await _warmCachedAvatars(')));
     },
   );
 

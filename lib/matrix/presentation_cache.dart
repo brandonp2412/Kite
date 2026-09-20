@@ -428,7 +428,26 @@ final class MatrixPresentationCache {
     int? limit,
   ) {
     if (limit == null || events.length <= limit) return events;
-    return events.sublist(events.length - limit);
+
+    final recentStart = events.length - limit;
+    final recent = events.sublist(recentStart);
+    if (recent.any((event) => event.type == 'm.room.message')) {
+      return recent;
+    }
+
+    MatrixTimelineEvent? latestMessage;
+    for (var index = recentStart - 1; index >= 0; index -= 1) {
+      final event = events[index];
+      if (event.type == 'm.room.message') {
+        latestMessage = event;
+        break;
+      }
+    }
+    if (latestMessage == null) return recent;
+
+    return _mergeEvents(<MatrixTimelineEvent>[
+      latestMessage,
+    ], recent.sublist(1));
   }
 
   static List<MatrixTimelineEvent> _mergeEvents(
