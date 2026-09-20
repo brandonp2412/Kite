@@ -98,18 +98,15 @@ void main() {
     expect(editable.controller.text, 'Ping @Alice ');
     expect(find.byKey(const Key('composer-autocomplete')), findsNothing);
 
-    await tester.enterText(field, 'See #d');
+    await tester.enterText(field, 'See #k');
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const Key('composer-autocomplete-Design-Lab')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const Key('composer-autocomplete-Design-Lab')));
+    expect(find.byKey(const Key('composer-autocomplete-Kite')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('composer-autocomplete-Kite')));
     await tester.pumpAndSettle();
     editable = tester.widget<EditableText>(
       find.descendant(of: field, matching: find.byType(EditableText)),
     );
-    expect(editable.controller.text, 'See #Design-Lab ');
+    expect(editable.controller.text, 'See #Kite ');
   });
 
   testWidgets('autocomplete survives transient invalid Android selection', (
@@ -276,7 +273,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       final expanded = _rectOf(tester, composer);
-      expect(expanded.height, 128);
+      expect(expanded.height, 145);
       _expectClose(expanded.bottom, initialComposer.bottom);
 
       await tester.tap(find.byKey(const Key('composer-format-toggle')));

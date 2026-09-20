@@ -13,6 +13,7 @@ class UserProfileScreen extends StatefulWidget {
     required this.controller,
     this.pickAvatar,
     this.avatarImageProvider,
+    this.fallbackProfile,
     this.loadOnInit = true,
     super.key,
   }) : userId = null,
@@ -25,13 +26,15 @@ class UserProfileScreen extends StatefulWidget {
     this.avatarImageProvider,
     this.loadOnInit = true,
     super.key,
-  }) : pickAvatar = null;
+  }) : pickAvatar = null,
+       fallbackProfile = null;
 
   final UserProfileController controller;
   final String? userId;
   final ValueChanged<String>? onOpenRoom;
   final AvatarPicker? pickAvatar;
   final AvatarImageProvider? avatarImageProvider;
+  final MatrixUserProfile? fallbackProfile;
   final bool loadOnInit;
 
   bool get isOwnProfile => userId == null;
@@ -147,9 +150,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         top: false,
         child: SignalBuilder(
           builder: (context) {
-            final profile = widget.isOwnProfile
+            final cachedProfile = widget.isOwnProfile
                 ? widget.controller.ownProfile.value
                 : widget.controller.viewedProfile.value;
+            final profile = cachedProfile ?? widget.fallbackProfile;
             final loading = widget.controller.isLoading.value;
             final privacyLoading = widget.controller.isPrivacyLoading.value;
             final hasPrivacyState = widget.controller.hasPrivacyState.value;
@@ -165,7 +169,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 SizedBox(
                   key: const Key('profile-loading-slot'),
                   height: 4,
-                  child: loading || privacyLoading
+                  child: profile == null && (loading || privacyLoading)
                       ? const LinearProgressIndicator()
                       : null,
                 ),

@@ -54,6 +54,51 @@ typedef RoomFavouriteChange = Future<void> Function(
 );
 typedef MarkAllRoomsRead = Future<void> Function();
 
+bool _isDesktopPlatform(BuildContext context) {
+  final platform = Theme.of(context).platform;
+  return platform == TargetPlatform.linux ||
+      platform == TargetPlatform.macOS ||
+      platform == TargetPlatform.windows;
+}
+
+RelativeRect _popupPosition(BuildContext context, Offset position) {
+  final size = MediaQuery.sizeOf(context);
+  return RelativeRect.fromLTRB(
+    position.dx,
+    position.dy,
+    size.width - position.dx,
+    size.height - position.dy,
+  );
+}
+
+Future<T?> _adaptiveSurface<T>(
+  BuildContext context,
+  WidgetBuilder builder, {
+  bool scroll = false,
+}) {
+  if (_isDesktopPlatform(context)) {
+    return showDialog<T>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 440,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.84,
+          ),
+          child: builder(dialogContext),
+        ),
+      ),
+    );
+  }
+  return showModalBottomSheet<T>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: scroll,
+    constraints: const BoxConstraints(maxWidth: 440),
+    builder: builder,
+  );
+}
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
@@ -71,6 +116,7 @@ class HomeScreen extends StatelessWidget {
     this.profileAvatarPicker,
     this.profileAvatarImageProvider,
     this.profileAvatarFallbackUri,
+    this.recentPeople = const <KiteUserSearchResult>[],
     this.timelineMediaImageProvider,
     this.roomListLoading = false,
     this.timelineReloading = false,
@@ -92,6 +138,7 @@ class HomeScreen extends StatelessWidget {
   final AvatarPicker? profileAvatarPicker;
   final AvatarImageProvider? profileAvatarImageProvider;
   final Uri? profileAvatarFallbackUri;
+  final List<KiteUserSearchResult> recentPeople;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
   final bool roomListLoading;
   final bool timelineReloading;
@@ -101,6 +148,26 @@ class HomeScreen extends StatelessWidget {
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
   static const double phoneBreakpoint = 600;
+
+  Future<void> _jumpToChat(
+    BuildContext context,
+    List<RoomListEntry> fallbackRooms,
+  ) async {
+    final store = roomListStore;
+    final rooms = store == null
+        ? fallbackRooms
+        : <RoomListEntry>[
+            for (final roomId in store.roomIds) store.roomSignal(roomId).peek(),
+          ];
+    final roomId = await showDialog<String>(
+      context: context,
+      builder: (_) => _ChatJumpDialog(
+        rooms: rooms,
+        avatarImageProvider: profileAvatarImageProvider,
+      ),
+    );
+    if (roomId != null) selectRoom(roomId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +199,7 @@ class HomeScreen extends StatelessWidget {
                 profileAvatarPicker: profileAvatarPicker,
                 profileAvatarImageProvider: profileAvatarImageProvider,
                 profileAvatarFallbackUri: profileAvatarFallbackUri,
+                recentPeople: recentPeople,
                 roomListLoading: roomListLoading,
                 onRoomTap: (roomId) {
                   selectRoom(roomId);
@@ -169,38 +237,141 @@ class HomeScreen extends StatelessWidget {
       avatarImageProvider: profileAvatarImageProvider,
       timelineMediaImageProvider: timelineMediaImageProvider,
       timelineHistoryRequest: onTimelineHistoryRequested,
-      child: Scaffold(
-        body: Row(
-          children: <Widget>[
-            SizedBox(
-              key: const Key('sidebar'),
-              width: adaptiveSidebarWidth,
-              child: _HomeSidebar(
-                rooms: roomEntries,
-                store: roomListStore,
-                inviteStore: inviteStore,
-                roomCreation: roomCreation,
-                onRoomFavouriteChanged: onRoomFavouriteChanged,
-                onMarkAllRoomsRead: onMarkAllRoomsRead,
-                profileAvatarPicker: profileAvatarPicker,
-                profileAvatarImageProvider: profileAvatarImageProvider,
-                profileAvatarFallbackUri: profileAvatarFallbackUri,
-                roomListLoading: roomListLoading,
-              ),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: RepaintBoundary(
-                child: _ChatPanel(
-                  roomListStore: roomListStore,
-                  roomManagement: roomManagement,
-                  memberManagement: memberManagement,
-                  calls: calls,
-                  onTimelineHistoryRequested: onTimelineHistoryRequested,
-                  timelineReloading: timelineReloading,
-                  roomMembersLoader: roomMembersLoader,
-                  memberModerationEnabled: memberModerationEnabled,
+      child: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.keyK, control: true): () {
+            unawaited(_jumpToChat(context, roomEntries));
+          },
+        },
+        child: Focus(
+          autofocus: true,
+          child: Scaffold(
+            body: Row(
+              children: <Widget>[
+                SizedBox(
+                  key: const Key('sidebar'),
+                  width: adaptiveSidebarWidth,
+                  child: _HomeSidebar(
+                    rooms: roomEntries,
+                    store: roomListStore,
+                    inviteStore: inviteStore,
+                    roomCreation: roomCreation,
+                    onRoomFavouriteChanged: onRoomFavouriteChanged,
+                    onMarkAllRoomsRead: onMarkAllRoomsRead,
+                    profileAvatarPicker: profileAvatarPicker,
+                    profileAvatarImageProvider: profileAvatarImageProvider,
+                    profileAvatarFallbackUri: profileAvatarFallbackUri,
+                    recentPeople: recentPeople,
+                    roomListLoading: roomListLoading,
+                  ),
                 ),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: RepaintBoundary(
+                    child: _ChatPanel(
+                      roomListStore: roomListStore,
+                      roomManagement: roomManagement,
+                      memberManagement: memberManagement,
+                      calls: calls,
+                      onTimelineHistoryRequested: onTimelineHistoryRequested,
+                      timelineReloading: timelineReloading,
+                      roomMembersLoader: roomMembersLoader,
+                      memberModerationEnabled: memberModerationEnabled,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatJumpDialog extends StatefulWidget {
+  const _ChatJumpDialog({
+    required this.rooms,
+    required this.avatarImageProvider,
+  });
+
+  final List<RoomListEntry> rooms;
+  final AvatarImageProvider? avatarImageProvider;
+
+  @override
+  State<_ChatJumpDialog> createState() => _ChatJumpDialogState();
+}
+
+class _ChatJumpDialogState extends State<_ChatJumpDialog> {
+  String _query = '';
+
+  List<RoomListEntry> get _matches {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return widget.rooms.take(12).toList(growable: false);
+    return widget.rooms
+        .where(
+          (room) =>
+              room.name.toLowerCase().contains(query) ||
+              room.latestEventBody.toLowerCase().contains(query) ||
+              (room.latestSender?.toLowerCase().contains(query) ?? false),
+        )
+        .take(12)
+        .toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = _matches;
+    return AlertDialog(
+      key: const Key('chat-jump-dialog'),
+      title: const Text('Jump to chat'),
+      content: SizedBox(
+        width: 420,
+        height: 420,
+        child: Column(
+          children: <Widget>[
+            TextField(
+              key: const Key('chat-jump-search'),
+              autofocus: true,
+              textInputAction: TextInputAction.go,
+              decoration: const InputDecoration(
+                hintText: 'Search chats',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+              onChanged: (value) => setState(() => _query = value),
+              onSubmitted: (_) {
+                if (matches.isNotEmpty) {
+                  Navigator.of(context).pop(matches.first.id);
+                }
+              },
+            ),
+            const SizedBox(height: KiteSpacing.sm),
+            Expanded(
+              child: ListView.builder(
+                itemCount: matches.length,
+                itemBuilder: (context, index) {
+                  final room = matches[index];
+                  final avatarUri = Uri.tryParse(room.avatarUrl ?? '');
+                  final image = avatarUri?.scheme == 'mxc'
+                      ? widget.avatarImageProvider?.call(avatarUri)
+                      : null;
+                  return ListTile(
+                    key: Key('chat-jump-${room.id}'),
+                    leading: CircleAvatar(
+                      backgroundImage: image,
+                      child: image == null
+                          ? Text(room.name.characters.first.toUpperCase())
+                          : null,
+                    ),
+                    title: Text(room.name),
+                    subtitle: Text(
+                      room.latestEventBody,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => Navigator.of(context).pop(room.id),
+                  );
+                },
               ),
             ),
           ],
@@ -299,6 +470,7 @@ class _HomeSidebar extends StatefulWidget {
     this.profileAvatarPicker,
     this.profileAvatarImageProvider,
     this.profileAvatarFallbackUri,
+    this.recentPeople = const <KiteUserSearchResult>[],
     this.roomListLoading = false,
     this.onRoomTap,
   });
@@ -312,6 +484,7 @@ class _HomeSidebar extends StatefulWidget {
   final AvatarPicker? profileAvatarPicker;
   final AvatarImageProvider? profileAvatarImageProvider;
   final Uri? profileAvatarFallbackUri;
+  final List<KiteUserSearchResult> recentPeople;
   final bool roomListLoading;
   final ValueChanged<String>? onRoomTap;
 
@@ -409,10 +582,9 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   }
 
   Future<void> _openAccountMenu(AuthenticatedAccountScope account) async {
-    final action = await showModalBottomSheet<_HomeAccountAction>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => _HomeAccountSheet(
+    final action = await _adaptiveSurface<_HomeAccountAction>(
+      context,
+      (_) => _HomeAccountSheet(
         session: account.session,
         canCreateRoom: widget.roomCreation != null,
         canMarkAllRead: widget.onMarkAllRoomsRead != null,
@@ -434,6 +606,16 @@ class _HomeSidebarState extends State<_HomeSidebar> {
             controller: controller,
             pickAvatar: widget.profileAvatarPicker,
             avatarImageProvider: widget.profileAvatarImageProvider,
+            fallbackProfile:
+                controller.ownProfile.peek() ??
+                MatrixUserProfile(
+                  userId: account.session.userId,
+                  displayName: account.session.userId,
+                  avatarUri: widget.profileAvatarFallbackUri,
+                ),
+            loadOnInit:
+                controller.ownProfile.peek() == null &&
+                !controller.isLoading.peek(),
           ),
         ),
       );
@@ -517,18 +699,18 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       MaterialPageRoute<void>(
         builder: (routeContext) => RoomCreationScreen(
           coordinator: coordinator,
+          recentPeople: widget.recentPeople,
           onCreated: (_) => Navigator.of(routeContext).pop(),
         ),
       ),
     );
   }
 
-  Future<void> _openInvitesSheet() {
-    return showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (_) => _RoomInvitesSheet(store: inviteStore),
+  Future<void> _openInvitesSheet() async {
+    await _adaptiveSurface<void>(
+      context,
+      (_) => _RoomInvitesSheet(store: inviteStore),
+      scroll: true,
     );
   }
 
@@ -542,17 +724,38 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       decoration: InputDecoration(
         hintText: 'Search chats',
         prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: _searchQuery.isEmpty
+        suffixIcon: account == null && _searchQuery.isEmpty
             ? null
-            : IconButton(
-                key: const Key('home-search-clear'),
-                tooltip: 'Clear search',
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() => _searchQuery = '');
-                },
-                icon: const Icon(Icons.close_rounded),
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (_searchQuery.isNotEmpty)
+                    IconButton(
+                      key: const Key('home-search-clear'),
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  if (account != null)
+                    IconButton(
+                      key: const Key('home-account-menu'),
+                      tooltip: 'Account',
+                      padding: EdgeInsets.zero,
+                      onPressed: () => _openAccountMenu(account),
+                      icon: _AccountAvatar(
+                        session: account.session,
+                        controller: account.profileController,
+                        imageProvider: widget.profileAvatarImageProvider,
+                        fallbackAvatarUri: widget.profileAvatarFallbackUri,
+                        radius: 20,
+                      ),
+                    ),
+                ],
               ),
+        suffixIconConstraints: const BoxConstraints(minHeight: 48),
         filled: true,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KiteRadii.lg),
@@ -594,28 +797,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
                         KiteSpacing.md,
                         KiteSpacing.sm,
                       ),
-                      child: account == null
-                          ? searchField
-                          : Row(
-                              children: <Widget>[
-                                Expanded(child: searchField),
-                                const SizedBox(width: KiteSpacing.sm),
-                                IconButton(
-                                  key: const Key('home-account-menu'),
-                                  tooltip: 'Account',
-                                  onPressed: () => _openAccountMenu(account),
-                                  icon: _AccountAvatar(
-                                    session: account.session,
-                                    controller: account.profileController,
-                                    imageProvider:
-                                        widget.profileAvatarImageProvider,
-                                    fallbackAvatarUri:
-                                        widget.profileAvatarFallbackUri,
-                                    radius: 18,
-                                  ),
-                                ),
-                              ],
-                            ),
+                      child: searchField,
                     )
                   : const SizedBox.shrink(),
             ),
@@ -641,25 +823,28 @@ class _HomeSidebarState extends State<_HomeSidebar> {
           Positioned(
             right: KiteSpacing.md,
             bottom: KiteSpacing.md,
-            child: AnimatedSwitcher(
-              duration: KiteMotion.resolve(context, KiteMotion.standard),
-              switchInCurve: KiteMotion.standardCurve,
-              switchOutCurve: KiteMotion.standardCurve,
-              child: _headerVisible
-                  ? FloatingActionButton.extended(
-                      key: const Key('new-chat-fab-extended'),
-                      heroTag: 'kite-new-chat-expanded',
-                      onPressed: _openRoomCreation,
-                      icon: const Icon(Icons.edit_rounded),
-                      label: const Text('New chat'),
-                    )
-                  : FloatingActionButton(
-                      key: const Key('new-chat-fab-compact'),
-                      heroTag: 'kite-new-chat-compact',
-                      onPressed: _openRoomCreation,
-                      tooltip: 'New chat',
-                      child: const Icon(Icons.edit_rounded),
-                    ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              width: _headerVisible ? 124 : 56,
+              height: 56,
+              child: FloatingActionButton.extended(
+                key: Key(
+                  _headerVisible
+                      ? 'new-chat-fab-extended'
+                      : 'new-chat-fab-compact',
+                ),
+                heroTag: null,
+                onPressed: _openRoomCreation,
+                tooltip: 'New chat',
+                isExtended: _headerVisible,
+                icon: const Icon(Icons.edit_rounded),
+                label: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _headerVisible ? 1 : 0,
+                  child: const Text('New chat'),
+                ),
+              ),
             ),
           ),
       ],
@@ -1088,11 +1273,13 @@ class _RoomList extends StatelessWidget {
   final ValueChanged<ScrollDirection>? onUserScroll;
   final double bottomPadding;
 
-  Future<void> _showRoomOptionsSheet(BuildContext context, String roomId) {
-    return showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
+  Future<void> _showRoomOptionsSheet(
+    BuildContext context,
+    String roomId,
+  ) async {
+    await _adaptiveSurface<void>(
+      context,
+      (sheetContext) => SafeArea(
         key: Key('room-options-sheet-$roomId'),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -1189,6 +1376,78 @@ class _RoomList extends StatelessWidget {
     );
   }
 
+  Future<void> _showRoomOptionsMenu(
+    BuildContext context,
+    String roomId,
+    Offset position,
+  ) async {
+    if (!_isDesktopPlatform(context)) {
+      await _showRoomOptionsSheet(context, roomId);
+      return;
+    }
+    final favourite = store.roomSignal(roomId).peek().isFavourite;
+    final action = await showMenu<String>(
+      context: context,
+      position: _popupPosition(context, position),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'favourite',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              favourite ? Icons.star_rounded : Icons.star_outline_rounded,
+            ),
+            title: Text(
+              favourite ? 'Remove from favourites' : 'Add to favourites',
+            ),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'hide',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.visibility_off_outlined),
+            title: Text('Hide chat on this device'),
+          ),
+        ),
+      ],
+    );
+    if (!context.mounted || action == null) return;
+    if (action == 'hide') {
+      store.hideRoom(roomId);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: const Text('Chat hidden on this device.'),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => store.showRoom(roomId),
+            ),
+          ),
+        );
+      return;
+    }
+    final nextFavourite = !favourite;
+    store.setFavourite(roomId, nextFavourite);
+    final persist = onRoomFavouriteChanged;
+    if (persist == null) return;
+    try {
+      await persist(roomId, nextFavourite);
+    } catch (_) {
+      store.setFavourite(roomId, favourite);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not update favourite.')),
+        );
+    }
+  }
+
   Widget _roomRow(BuildContext context, String roomId, double rowExtent) {
     return SizedBox(
       height: rowExtent,
@@ -1203,6 +1462,8 @@ class _RoomList extends StatelessWidget {
             room: room,
             unreadThreadCount: unreadThreadCount,
             onLongPress: () => _showRoomOptionsSheet(context, room.id),
+            onSecondaryTapDown: (details) =>
+                _showRoomOptionsMenu(context, room.id, details.globalPosition),
             onTap: () {
               final handler = onRoomTap;
               if (handler != null) {
@@ -1282,12 +1543,14 @@ class _RoomListRow extends StatefulWidget {
     required this.unreadThreadCount,
     required this.onTap,
     this.onLongPress,
+    this.onSecondaryTapDown,
   });
 
   final RoomListEntry room;
   final int unreadThreadCount;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   State<_RoomListRow> createState() => _RoomListRowState();
@@ -1358,102 +1621,107 @@ class _RoomListRowState extends State<_RoomListRow> {
       ),
       child: Material(
         color: Colors.transparent,
-        child: ListTile(
-          key: Key('room-${room.id}'),
-          focusNode: _focusNode,
-          focusColor: Colors.transparent,
-          onTap: widget.onTap,
-          onLongPress: widget.onLongPress,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: KiteSpacing.md,
-          ),
-          leading: Builder(
-            builder: (context) {
-              final avatarUri = Uri.tryParse(room.avatarUrl ?? '');
-              final avatarImage = avatarUri != null && avatarUri.scheme == 'mxc'
-                  ? _homeAvatarImageProvider(context)?.call(avatarUri)
-                  : null;
-              return _AvatarCircle(
-                radius: 22,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                foregroundColor: theme.colorScheme.onSurface,
-                image: avatarImage,
-                fallback: Text(
-                  room.name.characters.first,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              );
-            },
-          ),
-          title: Semantics(
-            label: semantics,
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    room.name,
-                    key: Key('room-title-${room.id}'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: room.unreadCount > 0
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (room.hasActiveCall)
-                  Padding(
-                    padding: const EdgeInsets.only(left: KiteSpacing.xs),
-                    child: Icon(
-                      Icons.call_rounded,
-                      key: Key('room-active-call-${room.id}'),
-                      size: 16,
-                      color: colors.unread,
-                    ),
-                  ),
-                if (room.isMuted)
-                  Padding(
-                    padding: const EdgeInsets.only(left: KiteSpacing.xs),
-                    child: Icon(
-                      Icons.notifications_off_outlined,
-                      key: Key('room-muted-${room.id}'),
-                      size: 15,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                if (room.isFavourite)
-                  Padding(
-                    padding: const EdgeInsets.only(left: KiteSpacing.xs),
-                    child: Icon(
-                      Icons.star_rounded,
-                      key: Key('room-favourite-${room.id}'),
-                      size: 16,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-              ],
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onSecondaryTapDown: widget.onSecondaryTapDown,
+          child: ListTile(
+            key: Key('room-${room.id}'),
+            focusNode: _focusNode,
+            focusColor: Colors.transparent,
+            onTap: widget.onTap,
+            onLongPress: widget.onLongPress,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: KiteSpacing.md,
             ),
+            leading: Builder(
+              builder: (context) {
+                final avatarUri = Uri.tryParse(room.avatarUrl ?? '');
+                final avatarImage =
+                    avatarUri != null && avatarUri.scheme == 'mxc'
+                    ? _homeAvatarImageProvider(context)?.call(avatarUri)
+                    : null;
+                return _AvatarCircle(
+                  radius: 22,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  foregroundColor: theme.colorScheme.onSurface,
+                  image: avatarImage,
+                  fallback: Text(
+                    room.name.characters.first,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                );
+              },
+            ),
+            title: Semantics(
+              label: semantics,
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      room.name,
+                      key: Key('room-title-${room.id}'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: room.unreadCount > 0
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (room.hasActiveCall)
+                    Padding(
+                      padding: const EdgeInsets.only(left: KiteSpacing.xs),
+                      child: Icon(
+                        Icons.call_rounded,
+                        key: Key('room-active-call-${room.id}'),
+                        size: 16,
+                        color: colors.unread,
+                      ),
+                    ),
+                  if (room.isMuted)
+                    Padding(
+                      padding: const EdgeInsets.only(left: KiteSpacing.xs),
+                      child: Icon(
+                        Icons.notifications_off_outlined,
+                        key: Key('room-muted-${room.id}'),
+                        size: 15,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  if (room.isFavourite)
+                    Padding(
+                      padding: const EdgeInsets.only(left: KiteSpacing.xs),
+                      child: Icon(
+                        Icons.star_rounded,
+                        key: Key('room-favourite-${room.id}'),
+                        size: 16,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            subtitle: Text(
+              preview,
+              key: Key('room-preview-${room.id}'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: previewStyle,
+            ),
+            trailing:
+                room.hasMention ||
+                    room.hasMutedActivity ||
+                    room.unreadCount > 0 ||
+                    unreadThreadCount > 0
+                ? _RoomIndicators(
+                    room: room,
+                    unreadThreadCount: unreadThreadCount,
+                  )
+                : null,
           ),
-          subtitle: Text(
-            preview,
-            key: Key('room-preview-${room.id}'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: previewStyle,
-          ),
-          trailing:
-              room.hasMention ||
-                  room.hasMutedActivity ||
-                  room.unreadCount > 0 ||
-                  unreadThreadCount > 0
-              ? _RoomIndicators(
-                  room: room,
-                  unreadThreadCount: unreadThreadCount,
-                )
-              : null,
         ),
       ),
     );
@@ -2469,38 +2737,33 @@ class _MessageRow extends StatelessWidget {
     );
   }
 
-  Future<void> _showEditHistory(BuildContext context) {
-    return showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: context.kiteColors.canvas,
-      constraints: const BoxConstraints(maxWidth: 440),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
-      ),
-      builder: (_) => _EditHistorySheet(message: message),
+  Future<void> _showEditHistory(BuildContext context) async {
+    await _adaptiveSurface<void>(
+      context,
+      (_) => _EditHistorySheet(message: message),
     );
   }
 
   Future<void> _showActions(BuildContext context) async {
-    final action = await showModalBottomSheet<_MessageAction>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      backgroundColor: context.kiteColors.canvas,
-      constraints: const BoxConstraints(maxWidth: 440),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
-      ),
-      builder: (sheetContext) => _MessageActionSheet(
+    final action = await _adaptiveSurface<_MessageAction>(
+      context,
+      (surfaceContext) => _MessageActionSheet(
         message: message,
         onReact: (emoji) {
           _homeTimelineController(context).toggleReaction(message, emoji);
-          Navigator.of(sheetContext).pop();
+          Navigator.of(surfaceContext).pop();
         },
       ),
+      scroll: true,
     );
     if (!context.mounted || action == null) return;
+    await _performMessageAction(context, action);
+  }
+
+  Future<void> _performMessageAction(
+    BuildContext context,
+    _MessageAction action,
+  ) async {
     switch (action) {
       case _MessageAction.reply:
         onReply(roomId, message);
@@ -2539,22 +2802,14 @@ class _MessageRow extends StatelessWidget {
             ),
           );
       case _MessageAction.forward:
-        final destinations = await showModalBottomSheet<List<String>>(
-          context: context,
-          useSafeArea: true,
-          isScrollControlled: true,
-          backgroundColor: context.kiteColors.canvas,
-          constraints: const BoxConstraints(maxWidth: 440),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(KiteRadii.lg),
-            ),
-          ),
-          builder: (_) => _ForwardMessageSheet(
+        final destinations = await _adaptiveSurface<List<String>>(
+          context,
+          (_) => _ForwardMessageSheet(
             currentRoomId: roomId,
             message: message,
             rooms: _forwardDestinationRooms(context),
           ),
+          scroll: true,
         );
         if (!context.mounted || destinations == null || destinations.isEmpty) {
           return;
@@ -2573,17 +2828,9 @@ class _MessageRow extends StatelessWidget {
             ),
           );
       case _MessageAction.report:
-        final reason = await showModalBottomSheet<String>(
-          context: context,
-          useSafeArea: true,
-          backgroundColor: context.kiteColors.canvas,
-          constraints: const BoxConstraints(maxWidth: 440),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(KiteRadii.lg),
-            ),
-          ),
-          builder: (_) => _ReportMessageSheet(message: message),
+        final reason = await _adaptiveSurface<String>(
+          context,
+          (_) => _ReportMessageSheet(message: message),
         );
         if (!context.mounted || reason == null) return;
         await _homeTimelineController(context)
@@ -2601,17 +2848,9 @@ class _MessageRow extends StatelessWidget {
       case _MessageAction.endPoll:
         await _homeTimelineController(context).endPoll(roomId, message);
       case _MessageAction.reactionPicker:
-        final emoji = await showModalBottomSheet<String>(
-          context: context,
-          useSafeArea: true,
-          backgroundColor: context.kiteColors.canvas,
-          constraints: const BoxConstraints(maxWidth: 440),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(KiteRadii.lg),
-            ),
-          ),
-          builder: (_) => const _ReactionPickerSheet(),
+        final emoji = await _adaptiveSurface<String>(
+          context,
+          (_) => const _ReactionPickerSheet(),
         );
         if (!context.mounted || emoji == null) return;
         _homeTimelineController(context).toggleReaction(message, emoji);
@@ -2630,6 +2869,125 @@ class _MessageRow extends StatelessWidget {
           _homeTimelineController(context).redactText(message);
         }
     }
+  }
+
+  Future<void> _showDesktopActions(
+    BuildContext context,
+    Offset position,
+  ) async {
+    if (message.redacted) return;
+    final entries =
+        <
+          ({
+            _MessageAction action,
+            IconData icon,
+            String label,
+            bool destructive,
+          })
+        >[
+          (
+            action: _MessageAction.reply,
+            icon: Icons.reply_rounded,
+            label: AppLocalizations.of(context).replyAction,
+            destructive: false,
+          ),
+          (
+            action: _MessageAction.replyInThread,
+            icon: Icons.forum_outlined,
+            label: 'Reply in thread',
+            destructive: false,
+          ),
+          (
+            action: _MessageAction.reactionPicker,
+            icon: Icons.add_reaction_outlined,
+            label: 'React',
+            destructive: false,
+          ),
+          if (message.body.isNotEmpty)
+            (
+              action: _MessageAction.copy,
+              icon: Icons.content_copy_rounded,
+              label: message.attachment == null
+                  ? AppLocalizations.of(context).copyTextAction
+                  : 'Copy caption',
+              destructive: false,
+            ),
+          if (message.poll == null)
+            (
+              action: _MessageAction.share,
+              icon: Icons.share_outlined,
+              label: 'Share',
+              destructive: false,
+            ),
+          if (message.poll == null)
+            (
+              action: _MessageAction.forward,
+              icon: Icons.forward_to_inbox_rounded,
+              label: 'Forward',
+              destructive: false,
+            ),
+          if (!message.mine)
+            (
+              action: _MessageAction.report,
+              icon: Icons.flag_outlined,
+              label: 'Report',
+              destructive: false,
+            ),
+          if (message.mine && message.poll == null)
+            (
+              action: _MessageAction.edit,
+              icon: Icons.edit_outlined,
+              label: AppLocalizations.of(context).editMessageAction,
+              destructive: false,
+            ),
+          if (message.mine &&
+              message.poll != null &&
+              !message.poll!.isEnded &&
+              !message.poll!.isEnding)
+            (
+              action: _MessageAction.endPoll,
+              icon: Icons.stop_circle_outlined,
+              label: 'End poll',
+              destructive: false,
+            ),
+          if (message.mine)
+            (
+              action: _MessageAction.redact,
+              icon: Icons.delete_outline_rounded,
+              label: AppLocalizations.of(context).deleteMessageAction,
+              destructive: true,
+            ),
+        ];
+    final action = await showMenu<_MessageAction>(
+      context: context,
+      position: _popupPosition(context, position),
+      items: <PopupMenuEntry<_MessageAction>>[
+        for (final entry in entries)
+          PopupMenuItem<_MessageAction>(
+            value: entry.action,
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  entry.icon,
+                  size: 19,
+                  color: entry.destructive
+                      ? Theme.of(context).colorScheme.error
+                      : null,
+                ),
+                const SizedBox(width: KiteSpacing.sm),
+                Text(
+                  entry.label,
+                  style: entry.destructive
+                      ? TextStyle(color: Theme.of(context).colorScheme.error)
+                      : null,
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (!context.mounted || action == null) return;
+    await _performMessageAction(context, action);
   }
 
   Future<void> _performAccessibleAction(
@@ -2709,7 +3067,8 @@ class _MessageRow extends StatelessWidget {
       onActivate: () => unawaited(_showActions(context)),
       child: GestureDetector(
         onLongPress: () => _showActions(context),
-        onSecondaryTap: () => _showActions(context),
+        onSecondaryTapDown: (details) =>
+            _showDesktopActions(context, details.globalPosition),
         child: Semantics(
           customSemanticsActions: message.redacted
               ? const <CustomSemanticsAction, VoidCallback>{}
@@ -3647,37 +4006,35 @@ class _QuickReactionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return SizedBox(
+    return Align(
       key: const Key('quick-reaction-row'),
-      height: 46,
-      child: Row(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: KiteSpacing.xs,
         children: <Widget>[
-          for (var index = 0; index < reactions.length; index++) ...<Widget>[
-            if (index > 0) const SizedBox(width: KiteSpacing.xs),
-            Expanded(
-              child: Semantics(
-                button: true,
-                label: 'React with ${reactions[index]}',
-                child: InkWell(
-                  key: Key('quick-reaction-$index'),
-                  onTap: () => onReact(reactions[index]),
-                  borderRadius: BorderRadius.circular(KiteRadii.pill),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colors.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(KiteRadii.pill),
-                    ),
-                    child: Center(
-                      child: Text(
-                        reactions[index],
-                        style: const TextStyle(fontSize: 21),
-                      ),
-                    ),
+          for (var index = 0; index < reactions.length; index++)
+            Semantics(
+              button: true,
+              label: 'React with ${reactions[index]}',
+              child: InkWell(
+                key: Key('quick-reaction-$index'),
+                onTap: () => onReact(reactions[index]),
+                borderRadius: BorderRadius.circular(KiteRadii.pill),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(KiteRadii.pill),
+                  ),
+                  child: Text(
+                    reactions[index],
+                    style: const TextStyle(fontSize: 22),
                   ),
                 ),
               ),
             ),
-          ],
         ],
       ),
     );
@@ -3771,11 +4128,9 @@ class _MessageReactionSummary extends StatelessWidget {
     BuildContext context,
     TimelineReactionSummary reaction,
   ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) => Padding(
+    await _adaptiveSurface<void>(
+      context,
+      (context) => Padding(
         key: const Key('reaction-details'),
         padding: const EdgeInsets.fromLTRB(
           KiteSpacing.lg,
@@ -4038,16 +4393,13 @@ class _MessageDeliveryState extends StatelessWidget {
   final String roomId;
   final TimelineMessage message;
 
-  Future<void> _showReadReceipts(BuildContext context, List<String> readers) {
-    return showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: context.kiteColors.canvas,
-      constraints: const BoxConstraints(maxWidth: 440),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KiteRadii.lg)),
-      ),
-      builder: (_) => _ReadReceiptDetailsSheet(readers: readers),
+  Future<void> _showReadReceipts(
+    BuildContext context,
+    List<String> readers,
+  ) async {
+    await _adaptiveSurface<void>(
+      context,
+      (_) => _ReadReceiptDetailsSheet(readers: readers),
     );
   }
 
@@ -4342,15 +4694,6 @@ class _ComposerState extends State<_Composer> {
       OverlayPortalController();
   final LayerLink _emojiLayerLink = LayerLink();
 
-  static const _autocompleteCandidates =
-      <({String token, String label, IconData icon})>[
-        (token: '@Alice', label: 'Alice', icon: Icons.person_outline_rounded),
-        (token: '@Maya', label: 'Maya', icon: Icons.person_outline_rounded),
-        (token: '@Sam', label: 'Sam', icon: Icons.person_outline_rounded),
-        (token: '#Kite', label: 'Kite', icon: Icons.tag_rounded),
-        (token: '#Design-Lab', label: 'Design Lab', icon: Icons.tag_rounded),
-      ];
-
   @override
   void dispose() {
     _controller.dispose();
@@ -4512,17 +4855,58 @@ class _ComposerState extends State<_Composer> {
   }
 
   List<({String token, String label, IconData icon})> _autocompleteOptions(
+    BuildContext context,
     TextEditingValue value,
   ) {
     final match = _autocompleteMatch(value);
     if (match == null) return const [];
-    return _autocompleteCandidates
-        .where(
-          (candidate) =>
-              candidate.token.startsWith(match.prefix) &&
-              candidate.label.toLowerCase().startsWith(match.query),
-        )
-        .take(4)
+    final candidates = <({String token, String label, IconData icon})>[];
+    if (match.prefix == '@') {
+      final roomId = selectedRoomId.value;
+      final seen = <String>{};
+      final messages = _homeTimelineController(context)
+          .messagesFor(roomId)
+          .value;
+      for (final message in messages.reversed) {
+        final sender = message.sender.trim();
+        if (sender.isEmpty) continue;
+        final senderId = message.senderId?.trim();
+        final token = senderId != null && senderId.startsWith('@')
+            ? senderId
+            : '@${sender.replaceAll(RegExp(r'\s+'), '')}';
+        if (!seen.add(token)) continue;
+        candidates.add((
+          token: token,
+          label: sender,
+          icon: Icons.person_outline_rounded,
+        ));
+      }
+    } else {
+      final roomStore = _homeRoomListStore(context);
+      final rooms = roomStore == null
+          ? deterministicRoomListEntries(BenchmarkFixture.rooms)
+          : <RoomListEntry>[
+              for (final roomId in roomStore.roomIds)
+                roomStore.roomSignal(roomId).value,
+            ];
+      for (final room in rooms) {
+        final label = room.name.trim();
+        if (label.isEmpty) continue;
+        candidates.add((
+          token: '#${label.replaceAll(RegExp(r'\s+'), '-')}',
+          label: label,
+          icon: Icons.tag_rounded,
+        ));
+      }
+    }
+    return candidates
+        .where((candidate) {
+          final query = match.query;
+          if (query.isEmpty) return true;
+          return candidate.label.toLowerCase().contains(query) ||
+              candidate.token.substring(1).toLowerCase().contains(query);
+        })
+        .take(6)
         .toList(growable: false);
   }
 
@@ -4701,7 +5085,7 @@ class _ComposerState extends State<_Composer> {
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _controller,
                   builder: (context, value, child) {
-                    final options = _autocompleteOptions(value);
+                    final options = _autocompleteOptions(context, value);
                     return AnimatedSize(
                       key: const Key('composer-autocomplete-slot'),
                       alignment: Alignment.bottomCenter,
@@ -4725,7 +5109,21 @@ class _ComposerState extends State<_Composer> {
                   duration: KiteMotion.resolve(context, KiteMotion.standard),
                   curve: KiteMotion.standardCurve,
                   child: !compactComposer && _formattingVisible
-                      ? _ComposerFormattingToolbar(onFormat: _applyFormat)
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Divider(height: 1),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: KiteSpacing.md,
+                                vertical: KiteSpacing.xs,
+                              ),
+                              child: _ComposerFormattingToolbar(
+                                onFormat: _applyFormat,
+                              ),
+                            ),
+                          ],
+                        )
                       : const SizedBox.shrink(),
                 ),
                 CompositedTransformTarget(
@@ -4943,7 +5341,6 @@ class _ComposerEmojiPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return RepaintBoundary(
       child: Material(
         key: const Key('composer-emoji-sheet'),
@@ -4952,11 +5349,11 @@ class _ComposerEmojiPicker extends StatelessWidget {
         borderRadius: BorderRadius.circular(KiteRadii.lg),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
-          height: 64,
+          height: 60,
           child: ListView.separated(
             key: const Key('composer-emoji-list'),
             padding: const EdgeInsets.symmetric(
-              horizontal: KiteSpacing.xs,
+              horizontal: KiteSpacing.sm,
               vertical: KiteSpacing.xs,
             ),
             scrollDirection: Axis.horizontal,
@@ -4972,11 +5369,14 @@ class _ComposerEmojiPicker extends StatelessWidget {
                   onTap: () => onSelected(emoji),
                   borderRadius: BorderRadius.circular(KiteRadii.md),
                   child: SizedBox.square(
-                    dimension: 48,
+                    dimension: 44,
                     child: Center(
                       child: Text(
                         emoji,
-                        style: TextStyle(fontSize: 26, color: colors.onSurface),
+                        style: const TextStyle(
+                          fontSize: 27,
+                          fontFamilyFallback: <String>['Noto Color Emoji'],
+                        ),
                       ),
                     ),
                   ),

@@ -215,6 +215,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
           widget.cache,
           widget.currentUserId,
         ),
+        recentPeople: _cachedRecentPeople(widget.cache, widget.currentUserId),
         timelineMediaImageProvider: widget.timelineMediaImageProvider,
         roomMembersLoader: widget.roomMembersLoader,
         memberModerationEnabled: widget.memberModerationEnabled,
@@ -245,6 +246,31 @@ Uri? _cachedOwnAvatarUri(MatrixPresentationCache cache, String currentUserId) {
     }
   }
   return newestAvatar;
+}
+
+List<KiteUserSearchResult> _cachedRecentPeople(
+  MatrixPresentationCache cache,
+  String currentUserId,
+) {
+  final snapshot = cache.snapshot(roomLimit: 24, timelineEventLimitPerRoom: 8);
+  final seen = <String>{currentUserId.trim()};
+  final people = <KiteUserSearchResult>[];
+  for (final events in snapshot.timelines.values) {
+    for (final event in events.reversed) {
+      final id = event.senderId.trim();
+      if (!id.startsWith('@') || !seen.add(id)) continue;
+      final avatar = Uri.tryParse(event.senderAvatarUrl ?? '');
+      people.add(
+        KiteUserSearchResult(
+          userId: id,
+          displayName: event.senderDisplayName,
+          avatarUrl: avatar?.scheme == 'mxc' ? avatar : null,
+        ),
+      );
+      if (people.length == 24) return List.unmodifiable(people);
+    }
+  }
+  return List.unmodifiable(people);
 }
 
 final class MatrixHomePresentationBinding {
@@ -279,7 +305,11 @@ final class MatrixHomePresentationBinding {
       fixtureProvider: (_) => const [],
     );
     _projectCache();
-    _disposeProjection = effect(_projectCache);
+    _projectRecentTimelines();
+    _projectSelectedTimeline();
+    _disposeCacheProjection = effect(_projectCache);
+    _disposeRecentTimelineProjection = effect(_projectRecentTimelines);
+    _disposeTimelineProjection = effect(_projectSelectedTimeline);
   }
 
   final MatrixPresentationCache cache;
@@ -288,12 +318,23 @@ final class MatrixHomePresentationBinding {
   final Signal<String> selectedRoom;
   final RoomListStateStore roomListStore;
   final RoomInviteStore inviteStore;
-  late final void Function() _disposeProjection;
+  static const int _eagerRecentRoomLimit = 8;
+
+  late final void Function() _disposeCacheProjection;
+  late final void Function() _disposeRecentTimelineProjection;
+  late final void Function() _disposeTimelineProjection;
 
   void _projectCache() {
     final roomIds = cache.roomOrder.value;
     roomListStore.reconcile(matrixRoomListEntries(cache));
     inviteStore.reconcile(_matrixRoomInvites(cache));
+
+    if (roomIds.isEmpty || roomIds.contains(selectedRoom.peek())) return;
+    selectedRoom.value = roomIds.first;
+  }
+
+  void _projectRecentTimelines() {
+    final roomIds = cache.roomOrder.value.take(_eagerRecentRoomLimit);
     for (final roomId in roomIds) {
       controller.applyMatrixEvents(
         roomId,
@@ -301,9 +342,18 @@ final class MatrixHomePresentationBinding {
         currentUserId: currentUserId,
       );
     }
+  }
 
-    if (roomIds.isEmpty || roomIds.contains(selectedRoom.peek())) return;
-    selectedRoom.value = roomIds.first;
+  void _projectSelectedTimeline() {
+    final roomIds = cache.roomOrder.value;
+    if (roomIds.isEmpty) return;
+    final roomId = selectedRoom.value;
+    if (!roomIds.contains(roomId)) return;
+    controller.applyMatrixEvents(
+      roomId,
+      cache.timelineSignal(roomId).value,
+      currentUserId: currentUserId,
+    );
   }
 
   void updateTransport({
@@ -313,7 +363,11 @@ final class MatrixHomePresentationBinding {
     controller.updateTransport(sendPort: sendPort, editPort: editPort);
   }
 
-  void dispose() => _disposeProjection();
+  void dispose() {
+    _disposeCacheProjection();
+    _disposeRecentTimelineProjection();
+    _disposeTimelineProjection();
+  }
 
   static List<RoomInvite> _matrixRoomInvites(MatrixPresentationCache cache) {
     return List<RoomInvite>.unmodifiable(
