@@ -664,6 +664,55 @@ void main() {
     },
   );
 
+  test(
+    'bounded snapshots retain the latest message behind state-event noise',
+    () {
+      final cache = MatrixPresentationCache();
+      cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'stable',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!alpha:kite.test',
+              summary: _summary(
+                roomId: '!alpha:kite.test',
+                displayName: 'Alpha',
+                position: 5,
+                second: 5,
+              ),
+              timelineEvents: <MatrixTimelineEvent>[
+                _event(
+                  eventId: r'$message',
+                  roomId: '!alpha:kite.test',
+                  position: 1,
+                  second: 1,
+                ),
+                for (var position = 2; position <= 5; position += 1)
+                  _event(
+                    eventId: '\$state-$position',
+                    roomId: '!alpha:kite.test',
+                    position: position,
+                    second: position,
+                    type: 'm.room.member',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      final snapshot = cache.snapshot(timelineEventLimitPerRoom: 3);
+      final events = snapshot.timelines['!alpha:kite.test']!;
+
+      expect(events, hasLength(3));
+      expect(events.first.eventId, r'$message');
+      expect(events.skip(1).map((event) => event.eventId), <String>[
+        r'$state-4',
+        r'$state-5',
+      ]);
+    },
+  );
+
   test('bounded snapshots retain the cursor when no rooms are omitted', () {
     final cache = MatrixPresentationCache();
     for (final entry in <(String, int)>[
