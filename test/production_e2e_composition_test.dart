@@ -104,7 +104,6 @@ void main() {
     expect(homeSource, contains('sharePort: widget.sharePort'));
     expect(homeSource, contains('sharePort: sharePort'));
   });
-  });
 
   test(
     'production report action routes exact Matrix events to the runtime',

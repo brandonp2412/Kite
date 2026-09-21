@@ -673,7 +673,6 @@ final class _AuthenticatedMatrixHomeState
                     );
                   },
             ),
-            linkOpenPort: PlatformTimelineLinkOpenPort(),
             sharePort: const PlatformTimelineSharePort(),
             moderationPort: MatrixTimelineModerationPort(({
               required roomId,
