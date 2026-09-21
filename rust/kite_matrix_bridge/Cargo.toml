@@ -10,6 +10,7 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 base64 = "0.22"
 matrix-sdk = { version = "0.18.0", features = ["bundled-sqlite"] }
+matrix-sdk-base = "0.18.0"
 matrix-sdk-crypto = "0.18.0"
 mime = "0.3"
 serde = { version = "1", features = ["derive"] }

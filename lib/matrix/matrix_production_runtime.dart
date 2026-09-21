@@ -171,6 +171,9 @@ final class MatrixProductionRuntime
 
   Future<void> resumeActive() => accounts.resumeActive();
 
+  Future<void> restartAccount(String accountId) =>
+      accounts.restartAccount(accountId);
+
   Future<void> refreshAfterEncryptionRecovery({required String accountId}) =>
       accounts.refreshAfterEncryptionRecovery(accountId: accountId);
 

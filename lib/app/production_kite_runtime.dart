@@ -117,10 +117,18 @@ final class _ProductionKiteRuntimeState extends State<ProductionKiteRuntime> {
         runtime: widget.matrixRuntime,
         session: session,
         onSessionExpired: () {
-          _sessionInvalidation.value += 1;
+          unawaited(_prepareForSessionReauthentication(session.userId));
         },
       ),
     );
+  }
+
+  Future<void> _prepareForSessionReauthentication(String accountId) async {
+    try {
+      await widget.matrixRuntime.restartAccount(accountId);
+    } finally {
+      if (mounted) _sessionInvalidation.value += 1;
+    }
   }
 }
 

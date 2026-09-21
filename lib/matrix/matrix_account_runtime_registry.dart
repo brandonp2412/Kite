@@ -714,6 +714,20 @@ final class MatrixAccountRuntimeRegistry {
     });
   }
 
+  /// Closes the active account's native client while retaining its encrypted
+  /// store and presentation state. The next activation will create a client
+  /// from the latest persisted Matrix session.
+  Future<void> restartAccount(String accountId) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    return _enqueue<void>(() async {
+      final runtime = _runtimes.remove(normalizedAccountId);
+      if (runtime == null) return;
+      await runtime.runtime.stop();
+      await runtime.engine.close();
+    });
+  }
+
   Future<void> refreshAfterEncryptionRecovery({required String accountId}) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();

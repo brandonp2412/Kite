@@ -14,7 +14,6 @@ use matrix_sdk::{
     },
     media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings},
     notification_settings::RoomNotificationMode,
-    room::MessagesOptions,
     ruma::{
         EventId, Int, OwnedDeviceId, OwnedEventId, OwnedMxcUri, OwnedTransactionId, OwnedUserId,
         RoomAliasId, RoomId, UInt, UserId,
@@ -26,7 +25,7 @@ use matrix_sdk::{
                 receipt::create_receipt,
                 reporting::report_user,
                 room::{Visibility, create_room},
-                session::get_login_types::v3::LoginType,
+                session::{get_login_types::v3::LoginType, login},
                 uiaa,
             },
             error::ErrorKind,
@@ -47,6 +46,7 @@ use matrix_sdk::{
         },
     },
 };
+use matrix_sdk_base::latest_event::LatestEventValue;
 use matrix_sdk_crypto::{
     encrypt_room_key_export, olm::ExportedRoomKey, store::types::BackupDecryptionKey,
     types::RoomKeyBackupInfo,
@@ -61,6 +61,7 @@ use tokio::{
 const KITE_MATRIX_ABI_VERSION: u32 = 27;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
+const KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES: [&str; 2] = ["m.room.message", "m.room.encrypted"];
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,7 +80,6 @@ struct CreateRoomRequest {
 pub struct KiteMatrixClient {
     client: Option<Client>,
     runtime: Runtime,
-    backwards_pagination_tokens: HashMap<String, String>,
     room_metadata_hydrated: bool,
 }
 
@@ -146,16 +146,16 @@ fn persist_session_if_access_token_changed(
         .map_err(|_| ())
 }
 
-fn replace_backwards_pagination_tokens<'a>(
-    tokens: &mut HashMap<String, String>,
-    room_prev_batches: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
-) {
-    tokens.clear();
-    for (room_id, prev_batch) in room_prev_batches {
-        if let Some(prev_batch) = prev_batch.filter(|value| !value.is_empty()) {
-            tokens.insert(room_id.to_owned(), prev_batch.to_owned());
-        }
-    }
+fn visible_timeline_filter(limit: Option<UInt>) -> RoomEventFilter {
+    let mut filter = RoomEventFilter::default();
+    filter.limit = limit;
+    filter.types = Some(
+        KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES
+            .iter()
+            .map(|event_type| (*event_type).to_owned())
+            .collect(),
+    );
+    filter
 }
 
 fn timeline_events_json<'a>(
@@ -225,6 +225,95 @@ fn timeline_events_json<'a>(
     events
 }
 
+fn sync_timeline_events_json(
+    runtime: &Runtime,
+    room: Option<&matrix_sdk::Room>,
+    events: &[matrix_sdk::deserialized_responses::TimelineEvent],
+) -> Vec<Value> {
+    let mut events = events.to_vec();
+    let Some(room) = room else {
+        return timeline_events_json(runtime, None, events.iter());
+    };
+
+    if let LatestEventValue::Remote(latest_event) = room.latest_event() {
+        let latest_is_visible = serde_json::from_str::<Value>(latest_event.raw().json().get())
+            .ok()
+            .and_then(|event| event.get("type").and_then(Value::as_str).map(str::to_owned))
+            .is_some_and(|event_type| {
+                KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES.contains(&event_type.as_str())
+            });
+        if latest_is_visible {
+            let latest_event_id = latest_event.event_id();
+            let existing_index = latest_event_id.as_ref().and_then(|latest_event_id| {
+                events
+                    .iter()
+                    .position(|event| event.event_id().as_ref() == Some(latest_event_id))
+            });
+            match existing_index {
+                Some(index)
+                    if matches!(
+                        &events[index].kind,
+                        matrix_sdk::deserialized_responses::TimelineEventKind::UnableToDecrypt { .. }
+                    ) && !matches!(
+                        &latest_event.kind,
+                        matrix_sdk::deserialized_responses::TimelineEventKind::UnableToDecrypt { .. }
+                    ) =>
+                {
+                    events[index] = latest_event;
+                }
+                None => events.push(latest_event),
+                _ => {}
+            }
+        }
+    }
+
+    timeline_events_json(runtime, Some(room), events.iter())
+}
+
+async fn recover_timeline_events(
+    matrix_client: &Client,
+    room: &matrix_sdk::Room,
+    mut events: Vec<matrix_sdk::deserialized_responses::TimelineEvent>,
+) -> Vec<matrix_sdk::deserialized_responses::TimelineEvent> {
+    let has_utd = events.iter().any(|event| {
+        matches!(
+            &event.kind,
+            matrix_sdk::deserialized_responses::TimelineEventKind::UnableToDecrypt { .. }
+        )
+    });
+    if !has_utd {
+        return events;
+    }
+
+    // Room pages can contain sessions that were not present when the backup
+    // key was first recovered. Fetch only this room's backed-up sessions, then
+    // immediately retry the UTDs so Dart receives plaintext instead of waiting
+    // for an asynchronous event-cache redecryption update.
+    let _ = tokio::time::timeout(
+        Duration::from_secs(12),
+        matrix_client
+            .encryption()
+            .backups()
+            .download_room_keys_for_room(room.room_id()),
+    )
+    .await;
+
+    for event in &mut events {
+        if !matches!(
+            &event.kind,
+            matrix_sdk::deserialized_responses::TimelineEventKind::UnableToDecrypt { .. }
+        ) {
+            continue;
+        }
+        let raw = event.raw().clone();
+        if let Ok(decrypted) = room.decrypt_event(raw.cast_ref_unchecked(), None).await {
+            *event = decrypted;
+        }
+    }
+
+    events
+}
+
 fn sync_error_json(error: &MatrixError) -> *mut c_char {
     let code = match error.client_api_error_kind() {
         Some(ErrorKind::UnknownPos) => "unknown_pos",
@@ -271,7 +360,7 @@ pub unsafe extern "C" fn kite_matrix_client_new(
         .homeserver_url(homeserver)
         .handle_refresh_tokens()
         .with_encryption_settings(EncryptionSettings {
-            backup_download_strategy: BackupDownloadStrategy::OneShot,
+            backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
             ..Default::default()
         })
         .sqlite_store(Path::new(store_path), Some(store_passphrase));
@@ -304,7 +393,6 @@ pub unsafe extern "C" fn kite_matrix_client_new(
     Box::into_raw(Box::new(KiteMatrixClient {
         client: Some(client),
         runtime,
-        backwards_pagination_tokens: HashMap::new(),
         room_metadata_hydrated: false,
     }))
 }
@@ -388,20 +476,47 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
     let Some(matrix_client) = client.client.as_ref() else {
         return error_json("client_closed", "Matrix authentication is unavailable.");
     };
-    let existing_device_id = matrix_client
-        .matrix_auth()
-        .session()
-        .map(|session| session.meta.device_id);
-    let mut login = matrix_client
-        .matrix_auth()
-        .login_username(username, password)
-        .initial_device_display_name("Kite")
-        .request_refresh_token();
-    if let Some(device_id) = existing_device_id.as_deref() {
-        login = login.device_id(device_id.as_str());
-    }
-    let Ok(response) = client.runtime.block_on(login.send()) else {
-        return error_json("authentication_rejected", "Matrix login was rejected.");
+    let existing_session = matrix_client.matrix_auth().session();
+    let response = if let Some(existing_session) = existing_session.as_ref() {
+        // matrix-sdk's LoginBuilder intentionally panics when used after a
+        // session has already been restored. Reauthentication still needs the
+        // existing device ID, but this client is discarded immediately after
+        // the credentials are checked. Send the login request directly so the
+        // response can replace the persisted session without trying to install
+        // Matrix auth state into this already-authenticated Client a second time.
+        let login_info = login::v3::LoginInfo::Password(login::v3::Password::new(
+            uiaa::UserIdentifier::Matrix(uiaa::MatrixUserIdentifier::new(username.to_owned())),
+            password.to_owned(),
+        ));
+        let mut request = login::v3::Request::new(login_info);
+        request.device_id = Some(existing_session.meta.device_id.clone());
+        request.initial_device_display_name = Some("Kite".to_owned());
+        request.refresh_token = true;
+        let Ok(response) = client
+            .runtime
+            .block_on(async { matrix_client.send(request).await })
+        else {
+            return error_json("authentication_rejected", "Matrix login was rejected.");
+        };
+        if response.user_id != existing_session.meta.user_id
+            || response.device_id != existing_session.meta.device_id
+        {
+            return error_json(
+                "authentication_identity_changed",
+                "Matrix reauthentication changed the existing account or device.",
+            );
+        }
+        response
+    } else {
+        let login = matrix_client
+            .matrix_auth()
+            .login_username(username, password)
+            .initial_device_display_name("Kite")
+            .request_refresh_token();
+        let Ok(response) = client.runtime.block_on(login.send()) else {
+            return error_json("authentication_rejected", "Matrix login was rejected.");
+        };
+        response
     };
     let session = MatrixSession::from(&response);
     let Ok(session_bytes) = serde_json::to_vec(&session) else {
@@ -979,8 +1094,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
     if timeline_event_limit == UInt::from(0_u8) {
         return ptr::null_mut();
     }
-    let mut timeline_filter = RoomEventFilter::default();
-    timeline_filter.limit = Some(timeline_event_limit);
+    let timeline_filter = visible_timeline_filter(Some(timeline_event_limit));
     let mut room_filter = RoomFilter::with_lazy_loading();
     room_filter.timeline = timeline_filter;
     let mut filter = FilterDefinition::default();
@@ -1016,17 +1130,6 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         return json_to_c_string(&json!({
             "error": {"code": "session_persist_failed"},
         }));
-    }
-
-    if replace_invites {
-        replace_backwards_pagination_tokens(
-            &mut client.backwards_pagination_tokens,
-            response
-                .rooms
-                .joined
-                .iter()
-                .map(|(room_id, update)| (room_id.as_str(), update.timeline.prev_batch.as_deref())),
-        );
     }
 
     let hydrate_room_metadata = !client.room_metadata_hydrated;
@@ -1163,10 +1266,10 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,
-                "events": timeline_events_json(
+                "events": sync_timeline_events_json(
                     &client.runtime,
                     room.as_ref(),
-                    update.timeline.events.iter(),
+                    &update.timeline.events,
                 ),
             })
         })
@@ -1227,7 +1330,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": Value::Null,
-                "events": [],
+                "events": sync_timeline_events_json(&client.runtime, Some(&room), &[]),
             }));
         }
         client.room_metadata_hydrated = true;
@@ -2921,20 +3024,28 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
     let Some(room) = matrix_client.get_room(&room_id) else {
         return ptr::null_mut();
     };
-    let from = client
-        .backwards_pagination_tokens
-        .get(room_id.as_str())
-        .cloned();
-    let mut options = MessagesOptions::backward().from(from.as_deref());
-    options.limit = UInt::from(30_u8);
     let previous_access_token = matrix_client
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
-    let messages = match client.runtime.block_on(async {
-        tokio::time::timeout(Duration::from_secs(45), room.messages(options)).await
+    let (event_cache, _drop_handles) = match client.runtime.block_on(room.event_cache()) {
+        Ok(cache) => cache,
+        Err(error) => {
+            return json_to_c_string(&json!({
+                "error": format!("pagination cache unavailable: {error}"),
+            }));
+        }
+    };
+    let cached_events = client
+        .runtime
+        .block_on(event_cache.subscribe())
+        .map(|(events, _updates)| events)
+        .unwrap_or_default();
+    let pagination = event_cache.pagination();
+    let outcome = match client.runtime.block_on(async {
+        tokio::time::timeout(Duration::from_secs(45), pagination.run_backwards_until(30)).await
     }) {
-        Ok(Ok(messages)) => messages,
+        Ok(Ok(outcome)) => outcome,
         Ok(Err(error)) => {
             return json_to_c_string(&json!({
                 "error": format!("pagination failed: {error}"),
@@ -2946,6 +3057,16 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
             }));
         }
     };
+    let reached_start = outcome.reached_start;
+    // RoomEventCache pagination yields older events newest-first. Include the
+    // cache's current tail in that same order so opening a room can hydrate
+    // fresh encrypted events that were received by sync without forcing every
+    // room in the account through key recovery during cold start.
+    let mut events = cached_events.into_iter().rev().collect::<Vec<_>>();
+    events.extend(outcome.events);
+    let events = client
+        .runtime
+        .block_on(recover_timeline_events(matrix_client, &room, events));
     if persist_session_if_access_token_changed(
         &client.runtime,
         matrix_client,
@@ -2958,21 +3079,10 @@ pub unsafe extern "C" fn kite_matrix_client_paginate_backwards(
         }));
     }
 
-    let reached_start = messages.end.is_none()
-        || messages.chunk.is_empty()
-        || messages.end.as_deref() == from.as_deref();
-    if let Some(end) = messages.end.as_ref().filter(|end| !end.is_empty()) {
-        client
-            .backwards_pagination_tokens
-            .insert(room_id.to_string(), end.clone());
-    } else {
-        client.backwards_pagination_tokens.remove(room_id.as_str());
-    }
-
     json_to_c_string(&json!({
         "roomId": room_id.as_str(),
         "reachedStart": reached_start,
-        "events": timeline_events_json(&client.runtime, Some(&room), messages.chunk.iter()),
+        "events": timeline_events_json(&client.runtime, Some(&room), events.iter()),
     }))
 }
 
@@ -3005,29 +3115,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cold_sync_replaces_stale_backwards_pagination_tokens() {
-        let mut tokens = HashMap::from([
-            ("!old:example.org".to_owned(), "stale-token".to_owned()),
-            ("!kept:example.org".to_owned(), "older-token".to_owned()),
-        ]);
+    fn timeline_queries_prioritize_renderable_message_events() {
+        let filter = visible_timeline_filter(Some(UInt::from(20_u8)));
 
-        replace_backwards_pagination_tokens(
-            &mut tokens,
-            [
-                ("!kept:example.org", Some("fresh-token")),
-                ("!empty:example.org", None),
-                ("!blank:example.org", Some("")),
-            ],
-        );
-
-        assert_eq!(tokens.len(), 1);
+        assert_eq!(filter.limit, Some(UInt::from(20_u8)));
         assert_eq!(
-            tokens.get("!kept:example.org").map(String::as_str),
-            Some("fresh-token")
+            filter.types,
+            Some(vec![
+                "m.room.message".to_owned(),
+                "m.room.encrypted".to_owned()
+            ])
         );
-        assert!(!tokens.contains_key("!old:example.org"));
-        assert!(!tokens.contains_key("!empty:example.org"));
-        assert!(!tokens.contains_key("!blank:example.org"));
     }
 
     fn temporary_store() -> std::path::PathBuf {
