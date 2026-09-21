@@ -46,11 +46,11 @@ use matrix_sdk::{
         },
     },
 };
-use matrix_sdk_base::latest_event::LatestEventValue;
-use matrix_sdk_crypto::{
-    encrypt_room_key_export, olm::ExportedRoomKey, store::types::BackupDecryptionKey,
-    types::RoomKeyBackupInfo,
+use matrix_sdk_base::{
+    crypto::{encrypt_room_key_export, olm::ExportedRoomKey},
+    latest_event::LatestEventValue,
 };
+use matrix_sdk_crypto::{store::types::BackupDecryptionKey, types::RoomKeyBackupInfo};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::{
