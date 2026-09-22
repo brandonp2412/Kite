@@ -817,10 +817,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('new-chat-fab-extended')));
+    await tester.enterText(
+      find.byKey(const Key('home-search')),
+      'Created immediately',
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Private'));
+    await tester.tap(find.byKey(const Key('create-room-search-result')));
     await tester.pumpAndSettle();
+    expect(find.text('Create private room'), findsOneWidget);
     await tester.enterText(
       find.byKey(const Key('room-create-name')),
       'Created immediately',
@@ -836,7 +840,7 @@ void main() {
     expect(find.byKey(const Key('room-$roomId')), findsOneWidget);
   });
 
-  testWidgets('new-chat FAB collapses with the scroll-away header', (
+  testWidgets('search stays pinned at the bottom and offers room creation', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -866,30 +870,38 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('home-search')), findsOneWidget);
-    expect(find.byKey(const Key('new-chat-fab-extended')), findsOneWidget);
-    expect(find.byKey(const Key('new-chat-fab-compact')), findsNothing);
-
-    await tester.fling(
-      find.byKey(const Key('room-list')),
-      const Offset(0, -700),
-      2400,
+    final search = find.byKey(const Key('home-search'));
+    final roomList = find.byKey(const Key('room-list'));
+    final searchRect = tester.getRect(search);
+    expect(
+      searchRect.top,
+      greaterThanOrEqualTo(tester.getRect(roomList).bottom),
     );
-    await tester.pumpAndSettle();
+    expect(find.byType(FloatingActionButton), findsNothing);
 
-    expect(find.byKey(const Key('home-search')), findsNothing);
-    expect(find.byKey(const Key('new-chat-fab-extended')), findsNothing);
-    expect(find.byKey(const Key('new-chat-fab-compact')), findsOneWidget);
-
-    await tester.fling(
-      find.byKey(const Key('room-list')),
-      const Offset(0, 700),
-      2400,
-    );
+    await tester.fling(roomList, const Offset(0, -700), 2400);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('home-search')), findsOneWidget);
-    expect(find.byKey(const Key('new-chat-fab-extended')), findsOneWidget);
+    expect(tester.getRect(search), searchRect);
+
+    await tester.enterText(search, 'Room');
+    await tester.pumpAndSettle();
+
+    final createRoom = find.byKey(const Key('create-room-search-result'));
+    expect(createRoom, findsOneWidget);
+    expect(
+      tester.getRect(createRoom).top,
+      lessThan(
+        tester.getRect(find.byKey(const Key('!room-0:example.org'))).top,
+      ),
+    );
+
+    await tester.tap(createRoom);
+    await tester.pumpAndSettle();
+    expect(find.text('Create private room'), findsOneWidget);
+    expect(find.text('Private'), findsOneWidget);
+    expect(find.text('Public'), findsOneWidget);
   });
 
   testWidgets('desktop right-click uses a room context menu', (tester) async {
