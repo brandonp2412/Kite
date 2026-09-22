@@ -557,6 +557,19 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final otherRecoveryMethods = find.byKey(
+      const Key('encryption-recovery-other-methods'),
+    );
+    await tester.scrollUntilVisible(
+      otherRecoveryMethods,
+      240,
+      scrollable: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    await tester.tap(otherRecoveryMethods);
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.byKey(const Key('recovery-passphrase-field')),
       240,
