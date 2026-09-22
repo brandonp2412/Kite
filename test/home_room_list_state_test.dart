@@ -904,24 +904,34 @@ void main() {
     expect(find.text('Public'), findsOneWidget);
   });
 
-  testWidgets('desktop right-click uses a room context menu', (tester) async {
+  testWidgets('desktop right-click can leave a room', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 800);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
 
-    final store = RoomListStateStore(
-      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    final rooms = DeterministicRoomManagementPort();
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
     );
+    const roomId = '!kite:example.org';
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: roomId,
+        name: 'Kite',
+        latestEventBody: 'Performance test room',
+      ),
+    ]);
     await tester.pumpWidget(
       MaterialApp(
         theme: KiteTheme.light.copyWith(platform: TargetPlatform.linux),
-        home: HomeScreen(roomListStore: store),
+        home: HomeScreen(roomListStore: store, roomManagement: coordinator),
       ),
     );
     await tester.pumpAndSettle();
 
-    final room = find.byKey(const Key('room-kite'));
+    final room = find.byKey(const Key('room-$roomId'));
     final detector = tester
         .widgetList<GestureDetector>(
           find.ancestor(of: room, matching: find.byType(GestureDetector)),
@@ -934,7 +944,112 @@ void main() {
 
     expect(find.text('Add to favourites'), findsOneWidget);
     expect(find.text('Hide chat on this device'), findsOneWidget);
-    expect(find.byKey(const Key('room-options-sheet-kite')), findsNothing);
+    expect(find.text('Leave room'), findsOneWidget);
+    expect(find.byKey(const Key('room-options-sheet-$roomId')), findsNothing);
+
+    await tester.tap(find.text('Leave room'));
+    await tester.pumpAndSettle();
+    expect(find.text('Leave room?'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('room-remove-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(
+      rooms.invocations
+          .where(
+            (entry) => entry.type == RoomManagementInvocationType.leaveRoom,
+          )
+          .map((entry) => entry.roomId),
+      <String>[roomId],
+    );
+    expect(store.isRoomHidden(roomId), isTrue);
+    expect(find.text('Left room.'), findsOneWidget);
+  });
+
+  testWidgets('desktop right-click deletes a direct chat', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const directRoomId = '!alice:example.org';
+    final previousSelectedRoomId = selectedRoomId.value;
+    timelineController.reset(fixtureProvider: (_) => const []);
+    addTearDown(() {
+      timelineController.reset(fixtureProvider: BenchmarkFixture.messagesFor);
+      selectedRoomId.value = previousSelectedRoomId;
+    });
+    selectedRoomId.value = directRoomId;
+
+    final rooms = DeterministicRoomManagementPort();
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: directRoomId,
+        name: 'Alice',
+        latestEventBody: 'Hello',
+        isDirect: true,
+      ),
+      RoomListEntry(
+        id: '!team:example.org',
+        name: 'Team',
+        latestEventBody: 'Standup',
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light.copyWith(platform: TargetPlatform.linux),
+        home: HomeScreen(roomListStore: store, roomManagement: coordinator),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final room = find.byKey(const Key('room-$directRoomId'));
+    final detector = tester
+        .widgetList<GestureDetector>(
+          find.ancestor(of: room, matching: find.byType(GestureDetector)),
+        )
+        .firstWhere((widget) => widget.onSecondaryTapDown != null);
+    detector.onSecondaryTapDown!(
+      TapDownDetails(globalPosition: tester.getCenter(room)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete chat'), findsOneWidget);
+    expect(find.text('Leave room'), findsNothing);
+
+    await tester.tap(find.text('Delete chat'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete chat?'), findsOneWidget);
+    expect(
+      find.textContaining('Messages are not deleted for the other person.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('room-remove-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(
+      rooms.invocations
+          .where(
+            (entry) =>
+                entry.type == RoomManagementInvocationType.leaveRoom ||
+                entry.type == RoomManagementInvocationType.forgetRoom,
+          )
+          .map((entry) => (entry.type, entry.roomId)),
+      <(RoomManagementInvocationType, String?)>[
+        (RoomManagementInvocationType.leaveRoom, directRoomId),
+        (RoomManagementInvocationType.forgetRoom, directRoomId),
+      ],
+    );
+    expect(store.isRoomHidden(directRoomId), isTrue);
+    expect(selectedRoomId.value, '!team:example.org');
+    expect(find.text('Chat deleted.'), findsOneWidget);
   });
 
   testWidgets('Ctrl+K jumps to a chat on desktop', (tester) async {
