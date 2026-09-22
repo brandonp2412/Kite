@@ -139,6 +139,47 @@ void main() {
     },
   );
 
+  test(
+    'known native login availability failures stay non-credential failures',
+    () async {
+      for (final failure in <(String, String)>[
+        ('network_failed', 'Could not connect to the Matrix homeserver.'),
+        ('login_timeout', 'The Matrix login request timed out.'),
+        ('rate_limited', 'Matrix login is temporarily rate limited.'),
+        ('login_failed', 'The Matrix homeserver could not complete sign in.'),
+      ]) {
+        final root = await Directory.systemTemp.createTemp(
+          'kite-auth-unavailable-',
+        );
+        addTearDown(() async {
+          if (await root.exists()) await root.delete(recursive: true);
+        });
+        final bridge = _FakeRustBridge(
+          loginError: MatrixRustNativeException(
+            code: failure.$1,
+            publicMessage: failure.$2,
+          ),
+        );
+        final api = _api(root, bridge);
+
+        await expectLater(
+          api.loginWithPassword(
+            homeserver: Uri.parse('https://matrix.example.org'),
+            username: 'alice',
+            password: 'secret',
+          ),
+          throwsA(
+            isA<MatrixAccountSdkAuthenticationUnavailableException>().having(
+              (error) => error.publicMessage,
+              'publicMessage',
+              failure.$2,
+            ),
+          ),
+        );
+      }
+    },
+  );
+
   test('non-credential native login failures remain native failures', () async {
     final root = await Directory.systemTemp.createTemp(
       'kite-auth-native-fail-',

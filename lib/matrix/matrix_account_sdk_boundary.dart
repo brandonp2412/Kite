@@ -370,6 +370,17 @@ final class MatrixAccountSdkException implements Exception {
   String toString() => 'MatrixAccountSdkException(<redacted>)';
 }
 
+final class MatrixAccountSdkAuthenticationUnavailableException
+    implements Exception {
+  const MatrixAccountSdkAuthenticationUnavailableException(this.publicMessage);
+
+  final String publicMessage;
+
+  @override
+  String toString() =>
+      'MatrixAccountSdkAuthenticationUnavailableException(<redacted>)';
+}
+
 void requireMatrixAccountCapability(
   MatrixAccountSdkBoundary boundary,
   MatrixAccountSdkCapability capability,

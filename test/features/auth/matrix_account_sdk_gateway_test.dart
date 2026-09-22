@@ -31,7 +31,7 @@ final class _FakeAccountBoundary implements MatrixAccountSdkBoundary {
   bool? receivedIgnored;
   String? receivedBlockedUserId;
   bool? receivedBlocked;
-  MatrixAccountSdkException? passwordError;
+  Object? passwordError;
 
   final session = MatrixSdkSessionDescriptor(
     userId: '@kite:example.org',
@@ -297,6 +297,36 @@ void main() {
       expect(
         const MatrixAccountSdkException('contains-secret-value').toString(),
         isNot(contains('contains-secret-value')),
+      );
+    },
+  );
+
+  test(
+    'login availability failures stay distinct from credential rejection',
+    () async {
+      final boundary =
+          _FakeAccountBoundary(<MatrixAccountSdkCapability>{
+              MatrixAccountSdkCapability.passwordAuthentication,
+            })
+            ..passwordError =
+                const MatrixAccountSdkAuthenticationUnavailableException(
+                  'Could not connect to the Matrix homeserver.',
+                );
+      final gateway = MatrixAccountSdkGateway(boundary);
+
+      await expectLater(
+        gateway.loginWithPassword(
+          homeserver: HomeserverAddress.parse('https://example.org'),
+          username: 'kite',
+          password: 'top-secret-password',
+        ),
+        throwsA(
+          isA<AuthenticationUnavailableException>().having(
+            (error) => error.publicMessage,
+            'publicMessage',
+            'Could not connect to the Matrix homeserver.',
+          ),
+        ),
       );
     },
   );

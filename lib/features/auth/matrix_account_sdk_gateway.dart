@@ -531,6 +531,8 @@ final class MatrixAccountSdkGateway
     requireMatrixAccountCapability(_boundary, capability);
     try {
       return await action();
+    } on MatrixAccountSdkAuthenticationUnavailableException catch (error) {
+      throw AuthenticationUnavailableException(error.publicMessage);
     } on MatrixAccountSdkException catch (error) {
       throw AuthenticationRejectedException(error.publicMessage);
     }

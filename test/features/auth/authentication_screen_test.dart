@@ -297,6 +297,49 @@ void main() {
     expect(find.text('Incorrect username or password.'), findsOneWidget);
   });
 
+  testWidgets('login connectivity failures do not blame credentials', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway()
+      ..passwordError = const AuthenticationUnavailableException(
+        'Could not connect to the Matrix homeserver.',
+      );
+
+    await tester.pumpWidget(_app(gateway));
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.enterText(find.byKey(const Key('password-field')), 'secret');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('password-login')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Could not connect to the Matrix homeserver.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('The provided username or password is invalid.'),
+      findsNothing,
+    );
+    expect(
+      find.text('Sign in failed. Check your details and try again.'),
+      findsNothing,
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('password-field')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
+  });
+
   testWidgets('backgrounding reconceals a revealed password', (tester) async {
     final gateway = _FakeAuthenticationGateway();
 

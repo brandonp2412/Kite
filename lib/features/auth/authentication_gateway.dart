@@ -90,6 +90,10 @@ final class AuthenticationRejectedException extends AuthenticationException {
   const AuthenticationRejectedException(super.publicMessage);
 }
 
+final class AuthenticationUnavailableException extends AuthenticationException {
+  const AuthenticationUnavailableException(super.publicMessage);
+}
+
 abstract interface class AuthenticationGateway {
   /// Resolves authentication through the Matrix SDK. The returned homeserver
   /// may differ from [homeserver] when trusted `.well-known` discovery selects

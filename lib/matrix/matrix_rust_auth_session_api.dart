@@ -180,6 +180,14 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
       if (error.code == 'invalid_credentials') {
         throw MatrixAccountSdkException(error.publicMessage);
       }
+      if (error.code == 'network_failed' ||
+          error.code == 'login_timeout' ||
+          error.code == 'rate_limited' ||
+          error.code == 'login_failed') {
+        throw MatrixAccountSdkAuthenticationUnavailableException(
+          error.publicMessage,
+        );
+      }
       rethrow;
     }
   }
