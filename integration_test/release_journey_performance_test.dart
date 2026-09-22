@@ -4,6 +4,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/auth/account_management_controller.dart';
 import 'package:kite/features/auth/account_security_screen.dart';
 import 'package:kite/features/auth/authentication_controller.dart';
@@ -274,6 +275,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: KiteTheme.light,
         home: HomeScreen(benchmarkRooms: BenchmarkFixture.largeRoomListRooms),
       ),
     );
@@ -316,6 +318,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: KiteTheme.light,
         home: NotificationSettingsScreen(
           controller: controller,
           roomId: '!kite:example.org',
@@ -403,6 +406,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: KiteTheme.light,
         home: GeneralSettingsScreen(controller: controller, loadOnInit: false),
       ),
     );
@@ -446,6 +450,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: KiteTheme.light,
         home: SupportSettingsScreen(controller: controller, loadOnInit: false),
       ),
     );
@@ -497,6 +502,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: KiteTheme.light,
           home: AppLockSettingsScreen(
             controller: controller,
             loadOnInit: false,
@@ -546,7 +552,10 @@ void main() {
     await controller.load();
 
     await tester.pumpWidget(
-      MaterialApp(home: AppUnlockScreen(controller: controller)),
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: AppUnlockScreen(controller: controller),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -596,6 +605,7 @@ void main() {
       controllers.add(controller);
       await tester.pumpWidget(
         MaterialApp(
+          theme: KiteTheme.light,
           home: AuthenticationScreen(
             key: UniqueKey(),
             gateway: gateway,
@@ -700,6 +710,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: KiteTheme.light,
         home: AccountSecurityScreen(
           accountController: accounts,
           sessionDeviceController: devices,
@@ -791,7 +802,10 @@ void main() {
     final controller = TimelineBenchmarkController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(home: TimelineBenchmarkSurface(controller: controller)),
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: TimelineBenchmarkSurface(controller: controller),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -843,7 +857,10 @@ void main() {
     final controller = TimelineBenchmarkController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(home: TimelineBenchmarkSurface(controller: controller)),
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: TimelineBenchmarkSurface(controller: controller),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -877,7 +894,10 @@ void main() {
     final controller = TimelineBenchmarkController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
-      MaterialApp(home: TimelineBenchmarkSurface(controller: controller)),
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: TimelineBenchmarkSurface(controller: controller),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -911,7 +931,10 @@ void main() {
       final controller = TimelineBenchmarkController();
       addTearDown(controller.dispose);
       await tester.pumpWidget(
-        MaterialApp(home: TimelineBenchmarkSurface(controller: controller)),
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: TimelineBenchmarkSurface(controller: controller),
+        ),
       );
       await tester.pumpAndSettle();
 
