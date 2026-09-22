@@ -317,6 +317,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('registration-available')));
@@ -372,6 +373,7 @@ void main() {
       find.byKey(const Key('password-field')),
       'correct-password-for-wrong-account',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('password-login')));
     await tester.pumpAndSettle();
 
@@ -422,6 +424,7 @@ void main() {
         find.byKey(const Key('password-field')),
         'correct-password',
       );
+      await tester.pump();
       await tester.tap(find.byKey(const Key('password-login')));
       await tester.pumpAndSettle();
 

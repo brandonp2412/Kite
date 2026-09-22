@@ -177,10 +177,12 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('username-field')), 'alice');
     await tester.enterText(find.byKey(const Key('password-field')), 'secret');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('password-login')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
@@ -216,10 +218,12 @@ void main() {
         find.byKey(const Key('homeserver-field')),
         'matrix.example.org',
       );
+      await tester.pump();
       await tester.tap(find.byKey(const Key('discover-homeserver')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('username-field')), 'alice');
       await tester.enterText(find.byKey(const Key('password-field')), 'secret');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('password-login')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));

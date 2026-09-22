@@ -76,6 +76,7 @@ void main() {
       final initialHeading = _rectOf(tester, heading);
       final initialSubtitle = _rectOf(tester, subtitle);
 
+      await tester.pump();
       await tester.tap(find.byKey(const Key('discover-homeserver')));
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);
