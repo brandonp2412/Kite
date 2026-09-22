@@ -135,6 +135,85 @@ void main() {
     expect(entry.latestEventBody, 'Unable to decrypt message');
   });
 
+  test('Matrix timeline projection keeps undecryptable events visible', () {
+    final controller = TimelineController(
+      sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+      fixtureProvider: (_) => const [],
+    );
+    final encrypted = MatrixTimelineEvent(
+      eventId: r'$encrypted',
+      roomId: '!alpha:example.org',
+      senderId: '@alice:example.org',
+      senderDisplayName: 'Alice',
+      type: 'm.room.encrypted',
+      originServerTimestamp: DateTime.utc(2026, 9, 16, 10, 31),
+      streamPosition: 1,
+      content: const <String, Object?>{
+        'algorithm': 'm.megolm.v1.aes-sha2',
+        'ciphertext': '<redacted>',
+      },
+    );
+
+    controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+      encrypted,
+    ], currentUserId: '@me:example.org');
+
+    final message = controller.messagesFor('!alpha:example.org').value.single;
+    expect(message.id, r'$encrypted');
+    expect(message.sender, 'Alice');
+    expect(message.body, 'Unable to decrypt message');
+    expect(message.mine, isFalse);
+  });
+
+  test(
+    'Matrix timeline replaces an undecryptable placeholder after recovery',
+    () {
+      final controller = TimelineController(
+        sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+        fixtureProvider: (_) => const [],
+      );
+      final encrypted = MatrixTimelineEvent(
+        eventId: r'$encrypted',
+        roomId: '!alpha:example.org',
+        senderId: '@alice:example.org',
+        senderDisplayName: 'Alice',
+        type: 'm.room.encrypted',
+        originServerTimestamp: DateTime.utc(2026, 9, 16, 10, 1),
+        streamPosition: 1,
+        content: const <String, Object?>{
+          'algorithm': 'm.megolm.v1.aes-sha2',
+          'ciphertext': '<redacted>',
+        },
+      );
+
+      controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+        encrypted,
+      ], currentUserId: '@me:example.org');
+      final placeholder = controller
+          .messagesFor('!alpha:example.org')
+          .value
+          .single;
+
+      controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+        _event(
+          eventId: r'$encrypted',
+          streamPosition: 1,
+          senderId: '@alice:example.org',
+          senderDisplayName: 'Alice',
+          msgtype: 'm.text',
+          body: 'Recovered plaintext',
+        ),
+      ], currentUserId: '@me:example.org');
+
+      final recovered = controller
+          .messagesFor('!alpha:example.org')
+          .value
+          .single;
+      expect(identical(recovered, placeholder), isTrue);
+      expect(recovered.body, 'Recovered plaintext');
+    },
+  );
+
   test('Matrix room projection uses event-aware media previews', () {
     final cache = MatrixPresentationCache();
     cache.applySync(

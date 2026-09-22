@@ -591,7 +591,9 @@ class TimelineMessage {
     required String currentUserId,
     TimelineMessage? replyTarget,
   }) {
-    if (event.type != 'm.room.message') return null;
+    if (event.type != 'm.room.message' && event.type != 'm.room.encrypted') {
+      return null;
+    }
     final localTime = event.originServerTimestamp.toLocal();
     if (event.redacted) {
       return TimelineMessage(
@@ -605,6 +607,21 @@ class TimelineMessage {
         timeLabel:
             '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
         redacted: true,
+      );
+    }
+    if (event.type == 'm.room.encrypted') {
+      return TimelineMessage(
+        id: event.eventId,
+        sender: event.senderDisplayName ?? event.senderId,
+        body: 'Unable to decrypt message',
+        mine: event.senderId == currentUserId,
+        senderId: event.senderId,
+        senderAvatarUrl: event.senderAvatarUrl,
+        sentAt: localTime,
+        timeLabel:
+            localTime.hour.toString().padLeft(2, '0') +
+            ':' +
+            localTime.minute.toString().padLeft(2, '0'),
       );
     }
     final content = event.content;
