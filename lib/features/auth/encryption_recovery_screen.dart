@@ -112,14 +112,27 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   _RecoveryOverview(status: status, error: error),
-                  if (busy || success != null) ...<Widget>[
-                    const SizedBox(height: KiteSpacing.md),
-                    _RecoveryOperationFeedback(
-                      busy: busy,
-                      operation: operation,
-                      success: success,
+                  const SizedBox(height: KiteSpacing.md),
+                  SizedBox(
+                    height: 88,
+                    child: AnimatedSwitcher(
+                      duration: KiteMotion.resolve(
+                        context,
+                        KiteMotion.standard,
+                      ),
+                      child: busy || success != null
+                          ? _RecoveryOperationFeedback(
+                              busy: busy,
+                              operation: operation,
+                              success: success,
+                            )
+                          : const SizedBox.shrink(
+                              key: Key(
+                                'encryption-recovery-feedback-placeholder',
+                              ),
+                            ),
                     ),
-                  ],
+                  ),
                   const SizedBox(height: KiteSpacing.md),
                   _RecoveryCard(
                     icon: Icons.key_rounded,
