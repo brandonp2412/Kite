@@ -194,6 +194,7 @@ class HomeScreen extends StatelessWidget {
                 store: roomListStore,
                 inviteStore: inviteStore,
                 roomCreation: roomCreation,
+                roomManagement: roomManagement,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
                 profileAvatarPicker: profileAvatarPicker,
@@ -256,6 +257,7 @@ class HomeScreen extends StatelessWidget {
                     store: roomListStore,
                     inviteStore: inviteStore,
                     roomCreation: roomCreation,
+                    roomManagement: roomManagement,
                     onRoomFavouriteChanged: onRoomFavouriteChanged,
                     onMarkAllRoomsRead: onMarkAllRoomsRead,
                     profileAvatarPicker: profileAvatarPicker,
@@ -465,6 +467,7 @@ class _HomeSidebar extends StatefulWidget {
     this.store,
     this.inviteStore,
     this.roomCreation,
+    this.roomManagement,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
@@ -479,6 +482,7 @@ class _HomeSidebar extends StatefulWidget {
   final RoomListStateStore? store;
   final RoomInviteStore? inviteStore;
   final RoomManagementCoordinator? roomCreation;
+  final RoomManagementCoordinator? roomManagement;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
@@ -824,6 +828,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
             Expanded(
               child: _RoomList(
                 store: store,
+                roomManagement: widget.roomManagement,
                 onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
                 onRoomTap: widget.onRoomTap,
                 query: _searchQuery,
@@ -1277,6 +1282,7 @@ class _CompactChatScreen extends StatelessWidget {
 class _RoomList extends StatelessWidget {
   const _RoomList({
     required this.store,
+    this.roomManagement,
     this.onRoomFavouriteChanged,
     this.onRoomTap,
     this.query = '',
@@ -1286,6 +1292,7 @@ class _RoomList extends StatelessWidget {
   });
 
   final RoomListStateStore store;
+  final RoomManagementCoordinator? roomManagement;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final ValueChanged<String>? onRoomTap;
   final String query;
@@ -1396,6 +1403,87 @@ class _RoomList extends StatelessWidget {
     );
   }
 
+  Future<void> _removeRoom(BuildContext context, String roomId) async {
+    final management = roomManagement;
+    if (management == null) return;
+
+    final room = store.roomSignal(roomId).peek();
+    final deleteChat = room.isDirect;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(deleteChat ? 'Delete chat?' : 'Leave room?'),
+        content: Text(
+          deleteChat
+              ? 'This leaves the Matrix conversation and removes its local room data from Kite. Messages are not deleted for the other person.'
+              : 'You will stop receiving messages from this room.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('room-remove-confirm'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(deleteChat ? 'Delete' : 'Leave'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    var localCleanupFailed = false;
+    try {
+      await management.leaveRoom(roomId);
+      if (deleteChat) {
+        try {
+          await management.forgetRoom(roomId);
+        } catch (_) {
+          localCleanupFailed = true;
+        }
+      }
+      if (!context.mounted) return;
+
+      store.hideRoom(roomId);
+      if (selectedRoomId.value == roomId) {
+        final visibleRooms = store.visibleRoomIds.peek();
+        if (visibleRooms.isNotEmpty) {
+          selectRoom(visibleRooms.first);
+        }
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              localCleanupFailed
+                  ? 'Chat left, but its local data could not be removed.'
+                  : deleteChat
+                  ? 'Chat deleted.'
+                  : 'Left room.',
+            ),
+          ),
+        );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              deleteChat ? 'Could not delete chat.' : 'Could not leave room.',
+            ),
+          ),
+        );
+    }
+  }
+
   Future<void> _showRoomOptionsMenu(
     BuildContext context,
     String roomId,
@@ -1405,7 +1493,8 @@ class _RoomList extends StatelessWidget {
       await _showRoomOptionsSheet(context, roomId);
       return;
     }
-    final favourite = store.roomSignal(roomId).peek().isFavourite;
+    final room = store.roomSignal(roomId).peek();
+    final favourite = room.isFavourite;
     final action = await showMenu<String>(
       context: context,
       position: _popupPosition(context, position),
@@ -1433,9 +1522,33 @@ class _RoomList extends StatelessWidget {
             title: Text('Hide chat on this device'),
           ),
         ),
+        if (roomManagement != null) ...<PopupMenuEntry<String>>[
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            value: 'remove',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                room.isDirect
+                    ? Icons.delete_outline_rounded
+                    : Icons.logout_rounded,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                room.isDirect ? 'Delete chat' : 'Leave room',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          ),
+        ],
       ],
     );
     if (!context.mounted || action == null) return;
+    if (action == 'remove') {
+      await _removeRoom(context, roomId);
+      return;
+    }
     if (action == 'hide') {
       store.hideRoom(roomId);
       ScaffoldMessenger.of(context)
