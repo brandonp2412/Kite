@@ -86,24 +86,12 @@ class _DeviceVerificationScreenState extends State<DeviceVerificationScreen> {
                 SizedBox(
                   key: const Key('verification-action-slot'),
                   height: 360,
-                  child: AnimatedSwitcher(
-                    duration: KiteMotion.resolve(context, KiteMotion.standard),
-                    switchInCurve: KiteMotion.standardCurve,
-                    switchOutCurve: KiteMotion.standardCurve,
-                    child: _VerificationBody(
-                      key: ValueKey<String>(
-                        session == null
-                            ? 'start'
-                            : '${session.method.name}-${session.stage.name}',
-                      ),
-                      controller: widget.controller,
-                      session: session,
-                      busy: busy,
-                      scanQrCode: widget.scanQrCode == null
-                          ? null
-                          : _scanQrCode,
-                      qrBuilder: widget.qrBuilder,
-                    ),
+                  child: _VerificationBody(
+                    controller: widget.controller,
+                    session: session,
+                    busy: busy,
+                    scanQrCode: widget.scanQrCode == null ? null : _scanQrCode,
+                    qrBuilder: widget.qrBuilder,
                   ),
                 ),
                 SizedBox(
@@ -208,7 +196,6 @@ class _VerificationBody extends StatelessWidget {
     required this.busy,
     required this.scanQrCode,
     required this.qrBuilder,
-    super.key,
   });
 
   final DeviceVerificationController controller;

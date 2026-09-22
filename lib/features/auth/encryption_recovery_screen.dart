@@ -334,20 +334,21 @@ class _RecoveryBackupCard extends StatelessWidget {
           detail: backupReady
               ? 'This account has an encrypted Matrix key backup available.'
               : 'Enable encrypted backup so this account can recover encrypted message history on another device.',
-          child: FilledButton.tonalIcon(
-            key: const Key('create-encrypted-backup'),
-            onPressed: backupReady ? null : controller.createEncryptedBackup,
-            icon: Icon(
-              backupReady
-                  ? Icons.check_circle_rounded
-                  : Icons.cloud_upload_outlined,
-            ),
-            label: Text(
-              backupReady
-                  ? 'Encrypted backup enabled'
-                  : 'Enable encrypted backup',
-            ),
-          ),
+          child: backupReady
+              ? const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(Icons.check_circle_rounded),
+                    SizedBox(width: KiteSpacing.sm),
+                    Text('Encrypted backup enabled'),
+                  ],
+                )
+              : FilledButton.tonalIcon(
+                  key: const Key('create-encrypted-backup'),
+                  onPressed: controller.createEncryptedBackup,
+                  icon: const Icon(Icons.cloud_upload_outlined),
+                  label: const Text('Enable encrypted backup'),
+                ),
         );
       },
     );

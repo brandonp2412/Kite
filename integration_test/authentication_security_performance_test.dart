@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_shader_warm_up.dart';
 import 'package:kite/features/auth/authentication_controller.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/authentication_screen.dart';
@@ -179,6 +180,7 @@ Map<String, dynamic> _record(String journey, Map<String, dynamic> result) =>
     };
 
 void main() {
+  PaintingBinding.shaderWarmUp = const KiteShaderWarmUp();
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const virtualizedBenchmark = bool.fromEnvironment(
     'KITE_VIRTUALIZED_BENCHMARK',
