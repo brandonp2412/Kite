@@ -4,6 +4,7 @@ import 'package:kite/matrix/matrix_sdk_boundary.dart';
 typedef MatrixRoomCreate = Future<MatrixSdkCreatedRoom> Function(
   MatrixSdkRoomCreationRequest request,
 );
+typedef MatrixDirectMessageOpen = Future<String> Function(String userId);
 typedef MatrixRoomReport = Future<void> Function(String roomId, String? reason);
 typedef MatrixUserReport = Future<void> Function(
   String roomId,
@@ -27,7 +28,7 @@ typedef MatrixUserSearch = Future<List<MatrixSdkUserSearchResult>> Function(
 );
 
 final class MatrixRoomCreationManagementPort
-    implements RoomManagementPort, RoomUserSearchPort {
+    implements RoomManagementPort, RoomUserSearchPort, DirectMessageOpenPort {
   const MatrixRoomCreationManagementPort(
     this._create, {
     required MatrixRoomReport reportRoom,
@@ -44,6 +45,7 @@ final class MatrixRoomCreationManagementPort
     required MatrixRoomRequiredTextMutation setHistoryVisibility,
     required MatrixRoomRequiredTextMutation setNotificationMode,
     this.userSearch,
+    this.directMessageOpen,
   }) : _lifecycle = (
          reportRoom: reportRoom,
          reportUser: reportUser,
@@ -64,6 +66,7 @@ final class MatrixRoomCreationManagementPort
 
   final MatrixRoomCreate _create;
   final MatrixUserSearch? userSearch;
+  final MatrixDirectMessageOpen? directMessageOpen;
   final ({
     MatrixRoomReport reportRoom,
     MatrixUserReport reportUser,
@@ -111,6 +114,28 @@ final class MatrixRoomCreationManagementPort
   }
 
   @override
+  Future<KiteCreatedRoom> openDirectMessage(String userId) async {
+    final open = directMessageOpen;
+    if (open == null) {
+      return createRoom(
+        KiteRoomCreationRequest(
+          kind: KiteRoomCreationKind.directMessage,
+          name: null,
+          topic: null,
+          invitees: <String>[userId],
+          joinRule: KiteRoomJoinRule.invite,
+          encryptionEnabled: true,
+          historyVisibility: KiteRoomHistoryVisibility.joined,
+          canonicalAlias: null,
+          parentSpaceId: null,
+        ),
+      );
+    }
+    final roomId = await open(userId);
+    return KiteCreatedRoom(roomId: roomId, isDirect: true, displayName: userId);
+  }
+
+  @override
   Future<KiteCreatedRoom> createRoom(KiteRoomCreationRequest request) async {
     final created = await _create(
       MatrixSdkRoomCreationRequest(
@@ -137,9 +162,9 @@ final class MatrixRoomCreationManagementPort
       isDirect: created.isDirect,
       displayName:
           request.name ??
-              (request.invitees.length == 1
-                  ? request.invitees.single
-                  : created.roomId),
+          (request.invitees.length == 1
+              ? request.invitees.single
+              : created.roomId),
     );
   }
 
