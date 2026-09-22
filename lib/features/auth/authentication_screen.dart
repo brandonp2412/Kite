@@ -227,6 +227,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 labelText: 'Homeserver',
                                 hintText: 'matrix.example.org',
                               ),
+                              onChanged: (_) => _controller.clearError(),
                               onSubmitted: busy || widget.lockHomeserver
                                   ? null
                                   : _controller.discover,
@@ -279,6 +280,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 decoration: const InputDecoration(
                                   labelText: 'Username',
                                 ),
+                                onChanged: (_) => _controller.clearError(),
                               ),
                               const SizedBox(height: 12),
                               TextField(
@@ -295,6 +297,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 decoration: const InputDecoration(
                                   labelText: 'Password',
                                 ),
+                                onChanged: (_) => _controller.clearError(),
                                 onSubmitted: busy
                                     ? null
                                     : (_) => _passwordLogin(),

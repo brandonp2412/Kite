@@ -181,6 +181,11 @@ final class AuthenticationController with AsyncControllerLifecycle {
     return expectedUserId == null || candidate.userId == expectedUserId;
   }
 
+  void clearError() {
+    if (controllerDisposed || isBusy || errorMessage.value == null) return;
+    errorMessage.value = null;
+  }
+
   void changeHomeserver() {
     if (controllerDisposed || isBusy) return;
     errorMessage.value = null;
