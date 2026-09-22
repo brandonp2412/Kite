@@ -101,6 +101,75 @@ void main() {
     expect(discovery.methods, isEmpty);
   });
 
+  test(
+    'credential rejection is translated into an account SDK failure',
+    () async {
+      final root = await Directory.systemTemp.createTemp('kite-auth-rejected-');
+      addTearDown(() async {
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final bridge = _FakeRustBridge(
+        loginError: const MatrixRustNativeException(
+          code: 'authentication_rejected',
+          publicMessage: 'Matrix login was rejected.',
+        ),
+      );
+      final api = _api(root, bridge);
+
+      await expectLater(
+        api.loginWithPassword(
+          homeserver: Uri.parse('https://matrix.example.org'),
+          username: 'alice',
+          password: 'wrong-password',
+        ),
+        throwsA(
+          isA<MatrixAccountSdkException>().having(
+            (error) => error.publicMessage,
+            'publicMessage',
+            'Matrix login was rejected.',
+          ),
+        ),
+      );
+
+      expect(
+        await Directory('${root.path}/login-staging/deterministic-staging')
+            .exists(),
+        isFalse,
+      );
+    },
+  );
+
+  test('non-credential native login failures remain native failures', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'kite-auth-native-fail-',
+    );
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final bridge = _FakeRustBridge(
+      loginError: const MatrixRustNativeException(
+        code: 'native_operation_failed',
+        publicMessage: 'The Matrix native operation failed.',
+      ),
+    );
+    final api = _api(root, bridge);
+
+    await expectLater(
+      api.loginWithPassword(
+        homeserver: Uri.parse('https://matrix.example.org'),
+        username: 'alice',
+        password: 'secret',
+      ),
+      throwsA(
+        isA<MatrixRustNativeException>().having(
+          (error) => error.code,
+          'code',
+          'native_operation_failed',
+        ),
+      ),
+    );
+  });
+
   test('native logout invalidates the persisted Matrix session', () async {
     final root = await Directory.systemTemp.createTemp('kite-auth-logout-');
     addTearDown(() async {
@@ -195,9 +264,10 @@ final class _FakeWellKnownClient implements MatrixWellKnownClient {
 
 final class _FakeRustBridge
     implements MatrixRustBridge, MatrixRustAuthenticationBridge {
-  _FakeRustBridge({this.passwordAvailable = true});
+  _FakeRustBridge({this.passwordAvailable = true, this.loginError});
 
   final bool passwordAvailable;
+  final MatrixRustNativeException? loginError;
   String? lastSecret;
   Uri? lastDiscoveryInput;
   int logoutCalls = 0;
@@ -223,15 +293,19 @@ final class _FakeRustBridge
     final directory = Directory(storePath);
     await directory.create(recursive: true);
     await File('${directory.path}/native-session').writeAsString('encrypted');
-    return _FakeRustClient(onLogout: () => logoutCalls += 1);
+    return _FakeRustClient(
+      onLogout: () => logoutCalls += 1,
+      loginError: loginError,
+    );
   }
 }
 
 final class _FakeRustClient
     implements MatrixRustClient, MatrixRustLogoutClient {
-  _FakeRustClient({required this.onLogout});
+  _FakeRustClient({required this.onLogout, this.loginError});
 
   final void Function() onLogout;
+  final MatrixRustNativeException? loginError;
   var _closed = false;
 
   @override
@@ -242,6 +316,8 @@ final class _FakeRustClient
     required String username,
     required String password,
   }) async {
+    final error = loginError;
+    if (error != null) throw error;
     if ((username != 'alice' && username != '@alice:example.org') ||
         password.isEmpty) {
       throw StateError('login failed');

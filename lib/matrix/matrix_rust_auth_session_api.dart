@@ -100,7 +100,8 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
             storePath: existingStore.path,
             storePassphrase: secret,
           );
-          final result = await client.loginWithPassword(
+          final result = await _loginWithPassword(
+            client,
             username: username,
             password: password,
           );
@@ -136,7 +137,8 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
         storePath: storeDirectory.path,
         storePassphrase: secret,
       );
-      final result = await client.loginWithPassword(
+      final result = await _loginWithPassword(
+        client,
         username: username,
         password: password,
       );
@@ -156,6 +158,25 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
       rethrow;
     } finally {
       await client?.close();
+    }
+  }
+
+  Future<MatrixRustLoginResult> _loginWithPassword(
+    MatrixRustClient client, {
+    required String username,
+    required String password,
+  }) async {
+    try {
+      return await client.loginWithPassword(
+        username: username,
+        password: password,
+      );
+    } on MatrixRustNativeException catch (error) {
+      if (error.code == 'authentication_rejected' ||
+          error.code == 'invalid_credentials') {
+        throw MatrixAccountSdkException(error.publicMessage);
+      }
+      rethrow;
     }
   }
 
