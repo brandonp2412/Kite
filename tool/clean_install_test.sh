@@ -14,9 +14,21 @@ if [[ -z "$device" ]]; then
   exit 2
 fi
 
+if [[ "${KITE_WAYDROID_LOCK_HELD:-}" != "1" ]]; then
+  exec "$repo_root/tool/with_waydroid_lock.sh" --device "$device" -- "$0" "$device"
+fi
+
 package_name="nz.presley.kite"
 activity_name="$package_name/.MainActivity"
 apk="build/app/outputs/flutter-apk/app-release.apk"
+
+existing_package="$(adb -s "$device" shell pm path "$package_name" 2>/dev/null | tr -d '\r')"
+if [[ -n "$existing_package" && "${KITE_ALLOW_DESTRUCTIVE_CLEAN_INSTALL:-}" != "1" ]]; then
+  printf '%s\n' \
+    'Refusing to uninstall the existing Kite app because that destroys the shared Waydroid session and Matrix store.' \
+    'Set KITE_ALLOW_DESTRUCTIVE_CLEAN_INSTALL=1 only when destructive clean-install testing is intentional.' >&2
+  exit 3
+fi
 
 printf 'Clean-install test on %s: build release APK\n' "$device"
 timeout --signal=TERM --kill-after=15s 5m flutter build apk --release
