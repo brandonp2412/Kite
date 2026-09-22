@@ -271,16 +271,28 @@ void main() {
       find.byKey(const Key('password-field')),
       'credential-that-must-not-linger',
     );
-
     await tester.pump();
+
+    var passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.obscureText, isTrue);
+    await tester.tap(find.byKey(const Key('password-visibility-toggle')));
+    await tester.pump();
+    passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.obscureText, isFalse);
+
     await tester.tap(find.byKey(const Key('password-login')));
     await tester.pumpAndSettle();
 
     expect(gateway.password, 'credential-that-must-not-linger');
-    final passwordField = tester.widget<TextField>(
+    passwordField = tester.widget<TextField>(
       find.byKey(const Key('password-field')),
     );
     expect(passwordField.controller?.text, isEmpty);
+    expect(passwordField.obscureText, isTrue);
     expect(find.text('credential-that-must-not-linger'), findsNothing);
     expect(find.text('Incorrect username or password.'), findsOneWidget);
   });

@@ -44,6 +44,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
   late final Listenable _passwordLoginInputs;
+  bool _passwordVisible = false;
 
   @override
   void initState() {
@@ -101,10 +102,21 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     unawaited(_controller.discover(_homeserverController.text));
   }
 
+  void _clearPassword() {
+    _passwordVisible = false;
+    _passwordController.clear();
+  }
+
+  void _togglePasswordVisibility() {
+    setState(() {
+      _passwordVisible = !_passwordVisible;
+    });
+  }
+
   Future<void> _passwordLogin() async {
     if (_controller.isBusy || !_canPasswordLogin) return;
     final password = _passwordController.text;
-    _passwordController.clear();
+    _clearPassword();
     await _controller.loginWithPassword(
       username: _usernameController.text,
       password: password,
@@ -114,13 +126,13 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   }
 
   Future<void> _oidcLogin() async {
-    _passwordController.clear();
+    _clearPassword();
     await _controller.loginWithOidc(expectedUserId: widget.expectedUserId);
     _completeAuthenticationIfNeeded();
   }
 
   Future<void> _ssoLogin() async {
-    _passwordController.clear();
+    _clearPassword();
     await _controller.loginWithSso(expectedUserId: widget.expectedUserId);
     _completeAuthenticationIfNeeded();
   }
@@ -137,19 +149,19 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   void _completeAuthenticationIfNeeded() {
     final authenticatedSession = _controller.session.value;
     if (authenticatedSession == null) return;
-    _passwordController.clear();
+    _clearPassword();
     widget.onAuthenticated?.call(authenticatedSession);
   }
 
   void _changeHomeserver() {
     if (_controller.isBusy) return;
     _usernameController.clear();
-    _passwordController.clear();
+    _clearPassword();
     _controller.changeHomeserver();
   }
 
   Future<void> _requestRegistration(HomeserverAddress homeserver) async {
-    _passwordController.clear();
+    _clearPassword();
     final handoff = widget.onRegistrationRequested;
     if (handoff != null) {
       handoff(homeserver);
@@ -169,7 +181,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
           ),
         );
     if (!mounted || registeredSession == null) return;
-    _passwordController.clear();
+    _clearPassword();
     widget.onAuthenticated?.call(registeredSession);
   }
 
@@ -324,15 +336,31 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 controller: _passwordController,
                                 enabled: !busy,
                                 autofocus: widget.expectedUserId != null,
-                                obscureText: true,
+                                obscureText: !_passwordVisible,
                                 enableSuggestions: false,
                                 autocorrect: false,
                                 textInputAction: TextInputAction.done,
                                 autofillHints: const <String>[
                                   AutofillHints.password,
                                 ],
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Password',
+                                  suffixIcon: IconButton(
+                                    key: const Key(
+                                      'password-visibility-toggle',
+                                    ),
+                                    tooltip: _passwordVisible
+                                        ? 'Hide password'
+                                        : 'Show password',
+                                    onPressed: busy
+                                        ? null
+                                        : _togglePasswordVisibility,
+                                    icon: Icon(
+                                      _passwordVisible
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                    ),
+                                  ),
                                 ),
                                 onChanged: (_) => _controller.clearError(),
                                 onSubmitted: busy
