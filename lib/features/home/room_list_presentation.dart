@@ -65,6 +65,7 @@ final class RoomListEntry {
     this.isMuted = false,
     this.isFavourite = false,
     this.isDirect = false,
+    this.isPendingSync = false,
     this.spaceIds = const <String>[],
   });
 
@@ -111,6 +112,7 @@ final class RoomListEntry {
   final bool isMuted;
   final bool isFavourite;
   final bool isDirect;
+  final bool isPendingSync;
   final List<String> spaceIds;
 
   bool matches(RoomListFilter filter) => switch (filter) {
@@ -137,6 +139,7 @@ final class RoomListEntry {
     bool? isMuted,
     bool? isFavourite,
     bool? isDirect,
+    bool? isPendingSync,
     List<String>? spaceIds,
   }) {
     return RoomListEntry(
@@ -153,6 +156,7 @@ final class RoomListEntry {
       isMuted: isMuted ?? this.isMuted,
       isFavourite: isFavourite ?? this.isFavourite,
       isDirect: isDirect ?? this.isDirect,
+      isPendingSync: isPendingSync ?? this.isPendingSync,
       spaceIds: List<String>.unmodifiable(spaceIds ?? this.spaceIds),
     );
   }
@@ -256,12 +260,20 @@ final class RoomListStateStore {
   }
 
   void reconcile(List<RoomListEntry> rooms) {
-    final ids = rooms.map((room) => room.id).toList(growable: false);
+    final incomingIds = rooms.map((room) => room.id).toSet();
+    final retainedPendingRooms = <RoomListEntry>[
+      for (final roomId in _roomIds)
+        if (!incomingIds.contains(roomId) &&
+            _rooms[roomId]!.peek().isPendingSync)
+          _rooms[roomId]!.peek(),
+    ];
+    final effectiveRooms = <RoomListEntry>[...retainedPendingRooms, ...rooms];
+    final ids = effectiveRooms.map((room) => room.id).toList(growable: false);
     if (ids.toSet().length != ids.length) {
       throw ArgumentError.value(rooms, 'rooms', 'Room IDs must be unique.');
     }
     final sectionIds = sections.map((section) => section.id).toSet();
-    for (final room in rooms) {
+    for (final room in effectiveRooms) {
       if (!_rooms.containsKey(room.id) &&
           !sectionIds.contains(_defaultSectionId(room))) {
         throw ArgumentError.value(
@@ -285,7 +297,7 @@ final class RoomListStateStore {
           _sectionUnreadCounts[sectionId]!.value--;
         }
       }
-      for (final room in rooms) {
+      for (final room in effectiveRooms) {
         final target = _rooms[room.id];
         if (target == null) {
           _rooms[room.id] = signal(room);
@@ -312,6 +324,21 @@ final class RoomListStateStore {
       }
       _refreshVisibleRoomIds();
     });
+  }
+
+  void addPendingRoom(RoomListEntry room) {
+    if (!room.isPendingSync) {
+      throw ArgumentError.value(
+        room,
+        'room',
+        'Locally created rooms must be pending sync.',
+      );
+    }
+    reconcile(<RoomListEntry>[
+      room,
+      for (final roomId in _roomIds)
+        if (roomId != room.id) _rooms[roomId]!.peek(),
+    ]);
   }
 
   void selectFilter(RoomListFilter filter) {
@@ -506,6 +533,7 @@ bool _sameRoom(RoomListEntry left, RoomListEntry right) {
       left.isMuted == right.isMuted &&
       left.isFavourite == right.isFavourite &&
       left.isDirect == right.isDirect &&
+      left.isPendingSync == right.isPendingSync &&
       listEquals(left.spaceIds, right.spaceIds);
 }
 

@@ -49,10 +49,15 @@ final class KiteRoomCreationRequest {
 }
 
 final class KiteCreatedRoom {
-  const KiteCreatedRoom({required this.roomId, required this.isDirect});
+  const KiteCreatedRoom({
+    required this.roomId,
+    required this.isDirect,
+    required this.displayName,
+  });
 
   final String roomId;
   final bool isDirect;
+  final String displayName;
 }
 
 final class KiteUserSearchResult {

@@ -695,15 +695,35 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   Future<void> _openRoomCreation() async {
     final coordinator = widget.roomCreation;
     if (coordinator == null) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+    final created = await Navigator.of(context).push<KiteCreatedRoom>(
+      MaterialPageRoute<KiteCreatedRoom>(
         builder: (routeContext) => RoomCreationScreen(
           coordinator: coordinator,
           recentPeople: widget.recentPeople,
-          onCreated: (_) => Navigator.of(routeContext).pop(),
+          onCreated: (room) => Navigator.of(routeContext).pop(room),
         ),
       ),
     );
+    if (!mounted || created == null) return;
+
+    store.addPendingRoom(
+      RoomListEntry(
+        id: created.roomId,
+        name: created.displayName,
+        latestEventBody: '',
+        isDirect: created.isDirect,
+        isPendingSync: true,
+      ),
+    );
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+
+    final handler = widget.onRoomTap;
+    if (handler != null) {
+      handler(created.roomId);
+    } else {
+      selectRoom(created.roomId);
+    }
   }
 
   Future<void> _openInvitesSheet() async {

@@ -11,6 +11,7 @@ import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/testing/deterministic_adapters.dart';
 import 'package:kite/testing/deterministic_room_management_adapter.dart';
 
@@ -107,6 +108,38 @@ void main() {
     expect(before.value.unreadCount, 4);
     expect(before.value.hasMention, isTrue);
     expect(before.value.avatarUrl, 'mxc://example.org/alice-avatar');
+  });
+
+  test('locally created room remains visible until sync confirms it', () {
+    final rooms = deterministicRoomListEntries(BenchmarkFixture.rooms);
+    final store = RoomListStateStore(rooms);
+    const pending = RoomListEntry(
+      id: '!created:example.org',
+      name: 'Created room',
+      latestEventBody: '',
+      isPendingSync: true,
+    );
+
+    store.addPendingRoom(pending);
+    expect(store.roomIds.first, pending.id);
+    expect(store.roomSignal(pending.id).value.isPendingSync, isTrue);
+
+    store.reconcile(rooms);
+    expect(store.roomIds.first, pending.id);
+    expect(store.roomSignal(pending.id).value.isPendingSync, isTrue);
+
+    final synced = pending.copyWith(
+      latestEventBody: 'Synced activity',
+      isPendingSync: false,
+    );
+    store.reconcile(<RoomListEntry>[...rooms, synced]);
+
+    expect(store.roomIds.last, pending.id);
+    expect(store.roomSignal(pending.id).value.isPendingSync, isFalse);
+    expect(
+      store.roomSignal(pending.id).value.latestEventBody,
+      'Synced activity',
+    );
   });
 
   test('client-side hidden rooms stay hidden across sync reconciliation', () {
@@ -704,6 +737,55 @@ void main() {
     expect(find.byKey(const Key('home-account-filter-chats')), findsNothing);
     expect(find.byKey(const Key('room-filter-sheet')), findsNothing);
     expect(store.selectedFilter.value, RoomListFilter.all);
+  });
+
+  testWidgets('new room appears immediately while server sync catches up', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final rooms = deterministicRoomListEntries(BenchmarkFixture.rooms);
+    final store = RoomListStateStore(rooms);
+    final coordinator = RoomManagementCoordinator(
+      rooms: DeterministicRoomManagementPort(),
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    final previousSelectedRoomId = selectedRoomId.value;
+    timelineController.reset(fixtureProvider: (_) => const []);
+    addTearDown(() {
+      timelineController.reset(fixtureProvider: BenchmarkFixture.messagesFor);
+      selectedRoomId.value = previousSelectedRoomId;
+    });
+    selectedRoomId.value = rooms.first.id;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(roomListStore: store, roomCreation: coordinator),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('new-chat-fab-extended')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Private'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('room-create-name')),
+      'Created immediately',
+    );
+    await tester.tap(find.byKey(const Key('room-create-submit')));
+    await tester.pumpAndSettle();
+
+    const roomId = '!room1:example.org';
+    expect(store.roomIds.first, roomId);
+    expect(store.roomSignal(roomId).value.name, 'Created immediately');
+    expect(store.roomSignal(roomId).value.isPendingSync, isTrue);
+    expect(selectedRoomId.value, roomId);
+    expect(find.byKey(const Key('room-$roomId')), findsOneWidget);
   });
 
   testWidgets('new-chat FAB collapses with the scroll-away header', (

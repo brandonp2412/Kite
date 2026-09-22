@@ -126,7 +126,11 @@ final class DeterministicRoomManagementPort
       isDirect: isDirect,
       directUserIds: isDirect ? request.invitees : const <String>[],
     );
-    return KiteCreatedRoom(roomId: roomId, isDirect: isDirect);
+    return KiteCreatedRoom(
+      roomId: roomId,
+      isDirect: isDirect,
+      displayName: request.name ?? (request.invitees.length == 1 ? request.invitees.single : roomId),
+    );
   }
 
   @override

@@ -132,7 +132,15 @@ final class MatrixRoomCreationManagementPort
         parentSpaceId: request.parentSpaceId,
       ),
     );
-    return KiteCreatedRoom(roomId: created.roomId, isDirect: created.isDirect);
+    return KiteCreatedRoom(
+      roomId: created.roomId,
+      isDirect: created.isDirect,
+      displayName:
+          request.name ??
+              (request.invitees.length == 1
+                  ? request.invitees.single
+                  : created.roomId),
+    );
   }
 
   @override
