@@ -37,7 +37,8 @@ class AuthenticationScreen extends StatefulWidget {
   State<AuthenticationScreen> createState() => _AuthenticationScreenState();
 }
 
-class _AuthenticationScreenState extends State<AuthenticationScreen> {
+class _AuthenticationScreenState extends State<AuthenticationScreen>
+    with WidgetsBindingObserver {
   late final AuthenticationController _controller;
   late final bool _ownsController;
   late final TextEditingController _homeserverController;
@@ -49,6 +50,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ownsController = widget.controller == null;
     _controller = widget.controller ?? AuthenticationController(widget.gateway);
     _homeserverController = TextEditingController(
@@ -70,6 +72,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _passwordController.clear();
     _homeserverController.dispose();
     _usernameController.dispose();
@@ -78,6 +81,16 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
       _controller.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed || !_passwordVisible || !mounted) {
+      return;
+    }
+    setState(() {
+      _passwordVisible = false;
+    });
   }
 
   bool get _canDiscoverHomeserver {

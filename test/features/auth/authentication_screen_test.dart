@@ -297,6 +297,45 @@ void main() {
     expect(find.text('Incorrect username or password.'), findsOneWidget);
   });
 
+  testWidgets('backgrounding reconceals a revealed password', (tester) async {
+    final gateway = _FakeAuthenticationGateway();
+
+    await tester.pumpWidget(_app(gateway));
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.enterText(
+      find.byKey(const Key('password-field')),
+      'credential-kept-across-background',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('password-visibility-toggle')));
+    await tester.pump();
+
+    var passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.obscureText, isFalse);
+    expect(passwordField.controller?.text, 'credential-kept-across-background');
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+
+    passwordField = tester.widget<TextField>(
+      find.byKey(const Key('password-field')),
+    );
+    expect(passwordField.obscureText, isTrue);
+    expect(passwordField.controller?.text, 'credential-kept-across-background');
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+  });
+
   testWidgets('editing credentials clears a stale sign-in error', (
     tester,
   ) async {
