@@ -68,13 +68,11 @@ final class MatrixPresentationCache {
 
   void invalidateEncryptedHistory() {
     batch(() {
+      // Force the next sync to replay recent events so newly imported room keys
+      // can replace encrypted placeholders in place. Keep the current
+      // presentation visible while that replay happens.
       lastSyncCursor = null;
       hasReceivedSyncBatch.value = false;
-      for (final timeline in _timelines.values) {
-        if (timeline.value.isNotEmpty) {
-          timeline.value = const <MatrixTimelineEvent>[];
-        }
-      }
     });
   }
 

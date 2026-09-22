@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:kite/matrix/matrix_account_sdk_boundary.dart';
 import 'package:kite/matrix/matrix_production_runtime.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -28,7 +30,7 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
     final status = _status(
       await _runtime.recoverEncryption(accountId: accountId, secret: secret),
     );
-    await _runtime.refreshAfterEncryptionRecovery(accountId: accountId);
+    unawaited(_runtime.refreshAfterEncryptionRecovery(accountId: accountId));
     return status;
   }
 
@@ -38,7 +40,7 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
     final status = _status(
       await _runtime.recoverEncryptedHistory(accountId: accountId),
     );
-    await _runtime.refreshAfterEncryptionRecovery(accountId: accountId);
+    unawaited(_runtime.refreshAfterEncryptionRecovery(accountId: accountId));
     return MatrixSdkRecoveryStatus(
       backupState: status.backupState,
       historicalRecoveryState: MatrixSdkHistoricalRecoveryState.complete,
@@ -57,7 +59,7 @@ final class MatrixProductionRecoveryApi implements MatrixNativeRecoveryApi {
       path: path,
       passphrase: passphrase,
     );
-    await _runtime.refreshAfterEncryptionRecovery(accountId: accountId);
+    unawaited(_runtime.refreshAfterEncryptionRecovery(accountId: accountId));
     return result;
   }
 

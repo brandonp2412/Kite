@@ -134,15 +134,42 @@ void main() {
 
     final refresh = controller.refresh();
     await Future<void>.delayed(Duration.zero);
-    expect(controller.isBusy.value, isTrue);
+    expect(controller.isBusy.value, isFalse);
+    expect(controller.isRefreshingStatus.value, isTrue);
 
     expect(controller.resetForAccountChange(), isTrue);
     expect(controller.isBusy.value, isFalse);
+    expect(controller.isRefreshingStatus.value, isFalse);
     deferred.complete(gateway.current);
     expect(await refresh, isFalse);
 
     expect(controller.status.value, isNull);
     expect(controller.errorMessage.value, isNull);
+  });
+
+  test('recovery result wins over an older in-flight status refresh', () async {
+    final deferred = Completer<EncryptionRecoveryStatus>();
+    final gateway = _FakeEncryptionRecoveryGateway()..deferredStatus = deferred;
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+
+    final refresh = controller.refresh();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isRefreshingStatus.value, isTrue);
+
+    gateway.deferredStatus = null;
+    expect(await controller.restoreWithRecoveryKey('RECOVERY-KEY'), isTrue);
+    expect(controller.status.value?.backupState, EncryptedBackupState.ready);
+
+    deferred.complete(
+      const EncryptionRecoveryStatus(
+        backupState: EncryptedBackupState.needsRecovery,
+        historicalRecoveryState: HistoricalRecoveryState.idle,
+        hasUnverifiedSessions: true,
+      ),
+    );
+    expect(await refresh, isFalse);
+    expect(controller.status.value?.backupState, EncryptedBackupState.ready);
   });
 
   test('backup creation is delegated to the Matrix SDK boundary', () async {

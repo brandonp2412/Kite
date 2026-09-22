@@ -79,10 +79,13 @@ final class EncryptionRecoveryController {
 
   final EncryptionRecoveryGateway _gateway;
   int _accountGeneration = 0;
+  int _operationRevision = 0;
+  int _refreshRevision = 0;
 
   final status = signal<EncryptionRecoveryStatus?>(null);
   final roomKeyImportResult = signal<RoomKeyBackupImportResult?>(null);
   final isBusy = signal(false);
+  final isRefreshingStatus = signal(false);
   final activeOperation = signal<EncryptionRecoveryOperation?>(null);
   final successMessage = signal<String?>(null);
   final errorMessage = signal<String?>(null);
@@ -92,21 +95,45 @@ final class EncryptionRecoveryController {
 
   bool resetForAccountChange() {
     _accountGeneration += 1;
+    _operationRevision += 1;
+    _refreshRevision += 1;
     status.value = null;
     roomKeyImportResult.value = null;
     isBusy.value = false;
+    isRefreshingStatus.value = false;
     activeOperation.value = null;
     successMessage.value = null;
     errorMessage.value = null;
     return true;
   }
 
-  Future<bool> refresh() {
-    return _run(
-      _gateway.loadRecoveryStatus,
-      operation: EncryptionRecoveryOperation.refreshStatus,
-      failureMessage: 'Kite could not read encryption recovery status.',
-    );
+  Future<bool> refresh() async {
+    final generation = _accountGeneration;
+    final operationRevision = _operationRevision;
+    final refreshRevision = ++_refreshRevision;
+    isRefreshingStatus.value = true;
+    try {
+      final next = await _gateway.loadRecoveryStatus();
+      if (generation != _accountGeneration ||
+          operationRevision != _operationRevision ||
+          refreshRevision != _refreshRevision) {
+        return false;
+      }
+      status.value = next;
+      return true;
+    } catch (_) {
+      if (generation == _accountGeneration &&
+          operationRevision == _operationRevision &&
+          refreshRevision == _refreshRevision) {
+        errorMessage.value = 'Kite could not read encryption recovery status.';
+      }
+      return false;
+    } finally {
+      if (generation == _accountGeneration &&
+          refreshRevision == _refreshRevision) {
+        isRefreshingStatus.value = false;
+      }
+    }
   }
 
   Future<bool> createEncryptedBackup() {
@@ -186,6 +213,7 @@ final class EncryptionRecoveryController {
     if (isBusy.value) return false;
 
     final generation = _accountGeneration;
+    _operationRevision += 1;
     isBusy.value = true;
     activeOperation.value = EncryptionRecoveryOperation.importRoomKeys;
     successMessage.value = null;
@@ -230,6 +258,7 @@ final class EncryptionRecoveryController {
     if (isBusy.value) return false;
 
     final generation = _accountGeneration;
+    _operationRevision += 1;
     isBusy.value = true;
     activeOperation.value = operation;
     this.successMessage.value = null;
@@ -262,6 +291,7 @@ final class EncryptionRecoveryController {
     status.dispose();
     roomKeyImportResult.dispose();
     isBusy.dispose();
+    isRefreshingStatus.dispose();
     activeOperation.dispose();
     successMessage.dispose();
     errorMessage.dispose();

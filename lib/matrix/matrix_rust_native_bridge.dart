@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
@@ -2082,6 +2083,81 @@ final class MatrixRustNativeBridge
   }
 }
 
+enum _MatrixOperationPriority { critical, interactive, normal, background }
+
+final class _MatrixSerialOperationQueue {
+  final Queue<Future<void> Function()> _critical =
+      Queue<Future<void> Function()>();
+  final Queue<Future<void> Function()> _interactive =
+      Queue<Future<void> Function()>();
+  final Queue<Future<void> Function()> _normal =
+      Queue<Future<void> Function()>();
+  final Queue<Future<void> Function()> _background =
+      Queue<Future<void> Function()>();
+
+  bool _draining = false;
+
+  Future<T> enqueue<T>(
+    Future<T> Function() operation, {
+    _MatrixOperationPriority priority = _MatrixOperationPriority.normal,
+  }) {
+    final completer = Completer<T>();
+    Future<void> task() async {
+      try {
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    }
+
+    switch (priority) {
+      case _MatrixOperationPriority.critical:
+        _critical.add(task);
+      case _MatrixOperationPriority.interactive:
+        _interactive.add(task);
+      case _MatrixOperationPriority.normal:
+        _normal.add(task);
+      case _MatrixOperationPriority.background:
+        _background.add(task);
+    }
+    _scheduleDrain();
+    return completer.future;
+  }
+
+  bool get _hasPending =>
+      _critical.isNotEmpty ||
+      _interactive.isNotEmpty ||
+      _normal.isNotEmpty ||
+      _background.isNotEmpty;
+
+  Future<void> Function()? _takeNext() {
+    if (_critical.isNotEmpty) return _critical.removeFirst();
+    if (_interactive.isNotEmpty) return _interactive.removeFirst();
+    if (_normal.isNotEmpty) return _normal.removeFirst();
+    if (_background.isNotEmpty) return _background.removeFirst();
+    return null;
+  }
+
+  void _scheduleDrain() {
+    if (_draining) return;
+    _draining = true;
+    scheduleMicrotask(_drain);
+  }
+
+  Future<void> _drain() async {
+    try {
+      while (true) {
+        final task = _takeNext();
+        if (task == null) return;
+        await task();
+      }
+    } finally {
+      _draining = false;
+      if (_hasPending) _scheduleDrain();
+    }
+  }
+}
+
 final class MatrixRustNativeClient
     implements
         MatrixRustClient,
@@ -2105,7 +2181,7 @@ final class MatrixRustNativeClient
 
   final String libraryPath;
   int _address;
-  Future<void> _transition = Future<void>.value();
+  final _operations = _MatrixSerialOperationQueue();
 
   @override
   bool get isClosed => _address == 0;
@@ -2342,6 +2418,7 @@ final class MatrixRustNativeClient
           secret: secret,
         ).call,
       ),
+      priority: _MatrixOperationPriority.critical,
     );
   }
 
@@ -2563,7 +2640,7 @@ final class MatrixRustNativeClient
           height: height,
         ).call,
       );
-    });
+    }, priority: _MatrixOperationPriority.background);
   }
 
   @override
@@ -2607,7 +2684,7 @@ final class MatrixRustNativeClient
           height: height,
         ).call,
       );
-    });
+    }, priority: _MatrixOperationPriority.interactive);
   }
 
   @override
@@ -3238,7 +3315,7 @@ final class MatrixRustNativeClient
           roomId: normalizedRoomId,
         ).call,
       );
-    });
+    }, priority: _MatrixOperationPriority.interactive);
   }
 
   @override
@@ -3262,26 +3339,11 @@ final class MatrixRustNativeClient
     return address;
   }
 
-  Future<T> _enqueue<T>(Future<T> Function() operation) {
-    final completer = Completer<T>();
-    final next = _transition.then<void>(
-      (_) async {
-        try {
-          completer.complete(await operation());
-        } catch (error, stackTrace) {
-          completer.completeError(error, stackTrace);
-        }
-      },
-      onError: (Object _, StackTrace _) async {
-        try {
-          completer.complete(await operation());
-        } catch (error, stackTrace) {
-          completer.completeError(error, stackTrace);
-        }
-      },
-    );
-    _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
-    return completer.future;
+  Future<T> _enqueue<T>(
+    Future<T> Function() operation, {
+    _MatrixOperationPriority priority = _MatrixOperationPriority.normal,
+  }) {
+    return _operations.enqueue(operation, priority: priority);
   }
 }
 
@@ -3328,7 +3390,7 @@ final class MatrixRustSdkBoundary
 
   MatrixRustClient? _client;
   MatrixSdkStoreConfiguration? _openedStore;
-  Future<void> _transition = Future<void>.value();
+  final _operations = _MatrixSerialOperationQueue();
   Future<void>? _syncLoop;
   Completer<void>? _retryWakeup;
   bool _syncRequested = false;
@@ -3457,7 +3519,7 @@ final class MatrixRustSdkBoundary
         width: width,
         height: height,
       );
-    });
+    }, priority: _MatrixOperationPriority.background);
   }
 
   @override
@@ -3486,7 +3548,7 @@ final class MatrixRustSdkBoundary
         );
       }
       return bytes;
-    });
+    }, priority: _MatrixOperationPriority.interactive);
   }
 
   @override
@@ -3588,7 +3650,7 @@ final class MatrixRustSdkBoundary
         backupState: backupState,
         backupExistsOnServer: backupExistsOnServer,
       );
-    });
+    }, priority: _MatrixOperationPriority.critical);
   }
 
   @override
@@ -4262,12 +4324,12 @@ final class MatrixRustSdkBoundary
       });
       _syncLoop = loop;
       unawaited(loop);
-    });
+    }, priority: _MatrixOperationPriority.critical);
   }
 
   @override
   Future<void> stopSync() {
-    return _enqueue(_stopSync);
+    return _enqueue(_stopSync, priority: _MatrixOperationPriority.critical);
   }
 
   @override
@@ -4318,7 +4380,7 @@ final class MatrixRustSdkBoundary
         );
         Error.throwWithStackTrace(error, stackTrace);
       }
-    });
+    }, priority: _MatrixOperationPriority.interactive);
   }
 
   @override
@@ -4554,25 +4616,10 @@ final class MatrixRustSdkBoundary
     return client;
   }
 
-  Future<T> _enqueue<T>(Future<T> Function() operation) {
-    final completer = Completer<T>();
-    final next = _transition.then<void>(
-      (_) async {
-        try {
-          completer.complete(await operation());
-        } catch (error, stackTrace) {
-          completer.completeError(error, stackTrace);
-        }
-      },
-      onError: (Object _, StackTrace _) async {
-        try {
-          completer.complete(await operation());
-        } catch (error, stackTrace) {
-          completer.completeError(error, stackTrace);
-        }
-      },
-    );
-    _transition = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
-    return completer.future;
+  Future<T> _enqueue<T>(
+    Future<T> Function() operation, {
+    _MatrixOperationPriority priority = _MatrixOperationPriority.normal,
+  }) {
+    return _operations.enqueue(operation, priority: priority);
   }
 }

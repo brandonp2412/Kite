@@ -307,6 +307,77 @@ void main() {
     expect(controller.messagesFor('kite').value, isEmpty);
   });
 
+  test('cached Matrix edits project without a signal cycle', () {
+    const roomId = '!edited:example.org';
+    const originalEventId = r'$original';
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: roomId,
+            displayName: 'Edited room',
+            lastActivity: DateTime.utc(2026, 9, 16, 11, 2),
+            streamPosition: 2,
+            lastEventId: r'$replacement',
+          ),
+        ],
+        timelines: <String, List<MatrixTimelineEvent>>{
+          roomId: <MatrixTimelineEvent>[
+            MatrixTimelineEvent(
+              eventId: originalEventId,
+              roomId: roomId,
+              senderId: '@alice:example.org',
+              type: 'm.room.message',
+              originServerTimestamp: DateTime.utc(2026, 9, 16, 11),
+              streamPosition: 1,
+              content: const <String, Object?>{
+                'msgtype': 'm.text',
+                'body': 'Before edit',
+              },
+            ),
+            MatrixTimelineEvent(
+              eventId: r'$replacement',
+              roomId: roomId,
+              senderId: '@alice:example.org',
+              type: 'm.room.message',
+              originServerTimestamp: DateTime.utc(2026, 9, 16, 11, 2),
+              streamPosition: 2,
+              content: const <String, Object?>{
+                'msgtype': 'm.text',
+                'body': '* After edit',
+                'm.new_content': <String, Object?>{
+                  'msgtype': 'm.text',
+                  'body': 'After edit',
+                },
+                'm.relates_to': <String, Object?>{
+                  'rel_type': 'm.replace',
+                  'event_id': originalEventId,
+                },
+              },
+            ),
+          ],
+        },
+      ),
+    );
+    final controller = TimelineController();
+
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      controller: controller,
+      selectedRoom: signal(roomId),
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+    );
+    addTearDown(binding.dispose);
+
+    final message = controller.messagesFor(roomId).value.single;
+    expect(message.body, 'After edit');
+    expect(message.edited, isTrue);
+    expect(message.editHistoryState.value, <String>['Before edit']);
+  });
+
   test('cached invites project through the production invite port', () async {
     final calls = <(String, bool)>[];
     final cache = MatrixPresentationCache(

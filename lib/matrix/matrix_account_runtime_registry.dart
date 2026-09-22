@@ -755,10 +755,8 @@ final class MatrixAccountRuntimeRegistry {
       );
       await active.runtime.stop();
       try {
-        await flushPresentationWrites(normalizedAccountId);
         active.runtime.resetPagination();
         active.cache.invalidateEncryptedHistory();
-        await presentationStore?.clear(normalizedAccountId);
       } finally {
         await active.runtime.start();
       }

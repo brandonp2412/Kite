@@ -67,7 +67,10 @@ void main() {
         cache.roomSummarySignal('!alpha:kite.test').value?.displayName,
         'Alpha',
       );
-      expect(cache.timelineSignal('!alpha:kite.test').value, isEmpty);
+      expect(
+        cache.timelineSignal('!alpha:kite.test').value.single.eventId,
+        cachedEvent.eventId,
+      );
       expect(cache.lastSyncCursor, isNull);
       expect(cache.hasReceivedSyncBatch.value, isFalse);
     },

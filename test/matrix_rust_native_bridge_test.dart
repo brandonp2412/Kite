@@ -40,6 +40,54 @@ void main() {
     );
   });
 
+  test('recovery work jumps ahead of queued media prefetch', () async {
+    final client = _FakeRustClient();
+    final prefetchGate = Completer<void>();
+    client.prefetchGate = prefetchGate;
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+      codecExecutor: _RecordingCodecExecutor(),
+    );
+    addTearDown(boundary.close);
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:kite.test',
+        storePath: '/tmp/kite/alice-priority',
+        encryptionKeyId: 'alice-priority-key',
+      ),
+    );
+
+    final firstPrefetch = boundary.prefetchMedia(
+      contentUris: const <String>['mxc://kite.test/avatar-1'],
+      width: 96,
+      height: 96,
+    );
+    await client.prefetchStarted.future;
+
+    final secondPrefetch = boundary.prefetchMedia(
+      contentUris: const <String>['mxc://kite.test/avatar-2'],
+      width: 96,
+      height: 96,
+    );
+    final recoveryStatus = boundary.encryptionRecoveryStatus();
+
+    prefetchGate.complete();
+    await Future.wait<Object?>(<Future<Object?>>[
+      firstPrefetch,
+      secondPrefetch,
+      recoveryStatus,
+    ]);
+
+    expect(client.operationOrder, <String>[
+      'prefetch-1',
+      'recovery-status',
+      'prefetch-2',
+    ]);
+  });
+
   test(
     'native boundary routes password login and idempotent text send',
     () async {
@@ -1199,8 +1247,10 @@ final class _FakeRustClient
         MatrixRustRoomLifecycleClient,
         MatrixRustTimelineModerationClient,
         MatrixRustRoomSettingsClient,
+        MatrixRustMediaPrefetchClient,
         MatrixRustMediaClient,
         MatrixRustProfileClient,
+        MatrixRustEncryptionRecoveryClient,
         MatrixRustRoomReadClient {
   final Completer<void> firstSyncReturned = Completer<void>();
   final List<Duration> syncTimeouts = <Duration>[];
@@ -1229,6 +1279,10 @@ final class _FakeRustClient
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
+  final List<String> operationOrder = <String>[];
+  Completer<void>? prefetchGate;
+  final Completer<void> prefetchStarted = Completer<void>();
+  int _prefetchCalls = 0;
 
   bool _closed = false;
   int _syncCalls = 0;
@@ -1353,6 +1407,57 @@ final class _FakeRustClient
     }
     return <String, Object?>{'roomId': roomId, 'action': action};
   }
+
+  @override
+  Future<Map<String, Uint8List>> prefetchMedia({
+    required List<String> contentUris,
+    required int width,
+    required int height,
+  }) async {
+    _prefetchCalls += 1;
+    operationOrder.add('prefetch-$_prefetchCalls');
+    if (_prefetchCalls == 1 && prefetchGate != null) {
+      if (!prefetchStarted.isCompleted) prefetchStarted.complete();
+      await prefetchGate!.future;
+    }
+    return <String, Uint8List>{
+      for (final uri in contentUris) uri: Uint8List.fromList(<int>[1]),
+    };
+  }
+
+  Map<String, Object?> _recoveryStatusData() => <String, Object?>{
+    'recoveryState': 'enabled',
+    'backupState': 'enabled',
+    'backupExistsOnServer': true,
+  };
+
+  @override
+  Future<Map<String, Object?>> encryptionRecoveryStatus() async {
+    operationOrder.add('recovery-status');
+    return _recoveryStatusData();
+  }
+
+  @override
+  Future<Map<String, Object?>> createEncryptedBackup() async =>
+      _recoveryStatusData();
+
+  @override
+  Future<Map<String, Object?>> recoverEncryption(String secret) async =>
+      _recoveryStatusData();
+
+  @override
+  Future<Map<String, Object?>> recoverEncryptedHistory() async =>
+      _recoveryStatusData();
+
+  @override
+  Future<Map<String, Object?>> importRoomKeyBackup({
+    required String path,
+    required String passphrase,
+  }) async => <String, Object?>{
+    ..._recoveryStatusData(),
+    'importedCount': 1,
+    'totalCount': 1,
+  };
 
   @override
   Future<String> uploadMedia({
