@@ -197,6 +197,8 @@ abstract interface class MatrixSdkMediaManager {
 abstract interface class MatrixSdkMediaPrefetcher {
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   });
@@ -404,10 +406,12 @@ final class MatrixBoundaryEngine implements MatrixEngine {
   final MatrixSdkStoreConfiguration _store;
   final MatrixSdkSyncConfiguration Function() _syncConfigurationProvider;
 
-  static const int _smallMediaCacheLimit = 64;
+  static const int _mediaCacheEntryLimit = 48;
+  static const int _mediaCacheByteLimit = 64 * 1024 * 1024;
 
-  final Map<(String, int, int), Uint8List> _smallMediaCache =
+  final Map<(String, int, int), Uint8List> _mediaCache =
       <(String, int, int), Uint8List>{};
+  int _mediaCacheBytes = 0;
   bool _opened = false;
   bool _started = false;
   bool _needsSyncReset = false;
@@ -641,6 +645,8 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   Future<int> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   }) async {
@@ -670,6 +676,15 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       }
       if (seen.add(normalized)) normalizedUris.add(normalized);
     }
+    for (final entry in encryptedFiles.entries) {
+      if (!seen.contains(entry.key) || entry.value['url'] != entry.key) {
+        throw ArgumentError.value(
+          encryptedFiles,
+          'encryptedFiles',
+          'must map requested Matrix content URIs to matching encrypted files',
+        );
+      }
+    }
     if (normalizedUris.length > 32) {
       throw ArgumentError.value(
         contentUris,
@@ -686,7 +701,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     var completed = 0;
     final pendingUris = <String>[];
     for (final contentUri in normalizedUris) {
-      if (_smallMediaCache.containsKey((contentUri, width, height))) {
+      if (_cachedMedia(contentUri, width, height) != null) {
         completed += 1;
       } else {
         pendingUris.add(contentUri);
@@ -696,14 +711,22 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
     await _ensureOpen();
     final prefetched = await (prefetcher as MatrixSdkMediaPrefetcher)
-        .prefetchMedia(contentUris: pendingUris, width: width, height: height);
+        .prefetchMedia(
+          contentUris: pendingUris,
+          encryptedFiles: <String, Map<String, Object?>>{
+            for (final contentUri in pendingUris)
+              contentUri: ?encryptedFiles[contentUri],
+          },
+          width: width,
+          height: height,
+        );
     for (final entry in prefetched.entries) {
       if (!seen.contains(entry.key) || entry.value.isEmpty) {
         throw const MatrixSdkContractException(
           'Matrix SDK boundary returned invalid prefetched media',
         );
       }
-      _rememberSmallMedia(
+      _rememberMedia(
         contentUri: entry.key,
         width: width,
         height: height,
@@ -758,10 +781,8 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     if (height <= 0 || height > 4096) {
       throw ArgumentError.value(height, 'height', 'must be between 1 and 4096');
     }
-    if (encryptedFile == null && width <= 256 && height <= 256) {
-      final cached = _smallMediaCache[(normalizedContentUri, width, height)];
-      if (cached != null) return cached;
-    }
+    final cached = _cachedMedia(normalizedContentUri, width, height);
+    if (cached != null) return cached;
     await _ensureOpen();
     final bytes = await (manager as MatrixSdkMediaManager).downloadMedia(
       contentUri: normalizedContentUri,
@@ -774,14 +795,12 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         'Matrix SDK boundary returned empty media data',
       );
     }
-    if (encryptedFile == null && width <= 256 && height <= 256) {
-      _rememberSmallMedia(
-        contentUri: normalizedContentUri,
-        width: width,
-        height: height,
-        bytes: bytes,
-      );
-    }
+    _rememberMedia(
+      contentUri: normalizedContentUri,
+      width: width,
+      height: height,
+      bytes: bytes,
+    );
     return bytes;
   }
 
@@ -1377,23 +1396,44 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   Future<void> close() async {
     await stop();
-    _smallMediaCache.clear();
+    _mediaCache.clear();
+    _mediaCacheBytes = 0;
     if (!_opened) return;
     await _boundary.close();
     _opened = false;
   }
 
-  void _rememberSmallMedia({
+  Uint8List? _cachedMedia(String contentUri, int width, int height) {
+    final key = (contentUri, width, height);
+    final bytes = _mediaCache.remove(key);
+    if (bytes == null) return null;
+    _mediaCache[key] = bytes;
+    return bytes;
+  }
+
+  void _rememberMedia({
     required String contentUri,
     required int width,
     required int height,
     required Uint8List bytes,
   }) {
+    if (bytes.lengthInBytes > _mediaCacheByteLimit) return;
+
     final key = (contentUri, width, height);
-    _smallMediaCache.remove(key);
-    _smallMediaCache[key] = bytes;
-    while (_smallMediaCache.length > _smallMediaCacheLimit) {
-      _smallMediaCache.remove(_smallMediaCache.keys.first);
+    final previous = _mediaCache.remove(key);
+    if (previous != null) {
+      _mediaCacheBytes -= previous.lengthInBytes;
+    }
+    _mediaCache[key] = bytes;
+    _mediaCacheBytes += bytes.lengthInBytes;
+
+    while (_mediaCache.length > _mediaCacheEntryLimit ||
+        _mediaCacheBytes > _mediaCacheByteLimit) {
+      final oldestKey = _mediaCache.keys.first;
+      final removed = _mediaCache.remove(oldestKey);
+      if (removed != null) {
+        _mediaCacheBytes -= removed.lengthInBytes;
+      }
     }
   }
 

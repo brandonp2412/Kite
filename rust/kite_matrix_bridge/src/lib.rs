@@ -16,8 +16,8 @@ use matrix_sdk::{
     media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings},
     notification_settings::RoomNotificationMode,
     ruma::{
-        EventId, Int, OwnedDeviceId, OwnedEventId, OwnedMxcUri, OwnedTransactionId, OwnedUserId,
-        RoomAliasId, RoomId, UInt, UserId,
+        EventId, Int, OwnedDeviceId, OwnedEventId, OwnedMxcUri, OwnedRoomId, OwnedTransactionId,
+        OwnedUserId, RoomAliasId, RoomId, UInt, UserId,
         api::{
             client::{
                 backup::{get_backup_keys, get_latest_backup_info},
@@ -63,9 +63,11 @@ const KITE_MATRIX_ABI_VERSION: u32 = 29;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
+const KITE_MATRIX_ENCRYPTED_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(2);
 const KITE_MATRIX_MEDIA_THUMBNAIL_TIMEOUT: Duration = Duration::from_secs(2);
 const KITE_MATRIX_MEDIA_FILE_TIMEOUT: Duration = Duration::from_secs(20);
 const KITE_MATRIX_KEY_RECOVERY_CONCURRENCY: usize = 8;
+const KITE_MATRIX_ROOM_METADATA_CHUNK_SIZE: usize = 24;
 const KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES: [&str; 3] =
     ["m.room.message", "m.room.encrypted", "m.room.redaction"];
 
@@ -86,7 +88,7 @@ struct CreateRoomRequest {
 pub struct KiteMatrixClient {
     client: Option<Client>,
     runtime: Runtime,
-    room_metadata_hydrated: bool,
+    hydrated_room_metadata: HashSet<OwnedRoomId>,
 }
 
 #[unsafe(no_mangle)]
@@ -437,7 +439,7 @@ pub unsafe extern "C" fn kite_matrix_client_new(
     Box::into_raw(Box::new(KiteMatrixClient {
         client: Some(client),
         runtime,
-        room_metadata_hydrated: false,
+        hydrated_room_metadata: HashSet::new(),
     }))
 }
 
@@ -585,7 +587,7 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
         );
     }
 
-    client.room_metadata_hydrated = false;
+    client.hydrated_room_metadata.clear();
     ok_json(session_json(&session, matrix_client.homeserver().as_str()))
 }
 
@@ -610,7 +612,7 @@ pub unsafe extern "C" fn kite_matrix_client_logout(client: *mut KiteMatrixClient
             "Could not sign out from the Matrix server.",
         );
     }
-    client.room_metadata_hydrated = false;
+    client.hydrated_room_metadata.clear();
     ok_json(Value::Null)
 }
 
@@ -1038,7 +1040,7 @@ pub unsafe extern "C" fn kite_matrix_client_restore_session(
             "Could not restore the Matrix session.",
         );
     }
-    client.room_metadata_hydrated = false;
+    client.hydrated_room_metadata.clear();
     ok_json(session_json(&session, matrix_client.homeserver().as_str()))
 }
 
@@ -1214,16 +1216,41 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         }));
     }
 
-    let hydrate_room_metadata = !client.room_metadata_hydrated;
-    let metadata_room_ids = if hydrate_room_metadata {
-        matrix_client
-            .joined_rooms()
-            .into_iter()
-            .map(|room| room.room_id().to_owned())
-            .collect::<Vec<_>>()
-    } else {
-        response.rooms.joined.keys().cloned().collect::<Vec<_>>()
-    };
+    let mut metadata_hydration_rooms = matrix_client
+        .joined_rooms()
+        .into_iter()
+        .filter(|room| {
+            !response.rooms.joined.contains_key(room.room_id())
+                && !client.hydrated_room_metadata.contains(room.room_id())
+        })
+        .collect::<Vec<_>>();
+    metadata_hydration_rooms.sort_by(|left, right| {
+        let left_activity = left
+            .latest_event()
+            .timestamp()
+            .map(|timestamp| Into::<u64>::into(timestamp.get()))
+            .unwrap_or(0);
+        let right_activity = right
+            .latest_event()
+            .timestamp()
+            .map(|timestamp| Into::<u64>::into(timestamp.get()))
+            .unwrap_or(0);
+        right_activity
+            .cmp(&left_activity)
+            .then_with(|| left.room_id().as_str().cmp(right.room_id().as_str()))
+    });
+    metadata_hydration_rooms.truncate(KITE_MATRIX_ROOM_METADATA_CHUNK_SIZE);
+    let metadata_hydration_room_ids = metadata_hydration_rooms
+        .iter()
+        .map(|room| room.room_id().to_owned())
+        .collect::<Vec<_>>();
+    let metadata_room_ids = response
+        .rooms
+        .joined
+        .keys()
+        .cloned()
+        .chain(metadata_hydration_room_ids.iter().cloned())
+        .collect::<Vec<_>>();
     let (muted_room_ids, direct_room_ids) = client.runtime.block_on(async {
         let settings = matrix_client.notification_settings().await;
         let mut muted = HashSet::new();
@@ -1357,66 +1384,66 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         })
         .collect::<Vec<_>>();
 
-    if hydrate_room_metadata {
-        for room in matrix_client.joined_rooms() {
-            let room_id = room.room_id();
-            if response.rooms.joined.contains_key(room_id) {
-                continue;
-            }
-            let display_name = room
-                .cached_display_name()
-                .map(|name| name.to_string())
-                .unwrap_or_else(|| room_id.as_str().to_owned());
-            let latest_event = room.latest_event();
-            let latest_event_timestamp = latest_event
-                .timestamp()
-                .map(|timestamp| Into::<u64>::into(timestamp.get()));
-            let latest_event_id = latest_event.event_id().map(|event_id| event_id.to_string());
-            let unread_count = room.num_unread_messages();
-            let highlight_count = room.num_unread_mentions();
-            let has_active_call = room.has_active_room_call();
-            let is_favourite = room.is_favourite();
-            let is_muted = muted_room_ids.contains(room_id);
-            let is_direct = direct_room_ids.contains(room_id);
-            let avatar_url = if let Some(avatar_url) = room.avatar_url() {
-                Some(avatar_url.to_string())
-            } else if is_direct {
-                let direct_user_ids = room
-                    .direct_targets()
-                    .into_iter()
-                    .filter_map(|target| target.into_user_id())
-                    .collect::<Vec<_>>();
-                if direct_user_ids.len() == 1 {
-                    client
-                        .runtime
-                        .block_on(room.get_member_no_sync(&direct_user_ids[0]))
-                        .ok()
-                        .flatten()
-                        .and_then(|member| member.avatar_url().map(|url| url.to_string()))
-                } else {
-                    None
-                }
+    for room in metadata_hydration_rooms {
+        let room_id = room.room_id();
+        let display_name = room
+            .cached_display_name()
+            .map(|name| name.to_string())
+            .unwrap_or_else(|| room_id.as_str().to_owned());
+        let latest_event = room.latest_event();
+        let latest_event_timestamp = latest_event
+            .timestamp()
+            .map(|timestamp| Into::<u64>::into(timestamp.get()));
+        let latest_event_id = latest_event.event_id().map(|event_id| event_id.to_string());
+        let unread_count = room.num_unread_messages();
+        let highlight_count = room.num_unread_mentions();
+        let has_active_call = room.has_active_room_call();
+        let is_favourite = room.is_favourite();
+        let is_muted = muted_room_ids.contains(room_id);
+        let is_direct = direct_room_ids.contains(room_id);
+        let avatar_url = if let Some(avatar_url) = room.avatar_url() {
+            Some(avatar_url.to_string())
+        } else if is_direct {
+            let direct_user_ids = room
+                .direct_targets()
+                .into_iter()
+                .filter_map(|target| target.into_user_id())
+                .collect::<Vec<_>>();
+            if direct_user_ids.len() == 1 {
+                client
+                    .runtime
+                    .block_on(room.get_member_no_sync(&direct_user_ids[0]))
+                    .ok()
+                    .flatten()
+                    .and_then(|member| member.avatar_url().map(|url| url.to_string()))
             } else {
                 None
-            };
-            rooms.push(json!({
-                "roomId": room_id.as_str(),
-                "displayName": display_name,
-                "avatarUrl": avatar_url,
-                "unreadCount": unread_count,
-                "highlightCount": highlight_count,
-                "hasActiveCall": has_active_call,
-                "isFavourite": is_favourite,
-                "isMuted": is_muted,
-                "isDirect": is_direct,
-                "latestEventTimestamp": latest_event_timestamp,
-                "latestEventId": latest_event_id,
-                "prevBatch": Value::Null,
-                "events": sync_timeline_events_json(&client.runtime, Some(&room), &[]),
-            }));
-        }
-        client.room_metadata_hydrated = true;
+            }
+        } else {
+            None
+        };
+        rooms.push(json!({
+            "roomId": room_id.as_str(),
+            "displayName": display_name,
+            "avatarUrl": avatar_url,
+            "unreadCount": unread_count,
+            "highlightCount": highlight_count,
+            "hasActiveCall": has_active_call,
+            "isFavourite": is_favourite,
+            "isMuted": is_muted,
+            "isDirect": is_direct,
+            "latestEventTimestamp": latest_event_timestamp,
+            "latestEventId": latest_event_id,
+            "prevBatch": Value::Null,
+            "events": sync_timeline_events_json(&client.runtime, Some(&room), &[]),
+        }));
     }
+    client
+        .hydrated_room_metadata
+        .extend(response.rooms.joined.keys().cloned());
+    client
+        .hydrated_room_metadata
+        .extend(metadata_hydration_room_ids);
 
     json_to_c_string(&json!({
         "cursor": response.next_batch,
@@ -2815,18 +2842,69 @@ async fn prefetch_media_item(
     width: UInt,
     height: UInt,
 ) -> (String, Option<Vec<u8>>) {
-    let thumbnail = MediaRequestParameters {
+    let encrypted = matches!(&source, MediaSource::Encrypted(_));
+    let request = MediaRequestParameters {
         source,
-        format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
+        format: if encrypted {
+            MediaFormat::File
+        } else {
+            MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height))
+        },
+    };
+    let timeout = if encrypted {
+        KITE_MATRIX_ENCRYPTED_MEDIA_PREFETCH_TIMEOUT
+    } else {
+        KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT
     };
     let bytes = bounded_media_bytes(
-        matrix_client.media().get_media_content(&thumbnail, true),
-        KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT,
+        matrix_client.media().get_media_content(&request, true),
+        timeout,
     )
     .await
     .ok()
     .flatten();
     (content_uri, bytes)
+}
+
+fn parse_prefetch_media_source(value: Value) -> Result<(String, MediaSource), ()> {
+    match value {
+        Value::String(content_uri) => {
+            let owned_uri = OwnedMxcUri::from(content_uri.clone());
+            if !owned_uri.is_valid() {
+                return Err(());
+            }
+            Ok((content_uri, MediaSource::Plain(owned_uri)))
+        }
+        Value::Object(mut request) => {
+            let content_uri = request
+                .remove("contentUri")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .ok_or(())?;
+            let source_value = request.remove("source").ok_or(())?;
+            let source = match source_value {
+                Value::String(uri) => {
+                    if uri != content_uri {
+                        return Err(());
+                    }
+                    let owned_uri = OwnedMxcUri::from(uri);
+                    if !owned_uri.is_valid() {
+                        return Err(());
+                    }
+                    MediaSource::Plain(owned_uri)
+                }
+                value => serde_json::from_value::<MediaSource>(value).map_err(|_| ())?,
+            };
+            let source_uri = match &source {
+                MediaSource::Plain(uri) => uri.as_str(),
+                MediaSource::Encrypted(file) => file.url.as_str(),
+            };
+            if source_uri != content_uri {
+                return Err(());
+            }
+            Ok((content_uri, source))
+        }
+        _ => Err(()),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -2845,13 +2923,13 @@ pub unsafe extern "C" fn kite_matrix_client_prefetch_media(
             "The Matrix media prefetch list is invalid.",
         );
     };
-    let Ok(content_uris) = serde_json::from_str::<Vec<String>>(content_uris_json) else {
+    let Ok(media_sources) = serde_json::from_str::<Vec<Value>>(content_uris_json) else {
         return error_json(
             "invalid_media",
             "The Matrix media prefetch list is invalid.",
         );
     };
-    if content_uris.len() > 32 {
+    if media_sources.len() > 32 {
         return error_json(
             "invalid_media",
             "Matrix media prefetch supports at most 32 items at once.",
@@ -2867,13 +2945,12 @@ pub unsafe extern "C" fn kite_matrix_client_prefetch_media(
         return error_json("invalid_media_size", "The Matrix media size is invalid.");
     }
 
-    let mut sources = Vec::with_capacity(content_uris.len());
-    for content_uri in content_uris {
-        let owned_uri = OwnedMxcUri::from(content_uri.clone());
-        if !owned_uri.is_valid() {
-            return error_json("invalid_media", "The Matrix media URI is invalid.");
-        }
-        sources.push((content_uri, MediaSource::Plain(owned_uri)));
+    let mut sources = Vec::with_capacity(media_sources.len());
+    for media_source in media_sources {
+        let Ok(source) = parse_prefetch_media_source(media_source) else {
+            return error_json("invalid_media", "The Matrix media source is invalid.");
+        };
+        sources.push(source);
     }
 
     let client = unsafe { &mut *client };
@@ -3401,6 +3478,39 @@ mod tests {
             Duration::from_secs(1),
         ));
         assert_eq!(bytes, Ok(Some(vec![1, 2, 3])));
+    }
+
+    #[test]
+    fn prefetch_sources_accept_encrypted_media_and_reject_mismatches() {
+        let encrypted = json!({
+            "contentUri": "mxc://kite.test/encrypted",
+            "source": {
+                "file": {
+                    "url": "mxc://kite.test/encrypted",
+                    "v": "v2",
+                    "key": {
+                        "kty": "oct",
+                        "key_ops": ["encrypt", "decrypt"],
+                        "alg": "A256CTR",
+                        "k": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                        "ext": true
+                    },
+                    "iv": "AAAAAAAAAAAAAAAAAAAAAA",
+                    "hashes": {
+                        "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                    }
+                }
+            }
+        });
+        let (content_uri, source) = parse_prefetch_media_source(encrypted).unwrap();
+        assert_eq!(content_uri, "mxc://kite.test/encrypted");
+        assert!(matches!(source, MediaSource::Encrypted(_)));
+
+        let mismatched = json!({
+            "contentUri": "mxc://kite.test/expected",
+            "source": "mxc://kite.test/other"
+        });
+        assert!(parse_prefetch_media_source(mismatched).is_err());
     }
 
     #[test]

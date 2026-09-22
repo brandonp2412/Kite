@@ -163,6 +163,7 @@ final class _AuthenticatedMatrixHomeState
   static const int _timelineMediaWarmRoomLimit = 12;
   static const int _timelineMediaWarmPerRoomLimit = 2;
   static const int _timelineMediaWarmLimit = 16;
+  static const int _timelineMediaWarmDimension = 720;
   static const int _roomMemberPrefetchLimit = 6;
   static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
 
@@ -325,26 +326,49 @@ final class _AuthenticatedMatrixHomeState
   Future<void> _drainTimelineMediaWarmups(int generation) async {
     if (_timelineMediaWarmupRunning) return;
     _timelineMediaWarmupRunning = true;
+    final attachments = List<TimelineAttachment>.of(
+      _pendingTimelineMediaWarmups,
+    );
+    _pendingTimelineMediaWarmups.clear();
     try {
-      while (_pendingTimelineMediaWarmups.isNotEmpty) {
-        if (!mounted || generation != _avatarPrefetchGeneration) return;
-        final attachment = _pendingTimelineMediaWarmups.removeAt(0);
-        final contentUri = attachment.contentUri;
-        final provider = _timelineMediaImageProvider(
-          attachment,
-          TimelineMediaImageVariant.thumbnail,
-        );
-        if (contentUri == null || provider == null) continue;
+      if (!mounted || generation != _avatarPrefetchGeneration) return;
 
-        final warmed = await precacheMatrixImage(provider, context);
-        if (!mounted || generation != _avatarPrefetchGeneration) return;
-        if (!warmed) {
-          _scheduledTimelineMediaWarmups.remove(contentUri);
+      final contentUris = <String>[];
+      final encryptedFiles = <String, Map<String, Object?>>{};
+      final seen = <String>{};
+      for (final attachment in attachments) {
+        final useThumbnail = attachment.thumbnailContentUri != null;
+        final contentUri = useThumbnail
+            ? attachment.thumbnailContentUri
+            : attachment.contentUri;
+        if (contentUri == null || !seen.add(contentUri)) continue;
+        contentUris.add(contentUri);
+        final encryptedFile = useThumbnail
+            ? attachment.encryptedThumbnailFile
+            : attachment.encryptedFile;
+        if (encryptedFile != null) {
+          encryptedFiles[contentUri] = encryptedFile;
         }
-        // Keep at most one speculative media load in flight so an image that
-        // actually becomes visible can enter the interactive queue first.
-        await Future<void>.delayed(Duration.zero);
       }
+      if (contentUris.isEmpty) return;
+
+      final completed = await widget.runtime.prefetchMedia(
+        accountId: widget.session.userId,
+        contentUris: contentUris,
+        encryptedFiles: encryptedFiles,
+        width: _timelineMediaWarmDimension,
+        height: _timelineMediaWarmDimension,
+      );
+      if (!mounted || generation != _avatarPrefetchGeneration) return;
+      if (completed != contentUris.length) {
+        _scheduledTimelineMediaWarmups.removeAll(
+          attachments.map((attachment) => attachment.contentUri).nonNulls,
+        );
+      }
+    } catch (_) {
+      _scheduledTimelineMediaWarmups.removeAll(
+        attachments.map((attachment) => attachment.contentUri).nonNulls,
+      );
     } finally {
       _timelineMediaWarmupRunning = false;
       if (mounted && _pendingTimelineMediaWarmups.isNotEmpty) {
@@ -527,7 +551,7 @@ final class _AuthenticatedMatrixHomeState
     if (uri == null || uri.scheme != 'mxc') return null;
 
     final dimension = switch (variant) {
-      TimelineMediaImageVariant.thumbnail => 720,
+      TimelineMediaImageVariant.thumbnail => _timelineMediaWarmDimension,
       TimelineMediaImageVariant.fullResolution => 1600,
     };
     return MatrixAvatarImageProvider(

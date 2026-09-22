@@ -112,6 +112,12 @@ void main() {
       contentUris: const <String>[
         'mxc://kite.test/avatar-1',
         'mxc://kite.test/avatar-2',
+        'mxc://kite.test/avatar-3',
+        'mxc://kite.test/avatar-4',
+        'mxc://kite.test/avatar-5',
+        'mxc://kite.test/avatar-6',
+        'mxc://kite.test/avatar-7',
+        'mxc://kite.test/avatar-8',
       ],
       width: 96,
       height: 96,
@@ -132,6 +138,7 @@ void main() {
       'download-media',
       'prefetch-2',
     ]);
+    expect(client.prefetchBatchSizes, <int>[6, 2]);
   });
 
   test(
@@ -1434,6 +1441,7 @@ final class _FakeRustClient
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
   final List<String> operationOrder = <String>[];
+  final List<int> prefetchBatchSizes = <int>[];
   Completer<void>? prefetchGate;
   final Completer<void> prefetchStarted = Completer<void>();
   int _prefetchCalls = 0;
@@ -1574,10 +1582,13 @@ final class _FakeRustClient
   @override
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   }) async {
     _prefetchCalls += 1;
+    prefetchBatchSizes.add(contentUris.length);
     operationOrder.add('prefetch-$_prefetchCalls');
     if (_prefetchCalls == 1 && prefetchGate != null) {
       if (!prefetchStarted.isCompleted) prefetchStarted.complete();
