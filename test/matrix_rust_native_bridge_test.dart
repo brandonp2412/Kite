@@ -1002,6 +1002,103 @@ void main() {
         ? 'Set KITE_MATRIX_BRIDGE_LIBRARY after building the Rust bridge.'
         : false,
   );
+
+  test(
+    'native login keeps homeserver failures distinct from rejected credentials',
+    () async {
+      await _expectNativeLoginFailure(
+        libraryPath: libraryPath!,
+        statusCode: HttpStatus.internalServerError,
+        errcode: 'M_UNKNOWN',
+        expectedCode: 'login_failed',
+      );
+    },
+    skip: libraryPath == null
+        ? 'Set KITE_MATRIX_BRIDGE_LIBRARY after building the Rust bridge.'
+        : false,
+  );
+
+  test(
+    'native login preserves Matrix forbidden as credential rejection',
+    () async {
+      await _expectNativeLoginFailure(
+        libraryPath: libraryPath!,
+        statusCode: HttpStatus.forbidden,
+        errcode: 'M_FORBIDDEN',
+        expectedCode: 'authentication_rejected',
+      );
+    },
+    skip: libraryPath == null
+        ? 'Set KITE_MATRIX_BRIDGE_LIBRARY after building the Rust bridge.'
+        : false,
+  );
+}
+
+Future<void> _expectNativeLoginFailure({
+  required String libraryPath,
+  required int statusCode,
+  required String errcode,
+  required String expectedCode,
+}) async {
+  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  server.listen((request) async {
+    final path = request.uri.path;
+    request.response.headers.contentType = ContentType.json;
+    if (request.method == 'GET' && path == '/_matrix/client/versions') {
+      request.response.statusCode = HttpStatus.ok;
+      request.response.write(
+        '{"versions":["v1.1","v1.11"],"unstable_features":{}}',
+      );
+    } else if (request.method == 'GET' && path == '/_matrix/client/v3/login') {
+      request.response.statusCode = HttpStatus.ok;
+      request.response.write('{"flows":[{"type":"m.login.password"}]}');
+    } else if (request.method == 'POST' && path == '/_matrix/client/v3/login') {
+      await request.drain<void>();
+      request.response.statusCode = statusCode;
+      request.response.write(
+        '{"errcode":"$errcode","error":"Controlled login failure"}',
+      );
+    } else {
+      request.response.statusCode = HttpStatus.notFound;
+      request.response.write('{"errcode":"M_NOT_FOUND","error":"Not found"}');
+    }
+    await request.response.close();
+  });
+
+  final temp = await Directory.systemTemp.createTemp(
+    'kite-native-login-failure-',
+  );
+  MatrixRustNativeClient? client;
+  try {
+    final bridge = MatrixRustNativeBridge(libraryPath: libraryPath);
+    final homeserver = Uri.parse('http://127.0.0.1:${server.port}');
+    final discovery = await bridge.discoverAuthentication(homeserver);
+    expect(discovery.passwordAvailable, isTrue);
+
+    client = await bridge.openEncryptedClient(
+      homeserver: homeserver,
+      storePath: temp.path,
+      storePassphrase: 'deterministic-login-failure-secret',
+    );
+
+    await expectLater(
+      client.loginWithPassword(
+        username: 'probe-user',
+        password: 'probe-password',
+      ),
+      throwsA(
+        isA<MatrixRustNativeException>().having(
+          (error) => error.code,
+          'code',
+          expectedCode,
+        ),
+      ),
+    );
+  } finally {
+    await client?.close();
+    await server.close(force: true);
+    if (await temp.exists()) await temp.delete(recursive: true);
+  }
 }
 
 final class _RecordingCodecExecutor implements MatrixRustCodecExecutor {

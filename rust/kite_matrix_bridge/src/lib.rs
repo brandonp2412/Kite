@@ -316,6 +316,44 @@ async fn recover_timeline_events(
     events
 }
 
+fn login_http_error_json(error: &HttpError) -> *mut c_char {
+    match error.client_api_error_kind() {
+        Some(ErrorKind::Forbidden) => {
+            error_json("authentication_rejected", "Matrix login was rejected.")
+        }
+        Some(ErrorKind::LimitExceeded(_)) => {
+            error_json("rate_limited", "Matrix login is temporarily rate limited.")
+        }
+        _ => match error {
+            HttpError::Reqwest(_) => error_json(
+                "network_failed",
+                "Could not connect to the Matrix homeserver.",
+            ),
+            _ => error_json(
+                "login_failed",
+                "The Matrix homeserver could not complete sign in.",
+            ),
+        },
+    }
+}
+
+fn login_error_json(error: &MatrixError) -> *mut c_char {
+    if let Some(ErrorKind::Forbidden) = error.client_api_error_kind() {
+        return error_json("authentication_rejected", "Matrix login was rejected.");
+    }
+    if let Some(ErrorKind::LimitExceeded(_)) = error.client_api_error_kind() {
+        return error_json("rate_limited", "Matrix login is temporarily rate limited.");
+    }
+    match error {
+        MatrixError::Http(http) => login_http_error_json(http.as_ref()),
+        MatrixError::Timeout => error_json("login_timeout", "The Matrix login request timed out."),
+        _ => error_json(
+            "login_failed",
+            "The Matrix homeserver could not complete sign in.",
+        ),
+    }
+}
+
 fn sync_error_json(error: &MatrixError) -> *mut c_char {
     let code = match error.client_api_error_kind() {
         Some(ErrorKind::UnknownPos) => "unknown_pos",
@@ -494,11 +532,12 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
         request.device_id = Some(existing_session.meta.device_id.clone());
         request.initial_device_display_name = Some("Kite".to_owned());
         request.refresh_token = true;
-        let Ok(response) = client
+        let response = match client
             .runtime
             .block_on(async { matrix_client.send(request).await })
-        else {
-            return error_json("authentication_rejected", "Matrix login was rejected.");
+        {
+            Ok(response) => response,
+            Err(error) => return login_http_error_json(&error),
         };
         if response.user_id != existing_session.meta.user_id
             || response.device_id != existing_session.meta.device_id
@@ -515,10 +554,10 @@ pub unsafe extern "C" fn kite_matrix_client_login_password(
             .login_username(username, password)
             .initial_device_display_name("Kite")
             .request_refresh_token();
-        let Ok(response) = client.runtime.block_on(login.send()) else {
-            return error_json("authentication_rejected", "Matrix login was rejected.");
-        };
-        response
+        match client.runtime.block_on(login.send()) {
+            Ok(response) => response,
+            Err(error) => return login_error_json(&error),
+        }
     };
     let session = MatrixSession::from(&response);
     let Ok(session_bytes) = serde_json::to_vec(&session) else {
