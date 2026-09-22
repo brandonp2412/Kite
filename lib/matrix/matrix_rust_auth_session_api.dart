@@ -172,8 +172,12 @@ final class MatrixRustAuthSessionApi implements MatrixNativeAuthSessionApi {
         password: password,
       );
     } on MatrixRustNativeException catch (error) {
-      if (error.code == 'authentication_rejected' ||
-          error.code == 'invalid_credentials') {
+      if (error.code == 'authentication_rejected') {
+        throw const MatrixAccountSdkException(
+          'The provided username or password is invalid.',
+        );
+      }
+      if (error.code == 'invalid_credentials') {
         throw MatrixAccountSdkException(error.publicMessage);
       }
       rethrow;

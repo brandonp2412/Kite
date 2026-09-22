@@ -126,7 +126,7 @@ void main() {
           isA<MatrixAccountSdkException>().having(
             (error) => error.publicMessage,
             'publicMessage',
-            'Matrix login was rejected.',
+            'The provided username or password is invalid.',
           ),
         ),
       );
