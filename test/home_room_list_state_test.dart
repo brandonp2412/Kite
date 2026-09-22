@@ -383,6 +383,211 @@ void main() {
     expect(find.byKey(const Key('room-unread-$roomId')), findsNothing);
   });
 
+  testWidgets(
+    'visible room stays read when unread state arrives while focused',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final previousSelectedRoomId = selectedRoomId.value;
+      timelineController.reset(fixtureProvider: (_) => const []);
+      addTearDown(() {
+        timelineController.reset(fixtureProvider: BenchmarkFixture.messagesFor);
+        selectedRoomId.value = previousSelectedRoomId;
+      });
+
+      const roomId = '!focused:example.org';
+      selectedRoomId.value = roomId;
+      final store = RoomListStateStore(const <RoomListEntry>[
+        RoomListEntry(
+          id: roomId,
+          name: 'Focused room',
+          latestEventBody: 'Already read',
+        ),
+      ]);
+      final markedRead = <String>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: HomeScreen(
+            roomListStore: store,
+            onMarkRoomRead: (roomId) async {
+              markedRead.add(roomId);
+              store.update(
+                store
+                    .roomSignal(roomId)
+                    .value
+                    .copyWith(unreadCount: 0, hasMention: false),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(markedRead, isEmpty);
+
+      store.update(
+        store
+            .roomSignal(roomId)
+            .value
+            .copyWith(
+              latestEventBody: 'New while focused',
+              unreadCount: 3,
+              hasMention: true,
+            ),
+      );
+      await tester.pump();
+
+      expect(markedRead, <String>[roomId]);
+      expect(find.byKey(const Key('room-unread-$roomId')), findsNothing);
+    },
+  );
+
+  testWidgets('backgrounded visible room waits to mark incoming unread state', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final previousSelectedRoomId = selectedRoomId.value;
+    timelineController.reset(fixtureProvider: (_) => const []);
+    void restoreResumedLifecycle() {
+      final state = tester.binding.lifecycleState;
+      if (state == AppLifecycleState.paused) {
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      } else if (state == AppLifecycleState.hidden) {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      } else if (state == AppLifecycleState.inactive ||
+          state == AppLifecycleState.detached) {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      }
+    }
+
+    addTearDown(() {
+      restoreResumedLifecycle();
+      timelineController.reset(fixtureProvider: BenchmarkFixture.messagesFor);
+      selectedRoomId.value = previousSelectedRoomId;
+    });
+
+    const roomId = '!backgrounded:example.org';
+    selectedRoomId.value = roomId;
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: roomId,
+        name: 'Backgrounded room',
+        latestEventBody: 'Already read',
+      ),
+    ]);
+    final markedRead = <String>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(
+          roomListStore: store,
+          onMarkRoomRead: (roomId) async {
+            markedRead.add(roomId);
+            store.update(
+              store
+                  .roomSignal(roomId)
+                  .value
+                  .copyWith(unreadCount: 0, hasMention: false),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+
+    store.update(
+      store
+          .roomSignal(roomId)
+          .value
+          .copyWith(
+            latestEventBody: 'Arrived while backgrounded',
+            unreadCount: 1,
+          ),
+    );
+    await tester.pump();
+
+    expect(markedRead, isEmpty);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    expect(markedRead, <String>[roomId]);
+  });
+
+  testWidgets(
+    'compact list does not mark a preselected unread room until it opens',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final previousSelectedRoomId = selectedRoomId.value;
+      timelineController.reset(fixtureProvider: (_) => const []);
+      addTearDown(() {
+        timelineController.reset(fixtureProvider: BenchmarkFixture.messagesFor);
+        selectedRoomId.value = previousSelectedRoomId;
+      });
+
+      const roomId = '!compact-unread:example.org';
+      selectedRoomId.value = roomId;
+      final store = RoomListStateStore(const <RoomListEntry>[
+        RoomListEntry(
+          id: roomId,
+          name: 'Compact unread',
+          latestEventBody: 'Unread on the list',
+          unreadCount: 2,
+        ),
+      ]);
+      final markedRead = <String>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: HomeScreen(
+            roomListStore: store,
+            onMarkRoomRead: (roomId) async => markedRead.add(roomId),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(markedRead, isEmpty);
+      expect(find.byKey(const Key('chat-panel')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('room-$roomId')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('chat-panel')), findsOneWidget);
+      expect(markedRead, <String>[roomId]);
+    },
+  );
+
   testWidgets('room rows render sender attribution and status decorations', (
     tester,
   ) async {

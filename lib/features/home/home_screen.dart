@@ -154,8 +154,6 @@ class HomeScreen extends StatelessWidget {
 
   void _selectRoom(String roomId) {
     selectRoom(roomId);
-    final markRoomRead = onMarkRoomRead;
-    if (markRoomRead != null) unawaited(markRoomRead(roomId));
   }
 
   Future<void> _jumpToChat(
@@ -223,6 +221,7 @@ class HomeScreen extends StatelessWidget {
                         memberManagement: memberManagement,
                         calls: calls,
                         onTimelineHistoryRequested: onTimelineHistoryRequested,
+                        onMarkRoomRead: onMarkRoomRead,
                         timelineReloading: timelineReloading,
                         roomMembersLoader: roomMembersLoader,
                         memberModerationEnabled: memberModerationEnabled,
@@ -284,6 +283,7 @@ class HomeScreen extends StatelessWidget {
                       memberManagement: memberManagement,
                       calls: calls,
                       onTimelineHistoryRequested: onTimelineHistoryRequested,
+                      onMarkRoomRead: onMarkRoomRead,
                       timelineReloading: timelineReloading,
                       roomMembersLoader: roomMembersLoader,
                       memberModerationEnabled: memberModerationEnabled,
@@ -1227,6 +1227,7 @@ class _CompactChatScreen extends StatelessWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.onMarkRoomRead,
     this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -1240,6 +1241,7 @@ class _CompactChatScreen extends StatelessWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final MarkRoomRead? onMarkRoomRead;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -1275,6 +1277,7 @@ class _CompactChatScreen extends StatelessWidget {
           memberManagement: memberManagement,
           calls: calls,
           onTimelineHistoryRequested: onTimelineHistoryRequested,
+          onMarkRoomRead: onMarkRoomRead,
           timelineReloading: timelineReloading,
           roomMembersLoader: roomMembersLoader,
           memberModerationEnabled: memberModerationEnabled,
@@ -1934,6 +1937,7 @@ class _ChatPanel extends StatefulWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.onMarkRoomRead,
     this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -1945,6 +1949,7 @@ class _ChatPanel extends StatefulWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final MarkRoomRead? onMarkRoomRead;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -1953,8 +1958,76 @@ class _ChatPanel extends StatefulWidget {
   State<_ChatPanel> createState() => _ChatPanelState();
 }
 
-class _ChatPanelState extends State<_ChatPanel> {
+class _ChatPanelState extends State<_ChatPanel> with WidgetsBindingObserver {
   final GlobalKey<_ComposerState> _composerKey = GlobalKey<_ComposerState>();
+  final Set<String> _readReceiptsInFlight = <String>{};
+  late void Function() _disposeRoomReadEffect;
+  bool _appIsResumed = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    _appIsResumed =
+        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    _disposeRoomReadEffect = effect(_markVisibleRoomRead);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasResumed = _appIsResumed;
+    _appIsResumed = state == AppLifecycleState.resumed;
+    if (!wasResumed && _appIsResumed) {
+      _markVisibleRoomRead();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ChatPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.roomListStore, widget.roomListStore)) {
+      _disposeRoomReadEffect();
+      _readReceiptsInFlight.clear();
+      _disposeRoomReadEffect = effect(_markVisibleRoomRead);
+      return;
+    }
+    if (!identical(oldWidget.onMarkRoomRead, widget.onMarkRoomRead)) {
+      _markVisibleRoomRead();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _disposeRoomReadEffect();
+    super.dispose();
+  }
+
+  void _markVisibleRoomRead() {
+    final store = widget.roomListStore;
+    final roomId = selectedRoomId.value;
+    if (store == null || !store.roomIds.contains(roomId)) return;
+
+    final room = store.roomSignal(roomId).value;
+    if (!_appIsResumed || (room.unreadCount == 0 && !room.hasMention)) return;
+
+    final markRoomRead = widget.onMarkRoomRead;
+    if (markRoomRead == null || !_readReceiptsInFlight.add(roomId)) return;
+
+    Future<void> operation;
+    try {
+      operation = markRoomRead(roomId);
+    } catch (_) {
+      _readReceiptsInFlight.remove(roomId);
+      return;
+    }
+    unawaited(
+      operation
+          .then<void>((_) {}, onError: (Object _, StackTrace _) {})
+          .whenComplete(() => _readReceiptsInFlight.remove(roomId)),
+    );
+  }
 
   void _reply(String roomId, TimelineMessage message) {
     _composerKey.currentState?.beginReply(roomId, message);
