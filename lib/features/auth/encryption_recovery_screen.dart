@@ -336,11 +336,10 @@ class _RecoveryBackupCard extends StatelessWidget {
               : 'Enable encrypted backup so this account can recover encrypted message history on another device.',
           child: backupReady
               ? const Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Icon(Icons.check_circle_rounded),
                     SizedBox(width: KiteSpacing.sm),
-                    Text('Encrypted backup enabled'),
+                    Expanded(child: Text('Encrypted backup enabled')),
                   ],
                 )
               : FilledButton.tonalIcon(

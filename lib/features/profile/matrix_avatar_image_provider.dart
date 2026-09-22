@@ -1,9 +1,28 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart';
 
 typedef MatrixMediaBytesLoader = Future<Uint8List> Function(Uri contentUri);
+
+Future<bool> precacheMatrixImage(
+  ImageProvider<Object> provider,
+  BuildContext context,
+) async {
+  var failed = false;
+  try {
+    await precacheImage(
+      provider,
+      context,
+      onError: (_, _) {
+        failed = true;
+      },
+    );
+  } catch (_) {
+    return false;
+  }
+  return !failed;
+}
 
 @immutable
 final class MatrixAvatarImageProvider

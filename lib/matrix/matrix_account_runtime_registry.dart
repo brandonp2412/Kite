@@ -760,6 +760,9 @@ final class MatrixAccountRuntimeRegistry {
     _ensureNotDisposed();
     return _enqueue<void>(() async {
       final runtime = _runtimes.remove(normalizedAccountId);
+      if (activeAccountId.value == normalizedAccountId) {
+        activeAccountId.value = null;
+      }
       if (runtime == null) return;
       await runtime.runtime.stop();
       await runtime.engine.close();

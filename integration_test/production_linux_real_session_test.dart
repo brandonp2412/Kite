@@ -133,10 +133,20 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
     }
     final syncState = runtime.activeSyncState?.value;
+    if (syncState == null) {
+      for (var i = 0; i < 20; i += 1) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (find.byKey(const Key('soft-logout-notice')).evaluate().isNotEmpty) {
+          break;
+        }
+      }
+      expectSoftLogout();
+      return;
+    }
     expect(
-      syncState?.phase,
+      syncState.phase,
       MatrixSyncPhase.running,
-      reason: 'Real Matrix sync must be running: ${syncState?.error}',
+      reason: 'Real Matrix sync must be running: ${syncState.error}',
     );
 
     for (var i = 0; i < 80; i += 1) {

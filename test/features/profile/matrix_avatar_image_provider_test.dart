@@ -39,6 +39,35 @@ void main() {
     },
   );
 
+  testWidgets('guarded prefetch absorbs Matrix media load failures', (
+    tester,
+  ) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Builder(
+          builder: (buildContext) {
+            context = buildContext;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    final provider = MatrixAvatarImageProvider(
+      avatarUri: Uri.parse('mxc://example.org/missing-avatar'),
+      cacheNamespace: Object(),
+      loadBytes: (_) => Future<Uint8List>.error(
+        StateError('Cannot download Matrix media for an inactive account'),
+      ),
+    );
+
+    expect(await precacheMatrixImage(provider, context), isFalse);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   test('cache identity includes runtime namespace', () {
     final uri = Uri.parse('mxc://example.org/avatar');
     final namespace = Object();

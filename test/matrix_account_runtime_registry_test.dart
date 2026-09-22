@@ -67,6 +67,26 @@ void main() {
   );
 
   test(
+    'restarting the active account clears stale active runtime state',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      final aliceBoundary = boundaries['@alice:example.org']!;
+
+      await registry.restartAccount('@alice:example.org');
+
+      expect(registry.activeAccountId.value, isNull);
+      expect(registry.activeSyncState, isNull);
+      expect(registry.loadedAccountIds, isNot(contains('@alice:example.org')));
+      expect(aliceBoundary.stopCalls, 1);
+      expect(aliceBoundary.closeCalls, 1);
+    },
+  );
+
+  test(
     'active account routes plain text sends through its SDK boundary',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};

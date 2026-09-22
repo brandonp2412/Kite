@@ -324,9 +324,7 @@ final class _AuthenticatedMatrixHomeState
         _scheduledTimelineMediaPrefetches.remove(contentUri);
         continue;
       }
-      try {
-        await precacheImage(provider, context);
-      } catch (_) {
+      if (!await precacheMatrixImage(provider, context)) {
         _scheduledTimelineMediaPrefetches.remove(contentUri);
       }
     }
