@@ -87,10 +87,25 @@ void main() {
       cacheNamespace: Object(),
       loadBytes: loader,
     );
+    final differentVariant = MatrixAvatarImageProvider(
+      avatarUri: uri,
+      cacheNamespace: namespace,
+      cacheVariant: 'full',
+      loadBytes: loader,
+    );
+    final differentDecodeSize = MatrixAvatarImageProvider(
+      avatarUri: uri,
+      cacheNamespace: namespace,
+      cacheWidth: 720,
+      cacheHeight: 720,
+      loadBytes: loader,
+    );
 
     expect(first, sameRuntime);
     expect(first.hashCode, sameRuntime.hashCode);
     expect(first, isNot(differentRuntime));
+    expect(first, isNot(differentVariant));
+    expect(first, isNot(differentDecodeSize));
   });
 }
 

@@ -3384,9 +3384,12 @@ class _MessageRow extends StatelessWidget {
                               messageId: message.id,
                               attachment: attachment,
                               audioPlaybackState: message.audioPlaybackState,
-                              imageProvider: _homeTimelineMediaImageProvider(
-                                context,
-                              )?.call(attachment),
+                              imageProvider:
+                                  _homeTimelineMediaImageProvider(context)
+                                      ?.call(
+                                        attachment,
+                                        TimelineMediaImageVariant.thumbnail,
+                                      ),
                               heroTag: attachment.kind.isVisualMedia
                                   ? timelineMediaHeroTag(message)
                                   : null,

@@ -15,6 +15,8 @@ import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
+import 'package:kite/features/timeline/timeline_media_viewer.dart';
+import 'package:kite/features/timeline/timeline_media_warmup.dart';
 import 'package:kite/features/timeline/timeline_share.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
@@ -155,13 +157,19 @@ final class _AuthenticatedMatrixHomeState
   final MatrixSessionExpiryBinding _sessionExpiryBinding =
       MatrixSessionExpiryBinding();
   static const int _avatarPrefetchLimit = 32;
-  static const int _avatarTimelineEventLimit = 8;
+  static const int _avatarTimelineEventLimit = 16;
   static const int _avatarPrefetchAttempts = 3;
   static const int _avatarPrefetchBatchSize = 6;
+  static const int _timelineMediaWarmRoomLimit = 12;
+  static const int _timelineMediaWarmPerRoomLimit = 2;
+  static const int _timelineMediaWarmLimit = 16;
   static const int _roomMemberPrefetchLimit = 6;
   static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
 
   final Set<String> _scheduledAvatarPrefetches = <String>{};
+  final Set<String> _scheduledTimelineMediaWarmups = <String>{};
+  final List<TimelineAttachment> _pendingTimelineMediaWarmups =
+      <TimelineAttachment>[];
   final Map<String, List<MatrixSdkRoomMember>> _roomMemberCache =
       <String, List<MatrixSdkRoomMember>>{};
   final Map<String, Future<List<MatrixSdkRoomMember>>> _roomMemberLoads =
@@ -169,6 +177,8 @@ final class _AuthenticatedMatrixHomeState
   void Function()? _disposeAvatarPrefetchEffect;
   var _activationGeneration = 0;
   var _avatarPrefetchGeneration = 0;
+  var _timelineMediaWarmupScheduled = false;
+  var _timelineMediaWarmupRunning = false;
 
   @override
   void initState() {
@@ -270,7 +280,77 @@ final class _AuthenticatedMatrixHomeState
       if (pending.isNotEmpty) {
         unawaited(_prefetchAvatars(generation, pending));
       }
+
+      final mediaWarmups = selectRecentTimelineImageWarmups(
+        snapshot: snapshot,
+        currentUserId: widget.session.userId,
+        roomLimit: _timelineMediaWarmRoomLimit,
+        perRoomLimit: _timelineMediaWarmPerRoomLimit,
+        totalLimit: _timelineMediaWarmLimit,
+      );
+      _scheduleTimelineMediaWarmups(generation, mediaWarmups);
     });
+  }
+
+  void _scheduleTimelineMediaWarmups(
+    int generation,
+    List<TimelineAttachment> attachments,
+  ) {
+    for (final attachment in attachments) {
+      final contentUri = attachment.contentUri;
+      if (contentUri == null ||
+          !_scheduledTimelineMediaWarmups.add(contentUri)) {
+        continue;
+      }
+      _pendingTimelineMediaWarmups.add(attachment);
+    }
+    _scheduleTimelineMediaWarmupDrain(generation);
+  }
+
+  void _scheduleTimelineMediaWarmupDrain(int generation) {
+    if (_pendingTimelineMediaWarmups.isEmpty ||
+        _timelineMediaWarmupScheduled ||
+        _timelineMediaWarmupRunning) {
+      return;
+    }
+
+    _timelineMediaWarmupScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _timelineMediaWarmupScheduled = false;
+      if (!mounted || generation != _avatarPrefetchGeneration) return;
+      unawaited(_drainTimelineMediaWarmups(generation));
+    });
+  }
+
+  Future<void> _drainTimelineMediaWarmups(int generation) async {
+    if (_timelineMediaWarmupRunning) return;
+    _timelineMediaWarmupRunning = true;
+    try {
+      while (_pendingTimelineMediaWarmups.isNotEmpty) {
+        if (!mounted || generation != _avatarPrefetchGeneration) return;
+        final attachment = _pendingTimelineMediaWarmups.removeAt(0);
+        final contentUri = attachment.contentUri;
+        final provider = _timelineMediaImageProvider(
+          attachment,
+          TimelineMediaImageVariant.thumbnail,
+        );
+        if (contentUri == null || provider == null) continue;
+
+        final warmed = await precacheMatrixImage(provider, context);
+        if (!mounted || generation != _avatarPrefetchGeneration) return;
+        if (!warmed) {
+          _scheduledTimelineMediaWarmups.remove(contentUri);
+        }
+        // Keep at most one speculative media load in flight so an image that
+        // actually becomes visible can enter the interactive queue first.
+        await Future<void>.delayed(Duration.zero);
+      }
+    } finally {
+      _timelineMediaWarmupRunning = false;
+      if (mounted && _pendingTimelineMediaWarmups.isNotEmpty) {
+        _scheduleTimelineMediaWarmupDrain(_avatarPrefetchGeneration);
+      }
+    }
   }
 
   Future<void> _prefetchAvatars(
@@ -324,6 +404,9 @@ final class _AuthenticatedMatrixHomeState
     _disposeAvatarPrefetchEffect?.call();
     _disposeAvatarPrefetchEffect = null;
     _scheduledAvatarPrefetches.clear();
+    _scheduledTimelineMediaWarmups.clear();
+    _pendingTimelineMediaWarmups.clear();
+    _timelineMediaWarmupScheduled = false;
   }
 
   @override
@@ -431,20 +514,36 @@ final class _AuthenticatedMatrixHomeState
 
   ImageProvider<Object>? _timelineMediaImageProvider(
     TimelineAttachment attachment,
+    TimelineMediaImageVariant variant,
   ) {
-    final contentUri = attachment.contentUri;
+    final useThumbnail =
+        variant == TimelineMediaImageVariant.thumbnail &&
+        attachment.thumbnailContentUri != null;
+    final contentUri = useThumbnail
+        ? attachment.thumbnailContentUri
+        : attachment.contentUri;
     if (contentUri == null) return null;
     final uri = Uri.tryParse(contentUri);
     if (uri == null || uri.scheme != 'mxc') return null;
+
+    final dimension = switch (variant) {
+      TimelineMediaImageVariant.thumbnail => 720,
+      TimelineMediaImageVariant.fullResolution => 1600,
+    };
     return MatrixAvatarImageProvider(
       avatarUri: uri,
       cacheNamespace: widget.runtime,
+      cacheVariant: variant,
+      cacheWidth: dimension,
+      cacheHeight: dimension,
       loadBytes: (_) => widget.runtime.downloadMedia(
         accountId: widget.session.userId,
         contentUri: contentUri,
-        encryptedFile: attachment.encryptedFile,
-        width: 1280,
-        height: 1280,
+        encryptedFile: useThumbnail
+            ? attachment.encryptedThumbnailFile
+            : attachment.encryptedFile,
+        width: dimension,
+        height: dimension,
       ),
     );
   }

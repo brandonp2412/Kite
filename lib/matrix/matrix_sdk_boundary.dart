@@ -24,8 +24,8 @@ final class MatrixSdkStoreConfiguration {
 
 final class MatrixSdkSyncConfiguration {
   const MatrixSdkSyncConfiguration({
-    this.initialRoomListLimit = 200,
-    this.initialTimelineEventLimit = 20,
+    this.initialRoomListLimit = 24,
+    this.initialTimelineEventLimit = 8,
     this.timelineEventLimit = 20,
     this.resumeFromCursor,
   }) : assert(initialRoomListLimit > 0),
