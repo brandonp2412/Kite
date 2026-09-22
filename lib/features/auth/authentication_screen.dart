@@ -171,6 +171,17 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
+                          PopScope<void>(
+                            canPop: methods == null || widget.lockHomeserver,
+                            onPopInvokedWithResult: (didPop, _) {
+                              if (!didPop &&
+                                  methods != null &&
+                                  !widget.lockHomeserver) {
+                                _changeHomeserver();
+                              }
+                            },
+                            child: const SizedBox.shrink(),
+                          ),
                           Text(
                             'Sign in to Kite',
                             style: Theme.of(context).textTheme.headlineMedium,

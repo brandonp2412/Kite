@@ -214,6 +214,28 @@ void main() {
     expect(find.text('Incorrect username or password.'), findsOneWidget);
   });
 
+  testWidgets('system back returns from credentials to homeserver selection', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway();
+
+    await tester.pumpWidget(_app(gateway));
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('username-field')), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('homeserver-field')), findsOneWidget);
+    expect(find.byKey(const Key('username-field')), findsNothing);
+  });
+
   testWidgets('changing homeserver clears entered account credentials', (
     tester,
   ) async {
