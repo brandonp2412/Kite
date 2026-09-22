@@ -307,6 +307,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 key: const Key('username-field'),
                                 controller: _usernameController,
                                 enabled: !busy && widget.expectedUserId == null,
+                                autofocus: widget.expectedUserId == null,
                                 autocorrect: false,
                                 textInputAction: TextInputAction.next,
                                 autofillHints: const <String>[
@@ -322,6 +323,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                 key: const Key('password-field'),
                                 controller: _passwordController,
                                 enabled: !busy,
+                                autofocus: widget.expectedUserId != null,
                                 obscureText: true,
                                 enableSuggestions: false,
                                 autocorrect: false,

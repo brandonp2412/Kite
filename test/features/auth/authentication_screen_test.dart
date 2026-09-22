@@ -191,6 +191,13 @@ void main() {
     );
     expect(find.byKey(const Key('username-field')), findsOneWidget);
     expect(find.byKey(const Key('password-field')), findsOneWidget);
+    final usernameEditable = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('username-field')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(usernameEditable.focusNode.hasFocus, isTrue);
 
     await tester.enterText(find.byKey(const Key('username-field')), ' alice ');
     await tester.enterText(
@@ -418,6 +425,13 @@ void main() {
       );
       expect(username.controller?.text, '@alice:matrix.example.org');
       expect(username.enabled, isFalse);
+      final passwordEditable = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byKey(const Key('password-field')),
+          matching: find.byType(EditableText),
+        ),
+      );
+      expect(passwordEditable.focusNode.hasFocus, isTrue);
       expect(find.byKey(const Key('qr-device-login')), findsNothing);
       expect(find.byKey(const Key('registration-available')), findsNothing);
     },
