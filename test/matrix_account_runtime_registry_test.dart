@@ -1024,8 +1024,11 @@ void main() {
       expect(boundary.startCalls, startCallsBeforeRefresh + 1);
       expect(boundary.stopCalls, greaterThanOrEqualTo(1));
       expect(boundary.syncConfigurations.last.resumeFromCursor, isNull);
-      expect(cache.timelineSignal('!alice:example.org').value, isEmpty);
-      expect(presentationStore.clearCalls, 1);
+      expect(
+        cache.timelineSignal('!alice:example.org').value.single.eventId,
+        staleEvent.eventId,
+      );
+      expect(presentationStore.clearCalls, 0);
       expect(
         cache.roomSummarySignal('!alice:example.org').value?.displayName,
         'Alice room',

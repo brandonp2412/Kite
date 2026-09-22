@@ -14,6 +14,7 @@ final class _FakeRecoveryGateway implements EncryptionRecoveryGateway {
   String? recoveryKey;
   String? passphrase;
   Completer<EncryptionRecoveryStatus>? deferredRecoveryKey;
+  Completer<EncryptionRecoveryStatus>? deferredStatus;
   int createCalls = 0;
   int historyCalls = 0;
 
@@ -29,7 +30,11 @@ final class _FakeRecoveryGateway implements EncryptionRecoveryGateway {
   }
 
   @override
-  Future<EncryptionRecoveryStatus> loadRecoveryStatus() async => status;
+  Future<EncryptionRecoveryStatus> loadRecoveryStatus() async {
+    final deferred = deferredStatus;
+    if (deferred != null) return deferred.future;
+    return status;
+  }
 
   @override
   Future<EncryptionRecoveryStatus> recoverHistoricalMessages() async {
@@ -71,9 +76,15 @@ final class _FakeRecoveryGateway implements EncryptionRecoveryGateway {
   }
 }
 
-Widget _app(EncryptionRecoveryController controller) {
+Widget _app(
+  EncryptionRecoveryController controller, {
+  bool loadOnInit = false,
+}) {
   return MaterialApp(
-    home: EncryptionRecoveryScreen(controller: controller, loadOnInit: false),
+    home: EncryptionRecoveryScreen(
+      controller: controller,
+      loadOnInit: loadOnInit,
+    ),
   );
 }
 
@@ -119,6 +130,29 @@ void main() {
       find.text('Some signed-in sessions are not verified.'),
       findsNothing,
     );
+  });
+
+  testWidgets('status loading never disables recovery key input', (
+    tester,
+  ) async {
+    final gateway = _FakeRecoveryGateway()
+      ..deferredStatus = Completer<EncryptionRecoveryStatus>();
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_app(controller, loadOnInit: true));
+    await tester.pump();
+
+    expect(controller.isRefreshingStatus.value, isTrue);
+    expect(controller.isBusy.value, isFalse);
+    final recoveryKey = tester.widget<TextField>(
+      find.byKey(const Key('recovery-key-field')),
+    );
+    expect(recoveryKey.enabled, isTrue);
+
+    gateway.deferredStatus!.complete(gateway.status);
+    await tester.pumpAndSettle();
+    expect(controller.isRefreshingStatus.value, isFalse);
   });
 
   testWidgets('renders SDK recovery state and delegates recovery actions', (

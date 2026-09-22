@@ -157,6 +157,7 @@ final class _AuthenticatedMatrixHomeState
   static const int _avatarPrefetchLimit = 32;
   static const int _avatarTimelineEventLimit = 8;
   static const int _avatarPrefetchAttempts = 3;
+  static const int _avatarPrefetchBatchSize = 6;
   static const int _timelineMediaPrefetchLimit = 6;
   static const int _roomMemberPrefetchLimit = 6;
   static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
@@ -332,6 +333,27 @@ final class _AuthenticatedMatrixHomeState
   }
 
   Future<void> _prefetchAvatars(
+    int generation,
+    List<String> contentUris,
+  ) async {
+    for (
+      var offset = 0;
+      offset < contentUris.length;
+      offset += _avatarPrefetchBatchSize
+    ) {
+      if (!mounted || generation != _avatarPrefetchGeneration) return;
+      final end = offset + _avatarPrefetchBatchSize < contentUris.length
+          ? offset + _avatarPrefetchBatchSize
+          : contentUris.length;
+      final batch = contentUris.sublist(offset, end);
+      await _prefetchAvatarBatch(generation, batch);
+      // Each batch maps to one native FFI operation. Yield between batches so
+      // interactive room history and visible-avatar requests can jump ahead.
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
+  Future<void> _prefetchAvatarBatch(
     int generation,
     List<String> contentUris,
   ) async {

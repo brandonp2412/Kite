@@ -61,6 +61,7 @@ use tokio::{
 const KITE_MATRIX_ABI_VERSION: u32 = 28;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
+const KITE_MATRIX_KEY_RECOVERY_CONCURRENCY: usize = 8;
 const KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES: [&str; 2] = ["m.room.message", "m.room.encrypted"];
 
 #[derive(Deserialize)]
@@ -661,15 +662,46 @@ fn recovery_status_value_with_server_probe(runtime: &Runtime, matrix_client: &Cl
     status
 }
 
-async fn download_recoverable_room_keys(matrix_client: &Client) -> Result<(), MatrixError> {
-    for room in matrix_client.rooms() {
-        matrix_client
-            .encryption()
-            .backups()
-            .download_room_keys_for_room(room.room_id())
-            .await?;
+async fn download_recoverable_room_keys(matrix_client: &Client) -> Result<(), ()> {
+    let mut pending = matrix_client.rooms().into_iter();
+    let mut tasks = JoinSet::new();
+
+    for _ in 0..KITE_MATRIX_KEY_RECOVERY_CONCURRENCY {
+        let Some(room) = pending.next() else {
+            break;
+        };
+        let room_id = room.room_id().to_owned();
+        let client = matrix_client.clone();
+        tasks.spawn(async move {
+            client
+                .encryption()
+                .backups()
+                .download_room_keys_for_room(&room_id)
+                .await
+                .map_err(|_| ())
+        });
     }
-    Ok(())
+
+    let mut failed = false;
+    while let Some(result) = tasks.join_next().await {
+        if !matches!(result, Ok(Ok(()))) {
+            failed = true;
+        }
+        if let Some(room) = pending.next() {
+            let room_id = room.room_id().to_owned();
+            let client = matrix_client.clone();
+            tasks.spawn(async move {
+                client
+                    .encryption()
+                    .backups()
+                    .download_room_keys_for_room(&room_id)
+                    .await
+                    .map_err(|_| ())
+            });
+        }
+    }
+
+    if failed { Err(()) } else { Ok(()) }
 }
 
 async fn recover_with_backup_recovery_key(
@@ -807,9 +839,6 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
                     .await
                     .is_ok()
                 {
-                    download_recoverable_room_keys(matrix_client)
-                        .await
-                        .map_err(|_| ())?;
                     return Ok(false);
                 }
 
@@ -831,6 +860,15 @@ pub unsafe extern "C" fn kite_matrix_client_recovery(
                 status["backupExistsOnServer"] = Value::Bool(true);
                 ok_json(status)
             } else {
+                // Recovery is usable as soon as the SDK has imported the
+                // backup decryption key. Hydrate the rest of the user's rooms
+                // concurrently in the background; the SDK's
+                // AfterDecryptionFailure strategy can still fetch a key for
+                // an opened room immediately.
+                let recovery_client = matrix_client.clone();
+                client.runtime.spawn(async move {
+                    let _ = download_recoverable_room_keys(&recovery_client).await;
+                });
                 ok_json(recovery_status_value(matrix_client))
             }
         }

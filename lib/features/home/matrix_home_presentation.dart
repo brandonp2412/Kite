@@ -375,11 +375,14 @@ final class MatrixHomePresentationBinding {
   void _projectRecentTimelines() {
     final roomIds = cache.roomOrder.value.take(_eagerRecentRoomLimit);
     for (final roomId in roomIds) {
-      controller.applyMatrixEvents(
-        roomId,
-        cache.timelineSignal(roomId).value,
-        currentUserId: currentUserId,
-      );
+      final events = cache.timelineSignal(roomId).value;
+      untracked(() {
+        controller.applyMatrixEvents(
+          roomId,
+          events,
+          currentUserId: currentUserId,
+        );
+      });
     }
   }
 
@@ -388,11 +391,14 @@ final class MatrixHomePresentationBinding {
     if (roomIds.isEmpty) return;
     final roomId = selectedRoom.value;
     if (!roomIds.contains(roomId)) return;
-    controller.applyMatrixEvents(
-      roomId,
-      cache.timelineSignal(roomId).value,
-      currentUserId: currentUserId,
-    );
+    final events = cache.timelineSignal(roomId).value;
+    untracked(() {
+      controller.applyMatrixEvents(
+        roomId,
+        events,
+        currentUserId: currentUserId,
+      );
+    });
   }
 
   void updateTransport({
