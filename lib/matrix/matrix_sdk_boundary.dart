@@ -265,6 +265,14 @@ abstract interface class MatrixSdkTimelineModerationManager {
   Future<void> reportEvent(String roomId, String eventId, {String? reason});
 }
 
+abstract interface class MatrixSdkTimelineRedactionManager {
+  Future<void> redactEvent(
+    String roomId,
+    String eventId, {
+    required String transactionId,
+  });
+}
+
 abstract interface class MatrixSdkRoomMemberDirectory {
   Future<List<MatrixSdkRoomMember>> roomMembers(String roomId);
 }
@@ -1036,6 +1044,34 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       roomId,
       eventId,
       reason: reason,
+    );
+  }
+
+  Future<void> redactEvent(
+    String roomId,
+    String eventId, {
+    required String transactionId,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkTimelineRedactionManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support event redaction',
+      );
+    }
+    final normalizedTransactionId = transactionId.trim();
+    if (normalizedTransactionId.isEmpty ||
+        normalizedTransactionId.contains('\u0000')) {
+      throw ArgumentError.value(
+        transactionId,
+        'transactionId',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkTimelineRedactionManager).redactEvent(
+      roomId,
+      eventId,
+      transactionId: normalizedTransactionId,
     );
   }
 

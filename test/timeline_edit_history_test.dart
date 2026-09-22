@@ -22,21 +22,46 @@ void main() {
     expect(controller.messagesFor('alice').value, same(messageList));
   });
 
-  test('redaction clears edit history with the rest of event content', () {
+  test(
+    'redaction clears edit history with the rest of event content',
+    () async {
+      final controller = TimelineController(
+        sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+        editPort: const DeterministicTimelineEditPort(latency: Duration.zero),
+      );
+      final message = controller.messagesFor('alice').value.last;
+
+      controller.editText('alice', message, 'Edited once');
+      expect(message.editHistory, isNotEmpty);
+
+      await controller.redactText('alice', message);
+
+      expect(message.body, isEmpty);
+      expect(message.editHistory, isEmpty);
+      expect(message.edited, isFalse);
+      expect(message.redacted, isTrue);
+    },
+  );
+
+  test('failed redaction restores optimistic message state', () async {
     final controller = TimelineController(
       sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
       editPort: const DeterministicTimelineEditPort(latency: Duration.zero),
+      redactionPort: const DeterministicTimelineRedactionPort(
+        outcome: TimelineSendOutcome.failed,
+      ),
     );
     final message = controller.messagesFor('alice').value.last;
-
     controller.editText('alice', message, 'Edited once');
-    expect(message.editHistory, isNotEmpty);
+    final expectedBody = message.body;
+    final expectedHistory = message.editHistory;
 
-    controller.redactText(message);
+    final redacted = await controller.redactText('alice', message);
 
-    expect(message.body, isEmpty);
-    expect(message.editHistory, isEmpty);
-    expect(message.edited, isFalse);
-    expect(message.redacted, isTrue);
+    expect(redacted, isFalse);
+    expect(message.redacted, isFalse);
+    expect(message.body, expectedBody);
+    expect(message.edited, isTrue);
+    expect(message.editHistory, expectedHistory);
   });
 }

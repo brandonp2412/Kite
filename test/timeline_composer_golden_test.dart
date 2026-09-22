@@ -144,7 +144,8 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
 
       timelineController.reset(sendPort: DeterministicTimelineSendPort());
-      timelineController.redactText(
+      await timelineController.redactText(
+        'alice',
         timelineController.messagesFor('alice').value.last,
       );
       selectRoom('alice');

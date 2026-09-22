@@ -377,6 +377,83 @@ void main() {
   });
 
   test(
+    'redactions strip cached event content and survive snapshot restore',
+    () {
+      final cache = MatrixPresentationCache();
+      final roomId = '!alpha:kite.test';
+      cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'before-redaction',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: roomId,
+              summary: _summary(
+                roomId: roomId,
+                displayName: 'Alpha',
+                position: 1,
+                second: 1,
+                lastEventId: r'$target',
+              ),
+              timelineEvents: <MatrixTimelineEvent>[
+                MatrixTimelineEvent(
+                  eventId: r'$target',
+                  roomId: roomId,
+                  senderId: '@alice:kite.test',
+                  type: 'm.room.message',
+                  originServerTimestamp: DateTime.utc(2026, 9, 14, 11, 20, 1),
+                  streamPosition: 1,
+                  content: const <String, Object?>{
+                    'msgtype': 'm.text',
+                    'body': 'delete me',
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'after-redaction',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: roomId,
+              timelineEvents: <MatrixTimelineEvent>[
+                MatrixTimelineEvent(
+                  eventId: r'$redaction',
+                  roomId: roomId,
+                  senderId: '@alice:kite.test',
+                  type: 'm.room.redaction',
+                  originServerTimestamp: DateTime.utc(2026, 9, 14, 11, 20, 2),
+                  streamPosition: 2,
+                  redactsEventId: r'$target',
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      final target = cache
+          .timelineSignal(roomId)
+          .value
+          .firstWhere((event) => event.eventId == r'$target');
+      expect(target.redacted, isTrue);
+      expect(target.content, isEmpty);
+
+      final restored = MatrixPresentationCache(
+        initialSnapshot: cache.snapshot(),
+      );
+      final restoredTarget = restored
+          .timelineSignal(roomId)
+          .value
+          .firstWhere((event) => event.eventId == r'$target');
+      expect(restoredTarget.redacted, isTrue);
+      expect(restoredTarget.content, isEmpty);
+    },
+  );
+
+  test(
     'sync removes left room presentation state without disturbing peers',
     () {
       final alphaEvent = _event(

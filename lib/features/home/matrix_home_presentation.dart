@@ -47,6 +47,12 @@ typedef MatrixTextEditor = Future<void> Function({
   required String body,
 });
 
+typedef MatrixEventRedactor = Future<void> Function({
+  required String roomId,
+  required String transactionId,
+  required String eventId,
+});
+
 typedef MatrixEventReporter = Future<void> Function({
   required String roomId,
   required String eventId,
@@ -86,6 +92,30 @@ final class MatrixTimelineEditPort implements TimelineEditPort {
         transactionId: transactionId,
         eventId: eventId,
         body: body,
+      );
+      return TimelineSendOutcome.sent;
+    } catch (_) {
+      return TimelineSendOutcome.failed;
+    }
+  }
+}
+
+final class MatrixTimelineRedactionPort implements TimelineRedactionPort {
+  const MatrixTimelineRedactionPort(this._redact);
+
+  final MatrixEventRedactor _redact;
+
+  @override
+  Future<TimelineSendOutcome> redactEvent({
+    required String roomId,
+    required String transactionId,
+    required String eventId,
+  }) async {
+    try {
+      await _redact(
+        roomId: roomId,
+        transactionId: transactionId,
+        eventId: eventId,
       );
       return TimelineSendOutcome.sent;
     } catch (_) {
@@ -134,6 +164,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.currentUserId,
     required this.sendPort,
     this.editPort,
+    this.redactionPort,
     this.linkOpenPort,
     this.sharePort,
     this.moderationPort,
@@ -154,6 +185,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final String currentUserId;
   final TimelineSendPort sendPort;
   final TimelineEditPort? editPort;
+  final TimelineRedactionPort? redactionPort;
   final TimelineLinkOpenPort? linkOpenPort;
   final TimelineSharePort? sharePort;
   final TimelineModerationPort? moderationPort;
@@ -194,12 +226,14 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
     }
     if (!identical(oldWidget.sendPort, widget.sendPort) ||
         !identical(oldWidget.editPort, widget.editPort) ||
+        !identical(oldWidget.redactionPort, widget.redactionPort) ||
         !identical(oldWidget.linkOpenPort, widget.linkOpenPort) ||
         !identical(oldWidget.sharePort, widget.sharePort) ||
         !identical(oldWidget.moderationPort, widget.moderationPort)) {
       _binding.updateTransport(
         sendPort: widget.sendPort,
         editPort: widget.editPort,
+        redactionPort: widget.redactionPort,
         linkOpenPort: widget.linkOpenPort,
         sharePort: widget.sharePort,
         moderationPort: widget.moderationPort,
@@ -312,6 +346,7 @@ final class MatrixHomePresentationBinding {
     required String currentUserId,
     required TimelineSendPort sendPort,
     TimelineEditPort? editPort,
+    TimelineRedactionPort? redactionPort,
     TimelineLinkOpenPort? linkOpenPort,
     TimelineSharePort? sharePort,
     TimelineModerationPort? moderationPort,
@@ -324,6 +359,7 @@ final class MatrixHomePresentationBinding {
            TimelineController(
              sendPort: sendPort,
              editPort: editPort,
+             redactionPort: redactionPort,
              linkOpenPort: linkOpenPort,
              sharePort: sharePort,
              moderationPort: moderationPort,
@@ -338,6 +374,7 @@ final class MatrixHomePresentationBinding {
     this.controller.reset(
       sendPort: sendPort,
       editPort: editPort,
+      redactionPort: redactionPort,
       linkOpenPort: linkOpenPort,
       sharePort: sharePort,
       moderationPort: moderationPort,
@@ -404,6 +441,7 @@ final class MatrixHomePresentationBinding {
   void updateTransport({
     required TimelineSendPort sendPort,
     TimelineEditPort? editPort,
+    TimelineRedactionPort? redactionPort,
     TimelineLinkOpenPort? linkOpenPort,
     TimelineSharePort? sharePort,
     TimelineModerationPort? moderationPort,
@@ -411,6 +449,7 @@ final class MatrixHomePresentationBinding {
     controller.updateTransport(
       sendPort: sendPort,
       editPort: editPort,
+      redactionPort: redactionPort,
       linkOpenPort: linkOpenPort,
       sharePort: sharePort,
       moderationPort: moderationPort,

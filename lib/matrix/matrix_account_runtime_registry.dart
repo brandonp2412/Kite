@@ -439,6 +439,27 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.reportEvent(roomId, eventId, reason: reason);
   }
 
+  Future<void> redactEvent({
+    required String accountId,
+    required String roomId,
+    required String eventId,
+    required String transactionId,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<void>.error(
+        StateError('Cannot redact a Matrix event for an inactive account'),
+      );
+    }
+    return active.engine.redactEvent(
+      roomId,
+      eventId,
+      transactionId: transactionId,
+    );
+  }
+
   Future<void> leaveRoom({required String accountId, required String roomId}) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();

@@ -22,9 +22,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
 
   @override
   Future<MatrixPresentationSnapshot?> load(String accountId) async {
-    final contents = await RecoverableFile(
-      _fileFor(accountId),
-    ).readCandidates();
+    final contents = await RecoverableFile(_fileFor(accountId))
+        .readCandidates();
     if (contents.isEmpty) return null;
 
     return Isolate.run<MatrixPresentationSnapshot?>(() {
@@ -126,6 +125,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
                 'streamPosition': event.streamPosition,
                 if (event.transactionId != null)
                   'transactionId': event.transactionId,
+                if (event.redactsEventId != null)
+                  'redactsEventId': event.redactsEventId,
+                if (event.redacted) 'redacted': true,
                 'content': event.content,
               },
           ],
@@ -289,6 +291,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final timestampMs = value['originServerTimestampMs'];
     final streamPosition = value['streamPosition'];
     final transactionId = value['transactionId'];
+    final redactsEventId = value['redactsEventId'];
+    final redacted = value['redacted'];
     final content = value['content'];
     if (eventId is! String ||
         !_isSafeIdentifier(eventId) ||
@@ -309,6 +313,10 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         streamPosition is! int ||
         (transactionId != null &&
             (transactionId is! String || !_isSafeIdentifier(transactionId))) ||
+        (redactsEventId != null &&
+            (redactsEventId is! String ||
+                !_isSafeIdentifier(redactsEventId))) ||
+        (redacted != null && redacted is! bool) ||
         content is! Map) {
       return null;
     }
@@ -325,6 +333,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       ),
       streamPosition: streamPosition,
       transactionId: transactionId as String?,
+      redactsEventId: redactsEventId as String?,
+      redacted: redacted as bool? ?? false,
       content: Map<String, Object?>.from(content),
     );
   }

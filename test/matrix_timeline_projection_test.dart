@@ -400,6 +400,36 @@ void main() {
     },
   );
 
+  test('Matrix redactions project as durable deleted-message state', () {
+    final controller = TimelineController(
+      sendPort: DeterministicTimelineSendPort(latency: Duration.zero),
+      fixtureProvider: (_) => const [],
+    );
+    controller.applyMatrixEvents('!alpha:example.org', <MatrixTimelineEvent>[
+      _event(
+        eventId: r'$target',
+        streamPosition: 1,
+        senderId: '@me:example.org',
+        msgtype: 'm.text',
+        body: 'Delete me',
+      ),
+      MatrixTimelineEvent(
+        eventId: r'$redaction',
+        roomId: '!alpha:example.org',
+        senderId: '@me:example.org',
+        type: 'm.room.redaction',
+        originServerTimestamp: DateTime.utc(2026, 9, 16, 10, 2),
+        streamPosition: 2,
+        redactsEventId: r'$target',
+      ),
+    ], currentUserId: '@me:example.org');
+
+    final message = controller.messagesFor('!alpha:example.org').value.single;
+    expect(message.id, r'$target');
+    expect(message.body, isEmpty);
+    expect(message.redacted, isTrue);
+  });
+
   test(
     'Matrix replies project target metadata without changing message order',
     () {

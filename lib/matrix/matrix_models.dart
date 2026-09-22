@@ -11,6 +11,8 @@ final class MatrixTimelineEvent {
     required this.originServerTimestamp,
     required this.streamPosition,
     this.transactionId,
+    this.redactsEventId,
+    this.redacted = false,
     Map<String, Object?> content = const <String, Object?>{},
   }) : content = freezeMatrixJsonMap(content);
 
@@ -23,7 +25,29 @@ final class MatrixTimelineEvent {
   final DateTime originServerTimestamp;
   final int streamPosition;
   final String? transactionId;
+  final String? redactsEventId;
+  final bool redacted;
   final Map<String, Object?> content;
+
+  MatrixTimelineEvent copyWith({
+    bool? redacted,
+    Map<String, Object?>? content,
+  }) {
+    return MatrixTimelineEvent(
+      eventId: eventId,
+      roomId: roomId,
+      senderId: senderId,
+      senderDisplayName: senderDisplayName,
+      senderAvatarUrl: senderAvatarUrl,
+      type: type,
+      originServerTimestamp: originServerTimestamp,
+      streamPosition: streamPosition,
+      transactionId: transactionId,
+      redactsEventId: redactsEventId,
+      redacted: redacted ?? this.redacted,
+      content: content ?? this.content,
+    );
+  }
 }
 
 Map<String, Object?> freezeMatrixJsonMap(Map<String, Object?> value) {

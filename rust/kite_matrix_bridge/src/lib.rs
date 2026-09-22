@@ -58,11 +58,12 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 28;
+const KITE_MATRIX_ABI_VERSION: u32 = 29;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_KEY_RECOVERY_CONCURRENCY: usize = 8;
-const KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES: [&str; 2] = ["m.room.message", "m.room.encrypted"];
+const KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES: [&str; 3] =
+    ["m.room.message", "m.room.encrypted", "m.room.redaction"];
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2151,6 +2152,86 @@ pub unsafe extern "C" fn kite_matrix_client_report_content(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_redact_event(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    event_id: *const c_char,
+    transaction_id: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix event redaction is unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(event_id) = (unsafe { required_utf8(event_id) }) else {
+        return error_json("invalid_event", "The Matrix event is invalid.");
+    };
+    let Some(transaction_id) = (unsafe { required_utf8(transaction_id) }) else {
+        return error_json(
+            "invalid_transaction",
+            "The Matrix transaction ID is invalid.",
+        );
+    };
+    if transaction_id.is_empty() {
+        return error_json(
+            "invalid_transaction",
+            "The Matrix transaction ID is invalid.",
+        );
+    }
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Ok(event_id) = EventId::parse(event_id) else {
+        return error_json("invalid_event", "The Matrix event is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix event redaction is unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+
+    if client
+        .runtime
+        .block_on(room.redact(
+            &event_id,
+            None,
+            Some(OwnedTransactionId::from(transaction_id)),
+        ))
+        .is_err()
+    {
+        return error_json(
+            "event_redaction_failed",
+            "The Matrix event could not be removed.",
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "roomId": room_id.as_str(),
+        "eventId": event_id.as_str(),
+    }))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_manage_room(
     client: *mut KiteMatrixClient,
     room_id: *const c_char,
@@ -3229,7 +3310,8 @@ mod tests {
             filter.types,
             Some(vec![
                 "m.room.message".to_owned(),
-                "m.room.encrypted".to_owned()
+                "m.room.encrypted".to_owned(),
+                "m.room.redaction".to_owned()
             ])
         );
     }
@@ -3244,7 +3326,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 28);
+        assert_eq!(kite_matrix_abi_version(), 29);
     }
 
     #[test]

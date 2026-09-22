@@ -722,6 +722,18 @@ final class _AuthenticatedMatrixHomeState
                 replacementEventId: eventId,
               );
             }),
+            redactionPort: MatrixTimelineRedactionPort(({
+              required roomId,
+              required transactionId,
+              required eventId,
+            }) {
+              return widget.runtime.redactEvent(
+                accountId: widget.session.userId,
+                roomId: roomId,
+                eventId: eventId,
+                transactionId: transactionId,
+              );
+            }),
             linkOpenPort: const PlatformTimelineLinkOpenPort(),
             onRoomFavouriteChanged: (roomId, isFavourite) =>
                 widget.runtime.setRoomFavourite(

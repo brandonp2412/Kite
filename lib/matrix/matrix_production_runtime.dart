@@ -420,6 +420,20 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<void> redactEvent({
+    required String accountId,
+    required String roomId,
+    required String eventId,
+    required String transactionId,
+  }) {
+    return accounts.redactEvent(
+      accountId: accountId,
+      roomId: roomId,
+      eventId: eventId,
+      transactionId: transactionId,
+    );
+  }
+
   Future<void> leaveRoom({required String accountId, required String roomId}) {
     return accounts.leaveRoom(accountId: accountId, roomId: roomId);
   }

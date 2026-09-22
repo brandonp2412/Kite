@@ -207,6 +207,11 @@ void main() {
         r'$abusive:kite.test',
         reason: 'spam event',
       );
+      await boundary.redactEvent(
+        '!room:kite.test',
+        r'$sent',
+        transactionId: 'kite-redact-1',
+      );
       await boundary.reportRoom('!room:kite.test', reason: 'spam room');
       await boundary.reportUser(
         '!room:kite.test',
@@ -314,6 +319,9 @@ void main() {
       ]);
       expect(client.eventReports, <(String, String, String?)>[
         ('!room:kite.test', r'$abusive:kite.test', 'spam event'),
+      ]);
+      expect(client.eventRedactions, <(String, String, String)>[
+        ('!room:kite.test', r'$sent', 'kite-redact-1'),
       ]);
       expect(client.roomManagement, <(String, String, String?, String?)>[
         ('!room:kite.test', 'report_room', null, 'spam room'),
@@ -1246,6 +1254,7 @@ final class _FakeRustClient
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
         MatrixRustTimelineModerationClient,
+        MatrixRustTimelineRedactionClient,
         MatrixRustRoomSettingsClient,
         MatrixRustMediaPrefetchClient,
         MatrixRustMediaClient,
@@ -1272,6 +1281,8 @@ final class _FakeRustClient
       <(String, String, String?, String?)>[];
   final List<(String, String, String?)> eventReports =
       <(String, String, String?)>[];
+  final List<(String, String, String)> eventRedactions =
+      <(String, String, String)>[];
   final List<(String, String, String?)> roomSettingCalls =
       <(String, String, String?)>[];
   final List<(String?, String, String?)> profileCalls =
@@ -1381,6 +1392,15 @@ final class _FakeRustClient
     String? reason,
   }) async {
     eventReports.add((roomId, eventId, reason));
+  }
+
+  @override
+  Future<void> redactEvent({
+    required String roomId,
+    required String eventId,
+    required String transactionId,
+  }) async {
+    eventRedactions.add((roomId, eventId, transactionId));
   }
 
   @override

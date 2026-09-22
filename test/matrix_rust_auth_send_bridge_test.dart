@@ -15,6 +15,6 @@ void main() {
   });
 
   test('native auth/session ABI revision is pinned', () {
-    expect(kiteMatrixNativeAbiVersion, 28);
+    expect(kiteMatrixNativeAbiVersion, 29);
   });
 }

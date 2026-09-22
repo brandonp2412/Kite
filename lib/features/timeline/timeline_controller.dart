@@ -431,6 +431,35 @@ abstract interface class TimelineEditPort {
   });
 }
 
+abstract interface class TimelineRedactionPort {
+  Future<TimelineSendOutcome> redactEvent({
+    required String roomId,
+    required String transactionId,
+    required String eventId,
+  });
+}
+
+final class DeterministicTimelineRedactionPort
+    implements TimelineRedactionPort {
+  const DeterministicTimelineRedactionPort({
+    this.latency = Duration.zero,
+    this.outcome = TimelineSendOutcome.sent,
+  });
+
+  final Duration latency;
+  final TimelineSendOutcome outcome;
+
+  @override
+  Future<TimelineSendOutcome> redactEvent({
+    required String roomId,
+    required String transactionId,
+    required String eventId,
+  }) async {
+    if (latency > Duration.zero) await Future<void>.delayed(latency);
+    return outcome;
+  }
+}
+
 final class DeterministicTimelineEditPort implements TimelineEditPort {
   const DeterministicTimelineEditPort({
     this.latency = const Duration(milliseconds: 120),
@@ -559,6 +588,21 @@ class TimelineMessage {
     TimelineMessage? replyTarget,
   }) {
     if (event.type != 'm.room.message') return null;
+    final localTime = event.originServerTimestamp.toLocal();
+    if (event.redacted) {
+      return TimelineMessage(
+        id: event.eventId,
+        sender: event.senderDisplayName ?? event.senderId,
+        body: '',
+        mine: event.senderId == currentUserId,
+        senderId: event.senderId,
+        senderAvatarUrl: event.senderAvatarUrl,
+        sentAt: localTime,
+        timeLabel:
+            '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}',
+        redacted: true,
+      );
+    }
     final content = event.content;
     final msgtype = content['msgtype'];
     if (msgtype is! String) return null;
@@ -569,7 +613,6 @@ class TimelineMessage {
         msgtype == 'm.text' || msgtype == 'm.notice' || msgtype == 'm.emote';
     if (!supportedText && attachment == null) return null;
 
-    final localTime = event.originServerTimestamp.toLocal();
     final mediaBody = attachment == null ? body : _matrixMediaCaption(content);
     final replyToMessageId = _matrixReplyToEventId(content);
     final formattedBody = _matrixFormattedBody(content);
@@ -639,6 +682,7 @@ class TimelineController implements TimelineLocationShareDelegate {
   TimelineController({
     TimelineSendPort? sendPort,
     TimelineEditPort? editPort,
+    TimelineRedactionPort? redactionPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
@@ -648,6 +692,8 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineFixtureProvider? fixtureProvider,
   }) : _sendPort = sendPort ?? DeterministicTimelineSendPort(),
        _editPort = editPort ?? const DeterministicTimelineEditPort(),
+       _redactionPort =
+           redactionPort ?? const DeterministicTimelineRedactionPort(),
        _fixtureProvider = fixtureProvider ?? BenchmarkFixture.messagesFor,
        _attachmentSendPort =
            attachmentSendPort ??
@@ -663,6 +709,7 @@ class TimelineController implements TimelineLocationShareDelegate {
 
   TimelineSendPort _sendPort;
   TimelineEditPort _editPort;
+  TimelineRedactionPort _redactionPort;
   TimelineFixtureProvider _fixtureProvider;
   TimelineAttachmentSendPort _attachmentSendPort;
   TimelineModerationPort _moderationPort;
@@ -782,11 +829,23 @@ class TimelineController implements TimelineLocationShareDelegate {
     final projected = <TimelineMessage>[];
     final projectedById = <String, TimelineMessage>{};
     final pendingReplacements = <String, List<MatrixTimelineEvent>>{};
+    final pendingRedactions = <String>{};
     final echoedTransactionIds = <String>{};
     for (final event in events) {
       if (event.roomId != roomId) continue;
       final transactionId = event.transactionId;
       if (transactionId != null) echoedTransactionIds.add(transactionId);
+      if (event.type == 'm.room.redaction') {
+        final redactsEventId = event.redactsEventId;
+        if (redactsEventId == null) continue;
+        final redactionTarget = projectedById[redactsEventId];
+        if (redactionTarget == null) {
+          pendingRedactions.add(redactsEventId);
+        } else {
+          _applyMatrixRedaction(redactionTarget);
+        }
+        continue;
+      }
       final replacement = _matrixReplacement(event.content);
       if (replacement != null) {
         final replacementTarget = projectedById[replacement.eventId];
@@ -815,6 +874,9 @@ class TimelineController implements TimelineLocationShareDelegate {
       if (mapped == null) continue;
       projected.add(mapped);
       projectedById[mapped.id] = mapped;
+      if (pendingRedactions.remove(mapped.id)) {
+        _applyMatrixRedaction(mapped);
+      }
       final deferredReplacements = pendingReplacements.remove(mapped.id);
       if (deferredReplacements != null) {
         for (final replacementEvent in deferredReplacements) {
@@ -1127,16 +1189,41 @@ class TimelineController implements TimelineLocationShareDelegate {
     );
   }
 
-  void redactText(TimelineMessage message) {
-    if (!message.mine || message.redacted) return;
+  Future<bool> redactText(String roomId, TimelineMessage message) async {
+    if (!message.mine || message.redacted) return false;
+    final previousBody = message.body;
+    final previousFormattedBody = message.formattedBodyText.peek();
+    final previousEdited = message.edited;
+    final previousHistory = message.editHistoryState.peek();
+    final previousReactions = message.reactionState.peek();
+    final previousReadBy = message.readByState.peek();
     batch(() {
       message.bodyText.value = '';
+      message.formattedBodyText.value = null;
       message.editedState.value = false;
       message.editHistoryState.value = const <String>[];
       message.reactionState.value = const <String, TimelineReactionSummary>{};
       message.readByState.value = const <String>[];
       message.redactedState.value = true;
     });
+    final outcome = await _redactionPort.redactEvent(
+      roomId: roomId,
+      transactionId: _nextMatrixTransactionId(),
+      eventId: message.id,
+    );
+    if (outcome == TimelineSendOutcome.sent) return true;
+    if (message.redacted) {
+      batch(() {
+        message.bodyText.value = previousBody;
+        message.formattedBodyText.value = previousFormattedBody;
+        message.editedState.value = previousEdited;
+        message.editHistoryState.value = previousHistory;
+        message.reactionState.value = previousReactions;
+        message.readByState.value = previousReadBy;
+        message.redactedState.value = false;
+      });
+    }
+    return false;
   }
 
   void toggleAudioPlayback(TimelineMessage message) {
@@ -1237,12 +1324,15 @@ class TimelineController implements TimelineLocationShareDelegate {
   void updateTransport({
     required TimelineSendPort sendPort,
     TimelineEditPort? editPort,
+    TimelineRedactionPort? redactionPort,
     TimelineLinkOpenPort? linkOpenPort,
     TimelineSharePort? sharePort,
     TimelineModerationPort? moderationPort,
   }) {
     _sendPort = sendPort;
     _editPort = editPort ?? const DeterministicTimelineEditPort();
+    _redactionPort =
+        redactionPort ?? const DeterministicTimelineRedactionPort();
     _linkOpenPort = linkOpenPort ?? DeterministicTimelineLinkOpenPort();
     _sharePort = sharePort ?? DeterministicTimelineSharePort();
     _moderationPort = moderationPort ?? DeterministicTimelineModerationPort();
@@ -1251,6 +1341,7 @@ class TimelineController implements TimelineLocationShareDelegate {
   void reset({
     TimelineSendPort? sendPort,
     TimelineEditPort? editPort,
+    TimelineRedactionPort? redactionPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineModerationPort? moderationPort,
     TimelineSharePort? sharePort,
@@ -1261,6 +1352,7 @@ class TimelineController implements TimelineLocationShareDelegate {
   }) {
     if (sendPort != null) _sendPort = sendPort;
     if (editPort != null) _editPort = editPort;
+    if (redactionPort != null) _redactionPort = redactionPort;
     if (fixtureProvider != null) _fixtureProvider = fixtureProvider;
     if (attachmentSendPort != null) _attachmentSendPort = attachmentSendPort;
     if (moderationPort != null) _moderationPort = moderationPort;
@@ -1394,6 +1486,19 @@ String? _matrixFormattedBody(Map<String, Object?> content) {
   if (formattedBody is! String) return null;
   final normalized = formattedBody.trim();
   return normalized.isEmpty ? null : normalized;
+}
+
+void _applyMatrixRedaction(TimelineMessage target) {
+  if (target.redacted) return;
+  batch(() {
+    target.bodyText.value = '';
+    target.formattedBodyText.value = null;
+    target.editedState.value = false;
+    target.redactedState.value = true;
+    target.editHistoryState.value = const <String>[];
+    target.reactionState.value = const <String, TimelineReactionSummary>{};
+    target.readByState.value = const <String>[];
+  });
 }
 
 void _applyMatrixReplacement(
@@ -1557,6 +1662,10 @@ void _applyMatrixProjectionLeaves(
   TimelineMessage target,
   TimelineMessage projection,
 ) {
+  if (projection.redacted) {
+    _applyMatrixRedaction(target);
+    return;
+  }
   if (target.edited &&
       target.editHistoryState.peek().length >
           projection.editHistoryState.peek().length) {

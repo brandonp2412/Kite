@@ -463,6 +463,24 @@ final class MatrixPresentationCache {
       }
     }
 
+    final redactedEventIds = <String>{
+      for (final event in byId.values)
+        if (event.redacted) event.eventId,
+      for (final event in byId.values)
+        if (event.type == 'm.room.redaction' && event.redactsEventId != null)
+          event.redactsEventId!,
+    };
+    for (final eventId in redactedEventIds) {
+      final target = byId[eventId];
+      if (target == null || (target.redacted && target.content.isEmpty)) {
+        continue;
+      }
+      byId[eventId] = target.copyWith(
+        redacted: true,
+        content: const <String, Object?>{},
+      );
+    }
+
     final merged = byId.values.toList(growable: false)
       ..sort((left, right) {
         final position = left.streamPosition.compareTo(right.streamPosition);
@@ -547,6 +565,9 @@ final class MatrixPresentationCache {
           a.senderId != b.senderId ||
           a.senderDisplayName != b.senderDisplayName ||
           a.type != b.type ||
+          a.transactionId != b.transactionId ||
+          a.redactsEventId != b.redactsEventId ||
+          a.redacted != b.redacted ||
           !_sameJsonValue(a.content, b.content)) {
         return false;
       }

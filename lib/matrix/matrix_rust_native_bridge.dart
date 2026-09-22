@@ -13,7 +13,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 28;
+const int kiteMatrixNativeAbiVersion = 29;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -222,6 +222,18 @@ typedef _ClientReportContentNative = Pointer<Char> Function(
   Pointer<Char>,
 );
 typedef _ClientReportContentDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientRedactEventNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientRedactEventDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
   Pointer<Char>,
@@ -1141,6 +1153,54 @@ final class _MatrixNativeReportContentOperation {
   }
 }
 
+final class _MatrixNativeRedactEventOperation {
+  const _MatrixNativeRedactEventOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.eventId,
+    required this.transactionId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String eventId;
+  final String transactionId;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final redact = library
+        .lookupFunction<_ClientRedactEventNative, _ClientRedactEventDart>(
+          'kite_matrix_client_redact_event',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final eventIdUtf8 = eventId.toNativeUtf8(allocator: calloc);
+    final transactionIdUtf8 = transactionId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        redact(
+          Pointer<Void>.fromAddress(address),
+          roomIdUtf8.cast<Char>(),
+          eventIdUtf8.cast<Char>(),
+          transactionIdUtf8.cast<Char>(),
+        ),
+        freeString,
+        'event redaction',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(transactionIdUtf8);
+      calloc.free(eventIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
 final class _MatrixNativeProfileOperation {
   const _MatrixNativeProfileOperation({
     required this.libraryPath,
@@ -1855,6 +1915,14 @@ abstract interface class MatrixRustTimelineModerationClient {
   });
 }
 
+abstract interface class MatrixRustTimelineRedactionClient {
+  Future<void> redactEvent({
+    required String roomId,
+    required String eventId,
+    required String transactionId,
+  });
+}
+
 abstract interface class MatrixRustMediaPrefetchClient {
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
@@ -2169,6 +2237,7 @@ final class MatrixRustNativeClient
         MatrixRustRoomMemberModeratorClient,
         MatrixRustRoomLifecycleClient,
         MatrixRustTimelineModerationClient,
+        MatrixRustTimelineRedactionClient,
         MatrixRustRoomSettingsClient,
         MatrixRustMediaPrefetchClient,
         MatrixRustMediaClient,
@@ -3217,6 +3286,64 @@ final class MatrixRustNativeClient
   }
 
   @override
+  Future<void> redactEvent({
+    required String roomId,
+    required String eventId,
+    required String transactionId,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedEventId = eventId.trim();
+    final normalizedTransactionId = transactionId.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedEventId.isEmpty || normalizedEventId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          eventId,
+          'eventId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedTransactionId.isEmpty ||
+        normalizedTransactionId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          transactionId,
+          'transactionId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<void>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeRedactEventOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          eventId: normalizedEventId,
+          transactionId: normalizedTransactionId,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic> ||
+          decoded['roomId'] != normalizedRoomId ||
+          decoded['eventId'] != normalizedEventId) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid event redaction state.',
+        );
+      }
+    }, priority: _MatrixOperationPriority.interactive);
+  }
+
+  @override
   Future<void> manageRoom({
     required String roomId,
     required String action,
@@ -3361,6 +3488,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
         MatrixSdkTimelineModerationManager,
+        MatrixSdkTimelineRedactionManager,
         MatrixSdkRoomMemberDirectory,
         MatrixSdkRoomMemberInviter,
         MatrixSdkRoomMemberModerator,
@@ -4224,6 +4352,27 @@ final class MatrixRustSdkBoundary
         reason: reason,
       );
     });
+  }
+
+  @override
+  Future<void> redactEvent(
+    String roomId,
+    String eventId, {
+    required String transactionId,
+  }) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustTimelineRedactionClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support event redaction',
+        );
+      }
+      await (client as MatrixRustTimelineRedactionClient).redactEvent(
+        roomId: roomId,
+        eventId: eventId,
+        transactionId: transactionId,
+      );
+    }, priority: _MatrixOperationPriority.interactive);
   }
 
   @override

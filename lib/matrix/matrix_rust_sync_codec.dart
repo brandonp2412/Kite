@@ -177,6 +177,8 @@ final class MatrixRustSyncCodec {
             'unsigned.transaction_id',
           )
         : null;
+    final redactsEventId = _optionalIdentifier(event['redacts'], 'redacts');
+    final redacted = unsigned is Map && unsigned['redacted_because'] is Map;
     return MatrixTimelineEvent(
       eventId: _requiredIdentifier(event, 'event_id'),
       roomId: roomId,
@@ -190,6 +192,8 @@ final class MatrixRustSyncCodec {
       ),
       streamPosition: timestamp,
       transactionId: transactionId,
+      redactsEventId: redactsEventId,
+      redacted: redacted,
       content: Map<String, Object?>.unmodifiable(
         _asMap(event['content'], 'event content'),
       ),

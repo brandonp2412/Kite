@@ -3039,7 +3039,19 @@ class _MessageRow extends StatelessWidget {
         await route.completed;
         if (!context.mounted) return;
         if (confirmed == true) {
-          _homeTimelineController(context).redactText(message);
+          final redacted = await _homeTimelineController(context)
+              .redactText(roomId, message);
+          if (!redacted && context.mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('Could not remove message. Try again.'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+          }
         }
     }
   }
@@ -3208,7 +3220,19 @@ class _MessageRow extends StatelessWidget {
         await route.completed;
         if (!context.mounted) return;
         if (confirmed == true) {
-          _homeTimelineController(context).redactText(message);
+          final redacted = await _homeTimelineController(context)
+              .redactText(roomId, message);
+          if (!redacted && context.mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('Could not remove message. Try again.'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+          }
         }
       case _MessageAction.forward:
       case _MessageAction.report:

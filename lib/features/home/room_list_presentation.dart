@@ -510,6 +510,7 @@ bool _sameRoom(RoomListEntry left, RoomListEntry right) {
 }
 
 String _latestEventPreview(MatrixTimelineEvent event) {
+  if (event.redacted) return 'Message deleted';
   if (event.type == 'm.room.encrypted') return 'Unable to decrypt message';
   if (event.type != 'm.room.message') return 'Room activity';
   final newContent = event.content['m.new_content'];

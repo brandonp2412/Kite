@@ -95,6 +95,49 @@ void main() {
     expect(empty.summary!.lastActivity.millisecondsSinceEpoch, 500);
   });
 
+  test('sync preserves Matrix redaction targets and redacted-event state', () {
+    final codec = MatrixRustSyncCodec();
+    final decoded = codec.decodeSync(r'''
+      {
+        "cursor": "redaction-1",
+        "rooms": [{
+          "roomId": "!alpha:kite.test",
+          "displayName": "Alpha",
+          "latestEventTimestamp": 2000,
+          "events": [
+            {
+              "event_id": "$target",
+              "sender": "@alice:kite.test",
+              "type": "m.room.message",
+              "origin_server_ts": 1000,
+              "unsigned": {
+                "redacted_because": {
+                  "event_id": "$redaction",
+                  "type": "m.room.redaction"
+                }
+              },
+              "content": {}
+            },
+            {
+              "event_id": "$redaction",
+              "sender": "@alice:kite.test",
+              "type": "m.room.redaction",
+              "redacts": "$target",
+              "origin_server_ts": 2000,
+              "content": {}
+            }
+          ]
+        }]
+      }
+    ''');
+
+    final events = decoded.batch.rooms.single.timelineEvents;
+    expect(events.first.eventId, r'$target');
+    expect(events.first.redacted, isTrue);
+    expect(events.last.eventId, r'$redaction');
+    expect(events.last.redactsEventId, r'$target');
+  });
+
   test('sync decodes and incrementally reconciles room invites', () {
     final codec = MatrixRustSyncCodec();
     final initial = codec.decodeSync(r'''
