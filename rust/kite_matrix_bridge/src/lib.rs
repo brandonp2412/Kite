@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString, c_char};
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::ptr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -61,6 +62,9 @@ use tokio::{
 const KITE_MATRIX_ABI_VERSION: u32 = 29;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
+const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
+const KITE_MATRIX_MEDIA_THUMBNAIL_TIMEOUT: Duration = Duration::from_secs(2);
+const KITE_MATRIX_MEDIA_FILE_TIMEOUT: Duration = Duration::from_secs(20);
 const KITE_MATRIX_KEY_RECOVERY_CONCURRENCY: usize = 8;
 const KITE_MATRIX_VISIBLE_TIMELINE_EVENT_TYPES: [&str; 3] =
     ["m.room.message", "m.room.encrypted", "m.room.redaction"];
@@ -2793,6 +2797,17 @@ pub unsafe extern "C" fn kite_matrix_client_upload_media(
     ok_json(json!({"contentUri": response.content_uri.as_str()}))
 }
 
+async fn bounded_media_bytes<F, E>(future: F, timeout: Duration) -> Result<Option<Vec<u8>>, ()>
+where
+    F: Future<Output = Result<Vec<u8>, E>>,
+{
+    match tokio::time::timeout(timeout, future).await {
+        Ok(Ok(bytes)) if !bytes.is_empty() => Ok(Some(bytes)),
+        Ok(_) => Ok(None),
+        Err(_) => Err(()),
+    }
+}
+
 async fn prefetch_media_item(
     matrix_client: Client,
     content_uri: String,
@@ -2801,26 +2816,16 @@ async fn prefetch_media_item(
     height: UInt,
 ) -> (String, Option<Vec<u8>>) {
     let thumbnail = MediaRequestParameters {
-        source: source.clone(),
+        source,
         format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
     };
-    let file = MediaRequestParameters {
-        source,
-        format: MediaFormat::File,
-    };
-    let bytes = match matrix_client
-        .media()
-        .get_media_content(&thumbnail, true)
-        .await
-    {
-        Ok(bytes) if !bytes.is_empty() => Some(bytes),
-        _ => matrix_client
-            .media()
-            .get_media_content(&file, true)
-            .await
-            .ok()
-            .filter(|bytes| !bytes.is_empty()),
-    };
+    let bytes = bounded_media_bytes(
+        matrix_client.media().get_media_content(&thumbnail, true),
+        KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT,
+    )
+    .await
+    .ok()
+    .flatten();
     (content_uri, bytes)
 }
 
@@ -2985,6 +2990,7 @@ pub unsafe extern "C" fn kite_matrix_client_download_media(
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
+    let supports_thumbnail = matches!(&source, MediaSource::Plain(_));
     let thumbnail = MediaRequestParameters {
         source: source.clone(),
         format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
@@ -2993,25 +2999,31 @@ pub unsafe extern "C" fn kite_matrix_client_download_media(
         source,
         format: MediaFormat::File,
     };
-    let result = client.runtime.block_on(async {
-        match matrix_client
-            .media()
-            .get_media_content(&thumbnail, true)
+    let bytes = client.runtime.block_on(async {
+        if supports_thumbnail
+            && let Ok(Some(bytes)) = bounded_media_bytes(
+                matrix_client.media().get_media_content(&thumbnail, true),
+                KITE_MATRIX_MEDIA_THUMBNAIL_TIMEOUT,
+            )
             .await
         {
-            Ok(bytes) => Ok(bytes),
-            Err(_) => matrix_client.media().get_media_content(&file, true).await,
+            return Some(bytes);
         }
+
+        bounded_media_bytes(
+            matrix_client.media().get_media_content(&file, true),
+            KITE_MATRIX_MEDIA_FILE_TIMEOUT,
+        )
+        .await
+        .ok()
+        .flatten()
     });
-    let Ok(bytes) = result else {
+    let Some(bytes) = bytes else {
         return error_json(
             "media_download_failed",
             "The Matrix media file could not be downloaded.",
         );
     };
-    if bytes.is_empty() {
-        return error_json("media_download_failed", "The Matrix media file is empty.");
-    }
     if persist_session_if_access_token_changed(
         &client.runtime,
         matrix_client,
@@ -3366,6 +3378,29 @@ mod tests {
     #[test]
     fn abi_version_is_pinned() {
         assert_eq!(kite_matrix_abi_version(), 29);
+    }
+
+    #[test]
+    fn media_requests_are_bounded_and_reject_empty_payloads() {
+        let runtime = Builder::new_current_thread().enable_time().build().unwrap();
+
+        let timed_out = runtime.block_on(bounded_media_bytes(
+            std::future::pending::<Result<Vec<u8>, ()>>(),
+            Duration::from_millis(1),
+        ));
+        assert_eq!(timed_out, Err(()));
+
+        let empty = runtime.block_on(bounded_media_bytes(
+            async { Ok::<Vec<u8>, ()>(Vec::new()) },
+            Duration::from_secs(1),
+        ));
+        assert_eq!(empty, Ok(None));
+
+        let bytes = runtime.block_on(bounded_media_bytes(
+            async { Ok::<Vec<u8>, ()>(vec![1, 2, 3]) },
+            Duration::from_secs(1),
+        ));
+        assert_eq!(bytes, Ok(Some(vec![1, 2, 3])));
     }
 
     #[test]

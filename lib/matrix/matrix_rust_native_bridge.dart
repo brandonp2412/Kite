@@ -15,7 +15,7 @@ import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
 const int kiteMatrixNativeAbiVersion = 29;
 
-const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
+const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
 
 enum _MatrixRustSyncFailureCode {
@@ -3636,18 +3636,25 @@ final class MatrixRustSdkBoundary
     required List<String> contentUris,
     required int width,
     required int height,
-  }) {
-    return _enqueue<Map<String, Uint8List>>(() async {
-      final client = _requireClient();
-      if (client is! MatrixRustMediaPrefetchClient) {
-        return const <String, Uint8List>{};
-      }
-      return (client as MatrixRustMediaPrefetchClient).prefetchMedia(
-        contentUris: contentUris,
-        width: width,
-        height: height,
-      );
-    }, priority: _MatrixOperationPriority.background);
+  }) async {
+    if (contentUris.isEmpty) return const <String, Uint8List>{};
+
+    final prefetched = <String, Uint8List>{};
+    for (final contentUri in contentUris) {
+      final item = await _enqueue<Map<String, Uint8List>>(() async {
+        final client = _requireClient();
+        if (client is! MatrixRustMediaPrefetchClient) {
+          return const <String, Uint8List>{};
+        }
+        return (client as MatrixRustMediaPrefetchClient).prefetchMedia(
+          contentUris: <String>[contentUri],
+          width: width,
+          height: height,
+        );
+      }, priority: _MatrixOperationPriority.background);
+      prefetched.addAll(item);
+    }
+    return prefetched;
   }
 
   @override

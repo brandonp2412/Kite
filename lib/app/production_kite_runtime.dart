@@ -158,12 +158,10 @@ final class _AuthenticatedMatrixHomeState
   static const int _avatarTimelineEventLimit = 8;
   static const int _avatarPrefetchAttempts = 3;
   static const int _avatarPrefetchBatchSize = 6;
-  static const int _timelineMediaPrefetchLimit = 6;
   static const int _roomMemberPrefetchLimit = 6;
   static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
 
   final Set<String> _scheduledAvatarPrefetches = <String>{};
-  final Set<String> _scheduledTimelineMediaPrefetches = <String>{};
   final Map<String, List<MatrixSdkRoomMember>> _roomMemberCache =
       <String, List<MatrixSdkRoomMember>>{};
   final Map<String, Future<List<MatrixSdkRoomMember>>> _roomMemberLoads =
@@ -269,65 +267,10 @@ final class _AuthenticatedMatrixHomeState
           if (pending.length >= _avatarPrefetchLimit) break;
         }
       }
-      final seenMedia = <String>{};
-      final media = <({DateTime timestamp, TimelineAttachment attachment})>[];
-      for (final events in snapshot.timelines.values) {
-        for (final event in events.reversed) {
-          final message = TimelineMessage.fromMatrixEvent(
-            event,
-            currentUserId: widget.session.userId,
-          );
-          final attachment = message?.attachment;
-          final contentUri = attachment?.contentUri;
-          if (attachment?.kind != TimelineAttachmentKind.image ||
-              contentUri == null ||
-              !seenMedia.add(contentUri)) {
-            continue;
-          }
-          media.add((
-            timestamp: event.originServerTimestamp,
-            attachment: attachment!,
-          ));
-        }
-      }
-      media.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      if (media.isNotEmpty) {
-        unawaited(
-          _prefetchTimelineMedia(
-            generation,
-            media
-                .take(_timelineMediaPrefetchLimit)
-                .map((item) => item.attachment)
-                .toList(growable: false),
-          ),
-        );
-      }
       if (pending.isNotEmpty) {
         unawaited(_prefetchAvatars(generation, pending));
       }
     });
-  }
-
-  Future<void> _prefetchTimelineMedia(
-    int generation,
-    List<TimelineAttachment> attachments,
-  ) async {
-    for (final attachment in attachments) {
-      if (!mounted || generation != _avatarPrefetchGeneration) return;
-      final contentUri = attachment.contentUri;
-      if (contentUri == null ||
-          !_scheduledTimelineMediaPrefetches.add(contentUri)) {
-        continue;
-      }
-      final provider = _timelineMediaImageProvider(attachment);
-      if (provider == null) {
-        _scheduledTimelineMediaPrefetches.remove(contentUri);
-        continue;
-      }
-      if (!await precacheMatrixImage(provider, context)) {
-        _scheduledTimelineMediaPrefetches.remove(contentUri);
-      }
-    }
   }
 
   Future<void> _prefetchAvatars(
@@ -381,7 +324,6 @@ final class _AuthenticatedMatrixHomeState
     _disposeAvatarPrefetchEffect?.call();
     _disposeAvatarPrefetchEffect = null;
     _scheduledAvatarPrefetches.clear();
-    _scheduledTimelineMediaPrefetches.clear();
   }
 
   @override
