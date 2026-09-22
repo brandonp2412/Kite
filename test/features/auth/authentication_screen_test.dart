@@ -134,6 +134,34 @@ void main() {
     );
   });
 
+  testWidgets('homeserver continue requires a valid HTTPS address', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway();
+
+    await tester.pumpWidget(_app(gateway));
+
+    FilledButton continueButton() => tester.widget<FilledButton>(
+      find.byKey(const Key('discover-homeserver')),
+    );
+
+    expect(continueButton().onPressed, isNull);
+
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'http://matrix.example.org',
+    );
+    await tester.pump();
+    expect(continueButton().onPressed, isNull);
+
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.pump();
+    expect(continueButton().onPressed, isNotNull);
+  });
+
   testWidgets('discovers supported methods and signs in with password', (
     tester,
   ) async {
@@ -153,6 +181,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
 
@@ -168,6 +197,7 @@ void main() {
       find.byKey(const Key('password-field')),
       'correct horse battery staple',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('password-login')));
     await tester.pumpAndSettle();
 
@@ -177,6 +207,38 @@ void main() {
     expect(authenticated?.userId, '@alice:matrix.example.org');
     expect(find.text('correct horse battery staple'), findsNothing);
     expect(find.byKey(const Key('authenticated-session')), findsOneWidget);
+  });
+
+  testWidgets('password sign-in requires both credential fields', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthenticationGateway();
+
+    await tester.pumpWidget(_app(gateway));
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+
+    FilledButton signInButton() =>
+        tester.widget<FilledButton>(find.byKey(const Key('password-login')));
+
+    expect(signInButton().onPressed, isNull);
+
+    await tester.enterText(find.byKey(const Key('username-field')), 'alice');
+    await tester.pump();
+    expect(signInButton().onPressed, isNull);
+
+    await tester.enterText(find.byKey(const Key('password-field')), 'secret');
+    await tester.pump();
+    expect(signInButton().onPressed, isNotNull);
+
+    await tester.enterText(find.byKey(const Key('username-field')), '');
+    await tester.pump();
+    expect(signInButton().onPressed, isNull);
   });
 
   testWidgets('rejected password login clears the credential field', (
@@ -194,6 +256,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('username-field')), 'alice');
@@ -202,6 +265,7 @@ void main() {
       'credential-that-must-not-linger',
     );
 
+    await tester.pump();
     await tester.tap(find.byKey(const Key('password-login')));
     await tester.pumpAndSettle();
 
@@ -227,10 +291,12 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('username-field')), 'alice');
     await tester.enterText(find.byKey(const Key('password-field')), 'wrong');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('password-login')));
     await tester.pumpAndSettle();
 
@@ -252,6 +318,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
 
@@ -276,6 +343,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('username-field')), 'alice');
@@ -290,6 +358,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'other.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
 
@@ -386,6 +455,7 @@ void main() {
         find.byKey(const Key('password-field')),
         'credential-that-must-not-switch-accounts',
       );
+      await tester.pump();
       await tester.tap(find.byKey(const Key('password-login')));
       await tester.pumpAndSettle();
 
@@ -423,6 +493,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
 
@@ -458,6 +529,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -504,6 +576,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
 
@@ -546,6 +619,7 @@ void main() {
         find.byKey(const Key('homeserver-field')),
         'matrix.example.org',
       );
+      await tester.pump();
       await tester.tap(find.byKey(const Key('discover-homeserver')));
       await tester.pumpAndSettle();
 
@@ -595,6 +669,7 @@ void main() {
       find.byKey(const Key('homeserver-field')),
       'matrix.example.org',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('discover-homeserver')));
     await tester.pumpAndSettle();
 

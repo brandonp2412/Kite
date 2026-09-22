@@ -43,6 +43,7 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   late final TextEditingController _homeserverController;
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
+  late final Listenable _passwordLoginInputs;
 
   @override
   void initState() {
@@ -56,6 +57,10 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
       text: widget.expectedUserId ?? '',
     );
     _passwordController = TextEditingController();
+    _passwordLoginInputs = Listenable.merge(<Listenable>[
+      _usernameController,
+      _passwordController,
+    ]);
     final initialHomeserver = widget.initialHomeserver;
     if (initialHomeserver != null) {
       unawaited(_controller.discover(initialHomeserver.uri.toString()));
@@ -74,7 +79,30 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
     super.dispose();
   }
 
+  bool get _canDiscoverHomeserver {
+    try {
+      HomeserverAddress.parse(_homeserverController.text);
+      return true;
+    } on AuthenticationInputException {
+      return false;
+    }
+  }
+
+  bool get _canPasswordLogin =>
+      _usernameController.text.isNotEmpty &&
+      _passwordController.text.isNotEmpty;
+
+  void _discoverHomeserver() {
+    if (_controller.isBusy ||
+        widget.lockHomeserver ||
+        !_canDiscoverHomeserver) {
+      return;
+    }
+    unawaited(_controller.discover(_homeserverController.text));
+  }
+
   Future<void> _passwordLogin() async {
+    if (_controller.isBusy || !_canPasswordLogin) return;
     final password = _passwordController.text;
     _passwordController.clear();
     await _controller.loginWithPassword(
@@ -230,21 +258,28 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                               onChanged: (_) => _controller.clearError(),
                               onSubmitted: busy || widget.lockHomeserver
                                   ? null
-                                  : _controller.discover,
+                                  : (_) => _discoverHomeserver(),
                             ),
                             const SizedBox(height: 16),
-                            FilledButton(
-                              key: const Key('discover-homeserver'),
-                              onPressed: busy || widget.lockHomeserver
-                                  ? null
-                                  : () => _controller.discover(
-                                      _homeserverController.text,
-                                    ),
-                              child: Text(
-                                progress == AuthenticationProgress.discovering
-                                    ? 'Checking…'
-                                    : 'Continue',
-                              ),
+                            ListenableBuilder(
+                              listenable: _homeserverController,
+                              builder: (context, _) {
+                                return FilledButton(
+                                  key: const Key('discover-homeserver'),
+                                  onPressed:
+                                      busy ||
+                                          widget.lockHomeserver ||
+                                          !_canDiscoverHomeserver
+                                      ? null
+                                      : _discoverHomeserver,
+                                  child: Text(
+                                    progress ==
+                                            AuthenticationProgress.discovering
+                                        ? 'Checking…'
+                                        : 'Continue',
+                                  ),
+                                );
+                              },
                             ),
                             if (widget.scanQrCode != null &&
                                 !widget.lockHomeserver) ...<Widget>[
@@ -303,14 +338,22 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
                                     : (_) => _passwordLogin(),
                               ),
                               const SizedBox(height: 16),
-                              FilledButton(
-                                key: const Key('password-login'),
-                                onPressed: busy ? null : _passwordLogin,
-                                child: Text(
-                                  progress == AuthenticationProgress.signingIn
-                                      ? 'Signing in…'
-                                      : 'Sign in',
-                                ),
+                              ListenableBuilder(
+                                listenable: _passwordLoginInputs,
+                                builder: (context, _) {
+                                  return FilledButton(
+                                    key: const Key('password-login'),
+                                    onPressed: busy || !_canPasswordLogin
+                                        ? null
+                                        : _passwordLogin,
+                                    child: Text(
+                                      progress ==
+                                              AuthenticationProgress.signingIn
+                                          ? 'Signing in…'
+                                          : 'Sign in',
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                             if (methods.supports(
