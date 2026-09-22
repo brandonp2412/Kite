@@ -739,6 +739,10 @@ final class _AuthenticatedMatrixHomeState
                   roomId: roomId,
                   isFavourite: isFavourite,
                 ),
+            onMarkRoomRead: (roomId) => widget.runtime.markRoomRead(
+              accountId: widget.session.userId,
+              roomId: roomId,
+            ),
             onMarkAllRoomsRead: () => widget.runtime.markAllRoomsRead(
               accountId: widget.session.userId,
             ),

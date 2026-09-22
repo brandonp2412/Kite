@@ -335,6 +335,54 @@ void main() {
     },
   );
 
+  testWidgets('focusing an unread room marks that room read', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final previousSelectedRoomId = selectedRoomId.value;
+    timelineController.reset(fixtureProvider: (_) => const []);
+    addTearDown(() {
+      timelineController.reset(fixtureProvider: BenchmarkFixture.messagesFor);
+      selectedRoomId.value = previousSelectedRoomId;
+    });
+
+    const roomId = '!monday-night-12x12:example.org';
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: roomId,
+        name: 'Monday night 12x12',
+        latestEventBody: 'Latest message',
+        unreadCount: 20,
+      ),
+    ]);
+    final markedRead = <String>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(
+          roomListStore: store,
+          onMarkRoomRead: (roomId) async {
+            markedRead.add(roomId);
+            store.update(
+              store.roomSignal(roomId).value.copyWith(unreadCount: 0),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('room-unread-$roomId')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('room-$roomId')));
+    await tester.pump();
+
+    expect(selectedRoomId.value, roomId);
+    expect(markedRead, <String>[roomId]);
+    expect(find.byKey(const Key('room-unread-$roomId')), findsNothing);
+  });
+
   testWidgets('room rows render sender attribution and status decorations', (
     tester,
   ) async {

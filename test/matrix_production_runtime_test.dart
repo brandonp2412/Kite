@@ -218,8 +218,49 @@ void main() {
         isTrue,
       );
 
+      await runtime.markRoomRead(
+        accountId: '@alice:example.org',
+        roomId: '!room:example.org',
+      );
+      expect(boundary.readReceipts, <(String, String)>[
+        ('!room:example.org', r'$event1'),
+      ]);
+      expect(
+        cache.roomSummarySignal('!room:example.org').value?.unreadCount,
+        0,
+      );
+      expect(
+        cache.roomSummarySignal('!room:example.org').value?.highlightCount,
+        0,
+      );
+
+      boundary.emit(
+        MatrixSyncBatch(
+          cursor: 's2',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!room:example.org',
+              summary: MatrixRoomSummary(
+                roomId: '!room:example.org',
+                displayName: 'Real room',
+                lastActivity: DateTime.fromMillisecondsSinceEpoch(
+                  1001,
+                  isUtc: true,
+                ),
+                streamPosition: 1001,
+                lastEventId: r'$event1',
+                unreadCount: 4,
+                highlightCount: 1,
+              ),
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
       await runtime.markAllRoomsRead(accountId: '@alice:example.org');
       expect(boundary.readReceipts, <(String, String)>[
+        ('!room:example.org', r'$event1'),
         ('!room:example.org', r'$event1'),
       ]);
       expect(

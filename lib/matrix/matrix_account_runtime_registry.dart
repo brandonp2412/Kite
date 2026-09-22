@@ -520,6 +520,39 @@ final class MatrixAccountRuntimeRegistry {
     }
   }
 
+  Future<void> markRoomRead({
+    required String accountId,
+    required String roomId,
+  }) async {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      throw StateError(
+        'Cannot update Matrix read receipts for an inactive account',
+      );
+    }
+
+    final summary = active.cache.roomSummarySignal(roomId).value;
+    if (summary == null ||
+        (summary.unreadCount == 0 && summary.highlightCount == 0)) {
+      return;
+    }
+    final timeline = active.cache.timelineSignal(roomId).value;
+    final eventId =
+        summary.lastEventId ??
+        (timeline.isEmpty ? null : timeline.last.eventId);
+    if (eventId == null) {
+      throw StateError('Cannot mark a Matrix room read without a latest event');
+    }
+
+    await active.engine.markRoomRead(roomId, eventId);
+    final changed = active.cache.updateRoomRead(roomId);
+    if (changed && presentationStore != null) {
+      await _schedulePresentationWrite(normalizedAccountId, active.cache);
+    }
+  }
+
   Future<void> markAllRoomsRead({required String accountId}) async {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();

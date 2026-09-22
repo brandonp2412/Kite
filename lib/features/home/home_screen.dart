@@ -52,6 +52,7 @@ typedef RoomFavouriteChange = Future<void> Function(
   String roomId,
   bool isFavourite,
 );
+typedef MarkRoomRead = Future<void> Function(String roomId);
 typedef MarkAllRoomsRead = Future<void> Function();
 
 bool _isDesktopPlatform(BuildContext context) {
@@ -112,6 +113,7 @@ class HomeScreen extends StatelessWidget {
     this.timeline,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
+    this.onMarkRoomRead,
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
     this.profileAvatarImageProvider,
@@ -134,6 +136,7 @@ class HomeScreen extends StatelessWidget {
   final TimelineController? timeline;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
+  final MarkRoomRead? onMarkRoomRead;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
   final AvatarImageProvider? profileAvatarImageProvider;
@@ -148,6 +151,12 @@ class HomeScreen extends StatelessWidget {
   static const double sidebarWidth = 320;
   static const double tabletSidebarWidth = 300;
   static const double phoneBreakpoint = 600;
+
+  void _selectRoom(String roomId) {
+    selectRoom(roomId);
+    final markRoomRead = onMarkRoomRead;
+    if (markRoomRead != null) unawaited(markRoomRead(roomId));
+  }
 
   Future<void> _jumpToChat(
     BuildContext context,
@@ -166,7 +175,7 @@ class HomeScreen extends StatelessWidget {
         avatarImageProvider: profileAvatarImageProvider,
       ),
     );
-    if (roomId != null) selectRoom(roomId);
+    if (roomId != null) _selectRoom(roomId);
   }
 
   @override
@@ -202,7 +211,7 @@ class HomeScreen extends StatelessWidget {
                 recentPeople: recentPeople,
                 roomListLoading: roomListLoading,
                 onRoomTap: (roomId) {
-                  selectRoom(roomId);
+                  _selectRoom(roomId);
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _CompactChatScreen(
@@ -263,6 +272,7 @@ class HomeScreen extends StatelessWidget {
                     profileAvatarFallbackUri: profileAvatarFallbackUri,
                     recentPeople: recentPeople,
                     roomListLoading: roomListLoading,
+                    onRoomTap: _selectRoom,
                   ),
                 ),
                 const VerticalDivider(width: 1),

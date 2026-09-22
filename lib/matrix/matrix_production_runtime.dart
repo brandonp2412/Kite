@@ -466,6 +466,13 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<void> markRoomRead({
+    required String accountId,
+    required String roomId,
+  }) {
+    return accounts.markRoomRead(accountId: accountId, roomId: roomId);
+  }
+
   Future<void> markAllRoomsRead({required String accountId}) {
     return accounts.markAllRoomsRead(accountId: accountId);
   }

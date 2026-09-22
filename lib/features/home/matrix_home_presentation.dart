@@ -170,6 +170,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     this.moderationPort,
     this.onTimelineHistoryRequested,
     this.onRoomFavouriteChanged,
+    this.onMarkRoomRead,
     this.onMarkAllRoomsRead,
     this.onRoomInviteResponse,
     this.profileAvatarPicker,
@@ -191,6 +192,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final TimelineModerationPort? moderationPort;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final RoomFavouriteChange? onRoomFavouriteChanged;
+  final MarkRoomRead? onMarkRoomRead;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final MatrixRoomInviteResponse? onRoomInviteResponse;
   final AvatarPicker? profileAvatarPicker;
@@ -275,6 +277,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         memberManagement: widget.memberManagement,
         onTimelineHistoryRequested: widget.onTimelineHistoryRequested,
         onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
+        onMarkRoomRead: widget.onMarkRoomRead,
         onMarkAllRoomsRead: widget.onMarkAllRoomsRead,
         profileAvatarPicker: widget.profileAvatarPicker,
         profileAvatarImageProvider: widget.profileAvatarImageProvider,
