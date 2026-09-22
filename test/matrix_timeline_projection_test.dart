@@ -209,6 +209,18 @@ void main() {
               'key': <String, Object?>{'kty': 'oct', 'k': 'fixture-key'},
               'hashes': <String, Object?>{'sha256': 'fixture-hash'},
             },
+            'info': <String, Object?>{
+              'thumbnail_file': <String, Object?>{
+                'url': 'mxc://example.org/encrypted-thumbnail',
+                'v': 'v2',
+                'iv': 'fixture-thumbnail-iv',
+                'key': <String, Object?>{
+                  'kty': 'oct',
+                  'k': 'fixture-thumbnail-key',
+                },
+                'hashes': <String, Object?>{'sha256': 'fixture-thumbnail-hash'},
+              },
+            },
           },
         ),
         currentUserId: '@me:example.org',
@@ -221,6 +233,14 @@ void main() {
       expect(
         encrypted.attachment!.encryptedFile?['url'],
         'mxc://example.org/encrypted-image',
+      );
+      expect(
+        encrypted.attachment!.thumbnailContentUri,
+        'mxc://example.org/encrypted-thumbnail',
+      );
+      expect(
+        encrypted.attachment!.encryptedThumbnailFile?['url'],
+        'mxc://example.org/encrypted-thumbnail',
       );
     },
   );

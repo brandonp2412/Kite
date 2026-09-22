@@ -15,8 +15,9 @@ import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
 const int kiteMatrixNativeAbiVersion = 29;
 
-const Duration _matrixRustSyncPollTimeout = Duration(seconds: 5);
+const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
+const int _matrixRustMediaPrefetchBatchSize = 6;
 
 enum _MatrixRustSyncFailureCode {
   unknownPosition,
@@ -1522,14 +1523,14 @@ final class _MatrixNativePrefetchMediaOperation {
   const _MatrixNativePrefetchMediaOperation({
     required this.libraryPath,
     required this.address,
-    required this.contentUrisJson,
+    required this.mediaSourcesJson,
     required this.width,
     required this.height,
   });
 
   final String libraryPath;
   final int address;
-  final String contentUrisJson;
+  final String mediaSourcesJson;
   final int width;
   final int height;
 
@@ -1543,12 +1544,12 @@ final class _MatrixNativePrefetchMediaOperation {
         .lookupFunction<_StringFreeNative, _StringFreeDart>(
           'kite_matrix_string_free',
         );
-    final contentUrisUtf8 = contentUrisJson.toNativeUtf8(allocator: calloc);
+    final mediaSourcesUtf8 = mediaSourcesJson.toNativeUtf8(allocator: calloc);
     try {
       final payload = _readNativeString(
         prefetch(
           Pointer<Void>.fromAddress(address),
-          contentUrisUtf8.cast<Char>(),
+          mediaSourcesUtf8.cast<Char>(),
           width,
           height,
         ),
@@ -1620,7 +1621,7 @@ final class _MatrixNativePrefetchMediaOperation {
       }
       return Map<String, Uint8List>.unmodifiable(result);
     } finally {
-      calloc.free(contentUrisUtf8);
+      calloc.free(mediaSourcesUtf8);
     }
   }
 }
@@ -1926,6 +1927,8 @@ abstract interface class MatrixRustTimelineRedactionClient {
 abstract interface class MatrixRustMediaPrefetchClient {
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   });
@@ -2658,6 +2661,8 @@ final class MatrixRustNativeClient
   @override
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   }) {
@@ -2675,6 +2680,17 @@ final class MatrixRustNativeClient
         );
       }
       if (seen.add(normalized)) normalizedUris.add(normalized);
+    }
+    for (final entry in encryptedFiles.entries) {
+      if (!seen.contains(entry.key) || entry.value['url'] != entry.key) {
+        return Future<Map<String, Uint8List>>.error(
+          ArgumentError.value(
+            encryptedFiles,
+            'encryptedFiles',
+            'must map requested Matrix content URIs to matching encrypted files',
+          ),
+        );
+      }
     }
     if (normalizedUris.length > 32) {
       return Future<Map<String, Uint8List>>.error(
@@ -2698,13 +2714,21 @@ final class MatrixRustNativeClient
         ArgumentError.value(height, 'height', 'must be between 1 and 4096'),
       );
     }
-    final contentUrisJson = jsonEncode(normalizedUris);
+    final mediaSourcesJson = jsonEncode(<Map<String, Object?>>[
+      for (final contentUri in normalizedUris)
+        <String, Object?>{
+          'contentUri': contentUri,
+          'source': encryptedFiles.containsKey(contentUri)
+              ? <String, Object?>{'file': encryptedFiles[contentUri]!}
+              : contentUri,
+        },
+    ]);
     return _enqueue<Map<String, Uint8List>>(() async {
       return Isolate.run<Map<String, Uint8List>>(
         _MatrixNativePrefetchMediaOperation(
           libraryPath: libraryPath,
           address: _requireAddress(),
-          contentUrisJson: contentUrisJson,
+          mediaSourcesJson: mediaSourcesJson,
           width: width,
           height: height,
         ).call,
@@ -3634,20 +3658,45 @@ final class MatrixRustSdkBoundary
   @override
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
-  }) {
-    return _enqueue<Map<String, Uint8List>>(() async {
-      final client = _requireClient();
-      if (client is! MatrixRustMediaPrefetchClient) {
-        return const <String, Uint8List>{};
+  }) async {
+    if (contentUris.isEmpty) return const <String, Uint8List>{};
+
+    final prefetched = <String, Uint8List>{};
+    for (
+      var offset = 0;
+      offset < contentUris.length;
+      offset += _matrixRustMediaPrefetchBatchSize
+    ) {
+      final end =
+          offset + _matrixRustMediaPrefetchBatchSize < contentUris.length
+          ? offset + _matrixRustMediaPrefetchBatchSize
+          : contentUris.length;
+      final batch = contentUris.sublist(offset, end);
+      final item = await _enqueue<Map<String, Uint8List>>(() async {
+        final client = _requireClient();
+        if (client is! MatrixRustMediaPrefetchClient) {
+          return const <String, Uint8List>{};
+        }
+        return (client as MatrixRustMediaPrefetchClient).prefetchMedia(
+          contentUris: batch,
+          encryptedFiles: <String, Map<String, Object?>>{
+            for (final contentUri in batch)
+              contentUri: ?encryptedFiles[contentUri],
+          },
+          width: width,
+          height: height,
+        );
+      }, priority: _MatrixOperationPriority.background);
+      prefetched.addAll(item);
+      if (end < contentUris.length) {
+        await Future<void>.delayed(Duration.zero);
       }
-      return (client as MatrixRustMediaPrefetchClient).prefetchMedia(
-        contentUris: contentUris,
-        width: width,
-        height: height,
-      );
-    }, priority: _MatrixOperationPriority.background);
+    }
+    return prefetched;
   }
 
   @override

@@ -219,11 +219,14 @@ final class MatrixProductionRuntime
   Future<int> prefetchMedia({
     required String accountId,
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   }) => accounts.prefetchMedia(
     accountId: accountId,
     contentUris: contentUris,
+    encryptedFiles: encryptedFiles,
     width: width,
     height: height,
   );

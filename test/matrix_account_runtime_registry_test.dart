@@ -803,7 +803,7 @@ void main() {
         boundaries['@alice:example.org']!
             .lastSyncConfiguration
             ?.initialRoomListLimit,
-        200,
+        24,
       );
 
       startGate.complete();

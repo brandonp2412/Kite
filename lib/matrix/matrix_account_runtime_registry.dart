@@ -151,6 +151,8 @@ final class MatrixAccountRuntimeRegistry {
   Future<int> prefetchMedia({
     required String accountId,
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   }) {
@@ -160,6 +162,7 @@ final class MatrixAccountRuntimeRegistry {
     );
     return active.engine.prefetchMedia(
       contentUris: contentUris,
+      encryptedFiles: encryptedFiles,
       width: width,
       height: height,
     );

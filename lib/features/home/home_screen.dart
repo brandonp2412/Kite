@@ -2,11 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show
-        RenderAbstractViewport,
-        RenderSliver,
-        ScrollCacheExtent,
-        ScrollDirection;
+    show RenderAbstractViewport, RenderSliver, ScrollCacheExtent;
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
@@ -508,7 +504,6 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   final TextEditingController _searchController = TextEditingController();
   final List<void Function()> _disposeThreadUnreadEffects = <void Function()>[];
   String _searchQuery = '';
-  bool _headerVisible = true;
   UserProfileController? _loadedProfileController;
 
   RoomListStateStore get store => widget.store ?? _ownedStore!;
@@ -702,13 +697,16 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     }
   }
 
-  Future<void> _openRoomCreation() async {
+  Future<void> _openRoomCreation({
+    RoomCreationMode initialMode = RoomCreationMode.directMessage,
+  }) async {
     final coordinator = widget.roomCreation;
     if (coordinator == null) return;
     final created = await Navigator.of(context).push<KiteCreatedRoom>(
       MaterialPageRoute<KiteCreatedRoom>(
         builder: (routeContext) => RoomCreationScreen(
           coordinator: coordinator,
+          initialMode: initialMode,
           recentPeople: widget.recentPeople,
           onCreated: (room) => Navigator.of(routeContext).pop(room),
         ),
@@ -747,6 +745,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   @override
   Widget build(BuildContext context) {
     final account = AuthenticatedAccountScope.maybeOf(context);
+    final canCreateRoom = widget.roomCreation != null;
     final searchField = TextField(
       key: const Key('home-search'),
       controller: _searchController,
@@ -809,74 +808,36 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       ),
       onChanged: (value) => setState(() => _searchQuery = value),
     );
-    final canCreateRoom = widget.roomCreation != null;
-    return Stack(
+
+    return Column(
       children: <Widget>[
-        Column(
-          children: <Widget>[
-            AnimatedSize(
-              key: const Key('home-scroll-away-header'),
-              alignment: Alignment.topCenter,
-              duration: KiteMotion.resolve(context, KiteMotion.standard),
-              curve: KiteMotion.standardCurve,
-              child: _headerVisible
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        KiteSpacing.md,
-                        KiteSpacing.md,
-                        KiteSpacing.md,
-                        KiteSpacing.sm,
-                      ),
-                      child: searchField,
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            Expanded(
-              child: _RoomList(
-                store: store,
-                onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
-                onRoomTap: widget.onRoomTap,
-                query: _searchQuery,
-                roomListLoading: widget.roomListLoading,
-                bottomPadding: canCreateRoom ? 92 : 0,
-                onUserScroll: (direction) {
-                  if (direction == ScrollDirection.idle) return;
-                  final visible = direction == ScrollDirection.forward;
-                  if (_headerVisible == visible) return;
-                  setState(() => _headerVisible = visible);
-                },
-              ),
-            ),
-          ],
-        ),
-        if (canCreateRoom)
-          Positioned(
-            right: KiteSpacing.md,
-            bottom: KiteSpacing.md,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              width: _headerVisible ? 124 : 56,
-              height: 56,
-              child: FloatingActionButton.extended(
-                key: Key(
-                  _headerVisible
-                      ? 'new-chat-fab-extended'
-                      : 'new-chat-fab-compact',
-                ),
-                heroTag: null,
-                onPressed: _openRoomCreation,
-                tooltip: 'New chat',
-                isExtended: _headerVisible,
-                icon: const Icon(Icons.edit_rounded),
-                label: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _headerVisible ? 1 : 0,
-                  child: const Text('New chat'),
-                ),
-              ),
-            ),
+        Expanded(
+          child: _RoomList(
+            key: ValueKey<String>(_searchQuery),
+            store: store,
+            onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
+            onRoomTap: widget.onRoomTap,
+            query: _searchQuery,
+            roomListLoading: widget.roomListLoading,
+            onCreateRoom: canCreateRoom
+                ? () => _openRoomCreation(
+                    initialMode: RoomCreationMode.privateRoom,
+                  )
+                : null,
           ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              KiteSpacing.md,
+              KiteSpacing.sm,
+              KiteSpacing.md,
+              KiteSpacing.md,
+            ),
+            child: searchField,
+          ),
+        ),
       ],
     );
   }
@@ -1294,8 +1255,8 @@ class _RoomList extends StatelessWidget {
     this.onRoomTap,
     this.query = '',
     this.roomListLoading = false,
-    this.onUserScroll,
-    this.bottomPadding = 0,
+    this.onCreateRoom,
+    super.key,
   });
 
   final RoomListStateStore store;
@@ -1303,8 +1264,7 @@ class _RoomList extends StatelessWidget {
   final ValueChanged<String>? onRoomTap;
   final String query;
   final bool roomListLoading;
-  final ValueChanged<ScrollDirection>? onUserScroll;
-  final double bottomPadding;
+  final VoidCallback? onCreateRoom;
 
   Future<void> _showRoomOptionsSheet(
     BuildContext context,
@@ -1534,7 +1494,9 @@ class _RoomList extends StatelessWidget {
                         false);
               })
               .toList(growable: false);
-          if (ids.isEmpty) {
+          final showCreateRoom =
+              normalizedQuery.isNotEmpty && onCreateRoom != null;
+          if (ids.isEmpty && !showCreateRoom) {
             if (roomListLoading && store.roomIds.isEmpty) {
               return const Center(
                 child: CircularProgressIndicator(key: Key('room-list-loading')),
@@ -1549,19 +1511,26 @@ class _RoomList extends StatelessWidget {
               ),
             );
           }
-          return NotificationListener<UserScrollNotification>(
-            onNotification: (notification) {
-              onUserScroll?.call(notification.direction);
-              return false;
+          return ListView.builder(
+            key: const Key('room-list'),
+            itemCount: ids.length + (showCreateRoom ? 1 : 0),
+            itemExtent: rowExtent,
+            itemBuilder: (context, index) {
+              if (showCreateRoom && index == 0) {
+                return SizedBox(
+                  height: rowExtent,
+                  child: ListTile(
+                    key: const Key('create-room-search-result'),
+                    leading: const Icon(Icons.add_box_outlined),
+                    title: const Text('Create room'),
+                    subtitle: const Text('Private or public room'),
+                    onTap: onCreateRoom,
+                  ),
+                );
+              }
+              final roomIndex = showCreateRoom ? index - 1 : index;
+              return _roomRow(context, ids[roomIndex], rowExtent);
             },
-            child: ListView.builder(
-              key: const Key('room-list'),
-              padding: EdgeInsets.only(bottom: bottomPadding),
-              itemCount: ids.length,
-              itemExtent: rowExtent,
-              itemBuilder: (context, index) =>
-                  _roomRow(context, ids[index], rowExtent),
-            ),
           );
         },
       ),
@@ -3488,9 +3457,12 @@ class _MessageRow extends StatelessWidget {
                               messageId: message.id,
                               attachment: attachment,
                               audioPlaybackState: message.audioPlaybackState,
-                              imageProvider: _homeTimelineMediaImageProvider(
-                                context,
-                              )?.call(attachment),
+                              imageProvider:
+                                  _homeTimelineMediaImageProvider(context)
+                                      ?.call(
+                                        attachment,
+                                        TimelineMediaImageVariant.thumbnail,
+                                      ),
                               heroTag: attachment.kind.isVisualMedia
                                   ? timelineMediaHeroTag(message)
                                   : null,

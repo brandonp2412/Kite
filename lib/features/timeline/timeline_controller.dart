@@ -302,6 +302,8 @@ final class TimelineAttachment {
     this.durationLabel,
     this.contentUri,
     this.encryptedFile,
+    this.thumbnailContentUri,
+    this.encryptedThumbnailFile,
   });
 
   final String id;
@@ -311,6 +313,8 @@ final class TimelineAttachment {
   final String? durationLabel;
   final String? contentUri;
   final Map<String, Object?>? encryptedFile;
+  final String? thumbnailContentUri;
+  final Map<String, Object?>? encryptedThumbnailFile;
 }
 
 abstract interface class TimelineAttachmentSendPort {
@@ -1587,6 +1591,20 @@ TimelineAttachment? _matrixAttachment(
     (_, final String value) when value.startsWith('mxc://') => value,
     _ => null,
   };
+  final thumbnailUrl = infoMap['thumbnail_url'];
+  final thumbnailFile = infoMap['thumbnail_file'];
+  final encryptedThumbnailFile = thumbnailFile is Map
+      ? Map<String, Object?>.unmodifiable(<String, Object?>{
+          for (final entry in thumbnailFile.entries)
+            if (entry.key is String) entry.key as String: entry.value,
+        })
+      : null;
+  final encryptedThumbnailUrl = encryptedThumbnailFile?['url'];
+  final thumbnailContentUri = switch ((thumbnailUrl, encryptedThumbnailUrl)) {
+    (final String value, _) when value.startsWith('mxc://') => value,
+    (_, final String value) when value.startsWith('mxc://') => value,
+    _ => null,
+  };
   return TimelineAttachment(
     id: contentUri ?? event.eventId,
     kind: kind,
@@ -1595,6 +1613,8 @@ TimelineAttachment? _matrixAttachment(
     durationLabel: durationLabel,
     contentUri: contentUri,
     encryptedFile: encryptedFile,
+    thumbnailContentUri: thumbnailContentUri,
+    encryptedThumbnailFile: encryptedThumbnailFile,
   );
 }
 

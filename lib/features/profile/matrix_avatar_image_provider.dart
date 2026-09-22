@@ -31,11 +31,17 @@ final class MatrixAvatarImageProvider
     required this.avatarUri,
     required this.cacheNamespace,
     required this.loadBytes,
+    this.cacheVariant,
+    this.cacheWidth,
+    this.cacheHeight,
   });
 
   final Uri avatarUri;
   final Object cacheNamespace;
   final MatrixMediaBytesLoader loadBytes;
+  final Object? cacheVariant;
+  final int? cacheWidth;
+  final int? cacheHeight;
 
   @override
   Future<MatrixAvatarImageProvider> obtainKey(
@@ -65,6 +71,15 @@ final class MatrixAvatarImageProvider
       PaintingBinding.instance.imageCache.evict(key);
       throw StateError('Matrix avatar media is empty');
     }
+    final targetWidth = cacheWidth;
+    final targetHeight = cacheHeight;
+    if (targetWidth != null || targetHeight != null) {
+      return ui.instantiateImageCodec(
+        bytes,
+        targetWidth: targetWidth,
+        targetHeight: targetHeight,
+      );
+    }
     return decode(await ui.ImmutableBuffer.fromUint8List(bytes));
   }
 
@@ -72,9 +87,18 @@ final class MatrixAvatarImageProvider
   bool operator ==(Object other) {
     return other is MatrixAvatarImageProvider &&
         other.avatarUri == avatarUri &&
-        identical(other.cacheNamespace, cacheNamespace);
+        identical(other.cacheNamespace, cacheNamespace) &&
+        other.cacheVariant == cacheVariant &&
+        other.cacheWidth == cacheWidth &&
+        other.cacheHeight == cacheHeight;
   }
 
   @override
-  int get hashCode => Object.hash(avatarUri, identityHashCode(cacheNamespace));
+  int get hashCode => Object.hash(
+    avatarUri,
+    identityHashCode(cacheNamespace),
+    cacheVariant,
+    cacheWidth,
+    cacheHeight,
+  );
 }

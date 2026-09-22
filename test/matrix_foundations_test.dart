@@ -154,6 +154,51 @@ void main() {
       await engine.close();
     });
 
+    test(
+      'prefetched encrypted timeline media is served from the 720px cache',
+      () async {
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.incrementalSync,
+          },
+        );
+        final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+        const contentUri = 'mxc://kite.test/encrypted-image';
+        final imageBytes = Uint8List.fromList(<int>[9, 8, 7, 6]);
+        const encryptedFile = <String, Object?>{'url': contentUri, 'v': 'v2'};
+        boundary.mediaBytes[contentUri] = imageBytes;
+
+        expect(
+          await engine.prefetchMedia(
+            contentUris: const <String>[contentUri],
+            encryptedFiles: const <String, Map<String, Object?>>{
+              contentUri: encryptedFile,
+            },
+            width: 720,
+            height: 720,
+          ),
+          1,
+        );
+
+        final loaded = await engine.downloadMedia(
+          contentUri: contentUri,
+          encryptedFile: encryptedFile,
+          width: 720,
+          height: 720,
+        );
+        expect(loaded, imageBytes);
+        expect(
+          boundary.mediaDownloadCalls,
+          0,
+          reason: 'Startup-warmed encrypted media must not download again.',
+        );
+
+        await engine.close();
+      },
+    );
+
     test('failed SDK sync start is stopped before retry', () async {
       final boundary = _FakeSdkBoundary(
         capabilities: const <MatrixSdkCapability>{
@@ -245,8 +290,8 @@ void main() {
       expect(boundary.openCalls, 1);
       expect(boundary.openedStore, same(_store));
       expect(boundary.startCalls, 1);
-      expect(boundary.lastSyncConfiguration?.initialRoomListLimit, 200);
-      expect(boundary.lastSyncConfiguration?.initialTimelineEventLimit, 20);
+      expect(boundary.lastSyncConfiguration?.initialRoomListLimit, 24);
+      expect(boundary.lastSyncConfiguration?.initialTimelineEventLimit, 8);
       expect(boundary.lastSyncConfiguration?.timelineEventLimit, 20);
       expect(boundary.lastSyncConfiguration?.resumeFromCursor, isNull);
       expect(boundary.stopCalls, 1);
@@ -887,6 +932,8 @@ final class _FakeSdkBoundary
   @override
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   }) async {

@@ -35,8 +35,11 @@ final class DeterministicTimelineMediaActionPort
   }
 }
 
+enum TimelineMediaImageVariant { thumbnail, fullResolution }
+
 typedef TimelineMediaImageProvider = ImageProvider<Object>? Function(
   TimelineAttachment attachment,
+  TimelineMediaImageVariant variant,
 );
 
 abstract interface class TimelineMediaResolver {
@@ -56,7 +59,10 @@ final class DeterministicTimelineMediaResolver
     final attachment = message.attachment!;
     return (context) => TimelineMediaVisual(
       attachment: attachment,
-      imageProvider: imageProvider?.call(attachment),
+      imageProvider: imageProvider?.call(
+        attachment,
+        TimelineMediaImageVariant.thumbnail,
+      ),
     );
   }
 
@@ -66,7 +72,10 @@ final class DeterministicTimelineMediaResolver
     return Future<MediaVisualBuilder>.value(
       (context) => TimelineMediaVisual(
         attachment: attachment,
-        imageProvider: imageProvider?.call(attachment),
+        imageProvider: imageProvider?.call(
+          attachment,
+          TimelineMediaImageVariant.fullResolution,
+        ),
         detailed: true,
       ),
     );

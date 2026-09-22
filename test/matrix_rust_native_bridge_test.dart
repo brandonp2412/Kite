@@ -88,6 +88,59 @@ void main() {
     ]);
   });
 
+  test('visible media jumps ahead between batched prefetch items', () async {
+    final client = _FakeRustClient();
+    final prefetchGate = Completer<void>();
+    client.prefetchGate = prefetchGate;
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+      codecExecutor: _RecordingCodecExecutor(),
+    );
+    addTearDown(boundary.close);
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:kite.test',
+        storePath: '/tmp/kite/alice-media-priority',
+        encryptionKeyId: 'alice-media-priority-key',
+      ),
+    );
+
+    final prefetch = boundary.prefetchMedia(
+      contentUris: const <String>[
+        'mxc://kite.test/avatar-1',
+        'mxc://kite.test/avatar-2',
+        'mxc://kite.test/avatar-3',
+        'mxc://kite.test/avatar-4',
+        'mxc://kite.test/avatar-5',
+        'mxc://kite.test/avatar-6',
+        'mxc://kite.test/avatar-7',
+        'mxc://kite.test/avatar-8',
+      ],
+      width: 96,
+      height: 96,
+    );
+    await client.prefetchStarted.future;
+
+    final download = boundary.downloadMedia(
+      contentUri: 'mxc://kite.test/visible-image',
+      width: 1280,
+      height: 1280,
+    );
+
+    prefetchGate.complete();
+    await Future.wait<Object?>(<Future<Object?>>[prefetch, download]);
+
+    expect(client.operationOrder, <String>[
+      'prefetch-1',
+      'download-media',
+      'prefetch-2',
+    ]);
+    expect(client.prefetchBatchSizes, <int>[6, 2]);
+  });
+
   test(
     'native boundary routes password login and idempotent text send',
     () async {
@@ -694,7 +747,7 @@ void main() {
 
       expect(client.syncTimeouts.take(2), <Duration>[
         Duration.zero,
-        const Duration(seconds: 5),
+        const Duration(seconds: 1),
       ]);
       expect(client.syncTimelineEventLimits.take(2), <int>[17, 17]);
       expect(client.syncTokens.take(2), <String?>['resume-42', 'sync-1']);
@@ -797,8 +850,8 @@ void main() {
       expect(batches.first.cursor, 'recovered');
       expect(client.syncCalls, greaterThanOrEqualTo(8));
       expect(client.syncTimeouts.take(7), everyElement(Duration.zero));
-      expect(client.syncTimeouts[7], const Duration(seconds: 5));
-      expect(client.syncTimelineEventLimits.take(7), everyElement(20));
+      expect(client.syncTimeouts[7], const Duration(seconds: 1));
+      expect(client.syncTimelineEventLimits.take(7), everyElement(8));
       expect(client.syncTimelineEventLimits[7], 20);
       final failedLogs = logSink.events
           .where(
@@ -1388,6 +1441,7 @@ final class _FakeRustClient
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
   final List<(String, String)> readReceipts = <(String, String)>[];
   final List<String> operationOrder = <String>[];
+  final List<int> prefetchBatchSizes = <int>[];
   Completer<void>? prefetchGate;
   final Completer<void> prefetchStarted = Completer<void>();
   int _prefetchCalls = 0;
@@ -1528,10 +1582,13 @@ final class _FakeRustClient
   @override
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
+    Map<String, Map<String, Object?>> encryptedFiles =
+        const <String, Map<String, Object?>>{},
     required int width,
     required int height,
   }) async {
     _prefetchCalls += 1;
+    prefetchBatchSizes.add(contentUris.length);
     operationOrder.add('prefetch-$_prefetchCalls');
     if (_prefetchCalls == 1 && prefetchGate != null) {
       if (!prefetchStarted.isCompleted) prefetchStarted.complete();
@@ -1592,6 +1649,7 @@ final class _FakeRustClient
     required int width,
     required int height,
   }) async {
+    operationOrder.add('download-media');
     mediaDownloads.add((contentUri, width, height));
     return Uint8List.fromList(<int>[4, 3, 2, 1]);
   }
