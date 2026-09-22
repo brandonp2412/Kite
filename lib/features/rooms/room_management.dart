@@ -104,6 +104,10 @@ abstract interface class RoomUserSearchPort {
   Future<List<KiteUserSearchResult>> searchUsers(String query);
 }
 
+abstract interface class DirectMessageOpenPort {
+  Future<KiteCreatedRoom> openDirectMessage(String userId);
+}
+
 abstract interface class RoomManagementPort {
   Future<KiteRoomCapabilities> capabilities();
 
@@ -202,6 +206,27 @@ final class RoomManagementCoordinator {
       return const <KiteUserSearchResult>[];
     }
     return (_rooms as RoomUserSearchPort).searchUsers(query);
+  }
+
+  Future<KiteCreatedRoom> openDirectMessage(String rawUserId) async {
+    final userId = _matrixUserId(rawUserId);
+    final rooms = _rooms;
+    if (rooms is DirectMessageOpenPort) {
+      final opened = await (rooms as DirectMessageOpenPort).openDirectMessage(
+        userId,
+      );
+      final roomId = _roomId(opened.roomId);
+      await _directMetadata.replaceDirectRoomMapping(
+        roomId: roomId,
+        userIds: <String>{userId},
+      );
+      return KiteCreatedRoom(
+        roomId: roomId,
+        isDirect: true,
+        displayName: opened.displayName,
+      );
+    }
+    return createDirectMessage(userId);
   }
 
   Future<KiteCreatedRoom> createDirectMessage(String rawUserId) async {

@@ -55,6 +55,45 @@ void main() {
     },
   );
 
+  test('production direct-message open uses the Matrix DM fast path', () async {
+    MatrixSdkRoomCreationRequest? createdRequest;
+    String? openedUserId;
+    final port = MatrixRoomCreationManagementPort(
+      (request) async {
+        createdRequest = request;
+        return const MatrixSdkCreatedRoom(
+          roomId: '!unexpected:example.org',
+          isDirect: true,
+        );
+      },
+      reportRoom: (_, _) async {},
+      reportUser: (_, _, _) async {},
+      leaveRoom: (_) async {},
+      forgetRoom: (_) async {},
+      roomDetails: _details,
+      setName: (_, _) async {},
+      setTopic: (_, _) async {},
+      setAvatar: (_, _) async {},
+      setCanonicalAlias: (_, _) async {},
+      setJoinRule: (_, _) async {},
+      enableEncryption: (_) async {},
+      setHistoryVisibility: (_, _) async {},
+      setNotificationMode: (_, _) async {},
+      directMessageOpen: (userId) async {
+        openedUserId = userId;
+        return '!existing-dm:example.org';
+      },
+    );
+
+    final opened = await port.openDirectMessage('@bob:example.org');
+
+    expect(openedUserId, '@bob:example.org');
+    expect(opened.roomId, '!existing-dm:example.org');
+    expect(opened.isDirect, isTrue);
+    expect(opened.displayName, '@bob:example.org');
+    expect(createdRequest, isNull);
+  });
+
   test(
     'production creation capabilities expose only implemented join rules',
     () async {

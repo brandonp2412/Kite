@@ -697,15 +697,17 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     );
     if (!mounted || created == null) return;
 
-    store.addPendingRoom(
-      RoomListEntry(
-        id: created.roomId,
-        name: created.displayName,
-        latestEventBody: '',
-        isDirect: created.isDirect,
-        isPendingSync: true,
-      ),
-    );
+    if (!store.roomIds.contains(created.roomId)) {
+      store.addPendingRoom(
+        RoomListEntry(
+          id: created.roomId,
+          name: created.displayName,
+          latestEventBody: '',
+          isDirect: created.isDirect,
+          isPendingSync: true,
+        ),
+      );
+    }
     _searchController.clear();
     setState(() => _searchQuery = '');
 

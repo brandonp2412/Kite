@@ -67,18 +67,9 @@ void main() {
 
     await tester.tap(find.byKey(const Key('room-create-user-result-0')));
     await tester.pump();
-    expect(
-      tester
-          .widget<TextField>(find.byKey(const Key('room-create-user-id')))
-          .controller!
-          .text,
-      '@bob:example.org',
-    );
-
-    await tester.tap(find.byKey(const Key('room-create-submit')));
-    await tester.pump();
 
     expect(created?.isDirect, isTrue);
+    expect(created?.displayName, '@bob:example.org');
     expect(
       fixture.rooms.invocations
           .where(

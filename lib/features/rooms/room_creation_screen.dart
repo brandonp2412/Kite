@@ -193,6 +193,9 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
       _userSearchError = null;
       _userSearchResults = const <KiteUserSearchResult>[];
     });
+    if (_mode == RoomCreationMode.directMessage) {
+      unawaited(_create());
+    }
   }
 
   Future<void> _create() async {
@@ -204,7 +207,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
     try {
       final created = switch (_mode) {
         RoomCreationMode.directMessage =>
-          await widget.coordinator.createDirectMessage(_userId.text),
+          await widget.coordinator.openDirectMessage(_userId.text),
         RoomCreationMode.privateRoom =>
           await widget.coordinator.createPrivateRoom(
             name: _name.text,

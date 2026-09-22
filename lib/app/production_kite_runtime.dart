@@ -722,6 +722,10 @@ final class _AuthenticatedMatrixHomeState
           accountId: widget.session.userId,
           query: query,
         ),
+        directMessageOpen: (userId) => widget.runtime.openDirectMessage(
+          accountId: widget.session.userId,
+          userId: userId,
+        ),
       ),
       directMetadata: const MatrixDirectRoomMetadataPort(),
     );

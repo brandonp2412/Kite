@@ -90,6 +90,29 @@ final class _HomeProfileGateway implements UserProfileGateway {
   }) async {}
 }
 
+final class _ExistingDirectRoomPort
+    implements RoomManagementPort, DirectMessageOpenPort {
+  const _ExistingDirectRoomPort(this.roomId);
+
+  final String roomId;
+
+  @override
+  Future<KiteRoomCapabilities> capabilities() async => KiteRoomCapabilities(
+    canCreatePublicRooms: true,
+    supportedJoinRules: const <KiteRoomJoinRule>{
+      KiteRoomJoinRule.invite,
+      KiteRoomJoinRule.public,
+    },
+  );
+
+  @override
+  Future<KiteCreatedRoom> openDirectMessage(String userId) async =>
+      KiteCreatedRoom(roomId: roomId, isDirect: true, displayName: userId);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   test('room-list store updates one stable room signal', () {
     final rooms = deterministicRoomListEntries(BenchmarkFixture.rooms);
@@ -786,6 +809,70 @@ void main() {
     expect(find.byKey(const Key('room-filter-sheet')), findsNothing);
     expect(store.selectedFilter.value, RoomListFilter.all);
   });
+
+  testWidgets(
+    'existing direct conversation focuses without replacing the synced room',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const roomId = '!alice:example.org';
+      const existing = RoomListEntry(
+        id: roomId,
+        name: 'Alice',
+        latestEventBody: 'Existing message',
+        unreadCount: 3,
+        isDirect: true,
+      );
+      final store = RoomListStateStore(const <RoomListEntry>[existing]);
+      final coordinator = RoomManagementCoordinator(
+        rooms: const _ExistingDirectRoomPort(roomId),
+        directMetadata: DeterministicDirectRoomMetadataPort(),
+      );
+      final previousSelectedRoomId = selectedRoomId.value;
+      timelineController.reset(fixtureProvider: (_) => const []);
+      addTearDown(() {
+        timelineController.reset(fixtureProvider: BenchmarkFixture.messagesFor);
+        selectedRoomId.value = previousSelectedRoomId;
+      });
+      selectedRoomId.value = roomId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: HomeScreen(
+            roomListStore: store,
+            roomCreation: coordinator,
+            recentPeople: const <KiteUserSearchResult>[
+              KiteUserSearchResult(
+                userId: '@alice:example.org',
+                displayName: 'Alice',
+                avatarUrl: null,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('new-chat-fab-extended')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('room-create-user-result-0')));
+      await tester.pumpAndSettle();
+
+      expect(selectedRoomId.value, roomId);
+      expect(store.roomIds, const <String>[roomId]);
+      expect(store.roomSignal(roomId).value.isPendingSync, isFalse);
+      expect(
+        store.roomSignal(roomId).value.latestEventBody,
+        'Existing message',
+      );
+      expect(store.roomSignal(roomId).value.unreadCount, 3);
+      expect(find.byKey(const Key('room-creation-screen')), findsNothing);
+    },
+  );
 
   testWidgets('new room appears immediately while server sync catches up', (
     tester,
