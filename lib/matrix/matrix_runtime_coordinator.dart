@@ -25,6 +25,7 @@ final class MatrixRuntimeCoordinator
     required bool Function(MatrixPaginationPage) applyPagination,
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
+    this.syncWhileBackgrounded = false,
   }) : _sync = MatrixSyncCoordinator(engine: engine, applyBatch: applyBatch),
        _pagination = MatrixBackPaginationController(
          engine: engine,
@@ -35,6 +36,7 @@ final class MatrixRuntimeCoordinator
 
   final MatrixSyncCoordinator _sync;
   final MatrixBackPaginationController _pagination;
+  final bool syncWhileBackgrounded;
 
   MatrixAppActivity _activity;
   MatrixNetworkState _networkState;
@@ -43,8 +45,8 @@ final class MatrixRuntimeCoordinator
 
   bool get shouldSync =>
       _started &&
-      _activity == MatrixAppActivity.foreground &&
-      _networkState == MatrixNetworkState.online;
+      _networkState == MatrixNetworkState.online &&
+      (syncWhileBackgrounded || _activity == MatrixAppActivity.foreground);
 
   bool get isSyncing => _sync.isRunning;
 

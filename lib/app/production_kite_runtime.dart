@@ -6,6 +6,7 @@ import 'package:kite/app/kite_runtime.dart';
 import 'package:kite/app/platform_matrix_bootstrap_gateway.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
+import 'package:kite/features/notifications/platform_notification_runtime.dart';
 import 'package:kite/features/profile/matrix_avatar_image_provider.dart';
 import 'package:kite/features/profile/platform_avatar_picker.dart';
 import 'package:kite/features/rooms/matrix_room_creation_adapter.dart';
@@ -36,6 +37,7 @@ final class ProductionKiteRuntime extends StatefulWidget {
   const ProductionKiteRuntime._({
     required this.accountBoundary,
     required this.matrixRuntime,
+    required this.notifications,
   });
 
   static Future<ProductionKiteRuntime> create({
@@ -48,12 +50,15 @@ final class ProductionKiteRuntime extends StatefulWidget {
     final nativeBridge = MatrixRustNativeBridge(
       libraryPath: matrixRustNativeLibraryPath(),
     );
+    final notifications = ProductionNotificationRuntime();
     matrixRuntime = MatrixProductionRuntime(
       rootDirectory: root,
       resolveStoreSecret: gateway.resolveStoreSecret,
       encryptionKeyIdForAccount: (_) =>
           MatrixRustAuthSessionApi.encryptionKeyId,
       nativeBridge: nativeBridge,
+      syncWhileBackgrounded: notifications.isSupported,
+      onSyncBatch: notifications.handleSyncBatch,
     );
     final authApi = MatrixRustAuthSessionApi(
       homeserverDiscovery: const MatrixHomeserverDiscovery(
@@ -74,11 +79,13 @@ final class ProductionKiteRuntime extends StatefulWidget {
         deviceApi: MatrixProductionDeviceApi(matrixRuntime),
       ),
       matrixRuntime: matrixRuntime,
+      notifications: notifications,
     );
   }
 
   final NativeMatrixAccountSdkBoundary accountBoundary;
   final MatrixProductionRuntime matrixRuntime;
+  final ProductionNotificationRuntime notifications;
 
   @override
   State<ProductionKiteRuntime> createState() => _ProductionKiteRuntimeState();
@@ -94,6 +101,7 @@ final class _ProductionKiteRuntimeState extends State<ProductionKiteRuntime> {
     _sessionInvalidation = ValueNotifier<int>(0);
     _lifecycleBinding = MatrixLifecycleBinding(widget.matrixRuntime);
     unawaited(_lifecycleBinding.attach());
+    unawaited(widget.notifications.requestPermission());
   }
 
   @override

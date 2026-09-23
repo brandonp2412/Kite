@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:kite/matrix/matrix_account_store_registry.dart';
 import 'package:kite/matrix/matrix_engine.dart';
+import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_pagination_controller.dart';
 import 'package:kite/matrix/matrix_runtime_coordinator.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
@@ -12,6 +13,12 @@ import 'package:signals/signals.dart';
 
 typedef MatrixSdkBoundaryFactory = MatrixSdkBoundary Function(String accountId);
 typedef MatrixPresentationRetryDelay = Future<void> Function(int attempt);
+typedef MatrixSyncBatchObserver = Future<void> Function({
+  required String accountId,
+  required MatrixSyncBatch batch,
+  required bool isInitialSync,
+  required MatrixAppActivity activity,
+});
 
 const int _matrixPresentationWriteMaxAttempts = 3;
 
@@ -28,6 +35,8 @@ final class MatrixAccountRuntimeRegistry {
     this.presentationStore,
     this.presentationRoomLimit = 200,
     this.presentationTimelineEventLimit = 50,
+    this.syncWhileBackgrounded = false,
+    this.onSyncBatch,
     MatrixPresentationRetryDelay? presentationRetryDelay,
   }) : assert(presentationRoomLimit > 0),
        assert(presentationTimelineEventLimit > 0),
@@ -41,6 +50,8 @@ final class MatrixAccountRuntimeRegistry {
   final MatrixPresentationStore? presentationStore;
   final int presentationRoomLimit;
   final int presentationTimelineEventLimit;
+  final bool syncWhileBackgrounded;
+  final MatrixSyncBatchObserver? onSyncBatch;
   final MatrixPresentationRetryDelay _presentationRetryDelay;
   final Map<String, _MatrixAccountRuntime> _runtimes =
       <String, _MatrixAccountRuntime>{};
@@ -1109,7 +1120,19 @@ final class MatrixAccountRuntimeRegistry {
       final runtime = MatrixRuntimeCoordinator(
         engine: engine,
         applyBatch: (batch) {
+          final isInitialSync = cache.lastSyncCursor == null;
           cache.applySync(batch);
+          final observer = onSyncBatch;
+          if (observer != null) {
+            unawaited(
+              observer(
+                accountId: accountId,
+                batch: batch,
+                isInitialSync: isInitialSync,
+                activity: _activity,
+              ).catchError((Object _, StackTrace _) {}),
+            );
+          }
           if (presentationStore != null) {
             unawaited(_schedulePresentationWrite(accountId, cache));
           }
@@ -1123,6 +1146,7 @@ final class MatrixAccountRuntimeRegistry {
         },
         initialActivity: _activity,
         initialNetworkState: _networkState,
+        syncWhileBackgrounded: syncWhileBackgrounded,
       );
       final accountRuntime = _MatrixAccountRuntime(
         engine: engine,

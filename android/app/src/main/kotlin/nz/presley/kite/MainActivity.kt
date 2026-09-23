@@ -1,7 +1,13 @@
 package nz.presley.kite
 
+import android.Manifest
 import android.app.KeyguardManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
@@ -24,6 +30,7 @@ import javax.crypto.SecretKey
 
 class MainActivity : FlutterActivity() {
     private val appLockExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var notificationPermissionResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -35,6 +42,10 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             MATRIX_BOOTSTRAP_CHANNEL,
         ).setMethodCallHandler(::handleMatrixBootstrapCall)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            NOTIFICATION_CHANNEL,
+        ).setMethodCallHandler(::handleNotificationCall)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -46,8 +57,218 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             MATRIX_BOOTSTRAP_CHANNEL,
         ).setMethodCallHandler(null)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            NOTIFICATION_CHANNEL,
+        ).setMethodCallHandler(null)
+        notificationPermissionResult?.error(
+            "notification_permission_cancelled",
+            "Notification permission request was interrupted.",
+            null,
+        )
+        notificationPermissionResult = null
         appLockExecutor.shutdown()
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != NOTIFICATION_PERMISSION_REQUEST_CODE) return
+        val pending = notificationPermissionResult ?: return
+        notificationPermissionResult = null
+        pending.success(
+            grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+
+    private fun handleNotificationCall(call: MethodCall, result: MethodChannel.Result) {
+        try {
+            when (call.method) {
+                "requestPermission" -> requestNotificationPermission(result)
+                "show" -> {
+                    showNotification(call)
+                    result.success(null)
+                }
+                "cancel" -> {
+                    val routingId = requiredNotificationString(call, "routingId")
+                    notificationManager().cancel(stableNotificationId(routingId))
+                    result.success(null)
+                }
+                "showSummary" -> {
+                    showNotificationSummary(call)
+                    result.success(null)
+                }
+                "cancelSummary" -> {
+                    val groupKey = requiredNotificationString(call, "groupKey")
+                    notificationManager().cancel(stableNotificationId("summary:" + groupKey))
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        } catch (error: Throwable) {
+            result.error(
+                "notification_operation_failed",
+                error.message ?: "Notification operation failed.",
+                null,
+            )
+        }
+    }
+
+    private fun requestNotificationPermission(result: MethodChannel.Result) {
+        ensureNotificationChannel()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(true)
+            return
+        }
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            result.success(true)
+            return
+        }
+        if (notificationPermissionResult != null) {
+            result.error(
+                "notification_permission_pending",
+                "A notification permission request is already pending.",
+                null,
+            )
+            return
+        }
+        notificationPermissionResult = result
+        requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            NOTIFICATION_PERMISSION_REQUEST_CODE,
+        )
+    }
+
+    private fun showNotification(call: MethodCall) {
+        requireNotificationsAllowed()
+        ensureNotificationChannel()
+
+        val routingId = requiredNotificationString(call, "routingId")
+        val groupKey = requiredNotificationString(call, "groupKey")
+        val title = requiredNotificationString(call, "title")
+        val body = requiredNotificationString(call, "body")
+        val intent = notificationIntent(call, routingId)
+        val notification = notificationBuilder()
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(Notification.BigTextStyle().bigText(body))
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setAutoCancel(true)
+            .setGroup(groupKey)
+            .setContentIntent(intent)
+            .build()
+
+        notificationManager().notify(stableNotificationId(routingId), notification)
+    }
+
+    private fun showNotificationSummary(call: MethodCall) {
+        requireNotificationsAllowed()
+        ensureNotificationChannel()
+
+        val groupKey = requiredNotificationString(call, "groupKey")
+        val count = call.argument<Int>("count")
+            ?: throw IllegalArgumentException("Missing notification summary count.")
+        require(count > 1) { "Notification summary count must be greater than one." }
+        val body = count.toString() + " new notifications"
+        val notification = notificationBuilder()
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Kite")
+            .setContentText(body)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setGroup(groupKey)
+            .setGroupSummary(true)
+            .setAutoCancel(true)
+            .build()
+        notificationManager().notify(
+            stableNotificationId("summary:" + groupKey),
+            notification,
+        )
+    }
+
+    private fun notificationIntent(
+        call: MethodCall,
+        routingId: String,
+    ): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = NOTIFICATION_OPEN_ACTION
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("routingId", routingId)
+            putExtra("accountId", requiredNotificationString(call, "accountId"))
+            putExtra("roomId", requiredNotificationString(call, "roomId"))
+            optionalNotificationString(call, "eventId")?.let { putExtra("eventId", it) }
+            optionalNotificationString(call, "threadRootEventId")
+                ?.let { putExtra("threadRootEventId", it) }
+            optionalNotificationString(call, "callId")?.let { putExtra("callId", it) }
+        }
+        return PendingIntent.getActivity(
+            this,
+            stableNotificationId(routingId),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun notificationBuilder(): Notification.Builder =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+
+    private fun ensureNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        notificationManager().createNotificationChannel(
+            NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Messages",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Matrix messages and invitations"
+            },
+        )
+    }
+
+    private fun requireNotificationsAllowed() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            throw IllegalStateException("Notification permission has not been granted.")
+        }
+    }
+
+    private fun notificationManager(): NotificationManager =
+        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    private fun requiredNotificationString(call: MethodCall, name: String): String {
+        val value = call.argument<String>(name)
+            ?: throw IllegalArgumentException("Missing notification field: " + name)
+        require(value.isNotEmpty() && value == value.trim() && !value.contains(' ')) {
+            "Invalid notification field: " + name
+        }
+        return value
+    }
+
+    private fun optionalNotificationString(call: MethodCall, name: String): String? {
+        val value = call.argument<String>(name) ?: return null
+        require(value.isNotEmpty() && value == value.trim() && !value.contains(' ')) {
+            "Invalid notification field: " + name
+        }
+        return value
+    }
+
+    private fun stableNotificationId(value: String): Int {
+        val id = value.hashCode() and Int.MAX_VALUE
+        return if (id == 0) 1 else id
     }
 
     private fun handleMatrixBootstrapCall(call: MethodCall, result: MethodChannel.Result) {
@@ -307,6 +528,10 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val APP_LOCK_CHANNEL = "nz.presley.kite/app_lock"
         const val MATRIX_BOOTSTRAP_CHANNEL = "nz.presley.kite/matrix_bootstrap"
+        const val NOTIFICATION_CHANNEL = "nz.presley.kite/notifications"
+        const val NOTIFICATION_CHANNEL_ID = "kite_messages"
+        const val NOTIFICATION_OPEN_ACTION = "nz.presley.kite.OPEN_NOTIFICATION"
+        const val NOTIFICATION_PERMISSION_REQUEST_CODE = 4601
         const val PREFERENCES_NAME = "kite_app_lock"
         const val ENABLED_KEY = "enabled"
         const val BIOMETRICS_KEY = "biometrics_enabled"

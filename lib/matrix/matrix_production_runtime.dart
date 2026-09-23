@@ -42,6 +42,8 @@ final class MatrixProductionRuntime
     required String Function(String accountId) encryptionKeyIdForAccount,
     MatrixAppActivity initialActivity = MatrixAppActivity.foreground,
     MatrixNetworkState initialNetworkState = MatrixNetworkState.online,
+    bool syncWhileBackgrounded = false,
+    MatrixSyncBatchObserver? onSyncBatch,
     MatrixProductionBoundaryBuilder? boundaryBuilder,
     MatrixRustBridge? nativeBridge,
     StructuredLogger? logger,
@@ -53,6 +55,8 @@ final class MatrixProductionRuntime
       encryptionKeyIdForAccount: encryptionKeyIdForAccount,
       initialActivity: initialActivity,
       initialNetworkState: initialNetworkState,
+      syncWhileBackgrounded: syncWhileBackgrounded,
+      onSyncBatch: onSyncBatch,
       boundaryBuilder: boundaryBuilder,
       nativeBridge: nativeBridge,
       logger: logger,
@@ -66,6 +70,8 @@ final class MatrixProductionRuntime
     required String Function(String accountId) encryptionKeyIdForAccount,
     required MatrixAppActivity initialActivity,
     required MatrixNetworkState initialNetworkState,
+    required bool syncWhileBackgrounded,
+    required MatrixSyncBatchObserver? onSyncBatch,
     required this._boundaryBuilder,
     required this._nativeBridge,
     required this._logger,
@@ -90,6 +96,8 @@ final class MatrixProductionRuntime
       ),
       initialActivity: initialActivity,
       initialNetworkState: initialNetworkState,
+      syncWhileBackgrounded: syncWhileBackgrounded,
+      onSyncBatch: onSyncBatch,
     );
   }
 
