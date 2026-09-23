@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080">
+  <g transform="translate(205.2 205.2) scale(0.62)">
+<path d="M540 145 L655 420 L540 500 L425 420 Z" fill="#8EC4FD"/>
+  <path d="M935 540 L660 655 L580 540 L660 425 Z" fill="#8E81FD"/>
+  <path d="M540 935 L425 660 L540 580 L655 660 Z" fill="#494FE8"/>
+  <path d="M145 540 L420 425 L500 540 L420 655 Z" fill="#2F6AE6"/>
+  <path d="M540 420 L660 540 L540 660 L420 540 Z" fill="#65D8FF"/>
+  </g>
+</svg>

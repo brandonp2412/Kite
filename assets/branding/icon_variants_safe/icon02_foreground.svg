@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080">
+  <g transform="translate(205.2 205.2) scale(0.62)">
+<path d="M540 150 L540 500 L205 500 Z" fill="#8EC4FD"/>
+  <path d="M540 150 L875 500 L540 500 Z" fill="#8E81FD"/>
+  <path d="M875 500 L540 850 L540 500 Z" fill="#494FE8"/>
+  <path d="M205 500 L540 850 L540 500 Z" fill="#2F6AE6"/>
+  <path d="M540 850 L650 940 L565 915 L515 965 L500 885 Z" fill="#8EC4FD"/>
+  </g>
+</svg>
