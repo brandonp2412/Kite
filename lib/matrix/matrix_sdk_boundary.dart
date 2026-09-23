@@ -326,6 +326,28 @@ abstract interface class MatrixSdkPasswordAuthenticator {
   });
 }
 
+enum MatrixSdkCrossSigningTrustState { unknown, unverified, verified }
+
+final class MatrixSdkRoomEncryptionTrustDetails {
+  const MatrixSdkRoomEncryptionTrustDetails({
+    required this.roomId,
+    required this.isEncrypted,
+    required this.allDevicesVerified,
+  });
+
+  final String roomId;
+  final bool isEncrypted;
+  final bool? allDevicesVerified;
+}
+
+abstract interface class MatrixSdkRoomEncryptionTrustManager {
+  Future<MatrixSdkCrossSigningTrustState> loadCrossSigningTrust();
+
+  Future<MatrixSdkRoomEncryptionTrustDetails> loadRoomEncryptionTrust(
+    String roomId,
+  );
+}
+
 abstract interface class MatrixSdkEncryptionRecoveryManager {
   Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus();
 
@@ -475,6 +497,40 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       username: username,
       password: password,
     );
+  }
+
+  Future<MatrixSdkCrossSigningTrustState> loadCrossSigningTrust() async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomEncryptionTrustManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support cross-signing trust',
+      );
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkRoomEncryptionTrustManager)
+        .loadCrossSigningTrust();
+  }
+
+  Future<MatrixSdkRoomEncryptionTrustDetails> loadRoomEncryptionTrust(
+    String roomId,
+  ) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomEncryptionTrustManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room encryption trust',
+      );
+    }
+    final normalizedRoomId = _validatedRoomId(roomId);
+    await _ensureOpen();
+    final trust = await (manager as MatrixSdkRoomEncryptionTrustManager)
+        .loadRoomEncryptionTrust(normalizedRoomId);
+    if (trust.roomId != normalizedRoomId ||
+        (!trust.isEncrypted && trust.allDevicesVerified != null)) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary returned invalid room encryption trust data',
+      );
+    }
+    return trust;
   }
 
   Future<MatrixSdkEncryptionRecoveryStatus> encryptionRecoveryStatus() async {

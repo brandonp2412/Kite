@@ -279,6 +279,15 @@ final class MatrixProductionRuntime
     ignored: ignored,
   );
 
+  Future<MatrixSdkCrossSigningTrustState> loadCrossSigningTrust({
+    required String accountId,
+  }) => accounts.loadCrossSigningTrust(accountId: accountId);
+
+  Future<MatrixSdkRoomEncryptionTrustDetails> loadRoomEncryptionTrust({
+    required String accountId,
+    required String roomId,
+  }) => accounts.loadRoomEncryptionTrust(accountId: accountId, roomId: roomId);
+
   Future<List<MatrixSdkSessionDeviceDetails>> loadDevices({
     required String accountId,
   }) => accounts.loadDevices(accountId: accountId);

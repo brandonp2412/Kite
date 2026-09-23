@@ -119,6 +119,28 @@ final class _DeviceApi implements MatrixNativeDeviceApi {
   }
 }
 
+final class _EncryptionTrustApi implements MatrixNativeEncryptionTrustApi {
+  String? requestedRoomId;
+
+  @override
+  Future<MatrixSdkCrossSigningTrust> loadCrossSigningTrust() async =>
+      MatrixSdkCrossSigningTrust.verified;
+
+  @override
+  Future<MatrixSdkRoomEncryptionTrust> loadRoomEncryptionTrust(
+    String roomId,
+  ) async {
+    requestedRoomId = roomId;
+    return MatrixSdkRoomEncryptionTrust(
+      roomId: roomId,
+      isEncrypted: true,
+      trustState: MatrixSdkEncryptionTrustState.verified,
+      historySharingSupported: false,
+      historySharingEnabled: false,
+    );
+  }
+}
+
 final class _ProfileApi implements MatrixNativeProfileApi {
   final ignored = <String>{'@spam:example.org'};
   final writes = <(String, bool)>[];
@@ -255,6 +277,37 @@ void main() {
     await boundary.signOutDevice('PHONE', password: 'secret');
     expect(deviceApi.signedOut, <(String, String)>[('PHONE', 'secret')]);
   });
+
+  test(
+    'native encryption trust bridge exposes production room trust',
+    () async {
+      final trustApi = _EncryptionTrustApi();
+      final boundary = NativeMatrixAccountSdkBoundary(
+        _AuthApi(),
+        encryptionTrustApi: trustApi,
+      );
+
+      expect(
+        boundary.accountCapabilities,
+        contains(MatrixAccountSdkCapability.crossSigning),
+      );
+      expect(
+        boundary.accountCapabilities,
+        contains(MatrixAccountSdkCapability.roomEncryptionTrust),
+      );
+      expect(
+        await boundary.loadCrossSigningTrust(),
+        MatrixSdkCrossSigningTrust.verified,
+      );
+      final trust = await boundary.loadRoomEncryptionTrust(
+        '!secure:example.org',
+      );
+      expect(trustApi.requestedRoomId, '!secure:example.org');
+      expect(trust.isEncrypted, isTrue);
+      expect(trust.trustState, MatrixSdkEncryptionTrustState.verified);
+      expect(trust.historySharingSupported, isFalse);
+    },
+  );
 
   test(
     'privacy controls remain unavailable without a production profile api',

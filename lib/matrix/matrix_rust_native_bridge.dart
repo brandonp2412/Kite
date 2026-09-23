@@ -3507,6 +3507,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkMediaPrefetcher,
         MatrixSdkProfileManager,
         MatrixSdkEncryptionRecoveryManager,
+        MatrixSdkRoomEncryptionTrustManager,
         MatrixSdkDeviceManager,
         MatrixSdkRoomCreator,
         MatrixSdkRoomSettingsManager,
@@ -3726,6 +3727,53 @@ final class MatrixRustSdkBoundary
       }
       return bytes;
     }, priority: _MatrixOperationPriority.interactive);
+  }
+
+  @override
+  Future<MatrixSdkCrossSigningTrustState> loadCrossSigningTrust() {
+    return _enqueue<MatrixSdkCrossSigningTrustState>(() async {
+      final decoded = await _profile(action: 'cross_signing_trust');
+      return switch (decoded['trust']) {
+        'verified' => MatrixSdkCrossSigningTrustState.verified,
+        'unverified' => MatrixSdkCrossSigningTrustState.unverified,
+        'unknown' => MatrixSdkCrossSigningTrustState.unknown,
+        _ => throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid cross-signing trust data',
+        ),
+      };
+    });
+  }
+
+  @override
+  Future<MatrixSdkRoomEncryptionTrustDetails> loadRoomEncryptionTrust(
+    String roomId,
+  ) {
+    return _enqueue<MatrixSdkRoomEncryptionTrustDetails>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustRoomSettingsClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support room encryption trust',
+        );
+      }
+      final decoded = await (client as MatrixRustRoomSettingsClient)
+          .roomSettings(roomId: roomId, action: 'get_encryption_trust');
+      final returnedRoomId = decoded['roomId'];
+      final isEncrypted = decoded['isEncrypted'];
+      final allDevicesVerified = decoded['allDevicesVerified'];
+      if (returnedRoomId != roomId ||
+          isEncrypted is! bool ||
+          (allDevicesVerified != null && allDevicesVerified is! bool) ||
+          (!isEncrypted && allDevicesVerified != null)) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid room encryption trust data',
+        );
+      }
+      return MatrixSdkRoomEncryptionTrustDetails(
+        roomId: roomId,
+        isEncrypted: isEncrypted,
+        allDevicesVerified: allDevicesVerified as bool?,
+      );
+    });
   }
 
   @override

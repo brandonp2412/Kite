@@ -2443,6 +2443,32 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
         .map(|session| session.tokens.access_token);
 
     let response = match action {
+        "cross_signing_trust" => {
+            let Some(user_id) = matrix_client.user_id() else {
+                return error_json(
+                    "authentication_required",
+                    "The Matrix session is unavailable.",
+                );
+            };
+            let identity = match client
+                .runtime
+                .block_on(matrix_client.encryption().get_user_identity(user_id))
+            {
+                Ok(identity) => identity,
+                Err(_) => {
+                    return error_json(
+                        "cross_signing_trust_failed",
+                        "The Matrix cross-signing trust could not be loaded.",
+                    );
+                }
+            };
+            let trust = match identity {
+                Some(identity) if identity.is_verified() => "verified",
+                Some(_) => "unverified",
+                None => "unknown",
+            };
+            json!({"trust": trust})
+        }
         "get" => {
             let target_user_id = match user_id {
                 Some(user_id) => match UserId::parse(user_id) {
@@ -3145,6 +3171,40 @@ pub unsafe extern "C" fn kite_matrix_client_room_settings(
     let Some(room) = matrix_client.get_room(&room_id) else {
         return error_json("room_not_found", "The Matrix room is unavailable.");
     };
+
+    if action == "get_encryption_trust" {
+        let encryption_state = match client.runtime.block_on(room.latest_encryption_state()) {
+            Ok(state) => state,
+            Err(_) => {
+                return error_json(
+                    "room_encryption_trust_failed",
+                    "The Matrix room encryption state could not be loaded.",
+                );
+            }
+        };
+        let is_encrypted = encryption_state.is_encrypted();
+        let all_devices_verified = if is_encrypted {
+            match client
+                .runtime
+                .block_on(room.contains_only_verified_devices())
+            {
+                Ok(verified) => Some(verified),
+                Err(_) => {
+                    return error_json(
+                        "room_encryption_trust_failed",
+                        "The Matrix room verification state could not be loaded.",
+                    );
+                }
+            }
+        } else {
+            None
+        };
+        return ok_json(json!({
+            "roomId": room_id.as_str(),
+            "isEncrypted": is_encrypted,
+            "allDevicesVerified": all_devices_verified,
+        }));
+    }
 
     if action == "get" {
         let is_direct = match client.runtime.block_on(room.is_direct()) {
