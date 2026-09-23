@@ -6,6 +6,10 @@ abstract final class KiteLocalFormats {
     return MaterialLocalizations.of(context).formatShortDate(value);
   }
 
+  static String mediumDate(BuildContext context, DateTime value) {
+    return MaterialLocalizations.of(context).formatMediumDate(value);
+  }
+
   static String shortTime(BuildContext context, DateTime value) {
     return MaterialLocalizations.of(context).formatTimeOfDay(
       TimeOfDay.fromDateTime(value),

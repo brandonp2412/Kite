@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/spaces_controller.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 class SpacesRoute extends PageRouteBuilder<void> {
@@ -340,7 +341,8 @@ class _SpaceHero extends StatelessWidget {
               ),
               const SizedBox(height: KiteSpacing.xs),
               Text(
-                '${space.memberCount} members · ${space.rooms.length} rooms',
+                '${KiteLocalFormats.decimal(context, space.memberCount)} members · '
+                '${KiteLocalFormats.decimal(context, space.rooms.length)} rooms',
                 style: KiteTypography.metadata.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -406,7 +408,7 @@ class _SpaceRoomRow extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${room.memberCount} members',
+                      '${KiteLocalFormats.decimal(context, room.memberCount)} members',
                       style: KiteTypography.metadata.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
