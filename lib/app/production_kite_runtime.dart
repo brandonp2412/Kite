@@ -576,16 +576,23 @@ final class _AuthenticatedMatrixHomeState
     );
   }
 
-  ImageProvider<Object>? _profileAvatarImageProvider(Uri? avatarUri) {
+  ImageProvider<Object>? _profileAvatarImageProvider(
+    Uri? avatarUri, {
+    int? dimension,
+  }) {
     if (avatarUri == null) return null;
+    final targetDimension = dimension ?? 192;
     return MatrixAvatarImageProvider(
       avatarUri: avatarUri,
       cacheNamespace: widget.runtime,
+      cacheVariant: targetDimension,
+      cacheWidth: targetDimension,
+      cacheHeight: targetDimension,
       loadBytes: (contentUri) => widget.runtime.downloadMedia(
         accountId: widget.session.userId,
         contentUri: contentUri.toString(),
-        width: 192,
-        height: 192,
+        width: targetDimension,
+        height: targetDimension,
       ),
     );
   }

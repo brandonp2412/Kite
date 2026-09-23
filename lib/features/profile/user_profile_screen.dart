@@ -2,11 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:signals/signals_flutter.dart';
 
 typedef AvatarPicker = Future<Uri?> Function();
-typedef AvatarImageProvider = ImageProvider<Object>? Function(Uri? avatarUri);
+typedef AvatarImageProvider = ImageProvider<Object>? Function(
+  Uri? avatarUri, {
+  int? dimension,
+});
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen.own({
@@ -140,6 +144,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  void _openAvatar(
+    MatrixUserProfile profile,
+    ImageProvider<Object> thumbnailProvider,
+  ) {
+    final avatarUri = profile.avatarUri;
+    if (avatarUri == null) return;
+    final fullResolutionProvider =
+        widget.avatarImageProvider?.call(avatarUri, dimension: 1600) ??
+        thumbnailProvider;
+    final label = _profileLabel(profile);
+    final item = MediaViewerItem(
+      id: 'profile-avatar-${profile.userId}',
+      heroTag: _profileAvatarHeroTag(profile),
+      semanticLabel: '$label avatar',
+      thumbnailBuilder: (_) => Image(
+        image: thumbnailProvider,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        excludeFromSemantics: true,
+      ),
+      loadFullResolution: () async =>
+          (_) => Image(
+            image: fullResolutionProvider,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            excludeFromSemantics: true,
+          ),
+    );
+    Navigator.of(context)
+        .push(MediaViewerRoute(items: <MediaViewerItem>[item]));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -189,6 +225,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     imageProvider: widget.avatarImageProvider?.call(
                       profile.avatarUri,
                     ),
+                    onAvatarTap:
+                        profile.avatarUri == null ||
+                            widget.avatarImageProvider == null
+                        ? null
+                        : () {
+                            final provider = widget.avatarImageProvider!.call(
+                              profile.avatarUri,
+                            );
+                            if (provider != null) {
+                              _openAvatar(profile, provider);
+                            }
+                          },
                     blocked: widget.controller.isBlocked(profile.userId),
                     onEditDisplayName: () => _editDisplayName(profile),
                     onChangeAvatar: _changeAvatar,
@@ -265,6 +313,7 @@ class _ProfilePlaceholder extends StatelessWidget {
             privacyBusy: true,
             canChangeAvatar: canChangeAvatar,
             imageProvider: null,
+            onAvatarTap: null,
             blocked: false,
             onEditDisplayName: _noop,
             onChangeAvatar: _noop,
@@ -299,6 +348,7 @@ class _ProfileContent extends StatelessWidget {
     required this.privacyBusy,
     required this.canChangeAvatar,
     required this.imageProvider,
+    required this.onAvatarTap,
     required this.blocked,
     required this.onEditDisplayName,
     required this.onChangeAvatar,
@@ -314,6 +364,7 @@ class _ProfileContent extends StatelessWidget {
   final bool privacyBusy;
   final bool canChangeAvatar;
   final ImageProvider<Object>? imageProvider;
+  final VoidCallback? onAvatarTap;
   final bool blocked;
   final VoidCallback onEditDisplayName;
   final VoidCallback onChangeAvatar;
@@ -327,7 +378,11 @@ class _ProfileContent extends StatelessWidget {
     return Column(
       key: keyed ? const Key('profile-content-slot') : null,
       children: <Widget>[
-        _ProfileHeader(profile: profile, imageProvider: imageProvider),
+        _ProfileHeader(
+          profile: profile,
+          imageProvider: imageProvider,
+          onAvatarTap: onAvatarTap,
+        ),
         if (isOwnProfile)
           _OwnProfileActions(
             profile: profile,
@@ -352,14 +407,46 @@ class _ProfileContent extends StatelessWidget {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.profile, required this.imageProvider});
+  const _ProfileHeader({
+    required this.profile,
+    required this.imageProvider,
+    required this.onAvatarTap,
+  });
 
   final MatrixUserProfile profile;
   final ImageProvider<Object>? imageProvider;
+  final VoidCallback? onAvatarTap;
 
   @override
   Widget build(BuildContext context) {
     final label = _profileLabel(profile);
+    final avatar = Hero(
+      tag: _profileAvatarHeroTag(profile),
+      child: CircleAvatar(
+        key: const Key('profile-avatar'),
+        radius: 48,
+        backgroundImage: imageProvider,
+        child: imageProvider == null
+            ? Text(
+                _profileInitial(profile),
+                style: Theme.of(context).textTheme.headlineMedium,
+              )
+            : null,
+      ),
+    );
+    final avatarControl = onAvatarTap == null
+        ? Semantics(image: true, label: '$label avatar', child: avatar)
+        : Semantics(
+            button: true,
+            label: 'View $label avatar',
+            child: InkResponse(
+              key: const Key('profile-avatar-preview'),
+              onTap: onAvatarTap,
+              radius: 56,
+              child: avatar,
+            ),
+          );
+
     return SizedBox(
       key: const Key('profile-header'),
       height: 220,
@@ -368,21 +455,7 @@ class _ProfileHeader extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Semantics(
-              image: true,
-              label: '$label avatar',
-              child: CircleAvatar(
-                key: const Key('profile-avatar'),
-                radius: 48,
-                backgroundImage: imageProvider,
-                child: imageProvider == null
-                    ? Text(
-                        _profileInitial(profile),
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      )
-                    : null,
-              ),
-            ),
+            avatarControl,
             const SizedBox(height: KiteSpacing.md),
             Text(
               label,
@@ -521,6 +594,9 @@ class _OtherProfileActions extends StatelessWidget {
     );
   }
 }
+
+Object _profileAvatarHeroTag(MatrixUserProfile profile) =>
+    'profile-avatar-${profile.userId}';
 
 String _profileLabel(MatrixUserProfile profile) {
   final displayName = profile.displayName?.trim();

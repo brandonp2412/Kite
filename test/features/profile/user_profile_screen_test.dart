@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/profile/user_profile_screen.dart';
+import 'package:kite/testing/deterministic_adapters.dart';
 
 final class _FakeProfileGateway implements UserProfileGateway {
   MatrixUserProfile own = const MatrixUserProfile(
@@ -302,5 +303,51 @@ void main() {
     await tester.tap(find.byKey(const Key('profile-block')));
     await tester.pump();
     expect(controller.isBlocked('@alice:example.org'), isTrue);
+  });
+  testWidgets('profile avatar opens a high-resolution full-screen preview', (
+    tester,
+  ) async {
+    _useLargeView(tester);
+    final gateway = _FakeProfileGateway()
+      ..own = MatrixUserProfile(
+        userId: '@brandon:example.org',
+        displayName: 'Brandon',
+        avatarUri: Uri.parse('mxc://example.org/avatar'),
+      );
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+    await controller.loadOwnProfile();
+    final requestedDimensions = <int?>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserProfileScreen.own(
+          controller: controller,
+          loadOnInit: false,
+          avatarImageProvider: (avatarUri, {dimension}) {
+            expect(avatarUri, Uri.parse('mxc://example.org/avatar'));
+            requestedDimensions.add(dimension);
+            return MemoryImage(DeterministicImageFixtures.transparentPng1x1);
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('profile-avatar-preview')), findsOneWidget);
+    expect(find.byKey(const Key('media-viewer')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('profile-avatar-preview')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('media-viewer')), findsOneWidget);
+    expect(requestedDimensions, contains(null));
+    expect(requestedDimensions, contains(1600));
+    expect(find.byKey(const Key('media-save')), findsNothing);
+    expect(find.byKey(const Key('media-share')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('media-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('media-viewer')), findsNothing);
   });
 }
