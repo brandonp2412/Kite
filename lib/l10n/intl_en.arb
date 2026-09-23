@@ -2818,5 +2818,6 @@
   "systemDefault": "System default",
   "@systemDefault": {
     "description": "Use the device language instead of an app-specific override"
-  }
+  },
+  "sharedLocation": "Shared location"
 }
