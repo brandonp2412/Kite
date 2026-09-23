@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kite/features/settings/settings_layout.dart';
 import 'package:kite/features/settings/support_settings_controller.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 class SupportSettingsScreen extends StatefulWidget {
@@ -136,7 +137,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                                     '${about.version} (${about.buildNumber})',
                               ),
                               child: Text(
-                                'Open source licenses (${about.licenseCount})',
+                                'Open source licenses (${KiteLocalFormats.decimal(context, about.licenseCount)})',
                               ),
                             ),
                           ),
@@ -194,20 +195,13 @@ class _UsageTile extends StatelessWidget {
       trailing: SizedBox(
         width: 92,
         child: Text(
-          bytes == null ? '—' : _formatBytes(bytes!),
+          bytes == null
+              ? '—'
+              : KiteLocalFormats.binaryByteSize(context, bytes!),
           textAlign: TextAlign.end,
         ),
       ),
     );
-  }
-
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    final kib = bytes / 1024;
-    if (kib < 1024) return '${kib.toStringAsFixed(1)} KiB';
-    final mib = kib / 1024;
-    if (mib < 1024) return '${mib.toStringAsFixed(1)} MiB';
-    return '${(mib / 1024).toStringAsFixed(1)} GiB';
   }
 }
 

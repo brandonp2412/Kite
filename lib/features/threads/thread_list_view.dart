@@ -4,6 +4,7 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 class ThreadListRoute extends PageRouteBuilder<void> {
@@ -261,7 +262,7 @@ class _ThreadListRow extends StatelessWidget {
         return Semantics(
           button: true,
           label:
-              '${parent.sender}, ${parent.body}, $replyCount ${replyCount == 1 ? 'reply' : 'replies'}${unread > 0 ? ', $unread unread' : ''}',
+              '${parent.sender}, ${parent.body}, ${KiteLocalFormats.decimal(context, replyCount)} ${replyCount == 1 ? 'reply' : 'replies'}${unread > 0 ? ', ${KiteLocalFormats.decimal(context, unread)} unread' : ''}',
           child: InkWell(
             key: Key('thread-list-row-${parent.id}'),
             onTap: onTap,
@@ -340,7 +341,7 @@ class _ThreadListRow extends StatelessWidget {
                             ),
                             const SizedBox(width: KiteSpacing.xs),
                             Text(
-                              '$replyCount ${replyCount == 1 ? 'reply' : 'replies'}',
+                              '${KiteLocalFormats.decimal(context, replyCount)} ${replyCount == 1 ? 'reply' : 'replies'}',
                               style: KiteTypography.metadata.copyWith(
                                 color: colors.primary,
                                 fontWeight: FontWeight.w700,

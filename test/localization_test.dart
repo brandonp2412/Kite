@@ -74,6 +74,7 @@ void main() {
                 KiteLocalFormats.mediumDate(context, instant),
                 KiteLocalFormats.shortTime(context, instant),
                 KiteLocalFormats.decimal(context, 1234.5),
+                KiteLocalFormats.binaryByteSize(context, 1536),
               ];
               return const SizedBox();
             },
@@ -89,6 +90,8 @@ void main() {
     expect(values['en'], isNot(values['de']));
     expect(values['en']![3], '1,234.5');
     expect(values['de']![3], '1.234,5');
+    expect(values['en']![4], '1.5 KiB');
+    expect(values['de']![4], '1,5 KiB');
   });
 
   testWidgets('room-list counts use locale-aware number formatting', (

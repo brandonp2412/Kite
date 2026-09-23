@@ -17,8 +17,26 @@ abstract final class KiteLocalFormats {
     );
   }
 
-  static String decimal(BuildContext context, num value) {
+  static String decimal(BuildContext context, num value, {int? decimalDigits}) {
     final locale = Localizations.localeOf(context).toLanguageTag();
-    return NumberFormat.decimalPattern(locale).format(value);
+    final formatter = NumberFormat.decimalPattern(locale);
+    if (decimalDigits != null) {
+      formatter.minimumFractionDigits = decimalDigits;
+      formatter.maximumFractionDigits = decimalDigits;
+    }
+    return formatter.format(value);
+  }
+
+  static String binaryByteSize(BuildContext context, int bytes) {
+    if (bytes < 1024) return '${decimal(context, bytes)} B';
+    final kib = bytes / 1024;
+    if (kib < 1024) {
+      return '${decimal(context, kib, decimalDigits: 1)} KiB';
+    }
+    final mib = kib / 1024;
+    if (mib < 1024) {
+      return '${decimal(context, mib, decimalDigits: 1)} MiB';
+    }
+    return '${decimal(context, mib / 1024, decimalDigits: 1)} GiB';
   }
 }
