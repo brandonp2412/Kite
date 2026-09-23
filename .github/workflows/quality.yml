@@ -11,7 +11,10 @@ permissions:
 
 jobs:
   static-contract:
-    runs-on: ubuntu-latest
+    # Golden tests depend on the runner's font/rendering stack. Keep the
+    # Ubuntu major version explicit so a future latest-image migration does
+    # not silently invalidate every screenshot baseline.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -19,6 +22,8 @@ jobs:
 
       - name: Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.98.1'
 
       - name: Matrix Rust bridge
         run: |
@@ -55,10 +60,19 @@ jobs:
       - name: Deterministic tests and performance-contract pin
         run: flutter test
 
+      - name: Upload golden failure diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: test/failures
+          if-no-files-found: ignore
+          retention-days: 7
+
   android-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: static-contract
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     concurrency:
       group: kite-android-release
@@ -78,6 +92,7 @@ jobs:
       - name: Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: '1.98.1'
           targets: aarch64-linux-android,x86_64-linux-android
 
       - name: Flutter
