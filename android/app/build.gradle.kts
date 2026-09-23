@@ -78,6 +78,21 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["appLabel"] = "Kite"
+    }
+
+    flavorDimensions += "icon"
+    productFlavors {
+        create("icon01") { dimension = "icon"; applicationIdSuffix = ".icon01"; manifestPlaceholders["appLabel"] = "Kite Icon 01" }
+        create("icon02") { dimension = "icon"; applicationIdSuffix = ".icon02"; manifestPlaceholders["appLabel"] = "Kite Icon 02" }
+        create("icon03") { dimension = "icon"; applicationIdSuffix = ".icon03"; manifestPlaceholders["appLabel"] = "Kite Icon 03" }
+        create("icon04") { dimension = "icon"; applicationIdSuffix = ".icon04"; manifestPlaceholders["appLabel"] = "Kite Icon 04" }
+        create("icon05") { dimension = "icon"; applicationIdSuffix = ".icon05"; manifestPlaceholders["appLabel"] = "Kite Icon 05" }
+        create("icon06") { dimension = "icon"; applicationIdSuffix = ".icon06"; manifestPlaceholders["appLabel"] = "Kite Icon 06" }
+        create("icon07") { dimension = "icon"; applicationIdSuffix = ".icon07"; manifestPlaceholders["appLabel"] = "Kite Icon 07" }
+        create("icon08") { dimension = "icon"; applicationIdSuffix = ".icon08"; manifestPlaceholders["appLabel"] = "Kite Icon 08" }
+        create("icon09") { dimension = "icon"; applicationIdSuffix = ".icon09"; manifestPlaceholders["appLabel"] = "Kite Icon 09" }
+        create("icon10") { dimension = "icon"; applicationIdSuffix = ".icon10"; manifestPlaceholders["appLabel"] = "Kite Icon 10" }
     }
 
     signingConfigs {
