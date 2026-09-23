@@ -36,6 +36,7 @@ import 'package:kite/features/timeline/timeline_message_body.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/features/timeline/timeline_poll_card.dart';
 import 'package:kite/features/timeline/timeline_poll_sheet.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:kite/l10n/kite_localizations.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -988,9 +989,13 @@ class _RoomInvitesSheet extends StatelessWidget {
                         final pending =
                             state == RoomInviteActionState.accepting ||
                             state == RoomInviteActionState.declining;
+                        final memberCount = KiteLocalFormats.decimal(
+                          context,
+                          invite.memberCount,
+                        );
                         final memberLabel = invite.memberCount == 1
-                            ? '1 member'
-                            : '${invite.memberCount} members';
+                            ? '$memberCount member'
+                            : '$memberCount members';
                         final details = <String>[
                           'Invited by ${invite.inviterName}',
                           memberLabel,
@@ -1759,7 +1764,8 @@ class _RoomListRowState extends State<_RoomListRow> {
     final semantics = <String>[
       room.name,
       preview,
-      if (room.unreadCount > 0) '${room.unreadCount} unread',
+      if (room.unreadCount > 0)
+        '${KiteLocalFormats.decimal(context, room.unreadCount)} unread',
       if (room.hasMention) 'Mention',
       if (room.hasMutedActivity) 'Muted room has new activity',
       if (room.hasActiveCall) 'Active call',
@@ -1912,7 +1918,7 @@ class _RoomIndicators extends StatelessWidget {
           borderRadius: BorderRadius.circular(KiteRadii.pill),
         ),
         child: Text(
-          '@${room.unreadCount > 0 ? room.unreadCount : ''}',
+          '@${room.unreadCount > 0 ? KiteLocalFormats.decimal(context, room.unreadCount) : ''}',
           style: textTheme.labelSmall?.copyWith(
             color:
                 ThemeData.estimateBrightnessForColor(colors.mention) ==
@@ -1944,7 +1950,7 @@ class _RoomIndicators extends StatelessWidget {
           borderRadius: BorderRadius.circular(KiteRadii.pill),
         ),
         child: Text(
-          '${room.unreadCount}',
+          KiteLocalFormats.decimal(context, room.unreadCount),
           style: textTheme.labelSmall?.copyWith(
             color:
                 ThemeData.estimateBrightnessForColor(colors.unread) ==
@@ -2791,10 +2797,7 @@ String _timelineTimestampLabel(BuildContext context, TimelineMessage message) {
   if (message.id.startsWith('kite-local-')) return message.timeLabel;
   final sentAt = message.sentAt;
   if (sentAt == null) return message.timeLabel;
-  return MaterialLocalizations.of(context).formatTimeOfDay(
-    TimeOfDay.fromDateTime(sentAt),
-    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-  );
+  return KiteLocalFormats.shortTime(context, sentAt);
 }
 
 bool _startsNewTimelineDay(
@@ -2820,7 +2823,7 @@ class _TimelineDateSeparator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final label = MaterialLocalizations.of(context).formatMediumDate(date);
+    final label = KiteLocalFormats.mediumDate(context, date);
     return Semantics(
       header: true,
       label: label,

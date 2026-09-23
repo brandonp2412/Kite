@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:kite/l10n/kite_local_formats.dart';
 
@@ -68,6 +71,7 @@ void main() {
               final instant = DateTime(2026, 4, 7, 21, 5);
               values[locale.languageCode] = <String>[
                 KiteLocalFormats.shortDate(context, instant),
+                KiteLocalFormats.mediumDate(context, instant),
                 KiteLocalFormats.shortTime(context, instant),
                 KiteLocalFormats.decimal(context, 1234.5),
               ];
@@ -83,8 +87,46 @@ void main() {
     await capture(const Locale('de'));
 
     expect(values['en'], isNot(values['de']));
-    expect(values['en']![2], '1,234.5');
-    expect(values['de']![2], '1.234,5');
+    expect(values['en']![3], '1,234.5');
+    expect(values['de']![3], '1.234,5');
+  });
+
+  testWidgets('room-list counts use locale-aware number formatting', (
+    tester,
+  ) async {
+    selectRoom('locale-room');
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: 'locale-room',
+        name: 'Locale room',
+        latestEventBody: 'Localized counts',
+        unreadCount: 1234,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        locale: const Locale('de'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: HomeScreen(
+          roomListStore: store,
+          timeline: TimelineController(fixtureProvider: (_) => const []),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1.234'), findsOneWidget);
+    final semantics = tester.getSemantics(
+      find.byKey(const Key('room-locale-room')),
+    );
+    expect(semantics.getSemanticsData().label, contains('1.234 unread'));
   });
 
   testWidgets('time formatting respects the platform 24-hour preference', (

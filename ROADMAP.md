@@ -419,6 +419,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Accessible media labels and call controls.
 - [x] Localisation framework and plural handling.
 - [ ] Date/time/number formatting by locale.
+  - Progress 2026-09-24: the shared locale formatter now drives synced timeline times and date separators, invite/Space member and room counts, and room-list unread badges plus accessibility labels. A German widget regression verifies a four-digit unread count renders as 1.234 rather than 1,234. Focused home, Spaces, motion, localization, and date-separator coverage passes, full analysis is clean, and the full Flutter suite passes 1,143 tests with 5 intentional native-library skips. Keep unchecked until the remaining user-visible numeric/duration/storage labels are audited and the required runtime quality gate is green.
 - [ ] Phone portrait/landscape layouts.
 - [ ] Foldable/tablet layout.
 - [ ] Desktop-width Flutter layout that preserves the Element X visual language rather than simply stretching phone UI.
