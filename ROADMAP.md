@@ -284,6 +284,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Download/save media.
 - [ ] Share media internally and through the OS.
 - [ ] Avatar full-screen preview.
+  - 2026-09-23 progress: profile avatars open the shared hero-transition media viewer; regular avatar requests stay at 192px while the visible full-screen avatar requests 1600px media. Behavior, 120 Hz motion, full Flutter tests, analyze, and release audit pass. Keep this unchecked until the required device jitter gate completes for this branch.
 - [ ] Media/file/link gallery tabs where present upstream.
 - [ ] Content scanner/warning flow if part of current Element X public baseline.
 - [ ] Correct encrypted-media caching and cleanup.

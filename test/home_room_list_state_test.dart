@@ -436,7 +436,7 @@ void main() {
         theme: KiteTheme.light,
         home: HomeScreen(
           roomListStore: store,
-          profileAvatarImageProvider: (_) =>
+          profileAvatarImageProvider: (_, {dimension}) =>
               MemoryImage(DeterministicImageFixtures.transparentPng1x1),
         ),
       ),
@@ -577,7 +577,7 @@ void main() {
           signOut: () async {},
           child: HomeScreen(
             profileAvatarFallbackUri: cachedAvatar,
-            profileAvatarImageProvider: (avatarUri) {
+            profileAvatarImageProvider: (avatarUri, {dimension}) {
               imageProviderCalls += 1;
               expect(avatarUri, cachedAvatar);
               return MemoryImage(DeterministicImageFixtures.transparentPng1x1);
@@ -627,7 +627,7 @@ void main() {
           signOut: () async {},
           profileController: profile,
           child: HomeScreen(
-            profileAvatarImageProvider: (avatarUri) {
+            profileAvatarImageProvider: (avatarUri, {dimension}) {
               imageProviderCalls += 1;
               expect(avatarUri, Uri.parse('mxc://example.org/me-avatar'));
               return MemoryImage(DeterministicImageFixtures.transparentPng1x1);

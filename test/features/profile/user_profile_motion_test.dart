@@ -5,9 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/profile/user_profile_screen.dart';
+import 'package:kite/testing/deterministic_adapters.dart';
 
 final class _DeferredProfileGateway implements UserProfileGateway {
   final blockWrite = Completer<void>();
+  MatrixUserProfile ownProfile = const MatrixUserProfile(
+    userId: '@brandon:example.org',
+  );
   Completer<MatrixUserProfile>? ownProfileLoad;
 
   @override
@@ -20,7 +24,7 @@ final class _DeferredProfileGateway implements UserProfileGateway {
   Future<MatrixUserProfile> loadOwnProfile() async {
     final deferred = ownProfileLoad;
     if (deferred != null) return deferred.future;
-    return const MatrixUserProfile(userId: '@brandon:example.org');
+    return ownProfile;
   }
 
   @override
@@ -204,5 +208,55 @@ void main() {
     expect(_rectOf(tester, header), initialHeader);
     expect(_rectOf(tester, status), initialStatus);
     expect(controller.isBlocked('@alice:example.org'), isTrue);
+  });
+  testWidgets('avatar preview viewer stays stable at 120 Hz', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final gateway = _DeferredProfileGateway()
+      ..ownProfile = MatrixUserProfile(
+        userId: '@brandon:example.org',
+        displayName: 'Brandon',
+        avatarUri: Uri.parse('mxc://example.org/avatar'),
+      );
+    final controller = UserProfileController(gateway);
+    addTearDown(controller.dispose);
+    await controller.loadOwnProfile();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UserProfileScreen.own(
+          controller: controller,
+          loadOnInit: false,
+          avatarImageProvider: (_, {dimension}) =>
+              MemoryImage(DeterministicImageFixtures.transparentPng1x1),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('profile-avatar-preview')));
+    await tester.pumpAndSettle();
+    final viewer = find.byKey(const Key('media-viewer'));
+    final pageView = find.byKey(const Key('media-page-view'));
+    expect(viewer, findsOneWidget);
+    expect(pageView, findsOneWidget);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    final initialViewer = _rectOf(tester, viewer);
+    final initialPageView = _rectOf(tester, pageView);
+    await tester.tap(find.byKey(const Key('media-gesture-surface')));
+
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, viewer), initialViewer);
+      expect(_rectOf(tester, pageView), initialPageView);
+      expect(tester.takeException(), isNull);
+    }
   });
 }
