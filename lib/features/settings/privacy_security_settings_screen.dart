@@ -5,6 +5,7 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/auth/device_verification_controller.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
 import 'package:kite/features/auth/session_device_controller.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 class PrivacySecuritySettingsScreen extends StatefulWidget {
@@ -140,10 +141,10 @@ class _PrivacySecuritySettingsScreenState
                     devices.isEmpty
                         ? 'No device information loaded'
                         : unverifiedDevices > 0
-                        ? '${devices.length} devices · $unverifiedDevices unverified'
+                        ? '${KiteLocalFormats.decimal(context, devices.length)} devices · ${KiteLocalFormats.decimal(context, unverifiedDevices)} unverified'
                         : unknownDevices > 0
-                        ? '${devices.length} devices · $unknownDevices status unknown'
-                        : '${devices.length} devices · all verified',
+                        ? '${KiteLocalFormats.decimal(context, devices.length)} devices · ${KiteLocalFormats.decimal(context, unknownDevices)} status unknown'
+                        : '${KiteLocalFormats.decimal(context, devices.length)} devices · all verified',
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: widget.onOpenSessions,

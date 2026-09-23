@@ -9,6 +9,7 @@ import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_location_card.dart';
 import 'package:kite/features/timeline/timeline_location_share_sheet.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 class _ThreadLocationShareDelegate implements TimelineLocationShareDelegate {
@@ -392,7 +393,7 @@ class _ThreadViewState extends State<ThreadView> {
                               .value
                               .length;
                           return Text(
-                            '$count ${count == 1 ? 'reply' : 'replies'}',
+                            '${KiteLocalFormats.decimal(context, count)} ${count == 1 ? 'reply' : 'replies'}',
                             key: const Key('thread-reply-count'),
                             style: KiteTypography.metadata.copyWith(
                               color: colors.onSurfaceVariant,
@@ -1165,7 +1166,7 @@ class _ThreadReadReceiptAvatars extends StatelessWidget {
             Positioned(
               right: 0,
               child: Text(
-                '+${readers.length - 3}',
+                '+${KiteLocalFormats.decimal(context, readers.length - 3)}',
                 style: KiteTypography.metadata.copyWith(
                   color: colors.onSurfaceVariant,
                   fontSize: 10,

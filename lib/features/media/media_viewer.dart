@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 typedef MediaVisualBuilder = Widget Function(BuildContext context);
@@ -485,7 +486,7 @@ class _MediaTopControls extends StatelessWidget {
                               vertical: KiteSpacing.xs,
                             ),
                             child: Text(
-                              '${index + 1} of ${items.length}',
+                              '${KiteLocalFormats.decimal(context, index + 1)} of ${KiteLocalFormats.decimal(context, items.length)}',
                               key: const Key('media-counter'),
                               style: KiteTypography.metadata.copyWith(
                                 color: Colors.white,

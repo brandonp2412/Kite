@@ -2156,7 +2156,7 @@ class _TypingIndicator extends StatelessWidget {
                 1 => '${users.first} is typing…',
                 2 => '${users.first} and ${users.last} are typing…',
                 _ =>
-                  '${users.first} and ${users.length - 1} others are typing…',
+                  '${users.first} and ${KiteLocalFormats.decimal(context, users.length - 1)} others are typing…',
               };
               return KeyedSubtree(
                 key: const Key('typing-indicator'),
@@ -3143,7 +3143,7 @@ class _MessageRow extends StatelessWidget {
           ..showSnackBar(
             SnackBar(
               content: Text(
-                'Forwarded to ${forwarded.length} ${forwarded.length == 1 ? 'room' : 'rooms'}',
+                'Forwarded to ${KiteLocalFormats.decimal(context, forwarded.length)} ${forwarded.length == 1 ? 'room' : 'rooms'}',
               ),
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 2),
@@ -3923,7 +3923,7 @@ class _ThreadSummaryButton extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            '$count ${count == 1 ? 'reply' : 'replies'}',
+                            '${KiteLocalFormats.decimal(context, count)} ${count == 1 ? 'reply' : 'replies'}',
                             style: KiteTypography.metadata.copyWith(
                               color: colors.primary,
                               fontWeight: FontWeight.w700,
@@ -4330,7 +4330,7 @@ class _ForwardMessageSheetState extends State<_ForwardMessageSheet> {
                   child: Text(
                     _selectedRoomIds.isEmpty
                         ? 'Select rooms'
-                        : 'Forward to ${_selectedRoomIds.length}',
+                        : 'Forward to ${KiteLocalFormats.decimal(context, _selectedRoomIds.length)}',
                   ),
                 ),
               ),
@@ -4550,7 +4550,7 @@ class _MessageReactionSummary extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              '${reaction.emoji} ${reaction.count}',
+              '${reaction.emoji} ${KiteLocalFormats.decimal(context, reaction.count)}',
               style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
@@ -4589,7 +4589,7 @@ class _MessageReactionSummary extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 3),
               child: Text(
-                '${primary.emoji} ${primary.count}${extraCount > 0 ? ' +$extraCount' : ''}',
+                '${primary.emoji} ${KiteLocalFormats.decimal(context, primary.count)}${extraCount > 0 ? ' +${KiteLocalFormats.decimal(context, extraCount)}' : ''}',
                 style: KiteTypography.metadata.copyWith(
                   color: primary.reactedByMe
                       ? Theme.of(context).colorScheme.primary
@@ -4914,7 +4914,7 @@ class _ReadReceiptAvatars extends StatelessWidget {
           Positioned(
             right: 0,
             child: Text(
-              '+${readers.length - 3}',
+              '+${KiteLocalFormats.decimal(context, readers.length - 3)}',
               style: KiteTypography.metadata.copyWith(
                 color: colors.onSurfaceVariant,
                 fontSize: 10,
