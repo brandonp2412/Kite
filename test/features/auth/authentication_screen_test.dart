@@ -162,6 +162,38 @@ void main() {
     expect(continueButton().onPressed, isNotNull);
   });
 
+  testWidgets('authentication fields expose accessibility labels', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final gateway = _FakeAuthenticationGateway();
+
+    await tester.pumpWidget(_app(gateway));
+
+    expect(
+      tester.getSemantics(find.byKey(const Key('homeserver-field'))).label,
+      contains('Homeserver'),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('homeserver-field')),
+      'matrix.example.org',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('discover-homeserver')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSemantics(find.byKey(const Key('username-field'))).label,
+      contains('Username'),
+    );
+    expect(
+      tester.getSemantics(find.byKey(const Key('password-field'))).label,
+      contains('Password'),
+    );
+    semantics.dispose();
+  });
+
   testWidgets('discovers supported methods and signs in with password', (
     tester,
   ) async {

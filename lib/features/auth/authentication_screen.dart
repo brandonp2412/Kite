@@ -267,23 +267,28 @@ class _AuthenticationScreenState extends State<AuthenticationScreen>
                               ),
                             ),
                           ] else if (methods == null) ...<Widget>[
-                            TextField(
-                              key: const Key('homeserver-field'),
-                              controller: _homeserverController,
-                              enabled: !busy && !widget.lockHomeserver,
-                              autocorrect: false,
-                              enableSuggestions: false,
-                              keyboardType: TextInputType.url,
-                              textInputAction: TextInputAction.done,
-                              autofillHints: const <String>[AutofillHints.url],
-                              decoration: const InputDecoration(
-                                labelText: 'Homeserver',
-                                hintText: 'matrix.example.org',
+                            Semantics(
+                              label: 'Homeserver',
+                              child: TextField(
+                                key: const Key('homeserver-field'),
+                                controller: _homeserverController,
+                                enabled: !busy && !widget.lockHomeserver,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                keyboardType: TextInputType.url,
+                                textInputAction: TextInputAction.done,
+                                autofillHints: const <String>[
+                                  AutofillHints.url,
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Homeserver',
+                                  hintText: 'matrix.example.org',
+                                ),
+                                onChanged: (_) => _controller.clearError(),
+                                onSubmitted: busy || widget.lockHomeserver
+                                    ? null
+                                    : (_) => _discoverHomeserver(),
                               ),
-                              onChanged: (_) => _controller.clearError(),
-                              onSubmitted: busy || widget.lockHomeserver
-                                  ? null
-                                  : (_) => _discoverHomeserver(),
                             ),
                             const SizedBox(height: 16),
                             ListenableBuilder(
@@ -328,57 +333,64 @@ class _AuthenticationScreenState extends State<AuthenticationScreen>
                               AuthenticationMethod.password,
                             )) ...<Widget>[
                               const SizedBox(height: 8),
-                              TextField(
-                                key: const Key('username-field'),
-                                controller: _usernameController,
-                                enabled: !busy && widget.expectedUserId == null,
-                                autofocus: widget.expectedUserId == null,
-                                autocorrect: false,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const <String>[
-                                  AutofillHints.username,
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: 'Username',
+                              Semantics(
+                                label: 'Username',
+                                child: TextField(
+                                  key: const Key('username-field'),
+                                  controller: _usernameController,
+                                  enabled:
+                                      !busy && widget.expectedUserId == null,
+                                  autofocus: widget.expectedUserId == null,
+                                  autocorrect: false,
+                                  textInputAction: TextInputAction.next,
+                                  autofillHints: const <String>[
+                                    AutofillHints.username,
+                                  ],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Username',
+                                  ),
+                                  onChanged: (_) => _controller.clearError(),
                                 ),
-                                onChanged: (_) => _controller.clearError(),
                               ),
                               const SizedBox(height: 12),
-                              TextField(
-                                key: const Key('password-field'),
-                                controller: _passwordController,
-                                enabled: !busy,
-                                autofocus: widget.expectedUserId != null,
-                                obscureText: !_passwordVisible,
-                                enableSuggestions: false,
-                                autocorrect: false,
-                                textInputAction: TextInputAction.done,
-                                autofillHints: const <String>[
-                                  AutofillHints.password,
-                                ],
-                                decoration: InputDecoration(
-                                  labelText: 'Password',
-                                  suffixIcon: IconButton(
-                                    key: const Key(
-                                      'password-visibility-toggle',
-                                    ),
-                                    tooltip: _passwordVisible
-                                        ? 'Hide password'
-                                        : 'Show password',
-                                    onPressed: busy
-                                        ? null
-                                        : _togglePasswordVisibility,
-                                    icon: Icon(
-                                      _passwordVisible
-                                          ? Icons.visibility_off_outlined
-                                          : Icons.visibility_outlined,
+                              Semantics(
+                                label: 'Password',
+                                child: TextField(
+                                  key: const Key('password-field'),
+                                  controller: _passwordController,
+                                  enabled: !busy,
+                                  autofocus: widget.expectedUserId != null,
+                                  obscureText: !_passwordVisible,
+                                  enableSuggestions: false,
+                                  autocorrect: false,
+                                  textInputAction: TextInputAction.done,
+                                  autofillHints: const <String>[
+                                    AutofillHints.password,
+                                  ],
+                                  decoration: InputDecoration(
+                                    labelText: 'Password',
+                                    suffixIcon: IconButton(
+                                      key: const Key(
+                                        'password-visibility-toggle',
+                                      ),
+                                      tooltip: _passwordVisible
+                                          ? 'Hide password'
+                                          : 'Show password',
+                                      onPressed: busy
+                                          ? null
+                                          : _togglePasswordVisibility,
+                                      icon: Icon(
+                                        _passwordVisible
+                                            ? Icons.visibility_off_outlined
+                                            : Icons.visibility_outlined,
+                                      ),
                                     ),
                                   ),
+                                  onChanged: (_) => _controller.clearError(),
+                                  onSubmitted: busy
+                                      ? null
+                                      : (_) => _passwordLogin(),
                                 ),
-                                onChanged: (_) => _controller.clearError(),
-                                onSubmitted: busy
-                                    ? null
-                                    : (_) => _passwordLogin(),
                               ),
                               const SizedBox(height: 16),
                               ListenableBuilder(
