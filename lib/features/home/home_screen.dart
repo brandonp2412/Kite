@@ -805,6 +805,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
             store: store,
             roomManagement: widget.roomManagement,
             onRoomFavouriteChanged: widget.onRoomFavouriteChanged,
+            onMarkAllRoomsRead: widget.onMarkAllRoomsRead,
             onRoomTap: widget.onRoomTap,
             query: _searchQuery,
             roomListLoading: widget.roomListLoading,
@@ -919,7 +920,9 @@ class _HomeAccountSheet extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.mail_outline_rounded),
                   title: const Text('Invites'),
-                  trailing: Text(KiteLocalFormats.decimal(context, inviteCount)),
+                  trailing: Text(
+                    KiteLocalFormats.decimal(context, inviteCount),
+                  ),
                   onTap: () =>
                       Navigator.of(context).pop(_HomeAccountAction.invites),
                 ),
@@ -1285,6 +1288,7 @@ class _RoomList extends StatelessWidget {
     required this.store,
     this.roomManagement,
     this.onRoomFavouriteChanged,
+    this.onMarkAllRoomsRead,
     this.onRoomTap,
     this.query = '',
     this.roomListLoading = false,
@@ -1296,11 +1300,31 @@ class _RoomList extends StatelessWidget {
   final RoomListStateStore store;
   final RoomManagementCoordinator? roomManagement;
   final RoomFavouriteChange? onRoomFavouriteChanged;
+  final MarkAllRoomsRead? onMarkAllRoomsRead;
   final ValueChanged<String>? onRoomTap;
   final String query;
   final bool roomListLoading;
   final VoidCallback? onCreateRoom;
   final ValueChanged<String>? onStartDirectMessage;
+
+  Future<bool> _markAllRoomsRead(BuildContext context) async {
+    final persist = onMarkAllRoomsRead;
+    if (persist == null) return false;
+    try {
+      await persist();
+      if (!context.mounted) return false;
+      store.markAllRead();
+      return true;
+    } catch (_) {
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not mark every chat as read.')),
+        );
+      return false;
+    }
+  }
 
   Future<void> _showRoomOptionsSheet(
     BuildContext context,
@@ -1369,6 +1393,25 @@ class _RoomList extends StatelessWidget {
                   );
                 },
               ),
+              if (onMarkAllRoomsRead != null) ...<Widget>[
+                const Divider(height: KiteSpacing.lg),
+                ListTile(
+                  key: Key('room-mark-all-read-$roomId'),
+                  contentPadding: EdgeInsets.zero,
+                  minTileHeight: 52,
+                  leading: Icon(
+                    Icons.done_all_rounded,
+                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
+                  title: const Text('Mark all chats as read'),
+                  onTap: () async {
+                    final marked = await _markAllRoomsRead(context);
+                    if (marked && sheetContext.mounted) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  },
+                ),
+              ],
               const Divider(height: KiteSpacing.lg),
               ListTile(
                 key: Key('room-hide-$roomId'),
@@ -1402,6 +1445,7 @@ class _RoomList extends StatelessWidget {
           ),
         ),
       ),
+      scroll: true,
     );
   }
 
@@ -1514,6 +1558,19 @@ class _RoomList extends StatelessWidget {
             ),
           ),
         ),
+        if (onMarkAllRoomsRead != null) ...<PopupMenuEntry<String>>[
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            key: Key('room-mark-all-read-$roomId'),
+            value: 'mark-all-read',
+            child: const ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.done_all_rounded),
+              title: Text('Mark all chats as read'),
+            ),
+          ),
+        ],
         const PopupMenuDivider(),
         const PopupMenuItem<String>(
           value: 'hide',
@@ -1547,6 +1604,10 @@ class _RoomList extends StatelessWidget {
       ],
     );
     if (!context.mounted || action == null) return;
+    if (action == 'mark-all-read') {
+      await _markAllRoomsRead(context);
+      return;
+    }
     if (action == 'remove') {
       await _removeRoom(context, roomId);
       return;

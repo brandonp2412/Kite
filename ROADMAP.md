@@ -150,6 +150,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Room-list filters equivalent to current Element X: All, Unreads, People/DMs, Rooms, Favourites, plus current upstream additions.
 - [ ] Current Element X Sections organisation behaviour where enabled upstream.
 - [ ] Read-all action.
+  - Progress 2026-09-24: the production Matrix mark-all-read mutation is exposed contextually from room long-press and desktop right-click options instead of adding permanent home/profile chrome. Local unread/mention state clears only after persistence succeeds; failure preserves local state and surfaces a fixed error. Mobile success/failure and desktop context-menu regressions pass. Keep unchecked until the required runtime quality gate is green.
 - [ ] Invite cards and accept/decline flows.
 - [ ] Create DM from people search.
 - [ ] Create a room while inviting someone when no suitable DM exists.
