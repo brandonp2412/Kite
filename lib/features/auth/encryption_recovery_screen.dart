@@ -4,6 +4,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
+import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 class EncryptionRecoveryScreen extends StatefulWidget {
@@ -110,11 +111,16 @@ class _EncryptionRecoveryScreenState extends State<EncryptionRecoveryScreen> {
                     final busy = widget.controller.isBusy.value;
                     final operation = widget.controller.activeOperation.value;
                     final success = widget.controller.successMessage.value;
-                    return busy || success != null
+                    final importResult =
+                        widget.controller.roomKeyImportResult.value;
+                    final presentedSuccess = importResult == null
+                        ? success
+                        : 'Imported ${KiteLocalFormats.decimal(context, importResult.importedCount)} of ${KiteLocalFormats.decimal(context, importResult.totalCount)} room keys. Recent chat history is reloading.';
+                    return busy || presentedSuccess != null
                         ? _RecoveryOperationFeedback(
                             busy: busy,
                             operation: operation,
-                            success: success,
+                            success: presentedSuccess,
                           )
                         : const SizedBox.shrink(
                             key: Key(

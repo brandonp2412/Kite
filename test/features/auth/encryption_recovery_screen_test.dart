@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
 import 'package:kite/features/auth/encryption_recovery_screen.dart';
+import 'package:kite/l10n/generated/app_localizations.dart';
 
 final class _FakeRecoveryGateway implements EncryptionRecoveryGateway {
   EncryptionRecoveryStatus status = const EncryptionRecoveryStatus(
@@ -79,8 +80,12 @@ final class _FakeRecoveryGateway implements EncryptionRecoveryGateway {
 Widget _app(
   EncryptionRecoveryController controller, {
   bool loadOnInit = false,
+  Locale? locale,
 }) {
   return MaterialApp(
+    locale: locale,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: EncryptionRecoveryScreen(
       controller: controller,
       loadOnInit: loadOnInit,
@@ -259,6 +264,30 @@ void main() {
     expect(
       find.text(
         'Encrypted messages restored. Recent chat history is reloading.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('room-key import success formats counts in the active locale', (
+    tester,
+  ) async {
+    final gateway = _FakeRecoveryGateway();
+    final controller = EncryptionRecoveryController(gateway);
+    addTearDown(controller.dispose);
+    controller.roomKeyImportResult.value = const RoomKeyBackupImportResult(
+      importedCount: 1234,
+      totalCount: 5678,
+    );
+    controller.successMessage.value =
+        'Room keys imported. Recent chat history is reloading.';
+
+    await tester.pumpWidget(_app(controller, locale: const Locale('de')));
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Imported 1.234 of 5.678 room keys. Recent chat history is reloading.',
       ),
       findsOneWidget,
     );

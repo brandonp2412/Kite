@@ -149,6 +149,7 @@ final class EncryptionRecoveryController {
   Future<bool> restoreWithRecoveryKey(String recoveryKey) {
     final secret = recoveryKey.trim();
     successMessage.value = null;
+    roomKeyImportResult.value = null;
     if (secret.isEmpty) {
       errorMessage.value = 'Enter your recovery key.';
       return Future<bool>.value(false);
@@ -165,6 +166,7 @@ final class EncryptionRecoveryController {
 
   Future<bool> restoreWithPassphrase(String passphrase) {
     successMessage.value = null;
+    roomKeyImportResult.value = null;
     if (passphrase.isEmpty) {
       errorMessage.value = 'Enter your recovery passphrase.';
       return Future<bool>.value(false);
@@ -181,6 +183,7 @@ final class EncryptionRecoveryController {
 
   Future<bool> recoverHistoricalMessages() {
     successMessage.value = null;
+    roomKeyImportResult.value = null;
     if (status.value?.historicalRecoveryState !=
         HistoricalRecoveryState.available) {
       errorMessage.value = 'Encrypted history recovery is not available.';
@@ -202,6 +205,7 @@ final class EncryptionRecoveryController {
     required String passphrase,
   }) async {
     successMessage.value = null;
+    roomKeyImportResult.value = null;
     if (path.trim().isEmpty) {
       errorMessage.value = 'Choose your Element room-key backup file.';
       return false;
@@ -232,8 +236,7 @@ final class EncryptionRecoveryController {
       if (generation != _accountGeneration) return false;
       roomKeyImportResult.value = result;
       successMessage.value =
-          'Imported ${result.importedCount} of ${result.totalCount} room keys. '
-          'Recent chat history is reloading.';
+          'Room keys imported. Recent chat history is reloading.';
       return true;
     } catch (_) {
       if (generation == _accountGeneration) {
@@ -262,6 +265,7 @@ final class EncryptionRecoveryController {
     isBusy.value = true;
     activeOperation.value = operation;
     this.successMessage.value = null;
+    roomKeyImportResult.value = null;
     errorMessage.value = null;
     try {
       final next = await action();
