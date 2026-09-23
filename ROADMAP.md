@@ -473,6 +473,7 @@ This milestone is not optional cleanup; it is a product feature.
 - [x] Spaces/Sections benchmark.
 - [x] Thread open/switch benchmark.
 - [ ] Media viewer benchmark.
+  - Progress 2026-09-24: the existing deterministic profile benchmark is now runnable through `tool/verify_media_viewer_harness.sh` under the shared Waydroid lock. The locked run reached the benchmark but failed the unchanged 16,666 µs raster contract across media-open/dismiss/swipe/save/audio/timeline-media journeys (for example, media-open worst raster 105,737 µs) while build violations remained zero. Keep unchecked until the repository-wide Waydroid raster baseline is fixed; thresholds were not weakened.
 - [x] Call-screen transition benchmark.
 - [ ] App startup benchmark.
 - [x] Offline recovery benchmark.
