@@ -591,8 +591,6 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       context,
       (_) => _HomeAccountSheet(
         session: account.session,
-        canCreateRoom: widget.roomCreation != null,
-        canMarkAllRead: widget.onMarkAllRoomsRead != null,
         canOpenProfile: account.profileController != null,
         canOpenRecovery: account.recoveryController != null,
         inviteCount: inviteStore.visibleInviteIds.value.length,
@@ -636,29 +634,10 @@ class _HomeSidebarState extends State<_HomeSidebar> {
       );
       return;
     }
-    if (action == _HomeAccountAction.newConversation) {
-      await _openRoomCreation();
-      return;
-    }
     if (action == _HomeAccountAction.invites) {
       await _openInvitesSheet();
       return;
     }
-    if (action == _HomeAccountAction.markAllRead) {
-      try {
-        await widget.onMarkAllRoomsRead!();
-        if (mounted) store.markAllRead();
-      } catch (_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(content: Text('Could not mark every chat as read.')),
-          );
-      }
-      return;
-    }
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -843,20 +822,11 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   }
 }
 
-enum _HomeAccountAction {
-  profile,
-  encryptionRecovery,
-  newConversation,
-  invites,
-  markAllRead,
-  signOut,
-}
+enum _HomeAccountAction { profile, encryptionRecovery, invites, signOut }
 
 class _HomeAccountSheet extends StatelessWidget {
   const _HomeAccountSheet({
     required this.session,
-    required this.canCreateRoom,
-    required this.canMarkAllRead,
     required this.canOpenProfile,
     required this.canOpenRecovery,
     required this.inviteCount,
@@ -866,8 +836,6 @@ class _HomeAccountSheet extends StatelessWidget {
   });
 
   final AuthenticatedSession session;
-  final bool canCreateRoom;
-  final bool canMarkAllRead;
   final bool canOpenProfile;
   final bool canOpenRecovery;
   final int inviteCount;
@@ -929,16 +897,6 @@ class _HomeAccountSheet extends StatelessWidget {
                       Navigator.of(context)
                           .pop(_HomeAccountAction.encryptionRecovery),
                 ),
-              if (canCreateRoom)
-                ListTile(
-                  key: const Key('home-account-new-conversation'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.add_comment_outlined),
-                  title: const Text('New conversation'),
-                  onTap: () =>
-                      Navigator.of(context)
-                          .pop(_HomeAccountAction.newConversation),
-                ),
               if (inviteCount > 0)
                 ListTile(
                   key: const Key('home-account-invites'),
@@ -948,15 +906,6 @@ class _HomeAccountSheet extends StatelessWidget {
                   trailing: Text('$inviteCount'),
                   onTap: () =>
                       Navigator.of(context).pop(_HomeAccountAction.invites),
-                ),
-              if (canMarkAllRead)
-                ListTile(
-                  key: const Key('home-account-mark-all-read'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.done_all_rounded),
-                  title: const Text('Mark all as read'),
-                  onTap: () =>
-                      Navigator.of(context).pop(_HomeAccountAction.markAllRead),
                 ),
               ListTile(
                 key: const Key('home-account-sign-out'),
@@ -1214,6 +1163,7 @@ class _CompactChatScreen extends StatelessWidget {
       timelineMediaImageProvider: timelineMediaImageProvider,
       timelineHistoryRequest: onTimelineHistoryRequested,
       child: Scaffold(
+        key: const Key('compact-chat-screen'),
         appBar: AppBar(
           title: SignalBuilder(
             builder: (context) {
@@ -1229,18 +1179,83 @@ class _CompactChatScreen extends StatelessWidget {
             },
           ),
         ),
-        body: _ChatPanel(
-          showHeader: false,
-          roomListStore: roomListStore,
-          roomManagement: roomManagement,
-          memberManagement: memberManagement,
-          calls: calls,
-          onTimelineHistoryRequested: onTimelineHistoryRequested,
-          timelineReloading: timelineReloading,
-          roomMembersLoader: roomMembersLoader,
-          memberModerationEnabled: memberModerationEnabled,
+        body: Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: _ChatPanel(
+                showHeader: false,
+                roomListStore: roomListStore,
+                roomManagement: roomManagement,
+                memberManagement: memberManagement,
+                calls: calls,
+                onTimelineHistoryRequested: onTimelineHistoryRequested,
+                timelineReloading: timelineReloading,
+                roomMembersLoader: roomMembersLoader,
+                memberModerationEnabled: memberModerationEnabled,
+              ),
+            ),
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 24,
+              child: _CompactChatEdgeSwipe(
+                onDismiss: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _CompactChatEdgeSwipe extends StatefulWidget {
+  const _CompactChatEdgeSwipe({required this.onDismiss});
+
+  final VoidCallback onDismiss;
+
+  @override
+  State<_CompactChatEdgeSwipe> createState() => _CompactChatEdgeSwipeState();
+}
+
+class _CompactChatEdgeSwipeState extends State<_CompactChatEdgeSwipe> {
+  static const double _dismissDistance = 72;
+  static const double _dismissVelocity = 600;
+
+  double _dragDistance = 0;
+
+  void _handleDragStart(DragStartDetails details) {
+    _dragDistance = 0;
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    final nextDistance = _dragDistance + details.delta.dx;
+    _dragDistance = nextDistance > 0 ? nextDistance : 0;
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final shouldDismiss =
+        _dragDistance >= _dismissDistance ||
+        (details.primaryVelocity ?? 0) >= _dismissVelocity;
+    _dragDistance = 0;
+    if (shouldDismiss) widget.onDismiss();
+  }
+
+  void _handleDragCancel() {
+    _dragDistance = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: const Key('compact-chat-edge-swipe'),
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: _handleDragStart,
+      onHorizontalDragUpdate: _handleDragUpdate,
+      onHorizontalDragEnd: _handleDragEnd,
+      onHorizontalDragCancel: _handleDragCancel,
+      child: const SizedBox.expand(),
     );
   }
 }

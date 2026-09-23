@@ -340,74 +340,58 @@ void main() {
     },
   );
 
-  testWidgets(
-    'authenticated home keeps read-all contextual and clears local unread state after persistence',
-    (tester) async {
-      final native = _RuntimeNativeAuth(
-        restoredSession: MatrixSdkSessionDescriptor(
-          userId: '@alice:matrix.example.org',
-          deviceId: 'RESTORED',
-          homeserver: Uri.parse('https://matrix.example.org'),
+  testWidgets('authenticated home omits read-all from the account menu', (
+    tester,
+  ) async {
+    final native = _RuntimeNativeAuth(
+      restoredSession: MatrixSdkSessionDescriptor(
+        userId: '@alice:matrix.example.org',
+        deviceId: 'RESTORED',
+        homeserver: Uri.parse('https://matrix.example.org'),
+      ),
+    );
+    final appLock = AppLockController(
+      _RuntimeCredentials(const AppLockSettings.disabled()),
+      _RuntimeBiometrics(),
+    );
+    addTearDown(appLock.dispose);
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: '!unread:matrix.example.org',
+        name: 'Unread room',
+        latestEventBody: 'Latest message',
+        unreadCount: 3,
+        hasMention: true,
+      ),
+    ]);
+    var persistCalls = 0;
+
+    await tester.pumpWidget(
+      KiteRuntime(
+        appLockController: appLock,
+        accountSdkBoundary: NativeMatrixAccountSdkBoundary(native),
+        authenticatedHomeBuilder: (context, session) => HomeScreen(
+          roomListStore: store,
+          onMarkAllRoomsRead: () async {
+            persistCalls += 1;
+          },
         ),
-      );
-      final appLock = AppLockController(
-        _RuntimeCredentials(const AppLockSettings.disabled()),
-        _RuntimeBiometrics(),
-      );
-      addTearDown(appLock.dispose);
-      final store = RoomListStateStore(const <RoomListEntry>[
-        RoomListEntry(
-          id: '!unread:matrix.example.org',
-          name: 'Unread room',
-          latestEventBody: 'Latest message',
-          unreadCount: 3,
-          hasMention: true,
-        ),
-      ]);
-      var persistCalls = 0;
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
-      await tester.pumpWidget(
-        KiteRuntime(
-          appLockController: appLock,
-          accountSdkBoundary: NativeMatrixAccountSdkBoundary(native),
-          authenticatedHomeBuilder: (context, session) => HomeScreen(
-            roomListStore: store,
-            onMarkAllRoomsRead: () async {
-              persistCalls += 1;
-            },
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const Key('home-account-menu')));
+    await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('home-account-mark-all-read')), findsNothing);
-      expect(
-        store.roomSignal('!unread:matrix.example.org').value.unreadCount,
-        3,
-      );
-
-      await tester.tap(find.byKey(const Key('home-account-menu')));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const Key('home-account-mark-all-read')),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.byKey(const Key('home-account-mark-all-read')));
-      await tester.pumpAndSettle();
-
-      expect(persistCalls, 1);
-      expect(
-        store.roomSignal('!unread:matrix.example.org').value.unreadCount,
-        0,
-      );
-      expect(
-        store.roomSignal('!unread:matrix.example.org').value.hasMention,
-        isFalse,
-      );
-    },
-  );
+    expect(find.byKey(const Key('home-account-mark-all-read')), findsNothing);
+    expect(persistCalls, 0);
+    expect(store.roomSignal('!unread:matrix.example.org').value.unreadCount, 3);
+    expect(
+      store.roomSignal('!unread:matrix.example.org').value.hasMention,
+      isTrue,
+    );
+  });
 
   testWidgets(
     'runtime with enabled app lock withholds app content until unlock',

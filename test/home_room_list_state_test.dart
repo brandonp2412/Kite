@@ -976,9 +976,7 @@ void main() {
     expect(find.byKey(const Key('chat-jump-dialog')), findsNothing);
   });
 
-  testWidgets('room creation stays in the contextual account menu', (
-    tester,
-  ) async {
+  testWidgets('account menu omits room creation', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -1005,17 +1003,48 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('New conversation'), findsNothing);
     await tester.tap(find.byKey(const Key('home-account-menu')));
     await tester.pumpAndSettle();
+
     expect(
       find.byKey(const Key('home-account-new-conversation')),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(find.text('New conversation'), findsNothing);
+  });
 
-    await tester.tap(find.byKey(const Key('home-account-new-conversation')));
+  testWidgets('phone chat dismisses with a left-edge swipe', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(roomListStore: store),
+      ),
+    );
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('room-creation-screen')), findsOneWidget);
+
+    final roomId = store.roomIds.first;
+    await tester.tap(find.byKey(Key('room-$roomId')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('compact-chat-screen')), findsOneWidget);
+    expect(find.byKey(const Key('compact-chat-edge-swipe')), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(const Key('compact-chat-edge-swipe')),
+      const Offset(180, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('compact-chat-screen')), findsNothing);
+    expect(find.byKey(Key('room-$roomId')), findsOneWidget);
   });
 
   testWidgets('search is the only persistent homepage chat filter', (
