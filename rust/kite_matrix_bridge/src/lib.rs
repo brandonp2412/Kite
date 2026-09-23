@@ -2844,7 +2844,7 @@ async fn prefetch_media_item(
 ) -> (String, Option<Vec<u8>>) {
     let encrypted = matches!(&source, MediaSource::Encrypted(_));
     let request = MediaRequestParameters {
-        source,
+        source: source.clone(),
         format: if encrypted {
             MediaFormat::File
         } else {
@@ -2856,13 +2856,31 @@ async fn prefetch_media_item(
     } else {
         KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT
     };
-    let bytes = bounded_media_bytes(
-        matrix_client.media().get_media_content(&request, true),
-        timeout,
-    )
-    .await
-    .ok()
-    .flatten();
+    let thumbnail = MediaRequestParameters {
+        source: source.clone(),
+        format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
+    };
+    let file = MediaRequestParameters {
+        source,
+        format: MediaFormat::File,
+    };
+    let bytes = if encrypted {
+        bounded_media_bytes(
+            matrix_client.media().get_media_content(&request, true),
+            timeout,
+        )
+        .await
+        .ok()
+        .flatten()
+    } else {
+        bounded_media_bytes(
+            load_cached_or_download_media(&matrix_client, &thumbnail, &file, true),
+            timeout,
+        )
+        .await
+        .ok()
+        .flatten()
+    };
     (content_uri, bytes)
 }
 
@@ -2905,6 +2923,39 @@ fn parse_prefetch_media_source(value: Value) -> Result<(String, MediaSource), ()
         }
         _ => Err(()),
     }
+}
+// A previous thumbnail fallback is stored under File by the SDK. Check both
+// persistent keys before attempting any network request, including after restart.
+async fn load_cached_or_download_media(
+    client: &Client,
+    thumbnail: &MediaRequestParameters,
+    file: &MediaRequestParameters,
+    supports_thumbnail: bool,
+) -> Result<Vec<u8>, MatrixError> {
+    {
+        let store = client.media_store().lock().await?;
+        if supports_thumbnail
+            && let Some(bytes) = store.get_media_content(thumbnail).await?
+            && !bytes.is_empty()
+        {
+            return Ok(bytes);
+        }
+        if let Some(bytes) = store.get_media_content(file).await?
+            && !bytes.is_empty()
+        {
+            return Ok(bytes);
+        }
+    }
+    if supports_thumbnail
+        && let Ok(Some(bytes)) = bounded_media_bytes(
+            client.media().get_media_content(thumbnail, true),
+            KITE_MATRIX_MEDIA_THUMBNAIL_TIMEOUT,
+        )
+        .await
+    {
+        return Ok(bytes);
+    }
+    client.media().get_media_content(file, true).await
 }
 
 #[unsafe(no_mangle)]
@@ -3077,18 +3128,8 @@ pub unsafe extern "C" fn kite_matrix_client_download_media(
         format: MediaFormat::File,
     };
     let bytes = client.runtime.block_on(async {
-        if supports_thumbnail
-            && let Ok(Some(bytes)) = bounded_media_bytes(
-                matrix_client.media().get_media_content(&thumbnail, true),
-                KITE_MATRIX_MEDIA_THUMBNAIL_TIMEOUT,
-            )
-            .await
-        {
-            return Some(bytes);
-        }
-
         bounded_media_bytes(
-            matrix_client.media().get_media_content(&file, true),
+            load_cached_or_download_media(matrix_client, &thumbnail, &file, supports_thumbnail),
             KITE_MATRIX_MEDIA_FILE_TIMEOUT,
         )
         .await
@@ -3455,6 +3496,69 @@ mod tests {
     #[test]
     fn abi_version_is_pinned() {
         assert_eq!(kite_matrix_abi_version(), 29);
+    }
+
+    #[test]
+    fn cached_original_survives_restart_without_thumbnail_network_request() {
+        use matrix_sdk_base::media::store::IgnoreMediaRetentionPolicy;
+
+        let store = temporary_store();
+        let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+        runtime.block_on(async {
+            let file = MediaRequestParameters {
+                source: MediaSource::Plain(OwnedMxcUri::from("mxc://offline.test/avatar")),
+                format: MediaFormat::File,
+            };
+            {
+                let client = Client::builder()
+                    .homeserver_url("http://127.0.0.1:1")
+                    .sqlite_store(&store, Some("test-media-secret"))
+                    .build()
+                    .await
+                    .unwrap();
+                client
+                    .media_store()
+                    .lock()
+                    .await
+                    .unwrap()
+                    .add_media_content(&file, vec![1, 2, 3], IgnoreMediaRetentionPolicy::No)
+                    .await
+                    .unwrap();
+            }
+            let client = Client::builder()
+                .homeserver_url("http://127.0.0.1:1")
+                .sqlite_store(&store, Some("test-media-secret"))
+                .build()
+                .await
+                .unwrap();
+            for size in [192_u16, 1280_u16] {
+                let request = MediaRequestParameters {
+                    source: file.source.clone(),
+                    format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(
+                        UInt::from(size),
+                        UInt::from(size),
+                    )),
+                };
+                let bytes = tokio::time::timeout(
+                    Duration::from_millis(500),
+                    load_cached_or_download_media(&client, &request, &file, true),
+                )
+                .await
+                .unwrap()
+                .unwrap();
+                assert_eq!(bytes, vec![1, 2, 3]);
+            }
+            let (_, prefetched) = prefetch_media_item(
+                client,
+                "mxc://offline.test/avatar".to_owned(),
+                file.source,
+                UInt::from(192_u16),
+                UInt::from(192_u16),
+            )
+            .await;
+            assert_eq!(prefetched, Some(vec![1, 2, 3]));
+        });
+        fs::remove_dir_all(store).unwrap();
     }
 
     #[test]

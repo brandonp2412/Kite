@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kite/app/kite_runtime.dart';
+import 'package:kite/app/recent_image_prefetch.dart';
 import 'package:kite/app/platform_matrix_bootstrap_gateway.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
@@ -173,12 +174,14 @@ final class _AuthenticatedMatrixHomeState
   static const int _timelineMediaWarmLimit = 16;
   static const int _timelineMediaWarmDimension = 720;
   static const int _roomMemberPrefetchLimit = 6;
+  static const int _recentImagePrefetchConcurrency = 3;
   static const Duration _avatarPrefetchRetryDelay = Duration(milliseconds: 350);
 
   final Set<String> _scheduledAvatarPrefetches = <String>{};
   final Set<String> _scheduledTimelineMediaWarmups = <String>{};
   final List<TimelineAttachment> _pendingTimelineMediaWarmups =
       <TimelineAttachment>[];
+  final RecentImagePrefetch _recentImages = RecentImagePrefetch();
   final Map<String, List<MatrixSdkRoomMember>> _roomMemberCache =
       <String, List<MatrixSdkRoomMember>>{};
   final Map<String, Future<List<MatrixSdkRoomMember>>> _roomMemberLoads =
@@ -261,7 +264,7 @@ final class _AuthenticatedMatrixHomeState
     _disposeAvatarPrefetchEffect = effect(() {
       final snapshot = cache.snapshot(
         roomLimit: _avatarPrefetchLimit,
-        timelineEventLimitPerRoom: _avatarTimelineEventLimit,
+        timelineEventLimitPerRoom: 50,
       );
       final pending = <String>[];
 
@@ -279,7 +282,7 @@ final class _AuthenticatedMatrixHomeState
       }
       if (pending.length < _avatarPrefetchLimit) {
         for (final events in snapshot.timelines.values) {
-          for (final event in events.reversed) {
+          for (final event in events.reversed.take(_avatarTimelineEventLimit)) {
             schedule(event.senderAvatarUrl);
             if (pending.length >= _avatarPrefetchLimit) break;
           }
@@ -289,7 +292,14 @@ final class _AuthenticatedMatrixHomeState
       if (pending.isNotEmpty) {
         unawaited(_prefetchAvatars(generation, pending));
       }
-
+      // The sync snapshot already persists recent text. Warm a bounded number
+      // of its newest images through the same SDK cache used when opening chats.
+      final recentImages = _recentImages.pending(snapshot);
+      if (recentImages.isNotEmpty) {
+        // Do not put image warming behind avatar retries. These are the images
+        // users are most likely to reveal by opening one of the first rooms.
+        unawaited(_prefetchRecentImages(generation, recentImages));
+      }
       final mediaWarmups = selectRecentTimelineImageWarmups(
         snapshot: snapshot,
         currentUserId: widget.session.userId,
@@ -385,6 +395,41 @@ final class _AuthenticatedMatrixHomeState
     }
   }
 
+  Future<void> _prefetchRecentImages(
+    int generation,
+    List<RecentImage> images,
+  ) async {
+    var next = 0;
+    Future<void> worker() async {
+      while (next < images.length) {
+        if (!mounted || generation != _avatarPrefetchGeneration) return;
+        final image = images[next++];
+        try {
+          await widget.runtime.downloadMedia(
+            accountId: widget.session.userId,
+            contentUri: image.uri,
+            encryptedFile: image.encryptedFile,
+            width: 1280,
+            height: 1280,
+          );
+        } catch (_) {
+          if (generation == _avatarPrefetchGeneration) {
+            _recentImages.retry(image.uri);
+          }
+        }
+      }
+    }
+
+    await Future.wait<void>(
+      List<Future<void>>.generate(
+        images.length < _recentImagePrefetchConcurrency
+            ? images.length
+            : _recentImagePrefetchConcurrency,
+        (_) => worker(),
+      ),
+    );
+  }
+
   Future<void> _prefetchAvatars(
     int generation,
     List<String> contentUris,
@@ -439,6 +484,7 @@ final class _AuthenticatedMatrixHomeState
     _scheduledTimelineMediaWarmups.clear();
     _pendingTimelineMediaWarmups.clear();
     _timelineMediaWarmupScheduled = false;
+    _recentImages.clear();
   }
 
   @override

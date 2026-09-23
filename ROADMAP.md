@@ -480,6 +480,8 @@ This milestone is not optional cleanup; it is a product feature.
 - [ ] Physical Android Macrobenchmark matrix on at least one 60 Hz and one 120 Hz device.
 - [ ] No accepted performance regression without before/after evidence and an explicit product decision.
 
+**Media-startup progress (2026-09-24):** production startup now warms recent Matrix images from the presentation cache, coalesces duplicate media loads, batches native SDK media prefetch work, and prioritises visible media ahead of queued speculative requests. A production-session integration benchmark now records saved-session startup → three painted avatars and room-open → recent-image paint latency without fixture prefetch or cache clearing. Focused Flutter coverage, Rust formatting plus all 13 bridge tests, native-library ABI smoke coverage (22 tests), full analysis, release audit, and all 1,134 deterministic Flutter tests pass with 5 intentional no-native-library skips. The required locked Waydroid jitter baseline remains independently blocked: this branch measured 36,951 µs cold-open raster and clean origin/main measured 36,577 µs on the same device against the 16,666 µs contract, so the app-startup/media performance checkboxes remain unchecked and thresholds were not weakened.
+
 ## Milestone 16 — Release readiness
 
 - [ ] Security review of SDK boundary, tokens, local stores, logs, media files, deep links, and exported Android components.

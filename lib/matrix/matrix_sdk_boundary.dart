@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:kite/matrix/matrix_engine.dart';
@@ -408,6 +409,8 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   static const int _mediaCacheEntryLimit = 48;
   static const int _mediaCacheByteLimit = 64 * 1024 * 1024;
+  final Map<(String, int, int), Future<Uint8List>> _mediaLoads = {};
+  final Map<(int, int), Map<String, Completer<Uint8List>>> _avatarBatches = {};
 
   final Map<(String, int, int), Uint8List> _mediaCache =
       <(String, int, int), Uint8List>{};
@@ -784,24 +787,90 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     final cached = _cachedMedia(normalizedContentUri, width, height);
     if (cached != null) return cached;
     await _ensureOpen();
-    final bytes = await (manager as MatrixSdkMediaManager).downloadMedia(
-      contentUri: normalizedContentUri,
-      encryptedFile: encryptedFile,
-      width: width,
-      height: height,
-    );
-    if (bytes.isEmpty) {
-      throw const MatrixSdkContractException(
-        'Matrix SDK boundary returned empty media data',
-      );
+    final key = (normalizedContentUri, width, height);
+    if (encryptedFile == null) {
+      final pending = _mediaLoads[key];
+      if (pending != null) return pending;
     }
-    _rememberMedia(
-      contentUri: normalizedContentUri,
-      width: width,
-      height: height,
-      bytes: bytes,
-    );
-    return bytes;
+    final download =
+        encryptedFile == null &&
+            width <= 256 &&
+            height <= 256 &&
+            _boundary is MatrixSdkMediaPrefetcher
+        ? _batchAvatar(normalizedContentUri, width, height)
+        : (manager as MatrixSdkMediaManager).downloadMedia(
+            contentUri: normalizedContentUri,
+            encryptedFile: encryptedFile,
+            width: width,
+            height: height,
+          );
+    final load = download.then((bytes) {
+      if (bytes.isEmpty) {
+        throw const MatrixSdkContractException(
+          'Matrix SDK boundary returned empty media data',
+        );
+      }
+      _rememberMedia(
+        contentUri: normalizedContentUri,
+        width: width,
+        height: height,
+        bytes: bytes,
+      );
+      return bytes;
+    });
+    if (encryptedFile == null) _mediaLoads[key] = load;
+    try {
+      return await load;
+    } finally {
+      if (identical(_mediaLoads[key], load)) _mediaLoads.remove(key);
+    }
+  }
+
+  Future<Uint8List> _batchAvatar(String uri, int width, int height) {
+    final size = (width, height);
+    final batch = _avatarBatches.putIfAbsent(size, () {
+      final pending = <String, Completer<Uint8List>>{};
+      Timer.run(() => unawaited(_flushAvatarBatch(size, pending)));
+      return pending;
+    });
+    return (batch[uri] ??= Completer<Uint8List>()).future;
+  }
+
+  Future<void> _flushAvatarBatch(
+    (int, int) size,
+    Map<String, Completer<Uint8List>> batch,
+  ) async {
+    _avatarBatches.remove(size);
+    final entries = batch.entries.toList();
+    for (var offset = 0; offset < entries.length; offset += 6) {
+      final group = entries.skip(offset).take(6).toList();
+      Map<String, Uint8List> result = {};
+      try {
+        result = await (_boundary as MatrixSdkMediaPrefetcher).prefetchMedia(
+          contentUris: group.map((entry) => entry.key).toList(),
+          width: size.$1,
+          height: size.$2,
+        );
+      } catch (_) {
+        // Let individual downloads provide their normal fallback/error handling.
+      }
+      for (final entry in group) {
+        final bytes = result[entry.key];
+        if (bytes != null && bytes.isNotEmpty) {
+          entry.value.complete(bytes);
+        } else {
+          entry.value.complete(
+            Future<Uint8List>.sync(
+              () => (_boundary as MatrixSdkMediaManager).downloadMedia(
+                contentUri: entry.key,
+                width: size.$1,
+                height: size.$2,
+              ),
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<MatrixSdkProfileDetails> loadOwnProfile() async {
@@ -1398,6 +1467,8 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await stop();
     _mediaCache.clear();
     _mediaCacheBytes = 0;
+    _mediaLoads.clear();
+    _avatarBatches.clear();
     if (!_opened) return;
     await _boundary.close();
     _opened = false;

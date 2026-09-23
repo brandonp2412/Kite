@@ -2733,7 +2733,7 @@ final class MatrixRustNativeClient
           height: height,
         ).call,
       );
-    }, priority: _MatrixOperationPriority.background);
+    }, priority: _MatrixOperationPriority.interactive);
   }
 
   @override
@@ -3690,7 +3690,7 @@ final class MatrixRustSdkBoundary
           width: width,
           height: height,
         );
-      }, priority: _MatrixOperationPriority.background);
+      }, priority: _MatrixOperationPriority.interactive);
       prefetched.addAll(item);
       if (end < contentUris.length) {
         await Future<void>.delayed(Duration.zero);

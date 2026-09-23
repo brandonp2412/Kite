@@ -88,58 +88,61 @@ void main() {
     ]);
   });
 
-  test('visible media jumps ahead between batched prefetch items', () async {
-    final client = _FakeRustClient();
-    final prefetchGate = Completer<void>();
-    client.prefetchGate = prefetchGate;
-    final boundary = MatrixRustSdkBoundary(
-      bridge: _FakeRustBridge(client),
-      homeserver: Uri.parse('https://matrix.example.org'),
-      resolveStoreSecret: (_) async => 'deterministic-secret',
-      codecExecutor: _RecordingCodecExecutor(),
-    );
-    addTearDown(boundary.close);
+  test(
+    'visible media jumps ahead between concurrent prefetch batches',
+    () async {
+      final client = _FakeRustClient();
+      final prefetchGate = Completer<void>();
+      client.prefetchGate = prefetchGate;
+      final boundary = MatrixRustSdkBoundary(
+        bridge: _FakeRustBridge(client),
+        homeserver: Uri.parse('https://matrix.example.org'),
+        resolveStoreSecret: (_) async => 'deterministic-secret',
+        codecExecutor: _RecordingCodecExecutor(),
+      );
+      addTearDown(boundary.close);
 
-    await boundary.open(
-      const MatrixSdkStoreConfiguration(
-        accountId: '@alice:kite.test',
-        storePath: '/tmp/kite/alice-media-priority',
-        encryptionKeyId: 'alice-media-priority-key',
-      ),
-    );
+      await boundary.open(
+        const MatrixSdkStoreConfiguration(
+          accountId: '@alice:kite.test',
+          storePath: '/tmp/kite/alice-media-priority',
+          encryptionKeyId: 'alice-media-priority-key',
+        ),
+      );
 
-    final prefetch = boundary.prefetchMedia(
-      contentUris: const <String>[
-        'mxc://kite.test/avatar-1',
-        'mxc://kite.test/avatar-2',
-        'mxc://kite.test/avatar-3',
-        'mxc://kite.test/avatar-4',
-        'mxc://kite.test/avatar-5',
-        'mxc://kite.test/avatar-6',
-        'mxc://kite.test/avatar-7',
-        'mxc://kite.test/avatar-8',
-      ],
-      width: 96,
-      height: 96,
-    );
-    await client.prefetchStarted.future;
+      final prefetch = boundary.prefetchMedia(
+        contentUris: const <String>[
+          'mxc://kite.test/avatar-1',
+          'mxc://kite.test/avatar-2',
+          'mxc://kite.test/avatar-3',
+          'mxc://kite.test/avatar-4',
+          'mxc://kite.test/avatar-5',
+          'mxc://kite.test/avatar-6',
+          'mxc://kite.test/avatar-7',
+          'mxc://kite.test/avatar-8',
+        ],
+        width: 96,
+        height: 96,
+      );
+      await client.prefetchStarted.future;
 
-    final download = boundary.downloadMedia(
-      contentUri: 'mxc://kite.test/visible-image',
-      width: 1280,
-      height: 1280,
-    );
+      final download = boundary.downloadMedia(
+        contentUri: 'mxc://kite.test/visible-image',
+        width: 1280,
+        height: 1280,
+      );
 
-    prefetchGate.complete();
-    await Future.wait<Object?>(<Future<Object?>>[prefetch, download]);
+      prefetchGate.complete();
+      await Future.wait<Object?>(<Future<Object?>>[prefetch, download]);
 
-    expect(client.operationOrder, <String>[
-      'prefetch-1',
-      'download-media',
-      'prefetch-2',
-    ]);
-    expect(client.prefetchBatchSizes, <int>[6, 2]);
-  });
+      expect(client.operationOrder, <String>[
+        'prefetch-1',
+        'download-media',
+        'prefetch-2',
+      ]);
+      expect(client.prefetchBatchSizes, [6, 2]);
+    },
+  );
 
   test(
     'native boundary routes password login and idempotent text send',

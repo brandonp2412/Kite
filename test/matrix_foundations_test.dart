@@ -198,6 +198,82 @@ void main() {
         await engine.close();
       },
     );
+    test('visible avatars batch and deduplicate concurrent requests', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: {
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+      for (var i = 0; i < 12; i++) {
+        boundary.mediaBytes['mxc://kite.test/avatar$i'] = Uint8List.fromList([
+          i,
+        ]);
+      }
+      final images = await Future.wait([
+        for (var i = 0; i < 24; i++)
+          engine.downloadMedia(
+            contentUri: 'mxc://kite.test/avatar${i % 12}',
+            width: 192,
+            height: 192,
+          ),
+      ]);
+      expect(images.map((bytes) => bytes.single), [
+        for (var i = 0; i < 24; i++) i % 12,
+      ]);
+      expect(boundary.prefetchCalls, 2);
+      expect(boundary.mediaDownloadCalls, 0);
+      await engine.close();
+    });
+
+    test('missing batch avatars fall back to individual downloads', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: {
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+      expect(
+        await engine.downloadMedia(
+          contentUri: 'mxc://kite.test/missing',
+          width: 192,
+          height: 192,
+        ),
+        [9],
+      );
+      expect(boundary.prefetchCalls, 1);
+      expect(boundary.mediaDownloadCalls, 1);
+      await engine.close();
+    });
+
+    test('oversized original does not evict cached avatars', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: {
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+      boundary.mediaBytes['mxc://kite.test/small'] = Uint8List.fromList([1]);
+      boundary.mediaBytes['mxc://kite.test/large'] = Uint8List(
+        17 * 1024 * 1024,
+      );
+      for (final name in ['small', 'large', 'small']) {
+        await engine.downloadMedia(
+          contentUri: 'mxc://kite.test/$name',
+          width: 192,
+          height: 192,
+        );
+      }
+      expect(boundary.prefetchCalls, 2);
+      expect(boundary.mediaDownloadCalls, 0);
+      await engine.close();
+    });
 
     test('failed SDK sync start is stopped before retry', () async {
       final boundary = _FakeSdkBoundary(
