@@ -248,6 +248,27 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.setUserIgnored(userId, ignored);
   }
 
+  Future<MatrixSdkCrossSigningTrustState> loadCrossSigningTrust({
+    required String accountId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load Matrix cross-signing trust for an inactive account',
+    );
+    return active.engine.loadCrossSigningTrust();
+  }
+
+  Future<MatrixSdkRoomEncryptionTrustDetails> loadRoomEncryptionTrust({
+    required String accountId,
+    required String roomId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot load Matrix room encryption trust for an inactive account',
+    );
+    return active.engine.loadRoomEncryptionTrust(roomId);
+  }
+
   Future<List<MatrixSdkSessionDeviceDetails>> loadDevices({
     required String accountId,
   }) {

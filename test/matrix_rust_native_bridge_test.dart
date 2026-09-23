@@ -144,6 +144,40 @@ void main() {
     },
   );
 
+  test('native boundary exposes Matrix encryption trust state', () async {
+    final client = _FakeRustClient();
+    final boundary = MatrixRustSdkBoundary(
+      bridge: _FakeRustBridge(client),
+      homeserver: Uri.parse('https://matrix.example.org'),
+      resolveStoreSecret: (_) async => 'deterministic-secret',
+      codecExecutor: _RecordingCodecExecutor(),
+    );
+    addTearDown(boundary.close);
+
+    await boundary.open(
+      const MatrixSdkStoreConfiguration(
+        accountId: '@alice:kite.test',
+        storePath: '/tmp/kite/alice',
+        encryptionKeyId: 'alice-key',
+      ),
+    );
+
+    expect(
+      await boundary.loadCrossSigningTrust(),
+      MatrixSdkCrossSigningTrustState.verified,
+    );
+    final trust = await boundary.loadRoomEncryptionTrust('!room:kite.test');
+    expect(trust.roomId, '!room:kite.test');
+    expect(trust.isEncrypted, isTrue);
+    expect(trust.allDevicesVerified, isTrue);
+    expect(client.profileCalls, <(String?, String, String?)>[
+      (null, 'cross_signing_trust', null),
+    ]);
+    expect(client.roomSettingCalls, <(String, String, String?)>[
+      ('!room:kite.test', 'get_encryption_trust', null),
+    ]);
+  });
+
   test(
     'native boundary routes password login and idempotent text send',
     () async {
@@ -1564,6 +1598,13 @@ final class _FakeRustClient
     String? value,
   }) async {
     roomSettingCalls.add((roomId, action, value));
+    if (action == 'get_encryption_trust') {
+      return <String, Object?>{
+        'roomId': roomId,
+        'isEncrypted': true,
+        'allDevicesVerified': true,
+      };
+    }
     if (action == 'get') {
       return <String, Object?>{
         'roomId': roomId,
@@ -1664,6 +1705,9 @@ final class _FakeRustClient
     String? value,
   }) async {
     profileCalls.add((userId, action, value));
+    if (action == 'cross_signing_trust') {
+      return <String, Object?>{'trust': 'verified'};
+    }
     if (action == 'get') {
       return <String, Object?>{
         'userId': userId ?? '@alice:kite.test',

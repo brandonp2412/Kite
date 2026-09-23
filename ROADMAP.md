@@ -118,10 +118,12 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] QR verification.
 - [ ] Emoji/SAS verification.
 - [ ] Cross-signing trust state.
+  - Progress 2026-09-23: production trust lookup is wired through the Rust Matrix SDK, runtime, and account boundary with regression coverage. Kept open because the required Waydroid profile gate currently fails its pre-existing 16.666 ms raster baseline.
 - [ ] Encrypted backup creation, restore, recovery-key/passphrase flows, and recovery status.
 - [ ] Historical encrypted-message recovery.
 - [ ] Unverified-device/user warnings and recovery UX.
 - [ ] Encryption state and trust indicators in room/details flows.
+  - Progress 2026-09-23: production room encryption state and verified-device trust now come from the Rust Matrix SDK and feed the existing room/details trust UI. Kept open because the required Waydroid profile gate currently fails its pre-existing 16.666 ms raster baseline.
 - [ ] Encrypted history sharing on invite when supported by room/server policy.
 - [ ] PIN app lock.
 - [ ] Biometric unlock.

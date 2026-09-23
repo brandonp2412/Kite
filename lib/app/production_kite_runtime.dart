@@ -23,6 +23,7 @@ import 'package:kite/features/timeline/timeline_share.dart';
 import 'package:kite/matrix/io_matrix_well_known_client.dart';
 import 'package:kite/matrix/matrix_homeserver_discovery.dart';
 import 'package:kite/matrix/matrix_production_device_api.dart';
+import 'package:kite/matrix/matrix_production_encryption_trust_api.dart';
 import 'package:kite/matrix/matrix_production_profile_api.dart';
 import 'package:kite/matrix/matrix_production_recovery_api.dart';
 import 'package:kite/matrix/matrix_production_runtime.dart';
@@ -78,6 +79,7 @@ final class ProductionKiteRuntime extends StatefulWidget {
         profileApi: MatrixProductionProfileApi(matrixRuntime),
         recoveryApi: MatrixProductionRecoveryApi(matrixRuntime),
         deviceApi: MatrixProductionDeviceApi(matrixRuntime),
+        encryptionTrustApi: MatrixProductionEncryptionTrustApi(matrixRuntime),
       ),
       matrixRuntime: matrixRuntime,
       notifications: notifications,

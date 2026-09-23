@@ -32,6 +32,12 @@ abstract interface class MatrixNativeRecoveryApi {
   });
 }
 
+abstract interface class MatrixNativeEncryptionTrustApi {
+  Future<MatrixSdkCrossSigningTrust> loadCrossSigningTrust();
+
+  Future<MatrixSdkRoomEncryptionTrust> loadRoomEncryptionTrust(String roomId);
+}
+
 abstract interface class MatrixNativeDeviceApi {
   Future<List<MatrixSdkDeviceDescriptor>> loadDevices();
 
@@ -64,14 +70,17 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
     MatrixNativeProfileApi? profileApi,
     MatrixNativeRecoveryApi? recoveryApi,
     MatrixNativeDeviceApi? deviceApi,
+    MatrixNativeEncryptionTrustApi? encryptionTrustApi,
   }) : _profile = profileApi,
        _recovery = recoveryApi,
-       _devices = deviceApi;
+       _devices = deviceApi,
+       _encryptionTrust = encryptionTrustApi;
 
   final MatrixNativeAuthSessionApi _native;
   final MatrixNativeProfileApi? _profile;
   final MatrixNativeRecoveryApi? _recovery;
   final MatrixNativeDeviceApi? _devices;
+  final MatrixNativeEncryptionTrustApi? _encryptionTrust;
 
   @override
   Set<MatrixAccountSdkCapability> get accountCapabilities =>
@@ -80,6 +89,10 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
         MatrixAccountSdkCapability.passwordAuthentication,
         MatrixAccountSdkCapability.sessionPersistence,
         MatrixAccountSdkCapability.auditedEncryption,
+        if (_encryptionTrust != null) ...<MatrixAccountSdkCapability>{
+          MatrixAccountSdkCapability.crossSigning,
+          MatrixAccountSdkCapability.roomEncryptionTrust,
+        },
         if (_devices != null) ...<MatrixAccountSdkCapability>{
           MatrixAccountSdkCapability.deviceListing,
           MatrixAccountSdkCapability.deviceManagement,
@@ -154,6 +167,7 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
 
   @override
   Future<MatrixSdkCrossSigningTrust> loadCrossSigningTrust() =>
+      _encryptionTrust?.loadCrossSigningTrust() ??
       _unsupported(MatrixAccountSdkCapability.crossSigning);
 
   @override
@@ -221,6 +235,7 @@ final class NativeMatrixAccountSdkBoundary implements MatrixAccountSdkBoundary {
 
   @override
   Future<MatrixSdkRoomEncryptionTrust> loadRoomEncryptionTrust(String roomId) =>
+      _encryptionTrust?.loadRoomEncryptionTrust(roomId) ??
       _unsupported(MatrixAccountSdkCapability.roomEncryptionTrust);
 
   @override
