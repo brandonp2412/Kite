@@ -919,7 +919,7 @@ class _HomeAccountSheet extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.mail_outline_rounded),
                   title: const Text('Invites'),
-                  trailing: Text('$inviteCount'),
+                  trailing: Text(KiteLocalFormats.decimal(context, inviteCount)),
                   onTap: () =>
                       Navigator.of(context).pop(_HomeAccountAction.invites),
                 ),
@@ -3860,7 +3860,7 @@ class _ThreadSummaryButton extends StatelessWidget {
           child: Semantics(
             button: true,
             label:
-                'Open thread with $count replies${unread > 0 ? ', $unread unread' : ''}',
+                'Open thread with ${KiteLocalFormats.decimal(context, count)} replies${unread > 0 ? ', ${KiteLocalFormats.decimal(context, unread)} unread' : ''}',
             child: InkWell(
               key: Key('thread-summary-${parent.id}'),
               onTap: () => _open(context),

@@ -39,4 +39,20 @@ abstract final class KiteLocalFormats {
     }
     return '${decimal(context, mib / 1024, decimalDigits: 1)} GiB';
   }
+
+  static String mediaByteSize(BuildContext context, int bytes) {
+    if (bytes < 1024) return '${decimal(context, bytes)} B';
+    if (bytes < 1024 * 1024) {
+      return '${decimal(context, bytes / 1024, decimalDigits: 1)} KB';
+    }
+    return '${decimal(context, bytes / (1024 * 1024), decimalDigits: 1)} MB';
+  }
+
+  static String minuteSecond(BuildContext context, Duration duration) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final totalSeconds = duration.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${NumberFormat.decimalPattern(locale).format(minutes)}:${NumberFormat('00', locale).format(seconds)}';
+  }
 }

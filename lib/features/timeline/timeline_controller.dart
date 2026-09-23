@@ -299,7 +299,9 @@ final class TimelineAttachment {
     required this.kind,
     required this.name,
     required this.sizeLabel,
+    this.sizeBytes,
     this.durationLabel,
+    this.duration,
     this.contentUri,
     this.encryptedFile,
     this.thumbnailContentUri,
@@ -310,7 +312,9 @@ final class TimelineAttachment {
   final TimelineAttachmentKind kind;
   final String name;
   final String sizeLabel;
+  final int? sizeBytes;
   final String? durationLabel;
+  final Duration? duration;
   final String? contentUri;
   final Map<String, Object?>? encryptedFile;
   final String? thumbnailContentUri;
@@ -1672,12 +1676,11 @@ TimelineAttachment? _matrixAttachment(
       ? body
       : _defaultAttachmentName(kind);
   final size = infoMap['size'];
-  final sizeLabel = size is int && size >= 0
-      ? '${_formatBytes(size)} · ${_attachmentKindLabel(kind)}'
-      : _attachmentKindLabel(kind);
-  final duration = infoMap['duration'];
-  final durationLabel = duration is int && duration >= 0
-      ? _formatDuration(Duration(milliseconds: duration))
+  final sizeBytes = size is int && size >= 0 ? size : null;
+  final sizeLabel = _attachmentKindLabel(kind);
+  final durationMilliseconds = infoMap['duration'];
+  final duration = durationMilliseconds is int && durationMilliseconds >= 0
+      ? Duration(milliseconds: durationMilliseconds)
       : null;
   final url = event.content['url'];
   final file = event.content['file'];
@@ -1712,7 +1715,8 @@ TimelineAttachment? _matrixAttachment(
     kind: kind,
     name: name,
     sizeLabel: sizeLabel,
-    durationLabel: durationLabel,
+    sizeBytes: sizeBytes,
+    duration: duration,
     contentUri: contentUri,
     encryptedFile: encryptedFile,
     thumbnailContentUri: thumbnailContentUri,
@@ -1746,19 +1750,6 @@ String _attachmentKindLabel(TimelineAttachmentKind kind) => switch (kind) {
   TimelineAttachmentKind.voice => 'Voice',
 };
 
-String _formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-}
-
-String _formatDuration(Duration duration) {
-  final totalSeconds = duration.inSeconds;
-  final minutes = totalSeconds ~/ 60;
-  final seconds = totalSeconds % 60;
-  return '$minutes:${seconds.toString().padLeft(2, '0')}';
-}
-
 bool _sameMatrixProjectionStructure(
   TimelineMessage left,
   TimelineMessage right,
@@ -1777,7 +1768,9 @@ bool _sameMatrixProjectionStructure(
       leftAttachment?.kind == rightAttachment?.kind &&
       leftAttachment?.name == rightAttachment?.name &&
       leftAttachment?.sizeLabel == rightAttachment?.sizeLabel &&
-      leftAttachment?.durationLabel == rightAttachment?.durationLabel;
+      leftAttachment?.sizeBytes == rightAttachment?.sizeBytes &&
+      leftAttachment?.durationLabel == rightAttachment?.durationLabel &&
+      leftAttachment?.duration == rightAttachment?.duration;
 }
 
 void _applyMatrixProjectionLeaves(
