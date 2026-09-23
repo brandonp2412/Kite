@@ -857,7 +857,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('new-chat-fab-extended')));
+      await tester.enterText(find.byKey(const Key('home-search')), 'Alice');
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('create-room-search-result')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const Key('start-direct-message-search-result')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('room-create-user-result-0')));
       await tester.pumpAndSettle();

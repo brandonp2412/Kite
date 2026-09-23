@@ -682,6 +682,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
 
   Future<void> _openRoomCreation({
     RoomCreationMode initialMode = RoomCreationMode.directMessage,
+    String initialDirectUserId = '',
   }) async {
     final coordinator = widget.roomCreation;
     if (coordinator == null) return;
@@ -690,6 +691,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         builder: (routeContext) => RoomCreationScreen(
           coordinator: coordinator,
           initialMode: initialMode,
+          initialDirectUserId: initialDirectUserId,
           recentPeople: widget.recentPeople,
           onCreated: (room) => Navigator.of(routeContext).pop(room),
         ),
@@ -808,6 +810,12 @@ class _HomeSidebarState extends State<_HomeSidebar> {
             onCreateRoom: canCreateRoom
                 ? () => _openRoomCreation(
                     initialMode: RoomCreationMode.privateRoom,
+                  )
+                : null,
+            onStartDirectMessage: canCreateRoom
+                ? (query) => _openRoomCreation(
+                    initialMode: RoomCreationMode.directMessage,
+                    initialDirectUserId: query,
                   )
                 : null,
           ),
@@ -1276,6 +1284,7 @@ class _RoomList extends StatelessWidget {
     this.query = '',
     this.roomListLoading = false,
     this.onCreateRoom,
+    this.onStartDirectMessage,
     super.key,
   });
 
@@ -1286,6 +1295,7 @@ class _RoomList extends StatelessWidget {
   final String query;
   final bool roomListLoading;
   final VoidCallback? onCreateRoom;
+  final ValueChanged<String>? onStartDirectMessage;
 
   Future<void> _showRoomOptionsSheet(
     BuildContext context,
@@ -1606,7 +1616,8 @@ class _RoomList extends StatelessWidget {
       policy: ReadingOrderTraversalPolicy(),
       child: SignalBuilder(
         builder: (context) {
-          final normalizedQuery = query.trim().toLowerCase();
+          final trimmedQuery = query.trim();
+          final normalizedQuery = trimmedQuery.toLowerCase();
           final ids = store.visibleRoomIds.value
               .where((roomId) {
                 if (normalizedQuery.isEmpty) return true;
@@ -1623,7 +1634,11 @@ class _RoomList extends StatelessWidget {
               .toList(growable: false);
           final showCreateRoom =
               normalizedQuery.isNotEmpty && onCreateRoom != null;
-          if (ids.isEmpty && !showCreateRoom) {
+          final showStartDirectMessage =
+              normalizedQuery.isNotEmpty && onStartDirectMessage != null;
+          final actionCount =
+              (showCreateRoom ? 1 : 0) + (showStartDirectMessage ? 1 : 0);
+          if (ids.isEmpty && actionCount == 0) {
             if (roomListLoading && store.roomIds.isEmpty) {
               return const Center(
                 child: CircularProgressIndicator(key: Key('room-list-loading')),
@@ -1640,22 +1655,38 @@ class _RoomList extends StatelessWidget {
           }
           return ListView.builder(
             key: const Key('room-list'),
-            itemCount: ids.length + (showCreateRoom ? 1 : 0),
+            itemCount: ids.length + actionCount,
             itemExtent: rowExtent,
             itemBuilder: (context, index) {
-              if (showCreateRoom && index == 0) {
+              var actionIndex = 0;
+              if (showCreateRoom) {
+                if (index == actionIndex) {
+                  return SizedBox(
+                    height: rowExtent,
+                    child: ListTile(
+                      key: const Key('create-room-search-result'),
+                      leading: const Icon(Icons.add_box_outlined),
+                      title: const Text('Create room'),
+                      subtitle: const Text('Private or public room'),
+                      onTap: onCreateRoom,
+                    ),
+                  );
+                }
+                actionIndex += 1;
+              }
+              if (showStartDirectMessage && index == actionIndex) {
                 return SizedBox(
                   height: rowExtent,
                   child: ListTile(
-                    key: const Key('create-room-search-result'),
-                    leading: const Icon(Icons.add_box_outlined),
-                    title: const Text('Create room'),
-                    subtitle: const Text('Private or public room'),
-                    onTap: onCreateRoom,
+                    key: const Key('start-direct-message-search-result'),
+                    leading: const Icon(Icons.person_add_alt_1_outlined),
+                    title: const Text('Start conversation'),
+                    subtitle: Text(trimmedQuery),
+                    onTap: () => onStartDirectMessage!(trimmedQuery),
                   ),
                 );
               }
-              final roomIndex = showCreateRoom ? index - 1 : index;
+              final roomIndex = index - actionCount;
               return _roomRow(context, ids[roomIndex], rowExtent);
             },
           );
