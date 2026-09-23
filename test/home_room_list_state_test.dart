@@ -576,6 +576,47 @@ void main() {
     expect(find.text('Could not update favourite.'), findsOneWidget);
   });
 
+  testWidgets('failed read-all persistence keeps local unread state', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: 'alice',
+        name: 'Alice',
+        latestEventBody: 'Unread message',
+        unreadCount: 3,
+        hasMention: true,
+      ),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(
+          roomListStore: store,
+          onMarkAllRoomsRead: () async {
+            throw StateError('deterministic read-all failure');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('room-alice')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-mark-all-read-alice')));
+    await tester.pumpAndSettle();
+
+    expect(store.roomSignal('alice').value.unreadCount, 3);
+    expect(store.roomSignal('alice').value.hasMention, isTrue);
+    expect(find.text('Could not mark every chat as read.'), findsOneWidget);
+    expect(find.byKey(const Key('room-options-sheet-alice')), findsOneWidget);
+  });
+
   testWidgets('cached Matrix avatar paints before profile hydration', (
     tester,
   ) async {
@@ -997,6 +1038,61 @@ void main() {
     expect(find.text('Create private room'), findsOneWidget);
     expect(find.text('Private'), findsOneWidget);
     expect(find.text('Public'), findsOneWidget);
+  });
+
+  testWidgets('desktop right-click exposes read-all without home chrome', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const roomId = '!unread:example.org';
+    final store = RoomListStateStore(const <RoomListEntry>[
+      RoomListEntry(
+        id: roomId,
+        name: 'Unread room',
+        latestEventBody: 'Latest message',
+        unreadCount: 4,
+        hasMention: true,
+      ),
+    ]);
+    var persistCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light.copyWith(platform: TargetPlatform.linux),
+        home: HomeScreen(
+          roomListStore: store,
+          onMarkAllRoomsRead: () async {
+            persistCalls += 1;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mark all chats as read'), findsNothing);
+    final room = find.byKey(const Key('room-$roomId'));
+    final detector = tester
+        .widgetList<GestureDetector>(
+          find.ancestor(of: room, matching: find.byType(GestureDetector)),
+        )
+        .firstWhere((widget) => widget.onSecondaryTapDown != null);
+    detector.onSecondaryTapDown!(
+      TapDownDetails(globalPosition: tester.getCenter(room)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mark all chats as read'), findsOneWidget);
+    expect(find.byKey(const Key('room-options-sheet-$roomId')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('room-mark-all-read-$roomId')));
+    await tester.pumpAndSettle();
+
+    expect(persistCalls, 1);
+    expect(store.roomSignal(roomId).value.unreadCount, 0);
+    expect(store.roomSignal(roomId).value.hasMention, isFalse);
   });
 
   testWidgets('desktop right-click can leave a room', (tester) async {
