@@ -5,6 +5,7 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/threads/thread_controller.dart';
+import 'package:kite/features/timeline/timeline_attachment_formatting.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/l10n/generated/app_localizations.dart';
 import 'package:kite/l10n/kite_local_formats.dart';
@@ -75,6 +76,26 @@ void main() {
                 KiteLocalFormats.shortTime(context, instant),
                 KiteLocalFormats.decimal(context, 1234.5),
                 KiteLocalFormats.binaryByteSize(context, 1536),
+                timelineAttachmentSizeLabel(
+                  context,
+                  const TimelineAttachment(
+                    id: 'matrix-audio',
+                    kind: TimelineAttachmentKind.audio,
+                    name: 'song.m4a',
+                    sizeLabel: 'Audio',
+                    sizeBytes: 2200000,
+                  ),
+                ),
+                timelineAttachmentDurationLabel(
+                  context,
+                  const TimelineAttachment(
+                    id: 'matrix-audio',
+                    kind: TimelineAttachmentKind.audio,
+                    name: 'song.m4a',
+                    sizeLabel: 'Audio',
+                    duration: Duration(seconds: 65),
+                  ),
+                ),
               ];
               return const SizedBox();
             },
@@ -92,6 +113,10 @@ void main() {
     expect(values['de']![3], '1.234,5');
     expect(values['en']![4], '1.5 KiB');
     expect(values['de']![4], '1,5 KiB');
+    expect(values['en']![5], '2.1 MB · Audio');
+    expect(values['de']![5], '2,1 MB · Audio');
+    expect(values['en']![6], '1:05');
+    expect(values['de']![6], '1:05');
   });
 
   testWidgets('room-list counts use locale-aware number formatting', (

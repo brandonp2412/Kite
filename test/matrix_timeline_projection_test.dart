@@ -412,7 +412,8 @@ void main() {
       expect(messages[0].sender, 'Alice');
       expect(messages[0].body, 'Hello from sync');
       expect(messages[1].attachment?.kind, TimelineAttachmentKind.audio);
-      expect(messages[1].attachment?.durationLabel, '1:05');
+      expect(messages[1].attachment?.sizeBytes, 2200000);
+      expect(messages[1].attachment?.duration, const Duration(seconds: 65));
       expect(messages[2].attachment?.kind, TimelineAttachmentKind.voice);
       expect(messages[2].mine, isTrue);
       expect(messages[3].attachment?.kind, TimelineAttachmentKind.audio);

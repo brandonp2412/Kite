@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/media/media_viewer.dart';
+import 'package:kite/features/timeline/timeline_attachment_formatting.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 abstract interface class TimelineMediaActionPort {
@@ -276,7 +277,7 @@ class TimelineMediaVisual extends StatelessWidget {
                     ),
                     const SizedBox(width: KiteSpacing.sm),
                     Text(
-                      attachment.sizeLabel,
+                      timelineAttachmentSizeLabel(context, attachment),
                       style: KiteTypography.metadata.copyWith(
                         color: Colors.white70,
                       ),

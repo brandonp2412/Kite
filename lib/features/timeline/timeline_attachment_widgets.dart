@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
+import 'package:kite/features/timeline/timeline_attachment_formatting.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:signals/signals_flutter.dart';
@@ -282,7 +283,7 @@ class ComposerAttachmentPreview extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
-                      attachment.sizeLabel,
+                      timelineAttachmentSizeLabel(context, attachment),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: KiteTypography.metadata.copyWith(
@@ -372,7 +373,7 @@ class TimelineAttachmentCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        attachment.sizeLabel,
+                        timelineAttachmentSizeLabel(context, attachment),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: KiteTypography.metadata.copyWith(
@@ -391,7 +392,7 @@ class TimelineAttachmentCard extends StatelessWidget {
       label: visualMedia
           ? '${attachment.name}, open media'
           : audio
-          ? '${attachment.kind == TimelineAttachmentKind.voice ? 'Voice message' : 'Audio'}, ${attachment.durationLabel ?? attachment.sizeLabel}'
+          ? '${attachment.kind == TimelineAttachmentKind.voice ? 'Voice message' : 'Audio'}, ${timelineAttachmentDurationLabel(context, attachment)}'
           : attachment.name,
       child: SizedBox(
         key: Key('message-attachment-$messageId'),
@@ -507,7 +508,7 @@ class _TimelineAudioCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      attachment.durationLabel ?? attachment.sizeLabel,
+                      timelineAttachmentDurationLabel(context, attachment),
                       key: Key('audio-duration-$messageId'),
                       style: KiteTypography.metadata.copyWith(
                         color: colors.onSurfaceVariant,

@@ -359,7 +359,7 @@ class _MediaPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: '${item.semanticLabel}, ${index + 1} of $itemCount',
+      label: '${item.semanticLabel}, ${KiteLocalFormats.decimal(context, index + 1)} of ${KiteLocalFormats.decimal(context, itemCount)}',
       image: true,
       child: Stack(
         key: Key('media-page-${item.id}'),
