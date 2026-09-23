@@ -1,15 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="536" height="160" viewBox="0 0 536 160" role="img" aria-labelledby="title desc">
-  <title id="title">Get Kite on GitHub</title>
+  <title id="title">Get Kite on GitHub Releases</title>
   <desc id="desc">A custom Kite download badge linking to GitHub Releases.</desc>
   <defs>
     <linearGradient id="bg" x1="20" y1="16" x2="516" y2="144" gradientUnits="userSpaceOnUse">
       <stop stop-color="#061B3D"/>
       <stop offset="0.52" stop-color="#003197"/>
       <stop offset="1" stop-color="#494FE8"/>
-    </linearGradient>
-    <linearGradient id="kite" x1="42" y1="36" x2="126" y2="124" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#8EC4FD"/>
-      <stop offset="1" stop-color="#8E81FD"/>
     </linearGradient>
     <filter id="shadow" x="-8%" y="-20%" width="116%" height="150%">
       <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#00102D" flood-opacity="0.35"/>
@@ -19,11 +15,12 @@
   <rect x="8" y="8" width="520" height="144" rx="30" fill="url(#bg)" stroke="#8EC4FD" stroke-opacity="0.55" stroke-width="2" filter="url(#shadow)"/>
 
   <g transform="translate(32 28)">
-    <rect width="104" height="104" rx="25" fill="#FFFFFF" fill-opacity="0.1"/>
-    <path d="M52 13L91 55L53 94L14 55L52 13Z" fill="url(#kite)"/>
-    <path d="M52 13L50 55L14 55L52 13Z" fill="#A9D9FF"/>
-    <path d="M50 55L91 55L53 94L50 55Z" fill="#494FE8"/>
-    <path d="M52 13L50 55M50 55L14 55M50 55L53 94M50 55L91 55" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity="0.88"/>
+    <rect width="104" height="104" rx="25" fill="#003197"/>
+    <g transform="translate(19.76 19.76) scale(0.0597)">
+      <path d="M285 185 H430 V455 L650 185 H835 L575 505 L455 600 L430 580 V875 H285 Z" fill="#8EC4FD"/>
+      <path d="M455 600 L575 505 L865 875 H680 Z" fill="#8E81FD"/>
+      <path d="M650 185 H835 L575 505 L505 560 L555 385 Z" fill="#494FE8"/>
+    </g>
   </g>
 
   <g fill="#FFFFFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif">

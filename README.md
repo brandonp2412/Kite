@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/kite_readme_icon.svg" alt="Kite app icon" width="220" />
+  <img src="assets/branding/kite_app_icon.svg" alt="Kite app icon" width="220" />
 </p>
 
 <h1 align="center">Kite</h1>
@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/brandonp2412/Kite/releases" aria-label="Get Kite on GitHub">
-    <img src="assets/branding/get_it_on_github.svg" alt="Get Kite on GitHub" width="268" />
+  <a href="https://github.com/brandonp2412/Kite/releases" aria-label="Get Kite on GitHub Releases">
+    <img src="assets/branding/get_it_on_github.svg" alt="Get Kite on GitHub Releases" width="268" />
   </a>
 </p>
 
