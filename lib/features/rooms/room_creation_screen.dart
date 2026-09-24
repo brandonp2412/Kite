@@ -46,6 +46,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
   String? _userSearchError;
   List<KiteUserSearchResult> _userSearchResults =
       const <KiteUserSearchResult>[];
+  KiteUserSearchResult? _privateRoomInvitee;
 
   @override
   void initState() {
@@ -89,7 +90,10 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
     }
   }
 
-  void _changeMode(RoomCreationMode mode) {
+  void _changeMode(
+    RoomCreationMode mode, {
+    KiteUserSearchResult? privateRoomInvitee,
+  }) {
     if (_submitting || mode == _mode) return;
     final capabilities = _capabilities;
     if (mode == RoomCreationMode.publicRoom &&
@@ -101,6 +105,9 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
     _userSearchGeneration += 1;
     setState(() {
       _mode = mode;
+      _privateRoomInvitee = mode == RoomCreationMode.privateRoom
+          ? privateRoomInvitee
+          : null;
       _error = null;
       _searchingUsers = false;
       _userSearchError = null;
@@ -214,6 +221,9 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
             topic: _topic.text,
             joinRule: _joinRule,
             encryptionEnabled: _encrypt,
+            invitees: _privateRoomInvitee == null
+                ? const <String>[]
+                : <String>[_privateRoomInvitee!.userId],
             parentSpaceId: widget.parentSpaceId,
           ),
         RoomCreationMode.publicRoom =>
@@ -397,6 +407,22 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
+                                        trailing: IconButton(
+                                          key: Key(
+                                            'room-create-user-private-$index',
+                                          ),
+                                          tooltip:
+                                              'Create private room with $label',
+                                          onPressed: _submitting
+                                              ? null
+                                              : () => _changeMode(
+                                                  RoomCreationMode.privateRoom,
+                                                  privateRoomInvitee: result,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.group_add_outlined,
+                                          ),
+                                        ),
                                         onTap: _submitting
                                             ? null
                                             : () => _selectUser(result),
@@ -470,6 +496,47 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
                                     labelText: 'Room address (optional)',
                                     hintText: '#room:server',
                                     prefixIcon: Icon(Icons.tag_rounded),
+                                  ),
+                                ),
+                              ],
+                              if (_mode == RoomCreationMode.privateRoom &&
+                                  _privateRoomInvitee != null) ...<Widget>[
+                                const SizedBox(height: KiteSpacing.md),
+                                ListTile(
+                                  key: const Key('room-create-private-invitee'),
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(
+                                    Icons.person_add_alt_1_rounded,
+                                  ),
+                                  title: Text(
+                                    _privateRoomInvitee!.displayName
+                                                ?.trim()
+                                                .isNotEmpty ==
+                                            true
+                                        ? _privateRoomInvitee!.displayName!
+                                              .trim()
+                                        : _privateRoomInvitee!.userId,
+                                  ),
+                                  subtitle:
+                                      _privateRoomInvitee!.displayName
+                                              ?.trim()
+                                              .isNotEmpty ==
+                                          true
+                                      ? Text(_privateRoomInvitee!.userId)
+                                      : const Text(
+                                          'Will be invited when the room is created.',
+                                        ),
+                                  trailing: IconButton(
+                                    key: const Key(
+                                      'room-create-private-invitee-remove',
+                                    ),
+                                    tooltip: 'Remove invitee',
+                                    onPressed: _submitting
+                                        ? null
+                                        : () => setState(
+                                            () => _privateRoomInvitee = null,
+                                          ),
+                                    icon: const Icon(Icons.close_rounded),
                                   ),
                                 ),
                               ],

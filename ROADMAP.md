@@ -154,6 +154,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Invite cards and accept/decline flows.
 - [ ] Create DM from people search.
 - [ ] Create a room while inviting someone when no suitable DM exists.
+  - Progress 2026-09-24: Matrix people-search results now expose a secondary private-room action alongside opening the direct conversation. Choosing it carries the selected user into the existing private-room form, shows a removable invitee summary, and forwards that Matrix user ID through the production-backed room creation request so the invite is sent atomically with room creation. Focused widget coverage verifies search -> private-room transition and the resulting invitee request. Keep unchecked until the required runtime quality gate is green.
 - [ ] Room directory discovery/search supported by current Element X.
 - [ ] Public/private/knock room discovery and join/request flows as supported upstream.
 - [ ] Joined Spaces visible from the home experience.

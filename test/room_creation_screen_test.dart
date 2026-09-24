@@ -90,6 +90,63 @@ void main() {
     );
   });
 
+  testWidgets('people search can create a private room with an invitee', (
+    tester,
+  ) async {
+    final fixture = _fixture(
+      userSearchResults: const <KiteUserSearchResult>[
+        KiteUserSearchResult(
+          userId: '@bob:example.org',
+          displayName: 'Bob Builder',
+          avatarUrl: null,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      _app(fixture.coordinator, mode: RoomCreationMode.directMessage),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byKey(const Key('room-create-user-id')), 'bob');
+    await tester.pump(const Duration(milliseconds: 251));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('room-create-user-private-0')));
+    await tester.pumpAndSettle();
+
+    final mode = tester.widget<SegmentedButton<RoomCreationMode>>(
+      find.byKey(const Key('room-creation-mode')),
+    );
+    expect(mode.selected, <RoomCreationMode>{RoomCreationMode.privateRoom});
+    expect(
+      find.byKey(const Key('room-create-private-invitee')),
+      findsOneWidget,
+    );
+    expect(find.text('Bob Builder'), findsOneWidget);
+    expect(find.text('@bob:example.org'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('room-create-name')),
+      'Bob and me',
+    );
+    await tester.drag(
+      find.byKey(const Key('room-creation-form')),
+      const Offset(0, -320),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-create-submit')));
+    await tester.pump();
+
+    final request = fixture.rooms.invocations
+        .firstWhere(
+          (entry) => entry.type == RoomManagementInvocationType.create,
+        )
+        .creation!;
+    expect(request.kind, KiteRoomCreationKind.privateRoom);
+    expect(request.name, 'Bob and me');
+    expect(request.invitees, <String>['@bob:example.org']);
+  });
+
   testWidgets('new conversation defaults to focused cached people search', (
     tester,
   ) async {
