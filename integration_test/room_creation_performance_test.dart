@@ -64,4 +64,69 @@ void main() {
       'result': 'PASS',
     };
   });
+
+  testWidgets('room creation Space selection has zero late Flutter frames', (
+    tester,
+  ) async {
+    final rooms = DeterministicRoomManagementPort();
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    KiteCreatedRoom? created;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomCreationScreen(
+          coordinator: coordinator,
+          initialMode: RoomCreationMode.privateRoom,
+          availableSpaces: const <RoomCreationSpaceOption>[
+            RoomCreationSpaceOption(roomId: '!kite:example.org', name: 'Kite'),
+          ],
+          onCreated: (room) => created = room,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final nameField = tester.widget<TextField>(
+      find.byKey(const Key('room-create-name')),
+    );
+    nameField.controller!.text = 'Roadmap';
+    await tester.pump();
+
+    final result = await measureFrames(
+      binding: binding,
+      action: () async {
+        final picker = find.byKey(const Key('room-create-space'));
+        await tester.ensureVisible(picker);
+        await tester.tap(find.text('Kite').last);
+        await tester.pumpAndSettle();
+        final segmented = tester.widget<SegmentedButton<String>>(picker);
+        expect(segmented.selected, contains('!kite:example.org'));
+      },
+      enforceTotalSpan: enforceTotalSpan,
+    );
+
+    final submit = find.byKey(const Key('room-create-submit'));
+    await tester.ensureVisible(submit);
+    await Scrollable.ensureVisible(
+      tester.element(submit),
+      alignment: 0.85,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    expect(submit.hitTestable(), findsOneWidget);
+    await tester.tap(submit.hitTestable());
+    await tester.pumpAndSettle();
+
+    expect(created?.isDirect, isFalse);
+    expect(rooms.invocations.last.creation?.parentSpaceId, '!kite:example.org');
+    binding.reportData ??= <String, dynamic>{};
+    binding.reportData!['room_creation_space'] = <String, dynamic>{
+      'journey': 'private_room_space_selection',
+      'fixture': 'deterministic_room_management_v1',
+      ...result,
+      'result': 'PASS',
+    };
+  });
 }

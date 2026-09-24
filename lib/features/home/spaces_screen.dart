@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/spaces_controller.dart';
+import 'package:kite/features/rooms/room_creation_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
@@ -58,6 +59,28 @@ class SpacesScreen extends StatelessWidget {
     ).showSnackBar(SnackBar(content: Text('${created.displayName} created')));
   }
 
+  Future<void> _openCreateRoom(BuildContext context) async {
+    final coordinator = roomCreation;
+    final space = _controller.selectedSpace;
+    if (coordinator == null || space == null) return;
+    final created = await Navigator.of(context).push<KiteCreatedRoom>(
+      MaterialPageRoute<KiteCreatedRoom>(
+        builder: (routeContext) => RoomCreationScreen(
+          coordinator: coordinator,
+          initialMode: RoomCreationMode.privateRoom,
+          parentSpaceId: space.id,
+          onCreated: (room) => Navigator.of(routeContext).pop(room),
+        ),
+      ),
+    );
+    if (created == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${created.displayName} created in ${space.name}'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -90,13 +113,20 @@ class SpacesScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (roomCreation != null)
+                    if (roomCreation != null) ...<Widget>[
+                      IconButton(
+                        key: const Key('spaces-create-room'),
+                        tooltip: 'Create room in selected Space',
+                        onPressed: () => _openCreateRoom(context),
+                        icon: const Icon(Icons.add_box_outlined),
+                      ),
                       IconButton(
                         key: const Key('spaces-create'),
                         tooltip: 'Create Space',
                         onPressed: () => _openCreateSpace(context),
                         icon: const Icon(Icons.add_rounded),
                       ),
+                    ],
                   ],
                 ),
               ),

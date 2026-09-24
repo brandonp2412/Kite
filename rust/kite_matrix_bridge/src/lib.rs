@@ -45,13 +45,14 @@ use matrix_sdk::{
                 message::{Relation, ReplacementMetadata, RoomMessageEventContent},
                 power_levels::UserPowerLevel,
             },
-            space::child::SpaceChildEventContent,
+            space::{child::SpaceChildEventContent, parent::SpaceParentEventContent},
         },
         room::RoomType,
         serde::Raw,
     },
 };
 use matrix_sdk_base::{
+    RoomState,
     crypto::{encrypt_room_key_export, olm::ExportedRoomKey},
     deserialized_responses::SyncOrStrippedState,
     latest_event::LatestEventValue,
@@ -1637,19 +1638,30 @@ pub unsafe extern "C" fn kite_matrix_client_create_room(
             "The room creation request is invalid.",
         );
     };
-    if request.parent_space_id.is_some() {
-        return error_json(
-            "unsupported_parent_space",
-            "Creating a room inside a Space is not available yet.",
-        );
-    }
-
     let is_direct = request.kind == "directMessage";
     let is_private = request.kind == "privateRoom";
     let is_public = request.kind == "publicRoom";
     let is_space = request.kind == "space";
     if !is_direct && !is_private && !is_public && !is_space {
         return error_json("invalid_room_kind", "The room creation type is invalid.");
+    }
+    let parent_space_id = match request.parent_space_id.as_deref() {
+        Some(value) => match RoomId::parse(value) {
+            Ok(room_id) => Some(room_id),
+            Err(_) => {
+                return error_json(
+                    "invalid_parent_space",
+                    "The parent Matrix Space is invalid.",
+                );
+            }
+        },
+        None => None,
+    };
+    if parent_space_id.is_some() && (is_direct || is_space) {
+        return error_json(
+            "invalid_parent_space",
+            "Only regular rooms can be created inside a Space.",
+        );
     }
     if (is_direct || is_private) && request.join_rule != "invite" {
         return error_json(
@@ -1727,6 +1739,30 @@ pub unsafe extern "C" fn kite_matrix_client_create_room(
     let client = unsafe { &mut *client };
     let Some(matrix_client) = client.client.as_ref() else {
         return error_json("client_closed", "Matrix room creation is unavailable.");
+    };
+    let parent_space = match parent_space_id.as_ref() {
+        Some(parent_space_id) => match matrix_client.get_room(parent_space_id) {
+            Some(room) if !room.is_space() => {
+                return error_json(
+                    "parent_space_not_space",
+                    "The selected parent room is not a Matrix Space.",
+                );
+            }
+            Some(room) if room.state() != RoomState::Joined => {
+                return error_json(
+                    "parent_space_not_joined",
+                    "The selected Matrix Space is not joined by this account.",
+                );
+            }
+            Some(room) => Some(room),
+            None => {
+                return error_json(
+                    "parent_space_not_found",
+                    "The selected Matrix Space is not available in this account.",
+                );
+            }
+        },
+        None => None,
     };
     let mut native_request = create_room::v3::Request::new();
     native_request.name = request.name.filter(|value| !value.trim().is_empty());
@@ -1816,6 +1852,40 @@ pub unsafe extern "C" fn kite_matrix_client_create_room(
             );
         }
     };
+    if let Some(parent_space) = parent_space {
+        let Some(user_id) = matrix_client.user_id() else {
+            return error_json(
+                "authentication_required",
+                "The Matrix session is unavailable.",
+            );
+        };
+        let routing_servers = vec![user_id.server_name().to_owned()];
+        let mut parent_content = SpaceParentEventContent::new(routing_servers.clone());
+        parent_content.canonical = true;
+        if client
+            .runtime
+            .block_on(room.send_state_event_for_key(parent_space.room_id(), parent_content))
+            .is_err()
+        {
+            return error_json(
+                "space_link_failed",
+                "The room was created but could not link back to its parent Space.",
+            );
+        }
+        if client
+            .runtime
+            .block_on(parent_space.send_state_event_for_key(
+                room.room_id(),
+                SpaceChildEventContent::new(routing_servers),
+            ))
+            .is_err()
+        {
+            return error_json(
+                "space_link_failed",
+                "The room was created but its parent Space could not publish the child link.",
+            );
+        }
+    }
     if is_direct
         && client
             .runtime

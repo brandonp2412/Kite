@@ -215,6 +215,117 @@ void main() {
     expect(find.text('Members of allowed Spaces'), findsNothing);
   });
 
+  testWidgets('private room creation defaults to no Space', (tester) async {
+    final fixture = _fixture();
+    const spaces = <RoomCreationSpaceOption>[
+      RoomCreationSpaceOption(roomId: '!kite:example.org', name: 'Kite'),
+    ];
+    await tester.pumpWidget(_app(fixture.coordinator, availableSpaces: spaces));
+    await tester.pump();
+
+    expect(find.byKey(const Key('room-create-space')), findsOneWidget);
+    expect(find.text('No Space'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('room-create-name')),
+      'Spaceless room',
+    );
+    await tester.dragUntilVisible(
+      find.byKey(const Key('room-create-submit')),
+      find.byKey(const Key('room-creation-form')),
+      const Offset(0, -160),
+    );
+    await tester.pumpAndSettle();
+    final submit = find.byKey(const Key('room-create-submit'));
+    await Scrollable.ensureVisible(
+      tester.element(submit),
+      alignment: 0.85,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    expect(submit.hitTestable(), findsOneWidget);
+    await tester.tap(submit);
+    await tester.pump();
+
+    expect(fixture.rooms.invocations.last.creation?.parentSpaceId, isNull);
+  });
+
+  testWidgets('private room creation can choose a joined Space', (
+    tester,
+  ) async {
+    final fixture = _fixture();
+    const spaces = <RoomCreationSpaceOption>[
+      RoomCreationSpaceOption(roomId: '!kite:example.org', name: 'Kite'),
+      RoomCreationSpaceOption(roomId: '!people:example.org', name: 'People'),
+    ];
+    await tester.pumpWidget(_app(fixture.coordinator, availableSpaces: spaces));
+    await tester.pump();
+
+    await tester.ensureVisible(find.byKey(const Key('room-create-space')));
+    await tester.tap(find.text('Kite').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('room-create-name')),
+      'Space room',
+    );
+    await tester.dragUntilVisible(
+      find.byKey(const Key('room-create-submit')),
+      find.byKey(const Key('room-creation-form')),
+      const Offset(0, -160),
+    );
+    await tester.pumpAndSettle();
+    final submit = find.byKey(const Key('room-create-submit'));
+    await Scrollable.ensureVisible(
+      tester.element(submit),
+      alignment: 0.85,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    expect(submit.hitTestable(), findsOneWidget);
+    await tester.tap(submit);
+    await tester.pump();
+
+    expect(
+      fixture.rooms.invocations.last.creation?.parentSpaceId,
+      '!kite:example.org',
+    );
+  });
+
+  testWidgets('direct mode hides a previously selected Space link', (
+    tester,
+  ) async {
+    final fixture = _fixture();
+    const spaces = <RoomCreationSpaceOption>[
+      RoomCreationSpaceOption(roomId: '!kite:example.org', name: 'Kite'),
+    ];
+    await tester.pumpWidget(_app(fixture.coordinator, availableSpaces: spaces));
+    await tester.pump();
+
+    await tester.tap(find.text('Kite').last);
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('room-creation-form')),
+      const Offset(0, -600),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('This room will be linked to the selected Space.'),
+      findsOneWidget,
+    );
+
+    await tester.drag(
+      find.byKey(const Key('room-creation-form')),
+      const Offset(0, 600),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Message'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This room will be linked to the selected Space.'),
+      findsNothing,
+    );
+  });
+
   testWidgets('public mode obeys policy and forwards alias and encryption', (
     tester,
   ) async {
@@ -234,9 +345,21 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('room-create-encryption')));
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const Key('room-create-submit')));
+    await tester.dragUntilVisible(
+      find.byKey(const Key('room-create-submit')),
+      find.byKey(const Key('room-creation-form')),
+      const Offset(0, -160),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('room-create-submit')));
+    final submit = find.byKey(const Key('room-create-submit'));
+    await Scrollable.ensureVisible(
+      tester.element(submit),
+      alignment: 0.85,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    expect(submit.hitTestable(), findsOneWidget);
+    await tester.tap(submit);
     await tester.pump();
 
     final request = fixture.rooms.invocations
@@ -291,12 +414,15 @@ void main() {
 Widget _app(
   RoomManagementCoordinator coordinator, {
   RoomCreationMode mode = RoomCreationMode.privateRoom,
+  List<RoomCreationSpaceOption> availableSpaces =
+      const <RoomCreationSpaceOption>[],
   ValueChanged<KiteCreatedRoom>? onCreated,
 }) => MaterialApp(
   theme: KiteTheme.light,
   home: RoomCreationScreen(
     coordinator: coordinator,
     initialMode: mode,
+    availableSpaces: availableSpaces,
     onCreated: onCreated,
   ),
 );

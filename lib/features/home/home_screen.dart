@@ -715,6 +715,11 @@ class _HomeSidebarState extends State<_HomeSidebar> {
           initialMode: initialMode,
           initialDirectUserId: initialDirectUserId,
           recentPeople: widget.recentPeople,
+          availableSpaces: <RoomCreationSpaceOption>[
+            for (final space
+                in widget.spacesController?.spaces ?? const <SpaceSummary>[])
+              RoomCreationSpaceOption(roomId: space.id, name: space.name),
+          ],
           onCreated: (room) => Navigator.of(routeContext).pop(room),
         ),
       ),
