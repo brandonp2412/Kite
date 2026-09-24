@@ -271,6 +271,16 @@ final class MatrixProductionRuntime
     required String query,
   }) => accounts.searchRoomDirectory(accountId: accountId, query: query);
 
+  Future<void> joinRoomFromDirectory({
+    required String accountId,
+    required String roomId,
+  }) => accounts.joinRoomFromDirectory(accountId: accountId, roomId: roomId);
+
+  Future<void> requestRoomJoin({
+    required String accountId,
+    required String roomId,
+  }) => accounts.requestRoomJoin(accountId: accountId, roomId: roomId);
+
   Future<Set<String>> loadIgnoredUserIds({required String accountId}) =>
       accounts.loadIgnoredUserIds(accountId: accountId);
 

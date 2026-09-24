@@ -143,6 +143,42 @@ void main() {
   });
 
   test(
+    'production room directory membership routes Matrix mutations',
+    () async {
+      final invocations = <String>[];
+      final port = MatrixRoomCreationManagementPort(
+        (_) async => const MatrixSdkCreatedRoom(
+          roomId: '!unused:example.org',
+          isDirect: false,
+        ),
+        reportRoom: (_, _) async {},
+        reportUser: (_, _, _) async {},
+        leaveRoom: (_) async {},
+        forgetRoom: (_) async {},
+        roomDetails: _details,
+        setName: (_, _) async {},
+        setTopic: (_, _) async {},
+        setAvatar: (_, _) async {},
+        setCanonicalAlias: (_, _) async {},
+        setJoinRule: (_, _) async {},
+        enableEncryption: (_) async {},
+        setHistoryVisibility: (_, _) async {},
+        setNotificationMode: (_, _) async {},
+        directoryJoin: (roomId) async => invocations.add('join:$roomId'),
+        directoryKnock: (roomId) async => invocations.add('knock:$roomId'),
+      );
+
+      await port.joinRoomFromDirectory('!public:example.org');
+      await port.requestRoomJoin('!knock:example.org');
+
+      expect(invocations, <String>[
+        'join:!public:example.org',
+        'knock:!knock:example.org',
+      ]);
+    },
+  );
+
+  test(
     'production creation capabilities expose only implemented join rules',
     () async {
       final port = MatrixRoomCreationManagementPort(

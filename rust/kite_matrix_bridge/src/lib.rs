@@ -2586,6 +2586,46 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
                 .collect::<Vec<_>>();
             json!({"results": results})
         }
+        "join_room" => {
+            let Some(room_id) = value.filter(|value| !value.is_empty()) else {
+                return error_json("invalid_room", "The Matrix room is invalid.");
+            };
+            let Ok(room_id) = RoomId::parse(room_id) else {
+                return error_json("invalid_room", "The Matrix room is invalid.");
+            };
+            let room = match client
+                .runtime
+                .block_on(matrix_client.join_room_by_id(&room_id))
+            {
+                Ok(room) => room,
+                Err(_) => {
+                    return error_json("room_join_failed", "The Matrix room could not be joined.");
+                }
+            };
+            json!({"roomId": room.room_id().as_str(), "membership": "joined"})
+        }
+        "knock_room" => {
+            let Some(room_id) = value.filter(|value| !value.is_empty()) else {
+                return error_json("invalid_room", "The Matrix room is invalid.");
+            };
+            let Ok(room_id) = RoomId::parse(room_id) else {
+                return error_json("invalid_room", "The Matrix room is invalid.");
+            };
+            let room =
+                match client
+                    .runtime
+                    .block_on(matrix_client.knock(room_id.into(), None, Vec::new()))
+                {
+                    Ok(room) => room,
+                    Err(_) => {
+                        return error_json(
+                            "room_knock_failed",
+                            "The Matrix room join request could not be sent.",
+                        );
+                    }
+                };
+            json!({"roomId": room.room_id().as_str(), "membership": "knocked"})
+        }
         "devices" => {
             let Some(session) = matrix_client.session_meta() else {
                 return error_json(

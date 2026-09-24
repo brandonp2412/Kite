@@ -26,6 +26,9 @@ class _RoomDirectoryScreenState extends State<RoomDirectoryScreen> {
   bool _loading = false;
   String? _error;
   List<KiteRoomDirectoryResult> _results = const <KiteRoomDirectoryResult>[];
+  final Set<String> _membershipPending = <String>{};
+  final Set<String> _joinedRoomIds = <String>{};
+  final Set<String> _requestedRoomIds = <String>{};
 
   @override
   void initState() {
@@ -72,6 +75,86 @@ class _RoomDirectoryScreenState extends State<RoomDirectoryScreen> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  Future<void> _changeMembership(KiteRoomDirectoryResult room) async {
+    final roomId = room.roomId;
+    if (_membershipPending.contains(roomId) ||
+        _joinedRoomIds.contains(roomId) ||
+        _requestedRoomIds.contains(roomId)) {
+      return;
+    }
+    final request =
+        room.joinRule == 'knock' || room.joinRule == 'knock_restricted';
+    setState(() => _membershipPending.add(roomId));
+    try {
+      if (request) {
+        await widget.coordinator.requestRoomJoin(roomId);
+      } else {
+        await widget.coordinator.joinRoomFromDirectory(roomId);
+      }
+      if (!mounted) return;
+      setState(() {
+        if (request) {
+          _requestedRoomIds.add(roomId);
+        } else {
+          _joinedRoomIds.add(roomId);
+        }
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              request
+                  ? 'Join request sent.'
+                  : 'Joined ${room.name ?? room.canonicalAlias ?? room.roomId}.',
+            ),
+          ),
+        );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              request
+                  ? 'Kite could not send the join request.'
+                  : 'Kite could not join this room.',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _membershipPending.remove(roomId));
+      }
+    }
+  }
+
+  Widget? _membershipAction(KiteRoomDirectoryResult room, int index) {
+    final roomId = room.roomId;
+    if (_joinedRoomIds.contains(roomId)) {
+      return const Text('Joined');
+    }
+    if (_requestedRoomIds.contains(roomId)) {
+      return const Text('Requested');
+    }
+    final canJoin = room.joinRule == 'public' || room.joinRule == 'restricted';
+    final canRequest =
+        room.joinRule == 'knock' || room.joinRule == 'knock_restricted';
+    if (!canJoin && !canRequest) return null;
+    final pending = _membershipPending.contains(roomId);
+    return FilledButton.tonal(
+      key: Key('room-directory-membership-$index'),
+      onPressed: pending ? null : () => _changeMembership(room),
+      child: pending
+          ? const SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Text(canRequest ? 'Request' : 'Join'),
+    );
   }
 
   @override
@@ -184,6 +267,7 @@ class _RoomDirectoryScreenState extends State<RoomDirectoryScreen> {
           key: Key('room-directory-result-$index'),
           leading: const CircleAvatar(child: Icon(Icons.forum_outlined)),
           title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: _membershipAction(room, index),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[

@@ -4,6 +4,8 @@ enum RoomManagementInvocationType {
   capabilities,
   searchUsers,
   searchRoomDirectory,
+  joinRoomFromDirectory,
+  requestRoomJoin,
   create,
   details,
   setName,
@@ -47,7 +49,11 @@ final class RoomManagementInvocation {
 }
 
 final class DeterministicRoomManagementPort
-    implements RoomManagementPort, RoomUserSearchPort, RoomDirectorySearchPort {
+    implements
+        RoomManagementPort,
+        RoomUserSearchPort,
+        RoomDirectorySearchPort,
+        RoomDirectoryMembershipPort {
   DeterministicRoomManagementPort({
     this.seed = 0,
     KiteRoomCapabilities? roomCapabilities,
@@ -130,6 +136,28 @@ final class DeterministicRoomManagementPort
                 false))
           result,
     ];
+  }
+
+  @override
+  Future<void> joinRoomFromDirectory(String roomId) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.joinRoomFromDirectory,
+        roomId: roomId,
+      ),
+    );
+    _throwIfRequested();
+  }
+
+  @override
+  Future<void> requestRoomJoin(String roomId) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.requestRoomJoin,
+        roomId: roomId,
+      ),
+    );
+    _throwIfRequested();
   }
 
   @override
