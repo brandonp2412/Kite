@@ -161,6 +161,7 @@ final class MatrixPresentationCache {
       isSpace: current.isSpace,
       memberCount: current.memberCount,
       topic: current.topic,
+      childRoomIds: current.childRoomIds,
     );
     return true;
   }
@@ -189,6 +190,7 @@ final class MatrixPresentationCache {
       isSpace: current.isSpace,
       memberCount: current.memberCount,
       topic: current.topic,
+      childRoomIds: current.childRoomIds,
     );
     return true;
   }
@@ -534,7 +536,8 @@ final class MatrixPresentationCache {
         left.isDirect == right.isDirect &&
         left.isSpace == right.isSpace &&
         left.memberCount == right.memberCount &&
-        left.topic == right.topic;
+        left.topic == right.topic &&
+        _sameStrings(left.childRoomIds, right.childRoomIds);
   }
 
   static bool _sameInvites(

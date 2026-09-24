@@ -103,6 +103,7 @@ final class MatrixRoomSummary {
     this.isSpace = false,
     this.memberCount = 0,
     this.topic,
+    this.childRoomIds = const <String>[],
   });
 
   final String roomId;
@@ -120,6 +121,7 @@ final class MatrixRoomSummary {
   final bool isSpace;
   final int memberCount;
   final String? topic;
+  final List<String> childRoomIds;
 }
 
 final class MatrixRoomInvite {

@@ -490,7 +490,19 @@ final class MatrixHomePresentationBinding {
                   ? summary.topic!.trim()
                   : 'Joined Matrix Space',
               memberCount: summary.memberCount,
-              rooms: const <SpaceRoomPreview>[],
+              rooms: <SpaceRoomPreview>[
+                for (final childRoomId in summary.childRoomIds)
+                  if (cache.roomSummarySignal(childRoomId).value
+                      case final childSummary?)
+                    if (!childSummary.isSpace)
+                      SpaceRoomPreview(
+                        id: childSummary.roomId,
+                        name: childSummary.displayName,
+                        topic: childSummary.topic?.trim() ?? '',
+                        memberCount: childSummary.memberCount,
+                        joined: true,
+                      ),
+              ],
             ),
     ]);
   }

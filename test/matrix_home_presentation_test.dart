@@ -23,6 +23,8 @@ void main() {
             displayName: 'Chat',
             lastActivity: DateTime.utc(2026, 9, 25),
             streamPosition: 2,
+            memberCount: 7,
+            topic: 'Joined child room',
           ),
           MatrixRoomSummary(
             roomId: '!space:example.org',
@@ -32,6 +34,7 @@ void main() {
             isSpace: true,
             memberCount: 42,
             topic: 'Product and engineering',
+            childRoomIds: const <String>['!chat:example.org'],
           ),
         ],
       ),
@@ -54,6 +57,12 @@ void main() {
       binding.spacesController.spaces.single.description,
       'Product and engineering',
     );
+    final child = binding.spacesController.spaces.single.rooms.single;
+    expect(child.id, '!chat:example.org');
+    expect(child.name, 'Chat');
+    expect(child.topic, 'Joined child room');
+    expect(child.memberCount, 7);
+    expect(child.joined, isTrue);
   });
 
   test('Matrix home binding preserves the injected link opener', () async {

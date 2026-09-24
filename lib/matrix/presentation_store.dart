@@ -108,6 +108,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             'isSpace': room.isSpace,
             'memberCount': room.memberCount,
             if (room.topic != null) 'topic': room.topic,
+            'childRoomIds': room.childRoomIds,
           },
       ],
       'timelines': <String, Object?>{
@@ -247,6 +248,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final isSpace = value['isSpace'] ?? false;
     final memberCount = value['memberCount'] ?? 0;
     final topic = value['topic'];
+    final childRoomIds = value['childRoomIds'] ?? const <Object?>[];
     if (roomId is! String ||
         !_isSafeIdentifier(roomId) ||
         displayName is! String ||
@@ -266,7 +268,11 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         isSpace is! bool ||
         memberCount is! int ||
         memberCount < 0 ||
-        (topic != null && (topic is! String || topic.contains('\u0000')))) {
+        (topic != null && (topic is! String || topic.contains('\u0000'))) ||
+        childRoomIds is! List ||
+        childRoomIds.any(
+          (roomId) => roomId is! String || !_isSafeIdentifier(roomId),
+        )) {
       return null;
     }
     return MatrixRoomSummary(
@@ -288,6 +294,7 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       isSpace: isSpace,
       memberCount: memberCount,
       topic: topic as String?,
+      childRoomIds: List<String>.unmodifiable(childRoomIds.cast<String>()),
     );
   }
 

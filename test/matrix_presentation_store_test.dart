@@ -39,6 +39,9 @@ void main() {
       expect(restored.rooms.single.isSpace, isTrue);
       expect(restored.rooms.single.memberCount, 42);
       expect(restored.rooms.single.topic, 'Persisted Space topic');
+      expect(restored.rooms.single.childRoomIds, <String>[
+        '!child:example.org',
+      ]);
       expect(restored.timelines['!room:example.org'], hasLength(1));
       final event = restored.timelines['!room:example.org']!.single;
       expect(event.eventId, r'$event:example.org');
@@ -356,6 +359,7 @@ MatrixPresentationSnapshot _snapshot({String cursor = 'sync-42'}) {
         isSpace: true,
         memberCount: 42,
         topic: 'Persisted Space topic',
+        childRoomIds: const <String>['!child:example.org'],
       ),
     ],
     timelines: <String, List<MatrixTimelineEvent>>{
