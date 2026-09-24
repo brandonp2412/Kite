@@ -153,6 +153,28 @@ final class MatrixSdkUserSearchResult {
   final String? avatarUrl;
 }
 
+final class MatrixSdkRoomDirectoryResult {
+  const MatrixSdkRoomDirectoryResult({
+    required this.roomId,
+    required this.name,
+    required this.topic,
+    required this.canonicalAlias,
+    required this.avatarUrl,
+    required this.joinRule,
+    required this.worldReadable,
+    required this.joinedMembers,
+  });
+
+  final String roomId;
+  final String? name;
+  final String? topic;
+  final String? canonicalAlias;
+  final String? avatarUrl;
+  final String joinRule;
+  final bool worldReadable;
+  final int joinedMembers;
+}
+
 final class MatrixSdkRoomDetails {
   MatrixSdkRoomDetails({
     required this.roomId,
@@ -240,6 +262,10 @@ abstract interface class MatrixSdkDeviceManager {
 
 abstract interface class MatrixSdkRoomCreator {
   Future<MatrixSdkCreatedRoom> createRoom(MatrixSdkRoomCreationRequest request);
+}
+
+abstract interface class MatrixSdkRoomDirectoryManager {
+  Future<List<MatrixSdkRoomDirectoryResult>> searchRoomDirectory(String query);
 }
 
 abstract interface class MatrixSdkRoomSettingsManager {
@@ -954,6 +980,29 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     return manager.searchUsers(normalizedQuery);
+  }
+
+  Future<List<MatrixSdkRoomDirectoryResult>> searchRoomDirectory(
+    String query,
+  ) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomDirectoryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room directory search',
+      );
+    }
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.contains('\u0000')) {
+      throw ArgumentError.value(
+        query,
+        'query',
+        'must not contain NUL characters',
+      );
+    }
+    await _ensureOpen();
+    return (manager as MatrixSdkRoomDirectoryManager).searchRoomDirectory(
+      normalizedQuery,
+    );
   }
 
   Future<Set<String>> loadIgnoredUserIds() async {

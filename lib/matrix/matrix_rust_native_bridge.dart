@@ -3510,6 +3510,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkRoomEncryptionTrustManager,
         MatrixSdkDeviceManager,
         MatrixSdkRoomCreator,
+        MatrixSdkRoomDirectoryManager,
         MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
         MatrixSdkTimelineModerationManager,
@@ -3909,6 +3910,63 @@ final class MatrixRustSdkBoundary
         for (final raw in rawResults) _userSearchResult(raw),
       ];
     });
+  }
+
+  @override
+  Future<List<MatrixSdkRoomDirectoryResult>> searchRoomDirectory(String query) {
+    return _enqueue<List<MatrixSdkRoomDirectoryResult>>(() async {
+      final decoded = await _profile(action: 'search_rooms', value: query);
+      final rawResults = decoded['results'];
+      if (rawResults is! List<Object?>) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid room directory data',
+        );
+      }
+      return <MatrixSdkRoomDirectoryResult>[
+        for (final raw in rawResults) _roomDirectoryResult(raw),
+      ];
+    });
+  }
+
+  MatrixSdkRoomDirectoryResult _roomDirectoryResult(Object? raw) {
+    if (raw is! Map<Object?, Object?>) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid room directory data',
+      );
+    }
+    final roomId = raw['roomId'];
+    final name = raw['name'];
+    final topic = raw['topic'];
+    final canonicalAlias = raw['canonicalAlias'];
+    final avatarUrl = raw['avatarUrl'];
+    final joinRule = raw['joinRule'];
+    final worldReadable = raw['worldReadable'];
+    final joinedMembers = raw['joinedMembers'];
+    if (roomId is! String ||
+        roomId.trim().isEmpty ||
+        (name != null && name is! String) ||
+        (topic != null && topic is! String) ||
+        (canonicalAlias != null && canonicalAlias is! String) ||
+        (avatarUrl != null && avatarUrl is! String) ||
+        joinRule is! String ||
+        joinRule.trim().isEmpty ||
+        worldReadable is! bool ||
+        joinedMembers is! int ||
+        joinedMembers < 0) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid room directory data',
+      );
+    }
+    return MatrixSdkRoomDirectoryResult(
+      roomId: roomId,
+      name: name as String?,
+      topic: topic as String?,
+      canonicalAlias: canonicalAlias as String?,
+      avatarUrl: avatarUrl as String?,
+      joinRule: joinRule,
+      worldReadable: worldReadable,
+      joinedMembers: joinedMembers,
+    );
   }
 
   MatrixSdkUserSearchResult _userSearchResult(Object? raw) {

@@ -3,6 +3,7 @@ import 'package:kite/features/rooms/room_management.dart';
 enum RoomManagementInvocationType {
   capabilities,
   searchUsers,
+  searchRoomDirectory,
   create,
   details,
   setName,
@@ -46,12 +47,14 @@ final class RoomManagementInvocation {
 }
 
 final class DeterministicRoomManagementPort
-    implements RoomManagementPort, RoomUserSearchPort {
+    implements RoomManagementPort, RoomUserSearchPort, RoomDirectorySearchPort {
   DeterministicRoomManagementPort({
     this.seed = 0,
     KiteRoomCapabilities? roomCapabilities,
     Iterable<KiteUserSearchResult> userSearchResults =
         const <KiteUserSearchResult>[],
+    Iterable<KiteRoomDirectoryResult> roomDirectoryResults =
+        const <KiteRoomDirectoryResult>[],
   }) : roomCapabilities =
            roomCapabilities ??
            KiteRoomCapabilities(
@@ -60,11 +63,15 @@ final class DeterministicRoomManagementPort
            ),
        userSearchResults = List<KiteUserSearchResult>.unmodifiable(
          userSearchResults,
+       ),
+       roomDirectoryResults = List<KiteRoomDirectoryResult>.unmodifiable(
+         roomDirectoryResults,
        );
 
   final int seed;
   KiteRoomCapabilities roomCapabilities;
   final List<KiteUserSearchResult> userSearchResults;
+  final List<KiteRoomDirectoryResult> roomDirectoryResults;
   final List<RoomManagementInvocation> invocations =
       <RoomManagementInvocation>[];
   final Map<String, KiteRoomDetails> detailsByRoomId =
@@ -102,6 +109,30 @@ final class DeterministicRoomManagementPort
   }
 
   @override
+  Future<List<KiteRoomDirectoryResult>> searchRoomDirectory(
+    String query,
+  ) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.searchRoomDirectory,
+        text: query,
+      ),
+    );
+    _throwIfRequested();
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return roomDirectoryResults;
+    return <KiteRoomDirectoryResult>[
+      for (final result in roomDirectoryResults)
+        if (result.roomId.toLowerCase().contains(normalized) ||
+            (result.name?.toLowerCase().contains(normalized) ?? false) ||
+            (result.topic?.toLowerCase().contains(normalized) ?? false) ||
+            (result.canonicalAlias?.toLowerCase().contains(normalized) ??
+                false))
+          result,
+    ];
+  }
+
+  @override
   Future<KiteCreatedRoom> createRoom(KiteRoomCreationRequest request) async {
     invocations.add(
       RoomManagementInvocation(
@@ -129,7 +160,9 @@ final class DeterministicRoomManagementPort
     return KiteCreatedRoom(
       roomId: roomId,
       isDirect: isDirect,
-      displayName: request.name ?? (request.invitees.length == 1 ? request.invitees.single : roomId),
+      displayName:
+          request.name ??
+          (request.invitees.length == 1 ? request.invitees.single : roomId),
     );
   }
 

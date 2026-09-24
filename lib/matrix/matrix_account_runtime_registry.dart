@@ -228,6 +228,17 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.searchUsers(query);
   }
 
+  Future<List<MatrixSdkRoomDirectoryResult>> searchRoomDirectory({
+    required String accountId,
+    required String query,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot search the Matrix room directory for an inactive account',
+    );
+    return active.engine.searchRoomDirectory(query);
+  }
+
   Future<Set<String>> loadIgnoredUserIds({required String accountId}) {
     final active = _requireActiveAccount(
       accountId,

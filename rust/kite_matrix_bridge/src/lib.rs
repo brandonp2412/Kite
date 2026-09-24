@@ -15,6 +15,7 @@ use matrix_sdk::{
     },
     media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings},
     notification_settings::RoomNotificationMode,
+    room_directory_search::RoomDirectorySearch,
     ruma::{
         EventId, Int, OwnedDeviceId, OwnedEventId, OwnedMxcUri, OwnedRoomId, OwnedTransactionId,
         OwnedUserId, RoomAliasId, RoomId, UInt, UserId,
@@ -2652,6 +2653,43 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
                 })
                 .collect::<Vec<_>>();
             json!({"results": results, "limited": search.limited})
+        }
+        "search_rooms" => {
+            let filter = value
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned);
+            let mut search = RoomDirectorySearch::new(matrix_client.clone());
+            if client
+                .runtime
+                .block_on(search.search(filter, 20, None))
+                .is_err()
+            {
+                return error_json(
+                    "room_directory_failed",
+                    "The Matrix room directory could not be searched.",
+                );
+            }
+            let (results, _) = search.results();
+            let results = results
+                .into_iter()
+                .map(|room| {
+                    json!({
+                        "roomId": room.room_id.as_str(),
+                        "name": room.name.filter(|name| !name.trim().is_empty()),
+                        "topic": room.topic.filter(|topic| !topic.trim().is_empty()),
+                        "canonicalAlias": room.alias.map(|alias| alias.to_string()),
+                        "avatarUrl": room
+                            .avatar_url
+                            .filter(|url| url.is_valid())
+                            .map(|url| url.to_string()),
+                        "joinRule": room.join_rule.as_str(),
+                        "worldReadable": room.is_world_readable,
+                        "joinedMembers": room.joined_members,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({"results": results})
         }
         "devices" => {
             let Some(session) = matrix_client.session_meta() else {

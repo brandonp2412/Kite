@@ -16,6 +16,7 @@ import 'package:kite/features/auth/encryption_recovery_screen.dart';
 import 'package:kite/features/calls/call_session.dart';
 import 'package:kite/features/rooms/room_creation_screen.dart';
 import 'package:kite/features/rooms/room_details_screen.dart';
+import 'package:kite/features/rooms/room_directory_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
@@ -722,6 +723,17 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     }
   }
 
+  Future<void> _openRoomDirectory(String query) async {
+    final coordinator = widget.roomCreation;
+    if (coordinator == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            RoomDirectoryScreen(coordinator: coordinator, initialQuery: query),
+      ),
+    );
+  }
+
   Future<void> _openInvitesSheet() async {
     await _adaptiveSurface<void>(
       context,
@@ -820,6 +832,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
                     initialDirectUserId: query,
                   )
                 : null,
+            onSearchRoomDirectory: canCreateRoom ? _openRoomDirectory : null,
           ),
         ),
         SafeArea(
@@ -1294,6 +1307,7 @@ class _RoomList extends StatelessWidget {
     this.roomListLoading = false,
     this.onCreateRoom,
     this.onStartDirectMessage,
+    this.onSearchRoomDirectory,
     super.key,
   });
 
@@ -1306,6 +1320,7 @@ class _RoomList extends StatelessWidget {
   final bool roomListLoading;
   final VoidCallback? onCreateRoom;
   final ValueChanged<String>? onStartDirectMessage;
+  final ValueChanged<String>? onSearchRoomDirectory;
 
   Future<bool> _markAllRoomsRead(BuildContext context) async {
     final persist = onMarkAllRoomsRead;
@@ -1702,8 +1717,12 @@ class _RoomList extends StatelessWidget {
               normalizedQuery.isNotEmpty && onCreateRoom != null;
           final showStartDirectMessage =
               normalizedQuery.isNotEmpty && onStartDirectMessage != null;
+          final showSearchRoomDirectory =
+              normalizedQuery.isNotEmpty && onSearchRoomDirectory != null;
           final actionCount =
-              (showCreateRoom ? 1 : 0) + (showStartDirectMessage ? 1 : 0);
+              (showCreateRoom ? 1 : 0) +
+              (showStartDirectMessage ? 1 : 0) +
+              (showSearchRoomDirectory ? 1 : 0);
           if (ids.isEmpty && actionCount == 0) {
             if (roomListLoading && store.roomIds.isEmpty) {
               return const Center(
@@ -1740,15 +1759,30 @@ class _RoomList extends StatelessWidget {
                 }
                 actionIndex += 1;
               }
-              if (showStartDirectMessage && index == actionIndex) {
+              if (showStartDirectMessage) {
+                if (index == actionIndex) {
+                  return SizedBox(
+                    height: rowExtent,
+                    child: ListTile(
+                      key: const Key('start-direct-message-search-result'),
+                      leading: const Icon(Icons.person_add_alt_1_outlined),
+                      title: const Text('Start conversation'),
+                      subtitle: Text(trimmedQuery),
+                      onTap: () => onStartDirectMessage!(trimmedQuery),
+                    ),
+                  );
+                }
+                actionIndex += 1;
+              }
+              if (showSearchRoomDirectory && index == actionIndex) {
                 return SizedBox(
                   height: rowExtent,
                   child: ListTile(
-                    key: const Key('start-direct-message-search-result'),
-                    leading: const Icon(Icons.person_add_alt_1_outlined),
-                    title: const Text('Start conversation'),
+                    key: const Key('search-room-directory-result'),
+                    leading: const Icon(Icons.travel_explore_outlined),
+                    title: const Text('Search public rooms'),
                     subtitle: Text(trimmedQuery),
-                    onTap: () => onStartDirectMessage!(trimmedQuery),
+                    onTap: () => onSearchRoomDirectory!(trimmedQuery),
                   ),
                 );
               }

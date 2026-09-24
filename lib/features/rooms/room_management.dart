@@ -72,6 +72,28 @@ final class KiteUserSearchResult {
   final Uri? avatarUrl;
 }
 
+final class KiteRoomDirectoryResult {
+  const KiteRoomDirectoryResult({
+    required this.roomId,
+    required this.name,
+    required this.topic,
+    required this.canonicalAlias,
+    required this.avatarUrl,
+    required this.joinRule,
+    required this.worldReadable,
+    required this.joinedMembers,
+  });
+
+  final String roomId;
+  final String? name;
+  final String? topic;
+  final String? canonicalAlias;
+  final Uri? avatarUrl;
+  final String joinRule;
+  final bool worldReadable;
+  final int joinedMembers;
+}
+
 final class KiteRoomDetails {
   KiteRoomDetails({
     required this.roomId,
@@ -102,6 +124,10 @@ final class KiteRoomDetails {
 
 abstract interface class RoomUserSearchPort {
   Future<List<KiteUserSearchResult>> searchUsers(String query);
+}
+
+abstract interface class RoomDirectorySearchPort {
+  Future<List<KiteRoomDirectoryResult>> searchRoomDirectory(String query);
 }
 
 abstract interface class DirectMessageOpenPort {
@@ -206,6 +232,18 @@ final class RoomManagementCoordinator {
       return const <KiteUserSearchResult>[];
     }
     return (_rooms as RoomUserSearchPort).searchUsers(query);
+  }
+
+  Future<List<KiteRoomDirectoryResult>> searchRoomDirectory(
+    String rawQuery,
+  ) async {
+    final rooms = _rooms;
+    if (rooms is! RoomDirectorySearchPort) {
+      return const <KiteRoomDirectoryResult>[];
+    }
+    return (rooms as RoomDirectorySearchPort).searchRoomDirectory(
+      rawQuery.trim(),
+    );
   }
 
   Future<KiteCreatedRoom> openDirectMessage(String rawUserId) async {

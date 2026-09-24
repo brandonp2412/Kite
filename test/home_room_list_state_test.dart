@@ -904,6 +904,10 @@ void main() {
         find.byKey(const Key('create-room-search-result')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const Key('search-room-directory-result')),
+        findsOneWidget,
+      );
       await tester.tap(
         find.byKey(const Key('start-direct-message-search-result')),
       );
