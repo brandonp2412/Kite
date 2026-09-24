@@ -432,12 +432,14 @@ final class MatrixHomePresentationBinding {
     final roomId = selectedRoom.value;
     if (!roomIds.contains(roomId)) return;
     final events = cache.timelineSignal(roomId).value;
+    final typingUsers = cache.typingUsersSignal(roomId).value;
     untracked(() {
       controller.applyMatrixEvents(
         roomId,
         events,
         currentUserId: currentUserId,
       );
+      controller.updateTypingUsers(roomId, typingUsers);
     });
   }
 

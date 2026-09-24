@@ -32,7 +32,7 @@ use matrix_sdk::{
             error::ErrorKind,
         },
         events::{
-            InitialStateEvent,
+            AnySyncEphemeralRoomEvent, InitialStateEvent,
             ignored_user_list::IgnoredUserListEventContent,
             receipt::ReceiptThread,
             relation::Reply,
@@ -1340,6 +1340,33 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             let is_favourite = room.as_ref().is_some_and(|room| room.is_favourite());
             let is_muted = muted_room_ids.contains(room_id);
             let is_direct = direct_room_ids.contains(room_id);
+            let typing_users = update.ephemeral.iter().rev().find_map(|raw_event| {
+                let Ok(AnySyncEphemeralRoomEvent::Typing(event)) = raw_event.deserialize() else {
+                    return None;
+                };
+                let room = room.as_ref()?;
+                let current_user_id = matrix_client.user_id();
+                Some(client.runtime.block_on(async {
+                    let mut names = Vec::new();
+                    for user_id in event.content.user_ids {
+                        if current_user_id
+                            .is_some_and(|current| current.as_str() == user_id.as_str())
+                        {
+                            continue;
+                        }
+                        let display_name = room
+                            .get_member_no_sync(&user_id)
+                            .await
+                            .ok()
+                            .flatten()
+                            .and_then(|member| member.display_name().map(str::to_owned))
+                            .filter(|name| !name.trim().is_empty())
+                            .unwrap_or_else(|| user_id.as_str().to_owned());
+                        names.push(display_name);
+                    }
+                    names
+                }))
+            });
             let avatar_url = room.as_ref().and_then(|room| {
                 if let Some(avatar_url) = room.avatar_url() {
                     return Some(avatar_url.to_string());
@@ -1372,6 +1399,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "isFavourite": is_favourite,
                 "isMuted": is_muted,
                 "isDirect": is_direct,
+                "typingUsers": typing_users,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,
@@ -1432,6 +1460,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             "isFavourite": is_favourite,
             "isMuted": is_muted,
             "isDirect": is_direct,
+            "typingUsers": Value::Null,
             "latestEventTimestamp": latest_event_timestamp,
             "latestEventId": latest_event_id,
             "prevBatch": Value::Null,

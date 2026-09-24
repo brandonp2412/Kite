@@ -17,6 +17,8 @@ final class MatrixPresentationCache {
       <String, Signal<MatrixRoomSummary?>>{};
   final Map<String, Signal<List<MatrixTimelineEvent>>> _timelines =
       <String, Signal<List<MatrixTimelineEvent>>>{};
+  final Map<String, Signal<List<String>>> _typingUsers =
+      <String, Signal<List<String>>>{};
 
   String? lastSyncCursor;
 
@@ -66,6 +68,13 @@ final class MatrixPresentationCache {
     );
   }
 
+  Signal<List<String>> typingUsersSignal(String roomId) {
+    return _typingUsers.putIfAbsent(
+      roomId,
+      () => signal<List<String>>(const <String>[]),
+    );
+  }
+
   void invalidateEncryptedHistory() {
     batch(() {
       // Force the next sync to replay recent events so newly imported room keys
@@ -80,6 +89,11 @@ final class MatrixPresentationCache {
     _validateSnapshot(snapshot);
     batch(() {
       lastSyncCursor = snapshot.syncCursor;
+      for (final typingUsers in _typingUsers.values) {
+        if (typingUsers.value.isNotEmpty) {
+          typingUsers.value = const <String>[];
+        }
+      }
       if (!_sameInvites(invites.value, snapshot.invites)) {
         invites.value = List<MatrixRoomInvite>.unmodifiable(snapshot.invites);
       }
@@ -203,6 +217,10 @@ final class MatrixPresentationCache {
         if (timeline != null && timeline.value.isNotEmpty) {
           timeline.value = const <MatrixTimelineEvent>[];
         }
+        final typingUsers = _typingUsers[roomId];
+        if (typingUsers != null && typingUsers.value.isNotEmpty) {
+          typingUsers.value = const <String>[];
+        }
       }
       for (final room in syncBatch.rooms) {
         final summary = room.summary;
@@ -224,6 +242,14 @@ final class MatrixPresentationCache {
           final merged = _mergeEvents(timeline.value, room.timelineEvents);
           if (!_sameTimeline(timeline.value, merged)) {
             timeline.value = merged;
+          }
+        }
+
+        final nextTypingUsers = room.typingUsers;
+        if (nextTypingUsers != null) {
+          final typingUsers = typingUsersSignal(room.roomId);
+          if (!_sameStrings(typingUsers.value, nextTypingUsers)) {
+            typingUsers.value = List<String>.unmodifiable(nextTypingUsers);
           }
         }
       }
@@ -361,6 +387,18 @@ final class MatrixPresentationCache {
           'syncBatch',
           'room summary must match its owning sync room',
         );
+      }
+      final typingUsers = room.typingUsers;
+      if (typingUsers != null) {
+        for (final user in typingUsers) {
+          if (user.trim().isEmpty || user.contains('\u0000')) {
+            throw ArgumentError.value(
+              syncBatch,
+              'syncBatch',
+              'typing users must be non-empty strings without NUL bytes',
+            );
+          }
+        }
       }
       _validateRoomScopedEvents(
         ownerRoomId: room.roomId,

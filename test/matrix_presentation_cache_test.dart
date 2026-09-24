@@ -25,6 +25,47 @@ void main() {
   });
 
   test(
+    'typing state stays ephemeral and clears only on an explicit update',
+    () {
+      final cache = MatrixPresentationCache();
+      const roomId = '!typing:kite.test';
+
+      cache.applySync(
+        const MatrixSyncBatch(
+          cursor: 'typing-1',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(roomId: roomId, typingUsers: <String>['Alice']),
+          ],
+        ),
+      );
+      expect(cache.typingUsersSignal(roomId).value, <String>['Alice']);
+
+      cache.applySync(
+        const MatrixSyncBatch(
+          cursor: 'typing-2',
+          rooms: <MatrixRoomDelta>[MatrixRoomDelta(roomId: roomId)],
+        ),
+      );
+      expect(cache.typingUsersSignal(roomId).value, <String>['Alice']);
+
+      final restored = MatrixPresentationCache(
+        initialSnapshot: cache.snapshot(),
+      );
+      expect(restored.typingUsersSignal(roomId).value, isEmpty);
+
+      cache.applySync(
+        const MatrixSyncBatch(
+          cursor: 'typing-3',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(roomId: roomId, typingUsers: <String>[]),
+          ],
+        ),
+      );
+      expect(cache.typingUsersSignal(roomId).value, isEmpty);
+    },
+  );
+
+  test(
     'encryption recovery invalidation clears stale history but preserves rooms',
     () {
       final cachedEvent = _event(

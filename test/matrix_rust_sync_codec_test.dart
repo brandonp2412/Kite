@@ -30,6 +30,7 @@ void main() {
             "isFavourite": true,
             "isMuted": true,
             "isDirect": true,
+            "typingUsers": ["Alice", "Bob"],
             "latestEventTimestamp": 2000,
             "prevBatch": "back-alpha",
             "events": [
@@ -75,6 +76,8 @@ void main() {
     expect(alpha.summary!.isFavourite, isTrue);
     expect(alpha.summary!.isMuted, isTrue);
     expect(alpha.summary!.isDirect, isTrue);
+    expect(alpha.typingUsers, <String>['Alice', 'Bob']);
+    expect(() => alpha.typingUsers!.add('Mallory'), throwsUnsupportedError);
     expect(alpha.summary!.lastEventId, r'$event2');
     expect(alpha.summary!.lastActivity.millisecondsSinceEpoch, 2000);
     expect(alpha.summary!.streamPosition, 2000);
@@ -93,6 +96,7 @@ void main() {
     final empty = decoded.batch.rooms.last;
     expect(empty.summary!.streamPosition, 500);
     expect(empty.summary!.lastActivity.millisecondsSinceEpoch, 500);
+    expect(empty.typingUsers, isNull);
   });
 
   test('sync preserves Matrix redaction targets and redacted-event state', () {

@@ -470,6 +470,7 @@ void main() {
             timelineEvents: <MatrixTimelineEvent>[
               _event(eventId: r'$one', body: 'One', streamPosition: 1),
             ],
+            typingUsers: const <String>['Alice'],
           ),
         ],
       ),
@@ -482,6 +483,9 @@ void main() {
       controller.messagesFor('!real:example.org').value.single.body,
       'One',
     );
+    expect(controller.typingUsersFor('!real:example.org').value, <String>[
+      'Alice',
+    ]);
 
     cache.applySync(
       MatrixSyncBatch(
@@ -500,6 +504,7 @@ void main() {
             timelineEvents: <MatrixTimelineEvent>[
               _event(eventId: r'$two', body: 'Two', streamPosition: 2),
             ],
+            typingUsers: const <String>[],
           ),
         ],
       ),
@@ -517,6 +522,7 @@ void main() {
           .map((message) => message.body),
       <String>['One', 'Two'],
     );
+    expect(controller.typingUsersFor('!real:example.org').value, isEmpty);
   });
 
   test('recent Matrix timelines are projected eagerly', () async {

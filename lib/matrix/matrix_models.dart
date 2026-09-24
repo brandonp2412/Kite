@@ -139,11 +139,13 @@ final class MatrixRoomDelta {
     required this.roomId,
     this.summary,
     this.timelineEvents = const <MatrixTimelineEvent>[],
+    this.typingUsers,
   });
 
   final String roomId;
   final MatrixRoomSummary? summary;
   final List<MatrixTimelineEvent> timelineEvents;
+  final List<String>? typingUsers;
 }
 
 final class MatrixSyncBatch {

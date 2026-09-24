@@ -62,6 +62,7 @@ final class MatrixRustSyncCodec {
             isDirect: _optionalBool(room['isDirect']) ?? false,
           ),
           timelineEvents: events,
+          typingUsers: _optionalStringList(room['typingUsers'], 'typingUsers'),
         ),
       );
     }
@@ -237,6 +238,22 @@ final class MatrixRustSyncCodec {
       return null;
     }
     return displayName;
+  }
+
+  static List<String>? _optionalStringList(Object? value, String name) {
+    if (value == null) return null;
+    final rawValues = _asList(value, name);
+    final values = <String>[];
+    for (final rawValue in rawValues) {
+      final item = _optionalDisplayName(rawValue);
+      if (item == null) {
+        throw FormatException(
+          '$name must contain non-empty strings without NUL bytes',
+        );
+      }
+      values.add(item);
+    }
+    return List<String>.unmodifiable(values);
   }
 
   static String _requiredIdentifier(Map<String, Object?> map, String key) {
