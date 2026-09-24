@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use matrix_sdk::{
-    Client, Error as MatrixError, HttpError, RoomMemberships,
+    Client, Error as MatrixError, HttpError, Room, RoomMemberships,
     authentication::matrix::MatrixSession,
     config::SyncSettings,
     encryption::{
@@ -33,7 +33,7 @@ use matrix_sdk::{
             error::ErrorKind,
         },
         events::{
-            AnySyncEphemeralRoomEvent, InitialStateEvent,
+            AnySyncEphemeralRoomEvent, InitialStateEvent, SyncStateEvent,
             ignored_user_list::IgnoredUserListEventContent,
             receipt::{ReceiptThread, ReceiptType},
             relation::Reply,
@@ -45,11 +45,13 @@ use matrix_sdk::{
                 message::{Relation, ReplacementMetadata, RoomMessageEventContent},
                 power_levels::UserPowerLevel,
             },
+            space::child::SpaceChildEventContent,
         },
     },
 };
 use matrix_sdk_base::{
     crypto::{encrypt_room_key_export, olm::ExportedRoomKey},
+    deserialized_responses::SyncOrStrippedState,
     latest_event::LatestEventValue,
 };
 use matrix_sdk_crypto::{store::types::BackupDecryptionKey, types::RoomKeyBackupInfo};
@@ -232,6 +234,36 @@ fn timeline_events_json<'a>(
         }
     }
     events
+}
+
+fn normalized_space_child_room_ids(
+    events: impl IntoIterator<Item = SyncOrStrippedState<SpaceChildEventContent>>,
+) -> Vec<String> {
+    let mut room_ids = events
+        .into_iter()
+        .filter_map(|event| match event {
+            SyncOrStrippedState::Sync(SyncStateEvent::Original(event))
+                if !event.content.via.is_empty() =>
+            {
+                Some(event.state_key.to_string())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    room_ids.sort();
+    room_ids.dedup();
+    room_ids
+}
+
+fn cached_space_child_room_ids(runtime: &Runtime, room: Option<&Room>) -> Vec<String> {
+    let Some(room) = room.filter(|room| room.is_space()) else {
+        return Vec::new();
+    };
+    let Ok(events) = runtime.block_on(room.get_state_events_static::<SpaceChildEventContent>())
+    else {
+        return Vec::new();
+    };
+    normalized_space_child_room_ids(events.into_iter().filter_map(|raw| raw.deserialize().ok()))
 }
 
 fn sync_timeline_events_json(
@@ -1437,6 +1469,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             let is_space = room.as_ref().is_some_and(|room| room.is_space());
             let member_count = room.as_ref().map_or(0, |room| room.joined_members_count());
             let topic = room.as_ref().and_then(|room| room.topic());
+            let child_room_ids = cached_space_child_room_ids(&client.runtime, room.as_ref());
             let avatar_url = room.as_ref().and_then(|room| {
                 if let Some(avatar_url) = room.avatar_url() {
                     return Some(avatar_url.to_string());
@@ -1476,6 +1509,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "isSpace": is_space,
                 "memberCount": member_count,
                 "topic": topic,
+                "childRoomIds": child_room_ids,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,
@@ -1512,6 +1546,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         let is_space = room.is_space();
         let member_count = room.joined_members_count();
         let topic = room.topic();
+        let child_room_ids = cached_space_child_room_ids(&client.runtime, Some(&room));
         let avatar_url = if let Some(avatar_url) = room.avatar_url() {
             Some(avatar_url.to_string())
         } else if is_direct {
@@ -1550,6 +1585,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             "isSpace": is_space,
             "memberCount": member_count,
             "topic": topic,
+            "childRoomIds": child_room_ids,
             "latestEventTimestamp": latest_event_timestamp,
             "latestEventId": latest_event_id,
             "prevBatch": Value::Null,
@@ -3724,6 +3760,35 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
+
+    #[test]
+    fn space_child_room_ids_require_valid_via_and_are_deduplicated() {
+        fn child_event(
+            event_id: &str,
+            room_id: &str,
+            via: &[&str],
+        ) -> SyncOrStrippedState<SpaceChildEventContent> {
+            let event: SyncStateEvent<SpaceChildEventContent> = serde_json::from_value(json!({
+                "content": {"via": via},
+                "event_id": event_id,
+                "origin_server_ts": 1,
+                "sender": "@admin:example.org",
+                "state_key": room_id,
+                "type": "m.space.child",
+            }))
+            .unwrap();
+            SyncOrStrippedState::Sync(event)
+        }
+
+        let room_ids = normalized_space_child_room_ids([
+            child_event("$b:example.org", "!b:example.org", &["example.org"]),
+            child_event("$a:example.org", "!a:example.org", &["example.org"]),
+            child_event("$a2:example.org", "!a:example.org", &["example.org"]),
+            child_event("$invalid:example.org", "!invalid:example.org", &[]),
+        ]);
+
+        assert_eq!(room_ids, vec!["!a:example.org", "!b:example.org"]);
+    }
 
     #[test]
     fn timeline_queries_prioritize_renderable_message_events() {

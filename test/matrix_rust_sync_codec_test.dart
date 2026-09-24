@@ -36,6 +36,7 @@ void main() {
             "isSpace": true,
             "memberCount": 42,
             "topic": "Matrix Space topic",
+            "childRoomIds": ["!child:kite.test"],
             "latestEventTimestamp": 2000,
             "prevBatch": "back-alpha",
             "events": [
@@ -88,6 +89,7 @@ void main() {
     expect(alpha.summary!.isSpace, isTrue);
     expect(alpha.summary!.memberCount, 42);
     expect(alpha.summary!.topic, 'Matrix Space topic');
+    expect(alpha.summary!.childRoomIds, <String>['!child:kite.test']);
     expect(alpha.summary!.lastEventId, r'$event2');
     expect(alpha.summary!.lastActivity.millisecondsSinceEpoch, 2000);
     expect(alpha.summary!.streamPosition, 2000);

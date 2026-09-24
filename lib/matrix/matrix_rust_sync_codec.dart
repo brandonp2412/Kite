@@ -69,6 +69,7 @@ final class MatrixRustSyncCodec {
             isSpace: _optionalBool(room['isSpace']) ?? false,
             memberCount: _optionalNonNegativeInt(room['memberCount']) ?? 0,
             topic: _optionalString(room['topic']),
+            childRoomIds: _identifierList(room['childRoomIds'], 'childRoomIds'),
           ),
           timelineEvents: events,
           typingUsers: _optionalStringList(room['typingUsers'], 'typingUsers'),
@@ -243,6 +244,18 @@ final class MatrixRustSyncCodec {
       throw FormatException('$name must be a JSON array');
     }
     return List<Object?>.unmodifiable(value);
+  }
+
+  static List<String> _identifierList(Object? value, String name) {
+    if (value == null) return const <String>[];
+    return List<String>.unmodifiable(
+      _asList(value, name).map((item) {
+        if (item is! String || item.isEmpty || item.contains('\u0000')) {
+          throw FormatException('$name must contain safe Matrix identifiers');
+        }
+        return item;
+      }),
+    );
   }
 
   static String _requiredString(Map<String, Object?> map, String key) {

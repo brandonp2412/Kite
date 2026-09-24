@@ -165,6 +165,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Dedicated Spaces area.
 - [ ] Space invitation preview with inviter, description, member context, and external/internal treatment where available.
 - [ ] Browse/discover rooms in a Space, including rooms not yet joined.
+  - Progress 2026-09-25: joined Spaces now carry valid cached `m.space.child` relationships from the Matrix SDK state store through sync and persisted presentation state. The dedicated Spaces surface resolves already-joined non-Space children from the room cache with real names, topics, member counts, and joined state; redacted/invalid child events, nested Spaces, and unjoined hierarchy discovery remain pending instead of being approximated.
 - [ ] Create Space.
 - [ ] Edit/manage Space.
 - [ ] Add/remove/link rooms in Spaces.
