@@ -423,6 +423,45 @@ void main() {
     },
   );
 
+  test('decodes main-timeline read receipt updates from native sync', () {
+    final codec = MatrixRustSyncCodec();
+    final result = codec.decodeSync(r'''
+      {
+        "cursor": "s-receipts",
+        "rooms": [
+          {
+            "roomId": "!room:kite.test",
+            "readReceipts": [
+              {
+                "eventId": "$one",
+                "userId": "@alice:kite.test",
+                "displayName": "Alice"
+              },
+              {
+                "eventId": "$two",
+                "userId": "@bob:kite.test",
+                "displayName": "@bob:kite.test"
+              }
+            ],
+            "events": []
+          }
+        ]
+      }
+    ''');
+
+    expect(
+      result.batch.rooms.single.readReceipts
+          ?.map(
+            (receipt) => (receipt.eventId, receipt.userId, receipt.displayName),
+          )
+          .toList(),
+      <(String, String, String)>[
+        (r'$one', '@alice:kite.test', 'Alice'),
+        (r'$two', '@bob:kite.test', '@bob:kite.test'),
+      ],
+    );
+  });
+
   test('rejects NUL-bearing Matrix identifiers from native payloads', () {
     final codec = MatrixRustSyncCodec();
 

@@ -19,6 +19,8 @@ final class MatrixPresentationCache {
       <String, Signal<List<MatrixTimelineEvent>>>{};
   final Map<String, Signal<List<String>>> _typingUsers =
       <String, Signal<List<String>>>{};
+  final Map<String, Signal<List<MatrixReadReceipt>>> _readReceipts =
+      <String, Signal<List<MatrixReadReceipt>>>{};
 
   String? lastSyncCursor;
 
@@ -75,6 +77,13 @@ final class MatrixPresentationCache {
     );
   }
 
+  Signal<List<MatrixReadReceipt>> readReceiptsSignal(String roomId) {
+    return _readReceipts.putIfAbsent(
+      roomId,
+      () => signal<List<MatrixReadReceipt>>(const <MatrixReadReceipt>[]),
+    );
+  }
+
   void invalidateEncryptedHistory() {
     batch(() {
       // Force the next sync to replay recent events so newly imported room keys
@@ -92,6 +101,11 @@ final class MatrixPresentationCache {
       for (final typingUsers in _typingUsers.values) {
         if (typingUsers.value.isNotEmpty) {
           typingUsers.value = const <String>[];
+        }
+      }
+      for (final receipts in _readReceipts.values) {
+        if (receipts.value.isNotEmpty) {
+          receipts.value = const <MatrixReadReceipt>[];
         }
       }
       if (!_sameInvites(invites.value, snapshot.invites)) {
@@ -221,6 +235,10 @@ final class MatrixPresentationCache {
         if (typingUsers != null && typingUsers.value.isNotEmpty) {
           typingUsers.value = const <String>[];
         }
+        final readReceipts = _readReceipts[roomId];
+        if (readReceipts != null && readReceipts.value.isNotEmpty) {
+          readReceipts.value = const <MatrixReadReceipt>[];
+        }
       }
       for (final room in syncBatch.rooms) {
         final summary = room.summary;
@@ -250,6 +268,15 @@ final class MatrixPresentationCache {
           final typingUsers = typingUsersSignal(room.roomId);
           if (!_sameStrings(typingUsers.value, nextTypingUsers)) {
             typingUsers.value = List<String>.unmodifiable(nextTypingUsers);
+          }
+        }
+
+        final receiptUpdates = room.readReceipts;
+        if (receiptUpdates != null && receiptUpdates.isNotEmpty) {
+          final receipts = readReceiptsSignal(room.roomId);
+          final merged = _mergeReadReceipts(receipts.value, receiptUpdates);
+          if (!_sameReadReceipts(receipts.value, merged)) {
+            receipts.value = merged;
           }
         }
       }
@@ -396,6 +423,21 @@ final class MatrixPresentationCache {
               syncBatch,
               'syncBatch',
               'typing users must be non-empty strings without NUL bytes',
+            );
+          }
+        }
+      }
+      final readReceipts = room.readReceipts;
+      if (readReceipts != null) {
+        for (final receipt in readReceipts) {
+          _requireSafeIdentifier(receipt.eventId, 'read receipt event id');
+          _requireSafeIdentifier(receipt.userId, 'read receipt user id');
+          if (receipt.displayName.trim().isEmpty ||
+              receipt.displayName.contains('\u0000')) {
+            throw ArgumentError.value(
+              syncBatch,
+              'syncBatch',
+              'read receipt display names must be non-empty without NUL bytes',
             );
           }
         }
@@ -633,6 +675,39 @@ final class MatrixPresentationCache {
       return true;
     }
     return left == right;
+  }
+
+  static List<MatrixReadReceipt> _mergeReadReceipts(
+    List<MatrixReadReceipt> current,
+    List<MatrixReadReceipt> updates,
+  ) {
+    final byUserId = <String, MatrixReadReceipt>{
+      for (final receipt in current) receipt.userId: receipt,
+    };
+    for (final receipt in updates) {
+      byUserId[receipt.userId] = receipt;
+    }
+    final merged = byUserId.values.toList(growable: false)
+      ..sort((left, right) => left.userId.compareTo(right.userId));
+    return List<MatrixReadReceipt>.unmodifiable(merged);
+  }
+
+  static bool _sameReadReceipts(
+    List<MatrixReadReceipt> left,
+    List<MatrixReadReceipt> right,
+  ) {
+    if (identical(left, right)) return true;
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      final a = left[index];
+      final b = right[index];
+      if (a.eventId != b.eventId ||
+          a.userId != b.userId ||
+          a.displayName != b.displayName) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static bool _sameStrings(List<String> left, List<String> right) {

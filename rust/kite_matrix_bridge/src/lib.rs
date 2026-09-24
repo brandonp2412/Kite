@@ -34,7 +34,7 @@ use matrix_sdk::{
         events::{
             AnySyncEphemeralRoomEvent, InitialStateEvent,
             ignored_user_list::IgnoredUserListEventContent,
-            receipt::ReceiptThread,
+            receipt::{ReceiptThread, ReceiptType},
             relation::Reply,
             room::{
                 MediaSource,
@@ -1367,6 +1367,64 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                     names
                 }))
             });
+            let read_receipts = room.as_ref().and_then(|room| {
+                let current_user_id = matrix_client.user_id();
+                let mut updates = HashMap::<String, Value>::new();
+                let mut saw_receipt_event = false;
+                for raw_event in &update.ephemeral {
+                    let Ok(AnySyncEphemeralRoomEvent::Receipt(event)) = raw_event.deserialize()
+                    else {
+                        continue;
+                    };
+                    saw_receipt_event = true;
+                    for (event_id, receipt_types) in event.content {
+                        let Some(user_receipts) = receipt_types.get(&ReceiptType::Read) else {
+                            continue;
+                        };
+                        for (user_id, receipt) in user_receipts {
+                            if current_user_id
+                                .is_some_and(|current| current.as_str() == user_id.as_str())
+                            {
+                                continue;
+                            }
+                            if receipt
+                                .thread
+                                .as_str()
+                                .is_some_and(|thread| thread != "main")
+                            {
+                                continue;
+                            }
+                            let display_name = client
+                                .runtime
+                                .block_on(room.get_member_no_sync(user_id))
+                                .ok()
+                                .flatten()
+                                .and_then(|member| member.display_name().map(str::to_owned))
+                                .filter(|name| !name.trim().is_empty())
+                                .unwrap_or_else(|| user_id.as_str().to_owned());
+                            updates.insert(
+                                user_id.as_str().to_owned(),
+                                json!({
+                                    "eventId": event_id.as_str(),
+                                    "userId": user_id.as_str(),
+                                    "displayName": display_name,
+                                }),
+                            );
+                        }
+                    }
+                }
+                if !saw_receipt_event {
+                    return None;
+                }
+                let mut updates = updates.into_values().collect::<Vec<_>>();
+                updates.sort_by(|left, right| {
+                    left["userId"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .cmp(right["userId"].as_str().unwrap_or_default())
+                });
+                Some(updates)
+            });
             let avatar_url = room.as_ref().and_then(|room| {
                 if let Some(avatar_url) = room.avatar_url() {
                     return Some(avatar_url.to_string());
@@ -1400,6 +1458,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "isMuted": is_muted,
                 "isDirect": is_direct,
                 "typingUsers": typing_users,
+                "readReceipts": read_receipts,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,
@@ -1461,6 +1520,7 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             "isMuted": is_muted,
             "isDirect": is_direct,
             "typingUsers": Value::Null,
+            "readReceipts": Value::Null,
             "latestEventTimestamp": latest_event_timestamp,
             "latestEventId": latest_event_id,
             "prevBatch": Value::Null,

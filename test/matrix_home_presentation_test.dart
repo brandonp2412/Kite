@@ -525,6 +525,83 @@ void main() {
     expect(controller.typingUsersFor('!real:example.org').value, isEmpty);
   });
 
+  test(
+    'Matrix read receipts project into existing timeline receipt UI state',
+    () async {
+      final cache = MatrixPresentationCache();
+      final controller = TimelineController(fixtureProvider: (_) => const []);
+      final selectedRoom = signal('missing');
+      final binding = MatrixHomePresentationBinding(
+        cache: cache,
+        currentUserId: '@me:example.org',
+        controller: controller,
+        selectedRoom: selectedRoom,
+        sendPort: MatrixTimelineSendPort(
+          ({required roomId, required transactionId, required body}) async {},
+        ),
+      );
+      addTearDown(binding.dispose);
+
+      cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'receipt-sync',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!real:example.org',
+              summary: MatrixRoomSummary(
+                roomId: '!real:example.org',
+                displayName: 'Receipt room',
+                lastActivity: DateTime.utc(2026, 9, 25, 3, 40),
+                streamPosition: 2,
+                lastEventId: r'$incoming',
+              ),
+              timelineEvents: <MatrixTimelineEvent>[
+                MatrixTimelineEvent(
+                  eventId: r'$mine',
+                  roomId: '!real:example.org',
+                  senderId: '@me:example.org',
+                  type: 'm.room.message',
+                  originServerTimestamp: DateTime.utc(2026, 9, 25, 3, 40),
+                  streamPosition: 1,
+                  content: const <String, Object?>{
+                    'msgtype': 'm.text',
+                    'body': 'Mine',
+                  },
+                ),
+                MatrixTimelineEvent(
+                  eventId: r'$incoming',
+                  roomId: '!real:example.org',
+                  senderId: '@alice:example.org',
+                  type: 'm.room.message',
+                  originServerTimestamp: DateTime.utc(2026, 9, 25, 3, 41),
+                  streamPosition: 2,
+                  content: const <String, Object?>{
+                    'msgtype': 'm.text',
+                    'body': 'After yours',
+                  },
+                ),
+              ],
+              readReceipts: const <MatrixReadReceipt>[
+                MatrixReadReceipt(
+                  eventId: r'$incoming',
+                  userId: '@alice:example.org',
+                  displayName: 'Alice',
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(selectedRoom.value, '!real:example.org');
+      expect(
+        controller.messagesFor('!real:example.org').value.first.readBy,
+        <String>['Alice'],
+      );
+    },
+  );
+
   test('recent Matrix timelines are projected eagerly', () async {
     final cache = MatrixPresentationCache(
       initialSnapshot: MatrixPresentationSnapshot(

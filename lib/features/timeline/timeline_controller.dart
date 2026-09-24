@@ -805,6 +805,40 @@ class TimelineController implements TimelineLocationShareDelegate {
     target.readByState.value = List<String>.unmodifiable(next);
   }
 
+  void applyReadReceipts(String roomId, Iterable<MatrixReadReceipt> receipts) {
+    final messages = messagesFor(roomId).peek();
+    final eventIndexes = <String, int>{
+      for (var index = 0; index < messages.length; index += 1)
+        messages[index].id: index,
+    };
+    final readersByEvent = <String, List<String>>{};
+    final resolvedReaders = <String>{};
+
+    for (final receipt in receipts) {
+      final receiptIndex = eventIndexes[receipt.eventId];
+      if (receiptIndex == null) continue;
+      for (var index = receiptIndex; index >= 0; index -= 1) {
+        final candidate = messages[index];
+        if (!candidate.mine || candidate.redacted) continue;
+        readersByEvent
+            .putIfAbsent(candidate.id, () => <String>[])
+            .add(receipt.displayName);
+        resolvedReaders.add(receipt.displayName);
+        break;
+      }
+    }
+
+    for (final message in messages) {
+      if (!message.mine || message.redacted) continue;
+      final next = <String>[
+        for (final reader in message.readByState.peek())
+          if (!resolvedReaders.contains(reader)) reader,
+        ...?readersByEvent[message.id],
+      ];
+      updateReadReceipts(roomId, message.id, next);
+    }
+  }
+
   Signal<List<TimelineMessage>> messagesFor(String roomId) {
     return _messages.putIfAbsent(roomId, () {
       final fixture = _fixtureProvider(roomId);

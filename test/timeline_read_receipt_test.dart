@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/matrix/matrix_models.dart';
 
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
@@ -49,6 +50,34 @@ void main() {
     );
 
     expect(incoming.readBy, isEmpty);
+  });
+
+  test('production receipt snapshots move readers without stale badges', () {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    final messages = timelineController.messagesFor('alice').value;
+    final mine = messages.where((message) => message.mine).toList();
+    final previous = mine[mine.length - 2];
+    final latest = mine.last;
+
+    timelineController.applyReadReceipts('alice', <MatrixReadReceipt>[
+      MatrixReadReceipt(
+        eventId: previous.id,
+        userId: '@sam:example.org',
+        displayName: 'Sam',
+      ),
+    ]);
+    expect(previous.readBy, <String>['Sam']);
+    expect(latest.readBy, isEmpty);
+
+    timelineController.applyReadReceipts('alice', <MatrixReadReceipt>[
+      MatrixReadReceipt(
+        eventId: latest.id,
+        userId: '@sam:example.org',
+        displayName: 'Sam',
+      ),
+    ]);
+    expect(previous.readBy, isEmpty);
+    expect(latest.readBy, <String>['Sam']);
   });
 
   testWidgets(

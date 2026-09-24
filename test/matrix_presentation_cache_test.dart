@@ -1304,6 +1304,62 @@ void main() {
       expect(identical(roomOrderBefore, cache.roomOrder.value), isTrue);
     },
   );
+  test('read receipt updates merge by user and stay ephemeral', () {
+    final cache = MatrixPresentationCache();
+    const roomId = '!receipts:kite.test';
+
+    cache.applySync(
+      const MatrixSyncBatch(
+        cursor: 'receipts-1',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: roomId,
+            readReceipts: <MatrixReadReceipt>[
+              MatrixReadReceipt(
+                eventId: r'$one',
+                userId: '@alice:kite.test',
+                displayName: 'Alice',
+              ),
+              MatrixReadReceipt(
+                eventId: r'$one',
+                userId: '@bob:kite.test',
+                displayName: 'Bob',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    expect(cache.readReceiptsSignal(roomId).value.length, 2);
+
+    cache.applySync(
+      const MatrixSyncBatch(
+        cursor: 'receipts-2',
+        rooms: <MatrixRoomDelta>[
+          MatrixRoomDelta(
+            roomId: roomId,
+            readReceipts: <MatrixReadReceipt>[
+              MatrixReadReceipt(
+                eventId: r'$two',
+                userId: '@alice:kite.test',
+                displayName: 'Alice',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    final receipts = cache.readReceiptsSignal(roomId).value;
+    expect(
+      receipts.map((receipt) => '${receipt.userId}|${receipt.eventId}'),
+      <String>[r'@alice:kite.test|$two', r'@bob:kite.test|$one'],
+    );
+
+    cache.restore(
+      MatrixPresentationSnapshot(rooms: const <MatrixRoomSummary>[]),
+    );
+    expect(cache.readReceiptsSignal(roomId).value, isEmpty);
+  });
 }
 
 MatrixRoomSummary _summary({

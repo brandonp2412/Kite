@@ -134,18 +134,32 @@ final class MatrixRoomInvite {
   final String? description;
 }
 
+final class MatrixReadReceipt {
+  const MatrixReadReceipt({
+    required this.eventId,
+    required this.userId,
+    required this.displayName,
+  });
+
+  final String eventId;
+  final String userId;
+  final String displayName;
+}
+
 final class MatrixRoomDelta {
   const MatrixRoomDelta({
     required this.roomId,
     this.summary,
     this.timelineEvents = const <MatrixTimelineEvent>[],
     this.typingUsers,
+    this.readReceipts,
   });
 
   final String roomId;
   final MatrixRoomSummary? summary;
   final List<MatrixTimelineEvent> timelineEvents;
   final List<String>? typingUsers;
+  final List<MatrixReadReceipt>? readReceipts;
 }
 
 final class MatrixSyncBatch {

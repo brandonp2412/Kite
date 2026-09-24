@@ -63,6 +63,7 @@ final class MatrixRustSyncCodec {
           ),
           timelineEvents: events,
           typingUsers: _optionalStringList(room['typingUsers'], 'typingUsers'),
+          readReceipts: _decodeReadReceipts(room['readReceipts']),
         ),
       );
     }
@@ -145,6 +146,23 @@ final class MatrixRustSyncCodec {
       events: _decodeBackPaginationEvents(roomId, root['events']),
       reachedStart: _requiredBool(root, 'reachedStart'),
     );
+  }
+
+  List<MatrixReadReceipt>? _decodeReadReceipts(Object? value) {
+    if (value == null) return null;
+    final receipts = <MatrixReadReceipt>[];
+    for (final rawReceipt in _asList(value, 'readReceipts')) {
+      final receipt = _asMap(rawReceipt, 'read receipt');
+      final userId = _requiredIdentifier(receipt, 'userId');
+      receipts.add(
+        MatrixReadReceipt(
+          eventId: _requiredIdentifier(receipt, 'eventId'),
+          userId: userId,
+          displayName: _optionalDisplayName(receipt['displayName']) ?? userId,
+        ),
+      );
+    }
+    return List<MatrixReadReceipt>.unmodifiable(receipts);
   }
 
   List<MatrixTimelineEvent> _decodeEvents(String roomId, Object? value) {
