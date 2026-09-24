@@ -31,6 +31,12 @@ void main() {
           home: RoomCreationScreen(
             coordinator: coordinator,
             initialMode: RoomCreationMode.directMessage,
+            availableSpaces: const <RoomCreationSpaceOption>[
+              RoomCreationSpaceOption(
+                roomId: '!kite:example.org',
+                name: 'Kite',
+              ),
+            ],
           ),
         ),
       );
@@ -64,6 +70,15 @@ void main() {
         expect(tester.takeException(), isNull);
       }
       expect(find.byKey(const Key('room-create-name')), findsOneWidget);
+      final spacePicker = find.byKey(const Key('room-create-space'));
+      expect(spacePicker, findsOneWidget);
+      await tester.tap(find.text('Kite').last);
+      for (var i = 0; i < PerformanceContract.motionSamples; i++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, appBar), appBarRect);
+        expect(_rectOf(tester, mode), modeRect);
+        expect(tester.takeException(), isNull);
+      }
     },
   );
 }

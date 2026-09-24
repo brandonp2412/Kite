@@ -101,6 +101,49 @@ void main() {
     expect(find.text('Kite Community created'), findsOneWidget);
   });
 
+  testWidgets('Spaces area creates a room inside the selected Matrix Space', (
+    tester,
+  ) async {
+    const space = SpaceSummary(
+      id: '!kite:example.org',
+      name: 'Kite',
+      description: 'Project Space',
+      memberCount: 4,
+      rooms: <SpaceRoomPreview>[],
+    );
+    final controller = SpacesController(spaces: const <SpaceSummary>[space]);
+    final rooms = DeterministicRoomManagementPort();
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: SpacesScreen(controller: controller, roomCreation: coordinator),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('spaces-create-room')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('room-create-name')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('room-create-name')),
+      'Roadmap',
+    );
+    await tester.ensureVisible(find.byKey(const Key('room-create-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-create-submit')));
+    await tester.pumpAndSettle();
+
+    final request = rooms.invocations.last.creation!;
+    expect(request.kind, KiteRoomCreationKind.privateRoom);
+    expect(request.name, 'Roadmap');
+    expect(request.parentSpaceId, '!kite:example.org');
+    expect(find.text('Roadmap created in Kite'), findsOneWidget);
+  });
+
   test('controller rejects unknown Spaces and preserves joined room state', () {
     final controller = SpacesController();
     expect(() => controller.selectSpace('missing-space'), throwsArgumentError);

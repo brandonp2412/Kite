@@ -6,12 +6,21 @@ import 'package:kite/features/rooms/room_management.dart';
 
 enum RoomCreationMode { directMessage, privateRoom, publicRoom }
 
+@immutable
+final class RoomCreationSpaceOption {
+  const RoomCreationSpaceOption({required this.roomId, required this.name});
+
+  final String roomId;
+  final String name;
+}
+
 class RoomCreationScreen extends StatefulWidget {
   const RoomCreationScreen({
     required this.coordinator,
     this.initialMode = RoomCreationMode.directMessage,
     this.initialDirectUserId,
     this.recentPeople = const <KiteUserSearchResult>[],
+    this.availableSpaces = const <RoomCreationSpaceOption>[],
     this.parentSpaceId,
     this.onCreated,
     super.key,
@@ -21,6 +30,7 @@ class RoomCreationScreen extends StatefulWidget {
   final RoomCreationMode initialMode;
   final String? initialDirectUserId;
   final List<KiteUserSearchResult> recentPeople;
+  final List<RoomCreationSpaceOption> availableSpaces;
   final String? parentSpaceId;
   final ValueChanged<KiteCreatedRoom>? onCreated;
 
@@ -47,6 +57,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
   List<KiteUserSearchResult> _userSearchResults =
       const <KiteUserSearchResult>[];
   KiteUserSearchResult? _privateRoomInvitee;
+  String? _parentSpaceId;
 
   @override
   void initState() {
@@ -54,6 +65,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
     _mode = widget.initialMode;
     _userId = TextEditingController(text: widget.initialDirectUserId);
     _userSearchResults = widget.recentPeople.take(8).toList(growable: false);
+    _parentSpaceId = widget.parentSpaceId;
     _encrypt = _mode != RoomCreationMode.publicRoom;
     unawaited(_loadCapabilities());
   }
@@ -224,7 +236,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
             invitees: _privateRoomInvitee == null
                 ? const <String>[]
                 : <String>[_privateRoomInvitee!.userId],
-            parentSpaceId: widget.parentSpaceId,
+            parentSpaceId: _parentSpaceId,
           ),
         RoomCreationMode.publicRoom =>
           await widget.coordinator.createPublicRoom(
@@ -232,7 +244,7 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
             topic: _topic.text,
             canonicalAlias: _alias.text,
             encryptionEnabled: _encrypt,
-            parentSpaceId: widget.parentSpaceId,
+            parentSpaceId: _parentSpaceId,
           ),
       };
       if (!mounted) return;
@@ -458,6 +470,48 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
                                   alignLabelWithHint: true,
                                 ),
                               ),
+                              if (widget
+                                  .availableSpaces
+                                  .isNotEmpty) ...<Widget>[
+                                const SizedBox(height: KiteSpacing.md),
+                                InputDecorator(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Space',
+                                  ),
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: SegmentedButton<String>(
+                                      key: const Key('room-create-space'),
+                                      segments: <ButtonSegment<String>>[
+                                        const ButtonSegment<String>(
+                                          value: '',
+                                          label: Text('No Space'),
+                                        ),
+                                        for (final space
+                                            in widget.availableSpaces)
+                                          ButtonSegment<String>(
+                                            value: space.roomId,
+                                            label: Text(space.name),
+                                          ),
+                                      ],
+                                      selected: <String>{_parentSpaceId ?? ''},
+                                      showSelectedIcon: false,
+                                      style: const ButtonStyle(
+                                        animationDuration: Duration.zero,
+                                        splashFactory: NoSplash.splashFactory,
+                                      ),
+                                      onSelectionChanged: _submitting
+                                          ? null
+                                          : (selection) => setState(
+                                              () => _parentSpaceId =
+                                                  selection.single.isEmpty
+                                                  ? null
+                                                  : selection.single,
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                               if (_mode ==
                                   RoomCreationMode.privateRoom) ...<Widget>[
                                 const SizedBox(height: KiteSpacing.md),
@@ -602,7 +656,8 @@ class _RoomCreationScreenState extends State<RoomCreationScreen> {
                     label: Text(_submitLabel(_mode)),
                   ),
                 ),
-                if (widget.parentSpaceId != null) ...<Widget>[
+                if (_mode != RoomCreationMode.directMessage &&
+                    _parentSpaceId != null) ...<Widget>[
                   const SizedBox(height: KiteSpacing.sm),
                   Text(
                     'This room will be linked to the selected Space.',
