@@ -26,9 +26,15 @@ typedef MatrixRoomRequiredTextMutation = Future<void> Function(
 typedef MatrixUserSearch = Future<List<MatrixSdkUserSearchResult>> Function(
   String query,
 );
+typedef MatrixRoomDirectorySearch =
+    Future<List<MatrixSdkRoomDirectoryResult>> Function(String query);
 
 final class MatrixRoomCreationManagementPort
-    implements RoomManagementPort, RoomUserSearchPort, DirectMessageOpenPort {
+    implements
+        RoomManagementPort,
+        RoomUserSearchPort,
+        RoomDirectorySearchPort,
+        DirectMessageOpenPort {
   const MatrixRoomCreationManagementPort(
     this._create, {
     required MatrixRoomReport reportRoom,
@@ -45,6 +51,7 @@ final class MatrixRoomCreationManagementPort
     required MatrixRoomRequiredTextMutation setHistoryVisibility,
     required MatrixRoomRequiredTextMutation setNotificationMode,
     this.userSearch,
+    this.roomDirectorySearch,
     this.directMessageOpen,
   }) : _lifecycle = (
          reportRoom: reportRoom,
@@ -66,6 +73,7 @@ final class MatrixRoomCreationManagementPort
 
   final MatrixRoomCreate _create;
   final MatrixUserSearch? userSearch;
+  final MatrixRoomDirectorySearch? roomDirectorySearch;
   final MatrixDirectMessageOpen? directMessageOpen;
   final ({
     MatrixRoomReport reportRoom,
@@ -109,6 +117,30 @@ final class MatrixRoomCreationManagementPort
           avatarUrl: result.avatarUrl == null
               ? null
               : Uri.parse(result.avatarUrl!),
+        ),
+    ];
+  }
+
+  @override
+  Future<List<KiteRoomDirectoryResult>> searchRoomDirectory(
+    String query,
+  ) async {
+    final search = roomDirectorySearch;
+    if (search == null) return const <KiteRoomDirectoryResult>[];
+    final results = await search(query);
+    return <KiteRoomDirectoryResult>[
+      for (final result in results)
+        KiteRoomDirectoryResult(
+          roomId: result.roomId,
+          name: result.name,
+          topic: result.topic,
+          canonicalAlias: result.canonicalAlias,
+          avatarUrl: result.avatarUrl == null
+              ? null
+              : Uri.parse(result.avatarUrl!),
+          joinRule: result.joinRule,
+          worldReadable: result.worldReadable,
+          joinedMembers: result.joinedMembers,
         ),
     ];
   }

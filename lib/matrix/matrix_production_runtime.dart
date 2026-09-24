@@ -266,6 +266,11 @@ final class MatrixProductionRuntime
     required String query,
   }) => accounts.searchUsers(accountId: accountId, query: query);
 
+  Future<List<MatrixSdkRoomDirectoryResult>> searchRoomDirectory({
+    required String accountId,
+    required String query,
+  }) => accounts.searchRoomDirectory(accountId: accountId, query: query);
+
   Future<Set<String>> loadIgnoredUserIds({required String accountId}) =>
       accounts.loadIgnoredUserIds(accountId: accountId);
 

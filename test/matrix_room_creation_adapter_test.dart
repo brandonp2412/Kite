@@ -94,6 +94,54 @@ void main() {
     expect(createdRequest, isNull);
   });
 
+  test('production room directory search preserves Matrix metadata', () async {
+    final port = MatrixRoomCreationManagementPort(
+      (_) async => const MatrixSdkCreatedRoom(
+        roomId: '!unused:example.org',
+        isDirect: false,
+      ),
+      reportRoom: (_, _) async {},
+      reportUser: (_, _, _) async {},
+      leaveRoom: (_) async {},
+      forgetRoom: (_) async {},
+      roomDetails: _details,
+      setName: (_, _) async {},
+      setTopic: (_, _) async {},
+      setAvatar: (_, _) async {},
+      setCanonicalAlias: (_, _) async {},
+      setJoinRule: (_, _) async {},
+      enableEncryption: (_) async {},
+      setHistoryVisibility: (_, _) async {},
+      setNotificationMode: (_, _) async {},
+      roomDirectorySearch: (query) async {
+        expect(query, 'kite');
+        return const <MatrixSdkRoomDirectoryResult>[
+          MatrixSdkRoomDirectoryResult(
+            roomId: '!kite:example.org',
+            name: 'Kite',
+            topic: 'Matrix room',
+            canonicalAlias: '#kite:example.org',
+            avatarUrl: 'mxc://example.org/kite',
+            joinRule: 'public',
+            worldReadable: true,
+            joinedMembers: 1234,
+          ),
+        ];
+      },
+    );
+
+    final result = (await port.searchRoomDirectory('kite')).single;
+
+    expect(result.roomId, '!kite:example.org');
+    expect(result.name, 'Kite');
+    expect(result.topic, 'Matrix room');
+    expect(result.canonicalAlias, '#kite:example.org');
+    expect(result.avatarUrl, Uri.parse('mxc://example.org/kite'));
+    expect(result.joinRule, 'public');
+    expect(result.worldReadable, isTrue);
+    expect(result.joinedMembers, 1234);
+  });
+
   test(
     'production creation capabilities expose only implemented join rules',
     () async {

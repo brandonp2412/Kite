@@ -213,6 +213,7 @@ void main() {
       final ownProfile = await boundary.loadOwnProfile();
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
       final userSearch = await boundary.searchUsers('bo');
+      final roomDirectory = await boundary.searchRoomDirectory('kite');
       final ignoredUserIds = await boundary.loadIgnoredUserIds();
       final devices = await boundary.loadDevices();
       await boundary.signOutDevice('PHONE', password: ' secret with spaces ');
@@ -330,6 +331,12 @@ void main() {
       expect(userSearch.single.userId, '@bob:kite.test');
       expect(userSearch.single.displayName, 'Bob');
       expect(userSearch.single.avatarUrl, 'mxc://kite.test/bob');
+      expect(roomDirectory.single.roomId, '!public:kite.test');
+      expect(roomDirectory.single.name, 'Kite Community');
+      expect(roomDirectory.single.canonicalAlias, '#kite:kite.test');
+      expect(roomDirectory.single.joinRule, 'public');
+      expect(roomDirectory.single.worldReadable, isTrue);
+      expect(roomDirectory.single.joinedMembers, 42);
       expect(ignoredUserIds, <String>{'@spam:kite.test'});
       expect(devices, hasLength(2));
       expect(devices.first.deviceId, 'KITEDEVICE');
@@ -348,6 +355,7 @@ void main() {
         (null, 'get', null),
         ('@bob:kite.test', 'get', null),
         (null, 'search', 'bo'),
+        (null, 'search_rooms', 'kite'),
         (null, 'ignored_users', null),
         (null, 'devices', null),
         ('PHONE', 'delete_device', ' secret with spaces '),
@@ -1722,6 +1730,22 @@ final class _FakeRustClient
             'userId': '@bob:kite.test',
             'displayName': 'Bob',
             'avatarUrl': 'mxc://kite.test/bob',
+          },
+        ],
+      };
+    }
+    if (action == 'search_rooms') {
+      return <String, Object?>{
+        'results': <Object?>[
+          <String, Object?>{
+            'roomId': '!public:kite.test',
+            'name': 'Kite Community',
+            'topic': 'Public Matrix room',
+            'canonicalAlias': '#kite:kite.test',
+            'avatarUrl': 'mxc://kite.test/public',
+            'joinRule': 'public',
+            'worldReadable': true,
+            'joinedMembers': 42,
           },
         ],
       };
