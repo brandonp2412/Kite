@@ -13,7 +13,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 29;
+const int kiteMatrixNativeAbiVersion = 30;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -133,6 +133,18 @@ typedef _ClientCreateRoomNative = Pointer<Char> Function(
 typedef _ClientCreateRoomDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
+);
+typedef _ClientSetSpaceChildNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Uint8,
+);
+typedef _ClientSetSpaceChildDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  int,
 );
 typedef _ClientSetRoomFavouriteNative = Pointer<Char> Function(
   Pointer<Void>,
@@ -766,6 +778,52 @@ final class _MatrixNativeCreateRoomOperation {
       return _decodeNativeEnvelope(response);
     } finally {
       calloc.free(payloadUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeSetSpaceChildOperation {
+  const _MatrixNativeSetSpaceChildOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.spaceId,
+    required this.roomId,
+    required this.linked,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String spaceId;
+  final String roomId;
+  final bool linked;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final setSpaceChild = library
+        .lookupFunction<_ClientSetSpaceChildNative, _ClientSetSpaceChildDart>(
+          'kite_matrix_client_set_space_child',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final spaceIdUtf8 = spaceId.toNativeUtf8(allocator: calloc);
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    try {
+      final payload = _readNativeString(
+        setSpaceChild(
+          Pointer<Void>.fromAddress(address),
+          spaceIdUtf8.cast<Char>(),
+          roomIdUtf8.cast<Char>(),
+          linked ? 1 : 0,
+        ),
+        freeString,
+        linked ? 'Space room link' : 'Space room unlink',
+      );
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(roomIdUtf8);
+      calloc.free(spaceIdUtf8);
     }
   }
 }
@@ -1872,6 +1930,14 @@ abstract interface class MatrixRustRoomCreator {
   );
 }
 
+abstract interface class MatrixRustSpaceClient {
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  });
+}
+
 abstract interface class MatrixRustRoomMembersClient {
   Future<List<MatrixRustRoomMember>> roomMembers({required String roomId});
 }
@@ -2235,6 +2301,7 @@ final class MatrixRustNativeClient
         MatrixRustSessionClient,
         MatrixRustLogoutClient,
         MatrixRustRoomCreator,
+        MatrixRustSpaceClient,
         MatrixRustRoomMembersClient,
         MatrixRustRoomMemberInviterClient,
         MatrixRustRoomMemberModeratorClient,
@@ -2534,6 +2601,50 @@ final class MatrixRustNativeClient
         );
       }
       return MatrixRustCreatedRoom(roomId: roomId, isDirect: isDirect);
+    });
+  }
+
+  @override
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) {
+    final normalizedSpaceId = spaceId.trim();
+    final normalizedRoomId = roomId.trim();
+    if (normalizedSpaceId.isEmpty || normalizedSpaceId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          spaceId,
+          'spaceId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<void>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedSpaceId == normalizedRoomId) {
+      return Future<void>.error(
+        ArgumentError.value(roomId, 'roomId', 'Space cannot contain itself'),
+      );
+    }
+    return _enqueue<void>(() async {
+      await Isolate.run<Object?>(
+        _MatrixNativeSetSpaceChildOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          spaceId: normalizedSpaceId,
+          roomId: normalizedRoomId,
+          linked: linked,
+        ).call,
+      );
     });
   }
 
@@ -3510,6 +3621,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkRoomEncryptionTrustManager,
         MatrixSdkDeviceManager,
         MatrixSdkRoomCreator,
+        MatrixSdkSpaceManager,
         MatrixSdkRoomDirectoryManager,
         MatrixSdkRoomSettingsManager,
         MatrixSdkRoomLifecycleManager,
@@ -4228,6 +4340,27 @@ final class MatrixRustSdkBoundary
       return MatrixSdkCreatedRoom(
         roomId: created.roomId,
         isDirect: created.isDirect,
+      );
+    });
+  }
+
+  @override
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) {
+    return _enqueue<void>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustSpaceClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support Space child mutations',
+        );
+      }
+      await (client as MatrixRustSpaceClient).setSpaceChild(
+        spaceId: spaceId,
+        roomId: roomId,
+        linked: linked,
       );
     });
   }

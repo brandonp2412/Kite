@@ -342,6 +342,18 @@ final class MatrixProductionRuntime
     return accounts.createRoom(accountId: accountId, request: request);
   }
 
+  Future<void> setSpaceChild({
+    required String accountId,
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) => accounts.setSpaceChild(
+    accountId: accountId,
+    spaceId: spaceId,
+    roomId: roomId,
+    linked: linked,
+  );
+
   Future<MatrixSdkRoomDetails> roomDetails({
     required String accountId,
     required String roomId,

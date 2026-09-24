@@ -66,6 +66,19 @@ void main() {
       final header = find.byKey(const Key('spaces-header'));
       final headerRect = _rectOf(tester, header);
 
+      await tester.tap(find.byKey(const Key('spaces-link-room')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('space-link-sheet')), findsOneWidget);
+      Navigator.of(tester.element(find.byKey(const Key('space-link-sheet'))))
+          .pop();
+      await tester.pumpAndSettle();
+      expect(_rectOf(tester, header), headerRect);
+
       await tester.tap(find.byKey(const Key('spaces-manage')));
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);

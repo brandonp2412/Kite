@@ -248,6 +248,11 @@ void main() {
           parentSpaceId: null,
         ),
       );
+      await boundary.setSpaceChild(
+        spaceId: '!space:kite.test',
+        roomId: '!room:kite.test',
+        linked: true,
+      );
       final roomDetails = await boundary.roomDetails('!room:kite.test');
       await boundary.setRoomName('!room:kite.test', 'Renamed');
       await boundary.setRoomTopic('!room:kite.test', null);
@@ -387,6 +392,9 @@ void main() {
       expect(roomDetails.isDirect, isFalse);
       expect(roomDetails.directUserIds, <String>['@bob:kite.test']);
       expect(client.createRequests.single.name, 'Kite room');
+      expect(client.spaceChildWrites, <(String, String, bool)>[
+        ('!space:kite.test', '!room:kite.test', true),
+      ]);
       expect(client.sendCalls, <(String, String, String)>[
         ('!room:kite.test', 'kite-transaction-1', 'Hello Matrix'),
         ('!room:kite.test', 'kite-transaction-2', 'Edited Matrix'),
@@ -1447,6 +1455,7 @@ final class _FakeRustClient
     implements
         MatrixRustClient,
         MatrixRustRoomCreator,
+        MatrixRustSpaceClient,
         MatrixRustRoomFavouriteClient,
         MatrixRustRoomInviteClient,
         MatrixRustRoomMemberInviterClient,
@@ -1471,6 +1480,8 @@ final class _FakeRustClient
   final List<(String, String)> loginCalls = <(String, String)>[];
   final List<MatrixSdkRoomCreationRequest> createRequests =
       <MatrixSdkRoomCreationRequest>[];
+  final List<(String, String, bool)> spaceChildWrites =
+      <(String, String, bool)>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, bool)> inviteResponses = <(String, bool)>[];
   final List<(String, String)> memberInvites = <(String, String)>[];
@@ -1522,6 +1533,15 @@ final class _FakeRustClient
       roomId: '!created:kite.test',
       isDirect: false,
     );
+  }
+
+  @override
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) async {
+    spaceChildWrites.add((spaceId, roomId, linked));
   }
 
   @override

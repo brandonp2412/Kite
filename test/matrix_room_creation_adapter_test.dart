@@ -301,6 +301,47 @@ void main() {
     },
   );
 
+  test('production Space child mutations preserve Matrix identities', () async {
+    final invocations = <(String, String, bool)>[];
+    final port = MatrixRoomCreationManagementPort(
+      (_) async => const MatrixSdkCreatedRoom(
+        roomId: '!unused:example.org',
+        isDirect: false,
+      ),
+      reportRoom: (_, _) async {},
+      reportUser: (_, _, _) async {},
+      leaveRoom: (_) async {},
+      forgetRoom: (_) async {},
+      roomDetails: _details,
+      setName: (_, _) async {},
+      setTopic: (_, _) async {},
+      setAvatar: (_, _) async {},
+      setCanonicalAlias: (_, _) async {},
+      setJoinRule: (_, _) async {},
+      enableEncryption: (_) async {},
+      setHistoryVisibility: (_, _) async {},
+      setNotificationMode: (_, _) async {},
+      spaceChildMutation: (spaceId, roomId, linked) async =>
+          invocations.add((spaceId, roomId, linked)),
+    );
+
+    await port.setSpaceChild(
+      spaceId: '!space:example.org',
+      roomId: '!room:example.org',
+      linked: true,
+    );
+    await port.setSpaceChild(
+      spaceId: '!space:example.org',
+      roomId: '!room:example.org',
+      linked: false,
+    );
+
+    expect(invocations, <(String, String, bool)>[
+      ('!space:example.org', '!room:example.org', true),
+      ('!space:example.org', '!room:example.org', false),
+    ]);
+  });
+
   test('production room settings adapter preserves SDK-backed values and mutations', () async {
     final invocations = <String>[];
     final port = MatrixRoomCreationManagementPort(

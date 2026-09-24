@@ -219,6 +219,28 @@ final class SpacesController {
     _spaces.value = List<SpaceSummary>.unmodifiable(next);
   }
 
+  void removeRoomFromSpace({required String spaceId, required String roomId}) {
+    final index = spaces.indexWhere((space) => space.id == spaceId);
+    if (index < 0) {
+      throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.');
+    }
+    final current = spaces[index];
+    if (!current.rooms.any((room) => room.id == roomId)) return;
+    final next = spaces.toList(growable: true);
+    next[index] = SpaceSummary(
+      id: current.id,
+      name: current.name,
+      description: current.description,
+      memberCount: current.memberCount,
+      rooms: List<SpaceRoomPreview>.unmodifiable(
+        current.rooms.where((room) => room.id != roomId),
+      ),
+      external: current.external,
+    );
+    _spaces.value = List<SpaceSummary>.unmodifiable(next);
+    _joinStates.remove(roomId);
+  }
+
   void reconcileSpaces(List<SpaceSummary> nextSpaces) {
     final next = List<SpaceSummary>.unmodifiable(nextSpaces);
     _spaces.value = next;

@@ -144,6 +144,12 @@ abstract interface class RoomManagementPort {
 
   Future<KiteCreatedRoom> createRoom(KiteRoomCreationRequest request);
 
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  });
+
   Future<KiteRoomDetails> roomDetails(String roomId);
 
   Future<void> setName({required String roomId, required String? name});
@@ -406,6 +412,25 @@ final class RoomManagementCoordinator {
         canonicalAlias: null,
         parentSpaceId: null,
       ),
+    );
+  }
+
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) {
+    final normalizedSpaceId = _roomId(spaceId);
+    final normalizedRoomId = _roomId(roomId);
+    if (normalizedSpaceId == normalizedRoomId) {
+      throw const RoomManagementValidationException(
+        'A Matrix Space cannot contain itself.',
+      );
+    }
+    return _rooms.setSpaceChild(
+      spaceId: normalizedSpaceId,
+      roomId: normalizedRoomId,
+      linked: linked,
     );
   }
 

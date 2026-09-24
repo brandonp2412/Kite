@@ -225,6 +225,105 @@ void main() {
     expect(controller.selectedSpace?.description, 'Project rooms and releases');
   });
 
+  testWidgets('Spaces area links an existing joined Matrix room', (
+    tester,
+  ) async {
+    const space = SpaceSummary(
+      id: '!kite:example.org',
+      name: 'Kite',
+      description: 'Project Space',
+      memberCount: 4,
+      rooms: <SpaceRoomPreview>[],
+    );
+    final controller = SpacesController(spaces: const <SpaceSummary>[space]);
+    final rooms = DeterministicRoomManagementPort();
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: SpacesScreen(controller: controller, roomCreation: coordinator),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('spaces-link-room')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('space-link-sheet')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('space-link-room-id')),
+      '!roadmap:example.org',
+    );
+    await tester.tap(find.byKey(const Key('space-link-submit')));
+    await tester.pumpAndSettle();
+
+    final call = rooms.invocations.singleWhere(
+      (entry) => entry.type == RoomManagementInvocationType.setSpaceChild,
+    );
+    expect(call.spaceId, space.id);
+    expect(call.roomId, '!roadmap:example.org');
+    expect(call.text, 'linked');
+    expect(
+      find.text('Room linked to Kite. It will appear after the next sync.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Spaces area unlinks an existing child room immediately', (
+    tester,
+  ) async {
+    const room = SpaceRoomPreview(
+      id: '!roadmap:example.org',
+      name: 'Roadmap',
+      topic: 'Planning',
+      memberCount: 3,
+      joined: true,
+    );
+    const space = SpaceSummary(
+      id: '!kite:example.org',
+      name: 'Kite',
+      description: 'Project Space',
+      memberCount: 4,
+      rooms: <SpaceRoomPreview>[room],
+    );
+    final controller = SpacesController(spaces: const <SpaceSummary>[space]);
+    final rooms = DeterministicRoomManagementPort();
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: SpacesScreen(controller: controller, roomCreation: coordinator),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('space-room-unlink-!roadmap:example.org')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const Key('space-room-unlink-!roadmap:example.org')),
+    );
+    await tester.pumpAndSettle();
+
+    final call = rooms.invocations.singleWhere(
+      (entry) => entry.type == RoomManagementInvocationType.setSpaceChild,
+    );
+    expect(call.spaceId, space.id);
+    expect(call.roomId, room.id);
+    expect(call.text, 'unlinked');
+    expect(
+      find.byKey(const Key('space-room-row-!roadmap:example.org')),
+      findsNothing,
+    );
+    expect(find.text('Roadmap removed from Kite'), findsOneWidget);
+  });
+
   test('controller rejects unknown Spaces and preserves joined room state', () {
     final controller = SpacesController();
     expect(() => controller.selectSpace('missing-space'), throwsArgumentError);

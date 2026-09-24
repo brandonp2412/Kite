@@ -372,6 +372,23 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.createRoom(request);
   }
 
+  Future<void> setSpaceChild({
+    required String accountId,
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot change Matrix Space membership for an inactive account',
+    );
+    return active.engine.setSpaceChild(
+      spaceId: spaceId,
+      roomId: roomId,
+      linked: linked,
+    );
+  }
+
   Future<MatrixSdkRoomDetails> roomDetails({
     required String accountId,
     required String roomId,

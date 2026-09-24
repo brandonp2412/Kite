@@ -12,6 +12,11 @@ typedef MatrixUserReport = Future<void> Function(
   String? reason,
 );
 typedef MatrixRoomMutation = Future<void> Function(String roomId);
+typedef MatrixSpaceChildMutation = Future<void> Function(
+  String spaceId,
+  String roomId,
+  bool linked,
+);
 typedef MatrixRoomDetailsLookup = Future<MatrixSdkRoomDetails> Function(
   String roomId,
 );
@@ -56,6 +61,7 @@ final class MatrixRoomCreationManagementPort
     this.directoryJoin,
     this.directoryKnock,
     this.directMessageOpen,
+    this.spaceChildMutation,
   }) : _lifecycle = (
          reportRoom: reportRoom,
          reportUser: reportUser,
@@ -80,6 +86,7 @@ final class MatrixRoomCreationManagementPort
   final MatrixRoomMutation? directoryJoin;
   final MatrixRoomMutation? directoryKnock;
   final MatrixDirectMessageOpen? directMessageOpen;
+  final MatrixSpaceChildMutation? spaceChildMutation;
   final ({
     MatrixRoomReport reportRoom,
     MatrixUserReport reportUser,
@@ -222,6 +229,19 @@ final class MatrixRoomCreationManagementPort
               ? request.invitees.single
               : created.roomId),
     );
+  }
+
+  @override
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) {
+    final mutate = spaceChildMutation;
+    if (mutate == null) {
+      throw StateError('Matrix Space child mutations are unavailable.');
+    }
+    return mutate(spaceId, roomId, linked);
   }
 
   @override

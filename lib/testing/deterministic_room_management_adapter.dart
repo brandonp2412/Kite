@@ -7,6 +7,7 @@ enum RoomManagementInvocationType {
   joinRoomFromDirectory,
   requestRoomJoin,
   create,
+  setSpaceChild,
   details,
   setName,
   setTopic,
@@ -26,6 +27,7 @@ final class RoomManagementInvocation {
   const RoomManagementInvocation({
     required this.type,
     this.roomId,
+    this.spaceId,
     this.creation,
     this.text,
     this.avatarUrl,
@@ -38,6 +40,7 @@ final class RoomManagementInvocation {
 
   final RoomManagementInvocationType type;
   final String? roomId;
+  final String? spaceId;
   final KiteRoomCreationRequest? creation;
   final String? text;
   final Uri? avatarUrl;
@@ -192,6 +195,23 @@ final class DeterministicRoomManagementPort
           request.name ??
           (request.invitees.length == 1 ? request.invitees.single : roomId),
     );
+  }
+
+  @override
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.setSpaceChild,
+        spaceId: spaceId,
+        roomId: roomId,
+        text: linked ? 'linked' : 'unlinked',
+      ),
+    );
+    _throwIfRequested();
   }
 
   @override

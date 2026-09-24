@@ -85,6 +85,27 @@ class SpacesScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _openLinkRoom(BuildContext context) async {
+    final coordinator = roomCreation;
+    final space = _controller.selectedSpace;
+    if (coordinator == null || space == null) return;
+    final linkedRoomId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) =>
+          _LinkRoomSheet(coordinator: coordinator, space: space),
+    );
+    if (linkedRoomId == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Room linked to ${space.name}. It will appear after the next sync.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _openCreateRoom(BuildContext context) async {
     final coordinator = roomCreation;
     final space = _controller.selectedSpace;
@@ -141,6 +162,12 @@ class SpacesScreen extends StatelessWidget {
                     ),
                     if (roomCreation != null) ...<Widget>[
                       IconButton(
+                        key: const Key('spaces-link-room'),
+                        tooltip: 'Link existing room to selected Space',
+                        onPressed: () => _openLinkRoom(context),
+                        icon: const Icon(Icons.link_rounded),
+                      ),
+                      IconButton(
                         key: const Key('spaces-manage'),
                         tooltip: 'Manage selected Space',
                         onPressed: () => _openManageSpace(context),
@@ -177,7 +204,10 @@ class SpacesScreen extends StatelessWidget {
                         ),
                         VerticalDivider(width: 1, color: colors.outlineVariant),
                         Expanded(
-                          child: _SelectedSpaceBody(controller: _controller),
+                          child: _SelectedSpaceBody(
+                            controller: _controller,
+                            roomManagement: roomCreation,
+                          ),
                         ),
                       ],
                     );
@@ -186,7 +216,10 @@ class SpacesScreen extends StatelessWidget {
                     children: <Widget>[
                       _SpaceChipRow(controller: _controller),
                       Expanded(
-                        child: _SelectedSpaceBody(controller: _controller),
+                        child: _SelectedSpaceBody(
+                          controller: _controller,
+                          roomManagement: roomCreation,
+                        ),
                       ),
                     ],
                   );
@@ -310,9 +343,13 @@ class _SpaceRail extends StatelessWidget {
 }
 
 class _SelectedSpaceBody extends StatelessWidget {
-  const _SelectedSpaceBody({required this.controller});
+  const _SelectedSpaceBody({
+    required this.controller,
+    required this.roomManagement,
+  });
 
   final SpacesController controller;
+  final RoomManagementCoordinator? roomManagement;
 
   @override
   Widget build(BuildContext context) {
@@ -365,6 +402,7 @@ class _SelectedSpaceBody extends StatelessWidget {
                     space: space,
                     room: space.rooms[index],
                     controller: controller,
+                    roomManagement: roomManagement,
                   ),
                 ),
               ),
@@ -453,11 +491,39 @@ class _SpaceRoomRow extends StatelessWidget {
     required this.space,
     required this.room,
     required this.controller,
+    required this.roomManagement,
   });
 
   final SpaceSummary space;
   final SpaceRoomPreview room;
   final SpacesController controller;
+  final RoomManagementCoordinator? roomManagement;
+
+  Future<void> _unlink(BuildContext context) async {
+    final coordinator = roomManagement;
+    if (coordinator == null) return;
+    try {
+      await coordinator.setSpaceChild(
+        spaceId: space.id,
+        roomId: room.id,
+        linked: false,
+      );
+      controller.removeRoomFromSpace(spaceId: space.id, roomId: room.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${room.name} removed from ${space.name}')),
+      );
+    } on RoomManagementValidationException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kite could not unlink that room.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -518,16 +584,23 @@ class _SpaceRoomRow extends StatelessWidget {
                   builder: (context) {
                     final state = controller.joinStateFor(room.id).value;
                     return switch (state) {
-                      SpaceRoomJoinState.joined => Center(
-                        child: Text(
-                          'Joined',
-                          key: Key('space-room-joined-${room.id}'),
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
+                      SpaceRoomJoinState.joined =>
+                        roomManagement == null
+                            ? Center(
+                                child: Text(
+                                  'Joined',
+                                  key: Key('space-room-joined-${room.id}'),
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            : OutlinedButton(
+                                key: Key('space-room-unlink-${room.id}'),
+                                onPressed: () => _unlink(context),
+                                child: const Text('Remove'),
+                              ),
                       SpaceRoomJoinState.joining => const Center(
                         child: SizedBox.square(
                           key: Key('space-room-joining'),
@@ -558,6 +631,111 @@ class _SpaceRoomRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LinkRoomSheet extends StatefulWidget {
+  const _LinkRoomSheet({required this.coordinator, required this.space});
+
+  final RoomManagementCoordinator coordinator;
+  final SpaceSummary space;
+
+  @override
+  State<_LinkRoomSheet> createState() => _LinkRoomSheetState();
+}
+
+class _LinkRoomSheetState extends State<_LinkRoomSheet> {
+  final TextEditingController _roomId = TextEditingController();
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _roomId.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final roomId = _roomId.text.trim();
+      await widget.coordinator.setSpaceChild(
+        spaceId: widget.space.id,
+        roomId: roomId,
+        linked: true,
+      );
+      if (mounted) Navigator.of(context).pop(roomId);
+    } on RoomManagementValidationException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Kite could not link that room to the Space.');
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+        KiteSpacing.lg + bottomInset,
+      ),
+      child: Column(
+        key: const Key('space-link-sheet'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Link room to ${widget.space.name}',
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: KiteSpacing.xs),
+          Text(
+            'Enter the Matrix room ID for a room you have already joined.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          TextField(
+            key: const Key('space-link-room-id'),
+            controller: _roomId,
+            autofocus: true,
+            autocorrect: false,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              labelText: 'Matrix room ID',
+              hintText: '!room:example.org',
+              errorText: _error,
+            ),
+          ),
+          const SizedBox(height: KiteSpacing.md),
+          FilledButton.icon(
+            key: const Key('space-link-submit'),
+            onPressed: _submitting ? null : _submit,
+            icon: _submitting
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.link_rounded),
+            label: const Text('Link room'),
+          ),
+        ],
       ),
     );
   }

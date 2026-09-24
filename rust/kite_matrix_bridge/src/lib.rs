@@ -65,7 +65,7 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 29;
+const KITE_MATRIX_ABI_VERSION: u32 = 30;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
@@ -1915,6 +1915,152 @@ pub unsafe extern "C" fn kite_matrix_client_create_room(
     }
 
     ok_json(json!({"roomId": room.room_id().as_str(), "isDirect": is_direct}))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_set_space_child(
+    client: *mut KiteMatrixClient,
+    space_id: *const c_char,
+    room_id: *const c_char,
+    linked: u8,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json(
+            "client_closed",
+            "Matrix Space membership changes are unavailable.",
+        );
+    }
+    let Some(space_id) = (unsafe { required_utf8(space_id) }) else {
+        return error_json("invalid_space", "The Matrix Space is invalid.");
+    };
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    if linked > 1 {
+        return error_json(
+            "invalid_space_link",
+            "The Matrix Space membership state is invalid.",
+        );
+    }
+    let Ok(space_id) = RoomId::parse(space_id) else {
+        return error_json("invalid_space", "The Matrix Space is invalid.");
+    };
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    if space_id == room_id {
+        return error_json(
+            "invalid_space_link",
+            "A Matrix Space cannot contain itself.",
+        );
+    }
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json(
+            "client_closed",
+            "Matrix Space membership changes are unavailable.",
+        );
+    };
+    let Some(space) = matrix_client.get_room(&space_id) else {
+        return error_json("space_not_found", "The Matrix Space is unavailable.");
+    };
+    if !space.is_space() {
+        return error_json("room_not_space", "The selected Matrix room is not a Space.");
+    }
+    if space.state() != RoomState::Joined {
+        return error_json(
+            "space_not_joined",
+            "The selected Matrix Space is not joined by this account.",
+        );
+    }
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_not_found", "The Matrix room is unavailable.");
+    };
+    if room.state() != RoomState::Joined {
+        return error_json(
+            "room_not_joined",
+            "The Matrix room must be joined before it can be linked to a Space.",
+        );
+    }
+
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let relation_result = if linked == 1 {
+        let Some(user_id) = matrix_client.user_id() else {
+            return error_json(
+                "authentication_required",
+                "The Matrix session is unavailable.",
+            );
+        };
+        let routing_servers = vec![user_id.server_name().to_owned()];
+        let mut parent_content = SpaceParentEventContent::new(routing_servers.clone());
+        parent_content.canonical = true;
+        let parent_result = client
+            .runtime
+            .block_on(room.send_state_event_for_key(space.room_id(), parent_content));
+        if parent_result.is_err() {
+            Err(())
+        } else {
+            client
+                .runtime
+                .block_on(space.send_state_event_for_key(
+                    room.room_id(),
+                    SpaceChildEventContent::new(routing_servers),
+                ))
+                .map(|_| ())
+                .map_err(|_| ())
+        }
+    } else {
+        let parent_result = client.runtime.block_on(room.send_state_event_raw(
+            "m.space.parent",
+            space.room_id().as_str(),
+            json!({}),
+        ));
+        if parent_result.is_err() {
+            Err(())
+        } else {
+            client
+                .runtime
+                .block_on(space.send_state_event_raw(
+                    "m.space.child",
+                    room.room_id().as_str(),
+                    json!({}),
+                ))
+                .map(|_| ())
+                .map_err(|_| ())
+        }
+    };
+    if relation_result.is_err() {
+        return error_json(
+            "space_link_failed",
+            if linked == 1 {
+                "The Matrix Space and room could not be linked."
+            } else {
+                "The Matrix Space and room could not be unlinked."
+            },
+        );
+    }
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({
+        "spaceId": space_id.as_str(),
+        "roomId": room_id.as_str(),
+        "linked": linked == 1,
+    }))
 }
 
 #[unsafe(no_mangle)]
@@ -3927,7 +4073,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 29);
+        assert_eq!(kite_matrix_abi_version(), 30);
     }
 
     #[test]
@@ -4179,6 +4325,15 @@ mod tests {
         .unwrap();
         let create =
             unsafe { kite_matrix_client_create_room(ptr::null_mut(), create_request.as_ptr()) };
+        let space_id = CString::new("!space:kite.test").unwrap();
+        let space_child = unsafe {
+            kite_matrix_client_set_space_child(
+                ptr::null_mut(),
+                space_id.as_ptr(),
+                room_id.as_ptr(),
+                1,
+            )
+        };
         let event_id = CString::new("$event:kite.test").unwrap();
         let read = unsafe {
             kite_matrix_client_mark_room_read(ptr::null_mut(), room_id.as_ptr(), event_id.as_ptr())
@@ -4252,6 +4407,7 @@ mod tests {
             send,
             favourite,
             create,
+            space_child,
             read,
             invite_member,
             permissions,

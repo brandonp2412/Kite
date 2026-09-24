@@ -264,6 +264,14 @@ abstract interface class MatrixSdkRoomCreator {
   Future<MatrixSdkCreatedRoom> createRoom(MatrixSdkRoomCreationRequest request);
 }
 
+abstract interface class MatrixSdkSpaceManager {
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  });
+}
+
 abstract interface class MatrixSdkRoomDirectoryManager {
   Future<List<MatrixSdkRoomDirectoryResult>> searchRoomDirectory(String query);
   Future<void> joinRoomFromDirectory(String roomId);
@@ -1155,6 +1163,34 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     return (creator as MatrixSdkRoomCreator).createRoom(request);
+  }
+
+  Future<void> setSpaceChild({
+    required String spaceId,
+    required String roomId,
+    required bool linked,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkSpaceManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support Space child mutations',
+      );
+    }
+    final normalizedSpaceId = _validatedRoomId(spaceId);
+    final normalizedRoomId = _validatedRoomId(roomId);
+    if (normalizedSpaceId == normalizedRoomId) {
+      throw ArgumentError.value(
+        roomId,
+        'roomId',
+        'A Matrix Space cannot contain itself.',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkSpaceManager).setSpaceChild(
+      spaceId: normalizedSpaceId,
+      roomId: normalizedRoomId,
+      linked: linked,
+    );
   }
 
   Future<MatrixSdkRoomDetails> roomDetails(String roomId) async {

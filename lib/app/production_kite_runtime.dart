@@ -738,6 +738,13 @@ final class _AuthenticatedMatrixHomeState
           accountId: widget.session.userId,
           userId: userId,
         ),
+        spaceChildMutation: (spaceId, roomId, linked) =>
+            widget.runtime.setSpaceChild(
+              accountId: widget.session.userId,
+              spaceId: spaceId,
+              roomId: roomId,
+              linked: linked,
+            ),
       ),
       directMetadata: const MatrixDirectRoomMetadataPort(),
     );
