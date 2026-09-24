@@ -34,6 +34,7 @@ final class MatrixRoomCreationManagementPort
         RoomManagementPort,
         RoomUserSearchPort,
         RoomDirectorySearchPort,
+        RoomDirectoryMembershipPort,
         DirectMessageOpenPort {
   const MatrixRoomCreationManagementPort(
     this._create, {
@@ -52,6 +53,8 @@ final class MatrixRoomCreationManagementPort
     required MatrixRoomRequiredTextMutation setNotificationMode,
     this.userSearch,
     this.roomDirectorySearch,
+    this.directoryJoin,
+    this.directoryKnock,
     this.directMessageOpen,
   }) : _lifecycle = (
          reportRoom: reportRoom,
@@ -74,6 +77,8 @@ final class MatrixRoomCreationManagementPort
   final MatrixRoomCreate _create;
   final MatrixUserSearch? userSearch;
   final MatrixRoomDirectorySearch? roomDirectorySearch;
+  final MatrixRoomMutation? directoryJoin;
+  final MatrixRoomMutation? directoryKnock;
   final MatrixDirectMessageOpen? directMessageOpen;
   final ({
     MatrixRoomReport reportRoom,
@@ -143,6 +148,24 @@ final class MatrixRoomCreationManagementPort
           joinedMembers: result.joinedMembers,
         ),
     ];
+  }
+
+  @override
+  Future<void> joinRoomFromDirectory(String roomId) {
+    final join = directoryJoin;
+    if (join == null) {
+      throw StateError('Matrix room directory joining is unavailable.');
+    }
+    return join(roomId);
+  }
+
+  @override
+  Future<void> requestRoomJoin(String roomId) {
+    final knock = directoryKnock;
+    if (knock == null) {
+      throw StateError('Matrix room join requests are unavailable.');
+    }
+    return knock(roomId);
   }
 
   @override

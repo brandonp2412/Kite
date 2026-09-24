@@ -130,6 +130,11 @@ abstract interface class RoomDirectorySearchPort {
   Future<List<KiteRoomDirectoryResult>> searchRoomDirectory(String query);
 }
 
+abstract interface class RoomDirectoryMembershipPort {
+  Future<void> joinRoomFromDirectory(String roomId);
+  Future<void> requestRoomJoin(String roomId);
+}
+
 abstract interface class DirectMessageOpenPort {
   Future<KiteCreatedRoom> openDirectMessage(String userId);
 }
@@ -243,6 +248,30 @@ final class RoomManagementCoordinator {
     }
     return (rooms as RoomDirectorySearchPort).searchRoomDirectory(
       rawQuery.trim(),
+    );
+  }
+
+  Future<void> joinRoomFromDirectory(String roomId) async {
+    final rooms = _rooms;
+    if (rooms is! RoomDirectoryMembershipPort) {
+      throw const RoomManagementValidationException(
+        'Room directory membership is unavailable.',
+      );
+    }
+    await (rooms as RoomDirectoryMembershipPort).joinRoomFromDirectory(
+      _roomId(roomId),
+    );
+  }
+
+  Future<void> requestRoomJoin(String roomId) async {
+    final rooms = _rooms;
+    if (rooms is! RoomDirectoryMembershipPort) {
+      throw const RoomManagementValidationException(
+        'Room directory membership is unavailable.',
+      );
+    }
+    await (rooms as RoomDirectoryMembershipPort).requestRoomJoin(
+      _roomId(roomId),
     );
   }
 

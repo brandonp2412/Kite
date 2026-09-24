@@ -239,6 +239,28 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.searchRoomDirectory(query);
   }
 
+  Future<void> joinRoomFromDirectory({
+    required String accountId,
+    required String roomId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot join a Matrix room for an inactive account',
+    );
+    return active.engine.joinRoomFromDirectory(roomId);
+  }
+
+  Future<void> requestRoomJoin({
+    required String accountId,
+    required String roomId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot request Matrix room membership for an inactive account',
+    );
+    return active.engine.requestRoomJoin(roomId);
+  }
+
   Future<Set<String>> loadIgnoredUserIds({required String accountId}) {
     final active = _requireActiveAccount(
       accountId,

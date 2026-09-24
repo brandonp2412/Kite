@@ -214,6 +214,8 @@ void main() {
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
       final userSearch = await boundary.searchUsers('bo');
       final roomDirectory = await boundary.searchRoomDirectory('kite');
+      await boundary.joinRoomFromDirectory('!public:kite.test');
+      await boundary.requestRoomJoin('!knock:kite.test');
       final ignoredUserIds = await boundary.loadIgnoredUserIds();
       final devices = await boundary.loadDevices();
       await boundary.signOutDevice('PHONE', password: ' secret with spaces ');
@@ -356,6 +358,8 @@ void main() {
         ('@bob:kite.test', 'get', null),
         (null, 'search', 'bo'),
         (null, 'search_rooms', 'kite'),
+        (null, 'join_room', '!public:kite.test'),
+        (null, 'knock_room', '!knock:kite.test'),
         (null, 'ignored_users', null),
         (null, 'devices', null),
         ('PHONE', 'delete_device', ' secret with spaces '),
@@ -1749,6 +1753,12 @@ final class _FakeRustClient
           },
         ],
       };
+    }
+    if (action == 'join_room') {
+      return <String, Object?>{'roomId': value, 'membership': 'joined'};
+    }
+    if (action == 'knock_room') {
+      return <String, Object?>{'roomId': value, 'membership': 'knocked'};
     }
     if (action == 'ignored_users') {
       return <String, Object?>{

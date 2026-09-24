@@ -266,6 +266,8 @@ abstract interface class MatrixSdkRoomCreator {
 
 abstract interface class MatrixSdkRoomDirectoryManager {
   Future<List<MatrixSdkRoomDirectoryResult>> searchRoomDirectory(String query);
+  Future<void> joinRoomFromDirectory(String roomId);
+  Future<void> requestRoomJoin(String roomId);
 }
 
 abstract interface class MatrixSdkRoomSettingsManager {
@@ -1002,6 +1004,32 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     await _ensureOpen();
     return (manager as MatrixSdkRoomDirectoryManager).searchRoomDirectory(
       normalizedQuery,
+    );
+  }
+
+  Future<void> joinRoomFromDirectory(String roomId) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomDirectoryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room directory membership',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomDirectoryManager).joinRoomFromDirectory(
+      _validatedRoomId(roomId),
+    );
+  }
+
+  Future<void> requestRoomJoin(String roomId) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkRoomDirectoryManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support room directory membership',
+      );
+    }
+    await _ensureOpen();
+    await (manager as MatrixSdkRoomDirectoryManager).requestRoomJoin(
+      _validatedRoomId(roomId),
     );
   }
 

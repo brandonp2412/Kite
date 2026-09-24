@@ -3928,6 +3928,30 @@ final class MatrixRustSdkBoundary
     });
   }
 
+  @override
+  Future<void> joinRoomFromDirectory(String roomId) {
+    return _enqueue<void>(() async {
+      final decoded = await _profile(action: 'join_room', value: roomId);
+      if (decoded['roomId'] != roomId || decoded['membership'] != 'joined') {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid room join data',
+        );
+      }
+    });
+  }
+
+  @override
+  Future<void> requestRoomJoin(String roomId) {
+    return _enqueue<void>(() async {
+      final decoded = await _profile(action: 'knock_room', value: roomId);
+      if (decoded['roomId'] != roomId || decoded['membership'] != 'knocked') {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid room knock data',
+        );
+      }
+    });
+  }
+
   MatrixSdkRoomDirectoryResult _roomDirectoryResult(Object? raw) {
     if (raw is! Map<Object?, Object?>) {
       throw const MatrixSdkContractException(

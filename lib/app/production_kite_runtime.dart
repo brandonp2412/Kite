@@ -726,6 +726,14 @@ final class _AuthenticatedMatrixHomeState
           accountId: widget.session.userId,
           query: query,
         ),
+        directoryJoin: (roomId) => widget.runtime.joinRoomFromDirectory(
+          accountId: widget.session.userId,
+          roomId: roomId,
+        ),
+        directoryKnock: (roomId) => widget.runtime.requestRoomJoin(
+          accountId: widget.session.userId,
+          roomId: roomId,
+        ),
         directMessageOpen: (userId) => widget.runtime.openDirectMessage(
           accountId: widget.session.userId,
           userId: userId,

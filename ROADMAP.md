@@ -158,6 +158,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Room directory discovery/search supported by current Element X.
   - Progress 2026-09-24: home search now exposes a contextual public-room discovery action backed end-to-end by Matrix SDK 0.18's filtered room directory search. Results preserve room IDs, aliases, topics, avatars, join rules, world-readable state, and joined-member counts through the Rust bridge and Dart runtime, with a dedicated debounced discovery screen plus native/adapter/widget regression coverage. Keep unchecked until the required runtime quality gate is green.
 - [ ] Public/private/knock room discovery and join/request flows as supported upstream.
+  - Progress 2026-09-24: directory results now expose membership actions according to the server-provided join rule: public/restricted rooms use the Matrix SDK join API, knock/knock-restricted rooms use the SDK knock API, and invite-only/private results stay informational instead of offering an invalid self-join. The Rust bridge persists refreshed sessions after both operations, while the discovery UI tracks pending/success/error state and regression tests cover both Join and Request. Keep unchecked until the required runtime quality gate is green.
 - [ ] Joined Spaces visible from the home experience.
 - [ ] Space filter row with zero room-list reflow jitter.
 - [ ] Dedicated Spaces area.

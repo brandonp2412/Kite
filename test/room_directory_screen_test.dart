@@ -21,6 +21,16 @@ void main() {
           worldReadable: true,
           joinedMembers: 1234,
         ),
+        KiteRoomDirectoryResult(
+          roomId: '!knock:example.org',
+          name: 'Kite Requests',
+          topic: 'Ask before joining',
+          canonicalAlias: '#kite-requests:example.org',
+          avatarUrl: null,
+          joinRule: 'knock',
+          worldReadable: false,
+          joinedMembers: 42,
+        ),
       ],
     );
     final coordinator = RoomManagementCoordinator(
@@ -52,6 +62,35 @@ void main() {
           .single
           .text,
       'kite',
+    );
+
+    await tester.tap(find.byKey(const Key('room-directory-membership-0')));
+    await tester.pumpAndSettle();
+    expect(find.text('Joined'), findsOneWidget);
+    expect(
+      rooms.invocations
+          .where(
+            (entry) =>
+                entry.type ==
+                RoomManagementInvocationType.joinRoomFromDirectory,
+          )
+          .single
+          .roomId,
+      '!kite:example.org',
+    );
+
+    await tester.tap(find.byKey(const Key('room-directory-membership-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Requested'), findsOneWidget);
+    expect(
+      rooms.invocations
+          .where(
+            (entry) =>
+                entry.type == RoomManagementInvocationType.requestRoomJoin,
+          )
+          .single
+          .roomId,
+      '!knock:example.org',
     );
 
     await tester.enterText(
