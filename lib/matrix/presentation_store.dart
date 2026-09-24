@@ -98,8 +98,11 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             'lastActivityMs': room.lastActivity.millisecondsSinceEpoch,
             'streamPosition': room.streamPosition,
             if (room.lastEventId != null) 'lastEventId': room.lastEventId,
+            if (room.fullyReadEventId != null)
+              'fullyReadEventId': room.fullyReadEventId,
             if (room.avatarUrl != null) 'avatarUrl': room.avatarUrl,
             'unreadCount': room.unreadCount,
+            'unreadMessageCount': room.unreadMessageCount,
             'highlightCount': room.highlightCount,
             'hasActiveCall': room.hasActiveCall,
             'isFavourite': room.isFavourite,
@@ -234,8 +237,10 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final lastActivityMs = value['lastActivityMs'];
     final streamPosition = value['streamPosition'];
     final lastEventId = value['lastEventId'];
+    final fullyReadEventId = value['fullyReadEventId'];
     final avatarUrl = value['avatarUrl'];
     final unreadCount = value['unreadCount'];
+    final unreadMessageCount = value['unreadMessageCount'] ?? 0;
     final highlightCount = value['highlightCount'] ?? 0;
     final hasActiveCall = value['hasActiveCall'] ?? false;
     final isFavourite = value['isFavourite'] ?? false;
@@ -248,9 +253,14 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         streamPosition is! int ||
         (lastEventId != null &&
             (lastEventId is! String || !_isSafeIdentifier(lastEventId))) ||
+        (fullyReadEventId != null &&
+            (fullyReadEventId is! String ||
+                !_isSafeIdentifier(fullyReadEventId))) ||
         (avatarUrl != null &&
             (avatarUrl is! String || !_isSafeIdentifier(avatarUrl))) ||
         unreadCount is! int ||
+        unreadMessageCount is! int ||
+        unreadMessageCount < 0 ||
         highlightCount is! int ||
         highlightCount < 0 ||
         hasActiveCall is! bool ||
@@ -268,8 +278,10 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       ),
       streamPosition: streamPosition,
       lastEventId: lastEventId as String?,
+      fullyReadEventId: fullyReadEventId as String?,
       avatarUrl: avatarUrl as String?,
       unreadCount: unreadCount,
+      unreadMessageCount: unreadMessageCount,
       highlightCount: highlightCount,
       hasActiveCall: hasActiveCall,
       isFavourite: isFavourite,

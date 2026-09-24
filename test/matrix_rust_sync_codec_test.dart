@@ -25,6 +25,8 @@ void main() {
             "displayName": "Alpha",
             "avatarUrl": "mxc://kite.test/alpha-avatar",
             "unreadCount": 3,
+            "unreadMessageCount": 2,
+            "fullyReadEventId": "$event1",
             "highlightCount": 2,
             "hasActiveCall": true,
             "isFavourite": true,
@@ -71,6 +73,8 @@ void main() {
     expect(alpha.summary!.displayName, 'Alpha');
     expect(alpha.summary!.avatarUrl, 'mxc://kite.test/alpha-avatar');
     expect(alpha.summary!.unreadCount, 3);
+    expect(alpha.summary!.unreadMessageCount, 2);
+    expect(alpha.summary!.fullyReadEventId, r'$event1');
     expect(alpha.summary!.highlightCount, 2);
     expect(alpha.summary!.hasActiveCall, isTrue);
     expect(alpha.summary!.isFavourite, isTrue);

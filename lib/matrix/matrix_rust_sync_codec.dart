@@ -52,8 +52,14 @@ final class MatrixRustSyncCodec {
             lastEventId:
                 _optionalIdentifier(room['latestEventId'], 'latestEventId') ??
                 lastEvent?.eventId,
+            fullyReadEventId: _optionalIdentifier(
+              room['fullyReadEventId'],
+              'fullyReadEventId',
+            ),
             avatarUrl: _optionalString(room['avatarUrl']),
             unreadCount: _optionalNonNegativeInt(room['unreadCount']) ?? 0,
+            unreadMessageCount:
+                _optionalNonNegativeInt(room['unreadMessageCount']) ?? 0,
             highlightCount:
                 _optionalNonNegativeInt(room['highlightCount']) ?? 0,
             hasActiveCall: _optionalBool(room['hasActiveCall']) ?? false,

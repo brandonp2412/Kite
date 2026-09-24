@@ -179,8 +179,10 @@ final class MatrixPresentationCache {
       lastActivity: current.lastActivity,
       streamPosition: current.streamPosition,
       lastEventId: current.lastEventId,
+      fullyReadEventId: current.fullyReadEventId,
       avatarUrl: current.avatarUrl,
       unreadCount: current.unreadCount,
+      unreadMessageCount: current.unreadMessageCount,
       highlightCount: current.highlightCount,
       hasActiveCall: current.hasActiveCall,
       isFavourite: isFavourite,
@@ -204,8 +206,10 @@ final class MatrixPresentationCache {
       lastActivity: current.lastActivity,
       streamPosition: current.streamPosition,
       lastEventId: current.lastEventId,
+      fullyReadEventId: current.lastEventId,
       avatarUrl: current.avatarUrl,
       unreadCount: 0,
+      unreadMessageCount: 0,
       highlightCount: 0,
       hasActiveCall: current.hasActiveCall,
       isFavourite: current.isFavourite,
@@ -599,8 +603,10 @@ final class MatrixPresentationCache {
         left.lastActivity == right.lastActivity &&
         left.streamPosition == right.streamPosition &&
         left.lastEventId == right.lastEventId &&
+        left.fullyReadEventId == right.fullyReadEventId &&
         left.avatarUrl == right.avatarUrl &&
         left.unreadCount == right.unreadCount &&
+        left.unreadMessageCount == right.unreadMessageCount &&
         left.highlightCount == right.highlightCount &&
         left.hasActiveCall == right.hasActiveCall &&
         left.isFavourite == right.isFavourite &&

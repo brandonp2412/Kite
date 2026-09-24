@@ -748,6 +748,74 @@ class TimelineController implements TimelineLocationShareDelegate {
     marker.value = eventId;
   }
 
+  void applyFullyReadMarker(
+    String roomId,
+    String? fullyReadEventId, {
+    required int unreadMessageCount,
+    Iterable<MatrixTimelineEvent>? timelineEvents,
+  }) {
+    if (unreadMessageCount < 0) {
+      throw ArgumentError.value(
+        unreadMessageCount,
+        'unreadMessageCount',
+        'Unread message count cannot be negative.',
+      );
+    }
+
+    final messages = messagesFor(roomId).peek();
+    if (messages.isEmpty || unreadMessageCount == 0) {
+      setUnreadMarker(roomId, null);
+      return;
+    }
+
+    if (fullyReadEventId != null && timelineEvents != null) {
+      final events = timelineEvents.toList(growable: false);
+      final fullyReadIndex = events.indexWhere(
+        (event) => event.eventId == fullyReadEventId,
+      );
+      if (fullyReadIndex >= 0) {
+        final renderedIds = <String>{
+          for (final message in messages) message.id,
+        };
+        for (
+          var index = fullyReadIndex + 1;
+          index < events.length;
+          index += 1
+        ) {
+          if (renderedIds.contains(events[index].eventId)) {
+            setUnreadMarker(roomId, events[index].eventId);
+            return;
+          }
+        }
+        setUnreadMarker(roomId, null);
+        return;
+      }
+
+      setUnreadMarker(roomId, messages.first.id);
+      return;
+    }
+
+    var markerIndex = -1;
+    if (fullyReadEventId != null) {
+      final fullyReadIndex = messages.indexWhere(
+        (message) => message.id == fullyReadEventId,
+      );
+      if (fullyReadIndex >= 0 && fullyReadIndex + 1 < messages.length) {
+        markerIndex = fullyReadIndex + 1;
+      } else if (fullyReadIndex == messages.length - 1) {
+        setUnreadMarker(roomId, null);
+        return;
+      }
+    }
+
+    if (markerIndex < 0) {
+      markerIndex = unreadMessageCount >= messages.length
+          ? 0
+          : messages.length - unreadMessageCount;
+    }
+    setUnreadMarker(roomId, messages[markerIndex].id);
+  }
+
   Signal<List<String>> typingUsersFor(String roomId) {
     return _typingUsers.putIfAbsent(
       roomId,

@@ -25,6 +25,46 @@ void main() {
     );
   });
 
+  test('production fully-read state positions the first unread marker', () {
+    timelineController.reset(sendPort: DeterministicTimelineSendPort());
+    final messages = timelineController.messagesFor('alice').value;
+    final fullyRead = messages[messages.length - 3];
+
+    timelineController.applyFullyReadMarker(
+      'alice',
+      fullyRead.id,
+      unreadMessageCount: 2,
+    );
+    expect(
+      timelineController.unreadMarkerFor('alice').value,
+      messages[messages.length - 2].id,
+    );
+
+    timelineController.applyFullyReadMarker(
+      'alice',
+      r'$outside-retained-window',
+      unreadMessageCount: 3,
+    );
+    expect(
+      timelineController.unreadMarkerFor('alice').value,
+      messages[messages.length - 3].id,
+    );
+
+    timelineController.applyFullyReadMarker(
+      'alice',
+      messages.last.id,
+      unreadMessageCount: 1,
+    );
+    expect(timelineController.unreadMarkerFor('alice').value, isNull);
+
+    timelineController.applyFullyReadMarker(
+      'alice',
+      null,
+      unreadMessageCount: 0,
+    );
+    expect(timelineController.unreadMarkerFor('alice').value, isNull);
+  });
+
   testWidgets('unread marker overlay never changes message geometry', (
     tester,
   ) async {

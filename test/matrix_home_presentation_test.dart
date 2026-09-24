@@ -602,6 +602,65 @@ void main() {
     },
   );
 
+  test(
+    'Matrix fully-read state projects the first unread timeline marker',
+    () async {
+      final cache = MatrixPresentationCache();
+      final controller = TimelineController(fixtureProvider: (_) => const []);
+      final selectedRoom = signal('missing');
+      final binding = MatrixHomePresentationBinding(
+        cache: cache,
+        currentUserId: '@me:example.org',
+        controller: controller,
+        selectedRoom: selectedRoom,
+        sendPort: MatrixTimelineSendPort(
+          ({required roomId, required transactionId, required body}) async {},
+        ),
+      );
+      addTearDown(binding.dispose);
+
+      cache.applySync(
+        MatrixSyncBatch(
+          cursor: 'read-marker-sync',
+          rooms: <MatrixRoomDelta>[
+            MatrixRoomDelta(
+              roomId: '!real:example.org',
+              summary: MatrixRoomSummary(
+                roomId: '!real:example.org',
+                displayName: 'Unread room',
+                lastActivity: DateTime.utc(2026, 9, 25, 4, 10),
+                streamPosition: 4,
+                lastEventId: r'$three',
+                fullyReadEventId: r'$hidden-state',
+                unreadMessageCount: 2,
+              ),
+              timelineEvents: <MatrixTimelineEvent>[
+                _event(eventId: r'$one', body: 'One', streamPosition: 1),
+                MatrixTimelineEvent(
+                  eventId: r'$hidden-state',
+                  roomId: '!real:example.org',
+                  senderId: '@alice:example.org',
+                  type: 'm.room.topic',
+                  originServerTimestamp: DateTime.utc(2026, 9, 25, 4, 8),
+                  streamPosition: 2,
+                  content: const <String, Object?>{
+                    'topic': 'Hidden marker target',
+                  },
+                ),
+                _event(eventId: r'$two', body: 'Two', streamPosition: 3),
+                _event(eventId: r'$three', body: 'Three', streamPosition: 4),
+              ],
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(selectedRoom.value, '!real:example.org');
+      expect(controller.unreadMarkerFor('!real:example.org').value, r'$two');
+    },
+  );
+
   test('recent Matrix timelines are projected eagerly', () async {
     final cache = MatrixPresentationCache(
       initialSnapshot: MatrixPresentationSnapshot(

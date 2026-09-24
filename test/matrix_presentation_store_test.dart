@@ -31,6 +31,11 @@ void main() {
       expect(restored.rooms.single.roomId, '!room:example.org');
       expect(restored.rooms.single.displayName, 'Persisted room');
       expect(restored.rooms.single.unreadCount, 3);
+      expect(restored.rooms.single.unreadMessageCount, 2);
+      expect(
+        restored.rooms.single.fullyReadEventId,
+        r'$fully-read:example.org',
+      );
       expect(restored.rooms.single.highlightCount, 2);
       expect(restored.rooms.single.hasActiveCall, isTrue);
       expect(restored.rooms.single.isFavourite, isTrue);
@@ -344,7 +349,9 @@ MatrixPresentationSnapshot _snapshot({String cursor = 'sync-42'}) {
         lastActivity: DateTime.utc(2026, 9, 15, 4, 30),
         streamPosition: 42,
         lastEventId: r'$event:example.org',
+        fullyReadEventId: r'$fully-read:example.org',
         unreadCount: 3,
+        unreadMessageCount: 2,
         highlightCount: 2,
         hasActiveCall: true,
         isFavourite: true,

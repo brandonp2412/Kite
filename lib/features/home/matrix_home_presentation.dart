@@ -432,6 +432,7 @@ final class MatrixHomePresentationBinding {
     final roomId = selectedRoom.value;
     if (!roomIds.contains(roomId)) return;
     final events = cache.timelineSignal(roomId).value;
+    final summary = cache.roomSummarySignal(roomId).value;
     final typingUsers = cache.typingUsersSignal(roomId).value;
     final readReceipts = cache.readReceiptsSignal(roomId).value;
     untracked(() {
@@ -439,6 +440,12 @@ final class MatrixHomePresentationBinding {
         roomId,
         events,
         currentUserId: currentUserId,
+      );
+      controller.applyFullyReadMarker(
+        roomId,
+        summary?.fullyReadEventId,
+        unreadMessageCount: summary?.unreadMessageCount ?? 0,
+        timelineEvents: events,
       );
       controller.updateTypingUsers(roomId, typingUsers);
       controller.applyReadReceipts(roomId, readReceipts);

@@ -93,8 +93,10 @@ final class MatrixRoomSummary {
     required this.lastActivity,
     required this.streamPosition,
     this.lastEventId,
+    this.fullyReadEventId,
     this.avatarUrl,
     this.unreadCount = 0,
+    this.unreadMessageCount = 0,
     this.highlightCount = 0,
     this.hasActiveCall = false,
     this.isFavourite = false,
@@ -107,8 +109,10 @@ final class MatrixRoomSummary {
   final DateTime lastActivity;
   final int streamPosition;
   final String? lastEventId;
+  final String? fullyReadEventId;
   final String? avatarUrl;
   final int unreadCount;
+  final int unreadMessageCount;
   final int highlightCount;
   final bool hasActiveCall;
   final bool isFavourite;

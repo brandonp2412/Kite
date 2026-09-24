@@ -1333,6 +1333,14 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 .and_then(|event| event.event_id())
                 .map(|event_id| event_id.to_string());
             let unread_count = update.unread_notifications.notification_count;
+            let unread_message_count = room
+                .as_ref()
+                .map(|room| room.num_unread_messages())
+                .unwrap_or(0);
+            let fully_read_event_id = room
+                .as_ref()
+                .and_then(|room| room.fully_read_event_id())
+                .map(|event_id| event_id.to_string());
             let highlight_count = update.unread_notifications.highlight_count;
             let has_active_call = room
                 .as_ref()
@@ -1452,6 +1460,8 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "displayName": display_name,
                 "avatarUrl": avatar_url,
                 "unreadCount": unread_count,
+                "unreadMessageCount": unread_message_count,
+                "fullyReadEventId": fully_read_event_id,
                 "highlightCount": highlight_count,
                 "hasActiveCall": has_active_call,
                 "isFavourite": is_favourite,
@@ -1483,6 +1493,10 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             .map(|timestamp| Into::<u64>::into(timestamp.get()));
         let latest_event_id = latest_event.event_id().map(|event_id| event_id.to_string());
         let unread_count = room.num_unread_messages();
+        let unread_message_count = unread_count;
+        let fully_read_event_id = room
+            .fully_read_event_id()
+            .map(|event_id| event_id.to_string());
         let highlight_count = room.num_unread_mentions();
         let has_active_call = room.has_active_room_call();
         let is_favourite = room.is_favourite();
@@ -1514,6 +1528,8 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             "displayName": display_name,
             "avatarUrl": avatar_url,
             "unreadCount": unread_count,
+            "unreadMessageCount": unread_message_count,
+            "fullyReadEventId": fully_read_event_id,
             "highlightCount": highlight_count,
             "hasActiveCall": has_active_call,
             "isFavourite": is_favourite,
