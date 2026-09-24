@@ -196,6 +196,29 @@ final class SpacesController {
     };
   }
 
+  void updateSpaceDetails({
+    required String spaceId,
+    required String name,
+    required String description,
+  }) {
+    final index = spaces.indexWhere((space) => space.id == spaceId);
+    if (index < 0) {
+      throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.');
+    }
+    final current = spaces[index];
+    if (current.name == name && current.description == description) return;
+    final next = spaces.toList(growable: true);
+    next[index] = SpaceSummary(
+      id: current.id,
+      name: name,
+      description: description,
+      memberCount: current.memberCount,
+      rooms: current.rooms,
+      external: current.external,
+    );
+    _spaces.value = List<SpaceSummary>.unmodifiable(next);
+  }
+
   void reconcileSpaces(List<SpaceSummary> nextSpaces) {
     final next = List<SpaceSummary>.unmodifiable(nextSpaces);
     _spaces.value = next;

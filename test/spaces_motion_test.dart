@@ -28,8 +28,22 @@ void main() {
       addTearDown(display.resetRefreshRate);
 
       spacesController.reset();
+      final rooms = DeterministicRoomManagementPort();
+      rooms.detailsByRoomId['kite-space'] = KiteRoomDetails(
+        roomId: 'kite-space',
+        name: 'Kite',
+        topic: 'Kite development and release rooms',
+        avatarUrl: null,
+        canonicalAlias: null,
+        joinRule: KiteRoomJoinRule.invite,
+        encryptionEnabled: false,
+        historyVisibility: KiteRoomHistoryVisibility.shared,
+        notificationMode: KiteRoomNotificationMode.allMessages,
+        isDirect: false,
+        directUserIds: const <String>[],
+      );
       final roomCreation = RoomManagementCoordinator(
-        rooms: DeterministicRoomManagementPort(),
+        rooms: rooms,
         directMetadata: DeterministicDirectRoomMetadataPort(),
       );
       await tester.pumpWidget(
@@ -51,6 +65,20 @@ void main() {
 
       final header = find.byKey(const Key('spaces-header'));
       final headerRect = _rectOf(tester, header);
+
+      await tester.tap(find.byKey(const Key('spaces-manage')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('room-settings-screen')), findsOneWidget);
+      Navigator.of(
+        tester.element(find.byKey(const Key('room-settings-screen'))),
+      ).pop();
+      await tester.pumpAndSettle();
+      expect(_rectOf(tester, header), headerRect);
+
       await tester.tap(find.byKey(const Key('spaces-create')));
       for (var index = 0; index < PerformanceContract.motionSamples; index++) {
         await tester.pump(PerformanceContract.motionFrame);

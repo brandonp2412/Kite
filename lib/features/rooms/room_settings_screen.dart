@@ -11,6 +11,7 @@ class RoomSettingsScreen extends StatefulWidget {
     this.avatarMedia,
     this.initialDetails,
     this.onSaved,
+    this.title = 'Room settings',
     super.key,
   });
 
@@ -19,6 +20,7 @@ class RoomSettingsScreen extends StatefulWidget {
   final RoomAvatarMediaPort? avatarMedia;
   final KiteRoomDetails? initialDetails;
   final ValueChanged<KiteRoomDetails>? onSaved;
+  final String title;
 
   @override
   State<RoomSettingsScreen> createState() => _RoomSettingsScreenState();
@@ -229,7 +231,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
     final details = _details;
     return Scaffold(
       key: const Key('room-settings-screen'),
-      appBar: AppBar(title: const Text('Room settings')),
+      appBar: AppBar(title: Text(widget.title)),
       body: SafeArea(
         top: false,
         child: Align(

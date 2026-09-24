@@ -3,6 +3,7 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/rooms/room_creation_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/features/rooms/room_settings_screen.dart';
 import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -57,6 +58,31 @@ class SpacesScreen extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('${created.displayName} created')));
+  }
+
+  Future<void> _openManageSpace(BuildContext context) async {
+    final coordinator = roomCreation;
+    final space = _controller.selectedSpace;
+    if (coordinator == null || space == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => RoomSettingsScreen(
+          roomId: space.id,
+          coordinator: coordinator,
+          title: 'Space settings',
+          onSaved: (details) {
+            final savedName = details.name?.trim();
+            _controller.updateSpaceDetails(
+              spaceId: space.id,
+              name: savedName == null || savedName.isEmpty
+                  ? space.name
+                  : savedName,
+              description: details.topic?.trim() ?? '',
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _openCreateRoom(BuildContext context) async {
@@ -114,6 +140,12 @@ class SpacesScreen extends StatelessWidget {
                       ),
                     ),
                     if (roomCreation != null) ...<Widget>[
+                      IconButton(
+                        key: const Key('spaces-manage'),
+                        tooltip: 'Manage selected Space',
+                        onPressed: () => _openManageSpace(context),
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
                       IconButton(
                         key: const Key('spaces-create-room'),
                         tooltip: 'Create room in selected Space',

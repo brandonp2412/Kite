@@ -144,6 +144,87 @@ void main() {
     expect(find.text('Roadmap created in Kite'), findsOneWidget);
   });
 
+  testWidgets('Spaces area manages the selected Space through room settings', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 1400);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const space = SpaceSummary(
+      id: '!kite:example.org',
+      name: 'Kite',
+      description: 'Project Space',
+      memberCount: 4,
+      rooms: <SpaceRoomPreview>[],
+    );
+    final controller = SpacesController(spaces: const <SpaceSummary>[space]);
+    final rooms = DeterministicRoomManagementPort();
+    rooms.detailsByRoomId[space.id] = KiteRoomDetails(
+      roomId: space.id,
+      name: space.name,
+      topic: space.description,
+      avatarUrl: null,
+      canonicalAlias: null,
+      joinRule: KiteRoomJoinRule.invite,
+      encryptionEnabled: false,
+      historyVisibility: KiteRoomHistoryVisibility.shared,
+      notificationMode: KiteRoomNotificationMode.allMessages,
+      isDirect: false,
+      directUserIds: const <String>[],
+    );
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: SpacesScreen(controller: controller, roomCreation: coordinator),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('spaces-manage')));
+    await tester.pumpAndSettle();
+    expect(find.text('Space settings'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('room-settings-name')),
+      'Kite Community',
+    );
+    await tester.enterText(
+      find.byKey(const Key('room-settings-topic')),
+      'Project rooms and releases',
+    );
+    await tester.ensureVisible(find.byKey(const Key('room-settings-save')));
+    await tester.tap(find.byKey(const Key('room-settings-save')));
+    await tester.pump();
+
+    expect(
+      rooms.invocations.any(
+        (call) =>
+            call.type == RoomManagementInvocationType.setName &&
+            call.roomId == space.id &&
+            call.text == 'Kite Community',
+      ),
+      isTrue,
+    );
+    expect(
+      rooms.invocations.any(
+        (call) =>
+            call.type == RoomManagementInvocationType.setTopic &&
+            call.roomId == space.id &&
+            call.text == 'Project rooms and releases',
+      ),
+      isTrue,
+    );
+    expect(controller.selectedSpace?.name, 'Kite Community');
+    expect(controller.selectedSpace?.description, 'Project rooms and releases');
+  });
+
   test('controller rejects unknown Spaces and preserves joined room state', () {
     final controller = SpacesController();
     expect(() => controller.selectSpace('missing-space'), throwsArgumentError);
