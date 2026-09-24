@@ -105,6 +105,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             'isFavourite': room.isFavourite,
             'isMuted': room.isMuted,
             'isDirect': room.isDirect,
+            'isSpace': room.isSpace,
+            'memberCount': room.memberCount,
+            if (room.topic != null) 'topic': room.topic,
           },
       ],
       'timelines': <String, Object?>{
@@ -241,6 +244,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final isFavourite = value['isFavourite'] ?? false;
     final isMuted = value['isMuted'] ?? false;
     final isDirect = value['isDirect'] ?? false;
+    final isSpace = value['isSpace'] ?? false;
+    final memberCount = value['memberCount'] ?? 0;
+    final topic = value['topic'];
     if (roomId is! String ||
         !_isSafeIdentifier(roomId) ||
         displayName is! String ||
@@ -256,7 +262,11 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         hasActiveCall is! bool ||
         isFavourite is! bool ||
         isMuted is! bool ||
-        isDirect is! bool) {
+        isDirect is! bool ||
+        isSpace is! bool ||
+        memberCount is! int ||
+        memberCount < 0 ||
+        (topic != null && (topic is! String || topic.contains('\u0000')))) {
       return null;
     }
     return MatrixRoomSummary(
@@ -275,6 +285,9 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       isFavourite: isFavourite,
       isMuted: isMuted,
       isDirect: isDirect,
+      isSpace: isSpace,
+      memberCount: memberCount,
+      topic: topic as String?,
     );
   }
 

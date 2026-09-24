@@ -160,6 +160,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Public/private/knock room discovery and join/request flows as supported upstream.
   - Progress 2026-09-24: directory results now expose membership actions according to the server-provided join rule: public/restricted rooms use the Matrix SDK join API, knock/knock-restricted rooms use the SDK knock API, and invite-only/private results stay informational instead of offering an invalid self-join. The Rust bridge persists refreshed sessions after both operations, while the discovery UI tracks pending/success/error state and regression tests cover both Join and Request. Keep unchecked until the required runtime quality gate is green.
 - [ ] Joined Spaces visible from the home experience.
+  - Progress 2026-09-25: production sync now carries Matrix `m.space` identity, topic, and joined-member count through the Rust bridge, Dart sync codec, and persisted presentation cache. Joined Spaces are excluded from the ordinary chat list and exposed contextually from the account sheet into the existing dedicated Spaces surface, with deterministic fixtures no longer used by the production home binding. Focused native-sync, persistence, presentation, and widget regressions cover the path. Keep unchecked until the required runtime quality gate is green.
 - [ ] Space filter row with zero room-list reflow jitter.
 - [ ] Dedicated Spaces area.
 - [ ] Space invitation preview with inviter, description, member context, and external/internal treatment where available.

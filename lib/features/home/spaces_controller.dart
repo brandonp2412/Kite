@@ -131,29 +131,29 @@ final class SpacesController {
   SpacesController({
     List<SpaceSummary> spaces = deterministicSpaces,
     SpaceDirectoryPort? port,
-  }) : _spaces = List<SpaceSummary>.unmodifiable(spaces),
+  }) : _spaces = signal(List<SpaceSummary>.unmodifiable(spaces)),
        _port = port ?? const DeterministicSpaceDirectoryPort(),
        selectedSpaceId = signal(spaces.firstOrNull?.id);
 
-  final List<SpaceSummary> _spaces;
+  final Signal<List<SpaceSummary>> _spaces;
   SpaceDirectoryPort _port;
   final Signal<String?> selectedSpaceId;
   final Map<String, Signal<SpaceRoomJoinState>> _joinStates =
       <String, Signal<SpaceRoomJoinState>>{};
 
-  List<SpaceSummary> get spaces => _spaces;
+  List<SpaceSummary> get spaces => _spaces.value;
 
   SpaceSummary? get selectedSpace {
     final id = selectedSpaceId.value;
     if (id == null) return null;
-    for (final space in _spaces) {
+    for (final space in spaces) {
       if (space.id == id) return space;
     }
     return null;
   }
 
   void selectSpace(String spaceId) {
-    if (!_spaces.any((space) => space.id == spaceId)) {
+    if (!spaces.any((space) => space.id == spaceId)) {
       throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.');
     }
     if (selectedSpaceId.value == spaceId) return;
@@ -196,20 +196,34 @@ final class SpacesController {
     };
   }
 
+  void reconcileSpaces(List<SpaceSummary> nextSpaces) {
+    final next = List<SpaceSummary>.unmodifiable(nextSpaces);
+    _spaces.value = next;
+    final selected = selectedSpaceId.peek();
+    if (selected == null || !next.any((space) => space.id == selected)) {
+      selectedSpaceId.value = next.firstOrNull?.id;
+    }
+    final roomIds = <String>{
+      for (final space in next)
+        for (final room in space.rooms) room.id,
+    };
+    _joinStates.removeWhere((roomId, _) => !roomIds.contains(roomId));
+  }
+
   void reset({SpaceDirectoryPort? port}) {
     if (port != null) _port = port;
-    selectedSpaceId.value = _spaces.firstOrNull?.id;
+    selectedSpaceId.value = spaces.firstOrNull?.id;
     _joinStates.clear();
   }
 
-  SpaceSummary _space(String spaceId) => _spaces.firstWhere(
+  SpaceSummary _space(String spaceId) => spaces.firstWhere(
     (space) => space.id == spaceId,
     orElse: () =>
         throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.'),
   );
 
   SpaceRoomPreview _room(String roomId) {
-    for (final space in _spaces) {
+    for (final space in spaces) {
       for (final room in space.rooms) {
         if (room.id == roomId) return room;
       }

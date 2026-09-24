@@ -14,6 +14,48 @@ import 'package:kite/matrix/presentation_cache.dart';
 import 'package:signals/signals.dart';
 
 void main() {
+  test('Matrix home projects joined Spaces outside the chat list', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!chat:example.org',
+            displayName: 'Chat',
+            lastActivity: DateTime.utc(2026, 9, 25),
+            streamPosition: 2,
+          ),
+          MatrixRoomSummary(
+            roomId: '!space:example.org',
+            displayName: 'Engineering',
+            lastActivity: DateTime.utc(2026, 9, 25),
+            streamPosition: 1,
+            isSpace: true,
+            memberCount: 42,
+            topic: 'Product and engineering',
+          ),
+        ],
+      ),
+    );
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+    );
+    addTearDown(binding.dispose);
+
+    expect(binding.roomListStore.roomIds, <String>['!chat:example.org']);
+    expect(binding.spacesController.spaces, hasLength(1));
+    expect(binding.spacesController.spaces.single.id, '!space:example.org');
+    expect(binding.spacesController.spaces.single.name, 'Engineering');
+    expect(binding.spacesController.spaces.single.memberCount, 42);
+    expect(
+      binding.spacesController.spaces.single.description,
+      'Product and engineering',
+    );
+  });
+
   test('Matrix home binding preserves the injected link opener', () async {
     final cache = MatrixPresentationCache();
     final opened = <Uri>[];
