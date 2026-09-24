@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_invites.dart';
+import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
@@ -272,6 +273,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         roomListLoading: !widget.cache.hasReceivedSyncBatch.value,
         timelineReloading: !widget.cache.hasReceivedSyncBatch.value,
         inviteStore: _binding.inviteStore,
+        spacesController: _binding.spacesController,
         timeline: _binding.controller,
         roomCreation: widget.roomCreation,
         memberManagement: widget.memberManagement,
@@ -370,6 +372,7 @@ final class MatrixHomePresentationBinding {
            ),
        selectedRoom = selectedRoom ?? selectedRoomId,
        roomListStore = RoomListStateStore(matrixRoomListEntries(cache)),
+       spacesController = SpacesController(spaces: _matrixSpaces(cache)),
        inviteStore = RoomInviteStore(
          _matrixRoomInvites(cache),
          port: invitePort ?? const DeterministicRoomInvitePort(),
@@ -396,6 +399,7 @@ final class MatrixHomePresentationBinding {
   final TimelineController controller;
   final Signal<String> selectedRoom;
   final RoomListStateStore roomListStore;
+  final SpacesController spacesController;
   final RoomInviteStore inviteStore;
   static const int _eagerRecentRoomLimit = 8;
 
@@ -404,16 +408,21 @@ final class MatrixHomePresentationBinding {
   late final void Function() _disposeTimelineProjection;
 
   void _projectCache() {
-    final roomIds = cache.roomOrder.value;
     roomListStore.reconcile(matrixRoomListEntries(cache));
+    spacesController.reconcileSpaces(_matrixSpaces(cache));
     inviteStore.reconcile(_matrixRoomInvites(cache));
 
+    final roomIds = roomListStore.roomIds;
     if (roomIds.isEmpty || roomIds.contains(selectedRoom.peek())) return;
     selectedRoom.value = roomIds.first;
   }
 
   void _projectRecentTimelines() {
-    final roomIds = cache.roomOrder.value.take(_eagerRecentRoomLimit);
+    final roomIds = cache.roomOrder.value
+        .where(
+          (roomId) => cache.roomSummarySignal(roomId).value?.isSpace != true,
+        )
+        .take(_eagerRecentRoomLimit);
     for (final roomId in roomIds) {
       final events = cache.timelineSignal(roomId).value;
       untracked(() {
@@ -427,7 +436,11 @@ final class MatrixHomePresentationBinding {
   }
 
   void _projectSelectedTimeline() {
-    final roomIds = cache.roomOrder.value;
+    final roomIds = cache.roomOrder.value
+        .where(
+          (roomId) => cache.roomSummarySignal(roomId).value?.isSpace != true,
+        )
+        .toList(growable: false);
     if (roomIds.isEmpty) return;
     final roomId = selectedRoom.value;
     if (!roomIds.contains(roomId)) return;
@@ -474,6 +487,23 @@ final class MatrixHomePresentationBinding {
     _disposeCacheProjection();
     _disposeRecentTimelineProjection();
     _disposeTimelineProjection();
+  }
+
+  static List<SpaceSummary> _matrixSpaces(MatrixPresentationCache cache) {
+    return List<SpaceSummary>.unmodifiable(<SpaceSummary>[
+      for (final roomId in cache.roomOrder.value)
+        if (cache.roomSummarySignal(roomId).value case final summary?)
+          if (summary.isSpace)
+            SpaceSummary(
+              id: summary.roomId,
+              name: summary.displayName,
+              description: summary.topic?.trim().isNotEmpty == true
+                  ? summary.topic!.trim()
+                  : 'Joined Matrix Space',
+              memberCount: summary.memberCount,
+              rooms: const <SpaceRoomPreview>[],
+            ),
+    ]);
   }
 
   static List<RoomInvite> _matrixRoomInvites(MatrixPresentationCache cache) {

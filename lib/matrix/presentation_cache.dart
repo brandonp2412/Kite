@@ -188,6 +188,9 @@ final class MatrixPresentationCache {
       isFavourite: isFavourite,
       isMuted: current.isMuted,
       isDirect: current.isDirect,
+      isSpace: current.isSpace,
+      memberCount: current.memberCount,
+      topic: current.topic,
     );
     return true;
   }
@@ -215,6 +218,9 @@ final class MatrixPresentationCache {
       isFavourite: current.isFavourite,
       isMuted: current.isMuted,
       isDirect: current.isDirect,
+      isSpace: current.isSpace,
+      memberCount: current.memberCount,
+      topic: current.topic,
     );
     return true;
   }
@@ -611,7 +617,10 @@ final class MatrixPresentationCache {
         left.hasActiveCall == right.hasActiveCall &&
         left.isFavourite == right.isFavourite &&
         left.isMuted == right.isMuted &&
-        left.isDirect == right.isDirect;
+        left.isDirect == right.isDirect &&
+        left.isSpace == right.isSpace &&
+        left.memberCount == right.memberCount &&
+        left.topic == right.topic;
   }
 
   static bool _sameInvites(

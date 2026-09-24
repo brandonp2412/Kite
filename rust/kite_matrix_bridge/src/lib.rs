@@ -1434,6 +1434,9 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 });
                 Some(updates)
             });
+            let is_space = room.as_ref().is_some_and(|room| room.is_space());
+            let member_count = room.as_ref().map_or(0, |room| room.joined_members_count());
+            let topic = room.as_ref().and_then(|room| room.topic());
             let avatar_url = room.as_ref().and_then(|room| {
                 if let Some(avatar_url) = room.avatar_url() {
                     return Some(avatar_url.to_string());
@@ -1470,6 +1473,9 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "isDirect": is_direct,
                 "typingUsers": typing_users,
                 "readReceipts": read_receipts,
+                "isSpace": is_space,
+                "memberCount": member_count,
+                "topic": topic,
                 "latestEventTimestamp": latest_event_timestamp,
                 "latestEventId": latest_event_id,
                 "prevBatch": update.timeline.prev_batch,
@@ -1503,6 +1509,9 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
         let is_favourite = room.is_favourite();
         let is_muted = muted_room_ids.contains(room_id);
         let is_direct = direct_room_ids.contains(room_id);
+        let is_space = room.is_space();
+        let member_count = room.joined_members_count();
+        let topic = room.topic();
         let avatar_url = if let Some(avatar_url) = room.avatar_url() {
             Some(avatar_url.to_string())
         } else if is_direct {
@@ -1538,6 +1547,9 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
             "isDirect": is_direct,
             "typingUsers": Value::Null,
             "readReceipts": Value::Null,
+            "isSpace": is_space,
+            "memberCount": member_count,
+            "topic": topic,
             "latestEventTimestamp": latest_event_timestamp,
             "latestEventId": latest_event_id,
             "prevBatch": Value::Null,

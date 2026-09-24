@@ -22,6 +22,8 @@ import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/home/spaces_controller.dart';
+import 'package:kite/features/home/spaces_screen.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/profile/user_profile_screen.dart';
@@ -104,6 +106,7 @@ class HomeScreen extends StatelessWidget {
     this.benchmarkRooms,
     this.roomListStore,
     this.inviteStore,
+    this.spacesController,
     this.roomCreation,
     this.roomManagement,
     this.memberManagement,
@@ -127,6 +130,7 @@ class HomeScreen extends StatelessWidget {
   final List<BenchmarkRoom>? benchmarkRooms;
   final RoomListStateStore? roomListStore;
   final RoomInviteStore? inviteStore;
+  final SpacesController? spacesController;
   final RoomManagementCoordinator? roomCreation;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
@@ -200,6 +204,7 @@ class HomeScreen extends StatelessWidget {
                 rooms: roomEntries,
                 store: roomListStore,
                 inviteStore: inviteStore,
+                spacesController: spacesController,
                 roomCreation: roomCreation,
                 roomManagement: roomManagement,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
@@ -474,6 +479,7 @@ class _HomeSidebar extends StatefulWidget {
     required this.rooms,
     this.store,
     this.inviteStore,
+    this.spacesController,
     this.roomCreation,
     this.roomManagement,
     this.onRoomFavouriteChanged,
@@ -489,6 +495,7 @@ class _HomeSidebar extends StatefulWidget {
   final List<RoomListEntry> rooms;
   final RoomListStateStore? store;
   final RoomInviteStore? inviteStore;
+  final SpacesController? spacesController;
   final RoomManagementCoordinator? roomCreation;
   final RoomManagementCoordinator? roomManagement;
   final RoomFavouriteChange? onRoomFavouriteChanged;
@@ -600,6 +607,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         canOpenProfile: account.profileController != null,
         canOpenRecovery: account.recoveryController != null,
         inviteCount: inviteStore.visibleInviteIds.value.length,
+        spaceCount: widget.spacesController?.spaces.length ?? 0,
         profileController: account.profileController,
         avatarImageProvider: widget.profileAvatarImageProvider,
         fallbackAvatarUri: widget.profileAvatarFallbackUri,
@@ -642,6 +650,17 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     }
     if (action == _HomeAccountAction.invites) {
       await _openInvitesSheet();
+      return;
+    }
+    if (action == _HomeAccountAction.spaces) {
+      final controller = widget.spacesController;
+      if (controller == null || controller.spaces.isEmpty) return;
+      await Navigator.of(context).push<void>(
+        SpacesRoute(
+          reduceMotion: MediaQuery.of(context).disableAnimations,
+          controller: controller,
+        ),
+      );
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -852,7 +871,13 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   }
 }
 
-enum _HomeAccountAction { profile, encryptionRecovery, invites, signOut }
+enum _HomeAccountAction {
+  profile,
+  encryptionRecovery,
+  invites,
+  spaces,
+  signOut,
+}
 
 class _HomeAccountSheet extends StatelessWidget {
   const _HomeAccountSheet({
@@ -860,6 +885,7 @@ class _HomeAccountSheet extends StatelessWidget {
     required this.canOpenProfile,
     required this.canOpenRecovery,
     required this.inviteCount,
+    required this.spaceCount,
     this.profileController,
     this.avatarImageProvider,
     this.fallbackAvatarUri,
@@ -869,6 +895,7 @@ class _HomeAccountSheet extends StatelessWidget {
   final bool canOpenProfile;
   final bool canOpenRecovery;
   final int inviteCount;
+  final int spaceCount;
   final UserProfileController? profileController;
   final AvatarImageProvider? avatarImageProvider;
   final Uri? fallbackAvatarUri;
@@ -938,6 +965,16 @@ class _HomeAccountSheet extends StatelessWidget {
                   ),
                   onTap: () =>
                       Navigator.of(context).pop(_HomeAccountAction.invites),
+                ),
+              if (spaceCount > 0)
+                ListTile(
+                  key: const Key('home-account-spaces'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.grid_view_rounded),
+                  title: const Text('Spaces'),
+                  trailing: Text(KiteLocalFormats.decimal(context, spaceCount)),
+                  onTap: () =>
+                      Navigator.of(context).pop(_HomeAccountAction.spaces),
                 ),
               ListTile(
                 key: const Key('home-account-sign-out'),

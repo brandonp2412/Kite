@@ -33,6 +33,9 @@ void main() {
             "isMuted": true,
             "isDirect": true,
             "typingUsers": ["Alice", "Bob"],
+            "isSpace": true,
+            "memberCount": 42,
+            "topic": "Matrix Space topic",
             "latestEventTimestamp": 2000,
             "prevBatch": "back-alpha",
             "events": [
@@ -82,6 +85,9 @@ void main() {
     expect(alpha.summary!.isDirect, isTrue);
     expect(alpha.typingUsers, <String>['Alice', 'Bob']);
     expect(() => alpha.typingUsers!.add('Mallory'), throwsUnsupportedError);
+    expect(alpha.summary!.isSpace, isTrue);
+    expect(alpha.summary!.memberCount, 42);
+    expect(alpha.summary!.topic, 'Matrix Space topic');
     expect(alpha.summary!.lastEventId, r'$event2');
     expect(alpha.summary!.lastActivity.millisecondsSinceEpoch, 2000);
     expect(alpha.summary!.streamPosition, 2000);

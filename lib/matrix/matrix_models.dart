@@ -102,6 +102,9 @@ final class MatrixRoomSummary {
     this.isFavourite = false,
     this.isMuted = false,
     this.isDirect = false,
+    this.isSpace = false,
+    this.memberCount = 0,
+    this.topic,
   });
 
   final String roomId;
@@ -118,6 +121,9 @@ final class MatrixRoomSummary {
   final bool isFavourite;
   final bool isMuted;
   final bool isDirect;
+  final bool isSpace;
+  final int memberCount;
+  final String? topic;
 }
 
 final class MatrixRoomInvite {

@@ -504,10 +504,11 @@ List<RoomListEntry> matrixRoomListEntries(MatrixPresentationCache cache) {
   return List<RoomListEntry>.unmodifiable(<RoomListEntry>[
     for (final roomId in cache.roomOrder.value)
       if (cache.roomSummarySignal(roomId).value case final summary?)
-        RoomListEntry.fromMatrix(
-          summary,
-          _latestTimelineEvent(cache.timelineSignal(roomId).value),
-        ),
+        if (!summary.isSpace)
+          RoomListEntry.fromMatrix(
+            summary,
+            _latestTimelineEvent(cache.timelineSignal(roomId).value),
+          ),
   ]);
 }
 

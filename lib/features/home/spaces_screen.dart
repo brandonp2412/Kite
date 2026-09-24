@@ -247,37 +247,39 @@ class _SelectedSpaceBody extends StatelessWidget {
                 child: _SpaceHero(space: space),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
+            if (space.rooms.isNotEmpty) ...<Widget>[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    KiteSpacing.lg,
+                    KiteSpacing.md,
+                    KiteSpacing.lg,
+                    KiteSpacing.sm,
+                  ),
+                  child: Text(
+                    'Rooms in this Space',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
-                  KiteSpacing.lg,
+                  KiteSpacing.md,
+                  0,
                   KiteSpacing.md,
                   KiteSpacing.lg,
-                  KiteSpacing.sm,
                 ),
-                child: Text(
-                  'Rooms in this Space',
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                KiteSpacing.md,
-                0,
-                KiteSpacing.md,
-                KiteSpacing.lg,
-              ),
-              sliver: SliverList.builder(
-                itemCount: space.rooms.length,
-                itemBuilder: (context, index) => _SpaceRoomRow(
-                  space: space,
-                  room: space.rooms[index],
-                  controller: controller,
+                sliver: SliverList.builder(
+                  itemCount: space.rooms.length,
+                  itemBuilder: (context, index) => _SpaceRoomRow(
+                    space: space,
+                    room: space.rooms[index],
+                    controller: controller,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         );
       },
@@ -341,8 +343,10 @@ class _SpaceHero extends StatelessWidget {
               ),
               const SizedBox(height: KiteSpacing.xs),
               Text(
-                '${KiteLocalFormats.decimal(context, space.memberCount)} members · '
-                '${KiteLocalFormats.decimal(context, space.rooms.length)} rooms',
+                space.rooms.isEmpty
+                    ? '${KiteLocalFormats.decimal(context, space.memberCount)} members'
+                    : '${KiteLocalFormats.decimal(context, space.memberCount)} members · '
+                          '${KiteLocalFormats.decimal(context, space.rooms.length)} rooms',
                 style: KiteTypography.metadata.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

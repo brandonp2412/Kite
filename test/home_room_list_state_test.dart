@@ -9,6 +9,7 @@ import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
@@ -1321,6 +1322,55 @@ void main() {
       findsNothing,
     );
     expect(find.text('New conversation'), findsNothing);
+  });
+
+  testWidgets('joined Spaces open contextually from the account menu', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final session = AuthenticatedSession(
+      userId: '@me:example.org',
+      deviceId: 'KITE',
+      homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+    );
+    final spaces = SpacesController(
+      spaces: const <SpaceSummary>[
+        SpaceSummary(
+          id: '!space:example.org',
+          name: 'Engineering',
+          description: 'Product and engineering',
+          memberCount: 42,
+          rooms: <SpaceRoomPreview>[],
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: AuthenticatedAccountScope(
+          session: session,
+          signOut: () async {},
+          child: HomeScreen(spacesController: spaces),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Spaces'), findsNothing);
+    await tester.tap(find.byKey(const Key('home-account-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-account-spaces')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('home-account-spaces')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('spaces-screen')), findsOneWidget);
+    expect(find.text('Engineering'), findsWidgets);
+    expect(find.text('42 members'), findsOneWidget);
+    expect(find.text('Rooms in this Space'), findsNothing);
   });
 
   testWidgets('phone chat dismisses with a left-edge swipe', (tester) async {
