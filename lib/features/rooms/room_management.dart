@@ -1,4 +1,4 @@
-enum KiteRoomCreationKind { directMessage, privateRoom, publicRoom }
+enum KiteRoomCreationKind { directMessage, privateRoom, publicRoom, space }
 
 enum KiteRoomJoinRule { invite, public, knock, restricted }
 
@@ -376,6 +376,35 @@ final class RoomManagementCoordinator {
         historyVisibility: historyVisibility,
         canonicalAlias: _canonicalAlias(canonicalAlias),
         parentSpaceId: _optionalRoomId(parentSpaceId),
+      ),
+    );
+  }
+
+  Future<KiteCreatedRoom> createSpace({
+    required String name,
+    String? topic,
+    bool isPublic = false,
+  }) async {
+    if (isPublic) {
+      final capabilities = await _rooms.capabilities();
+      if (!capabilities.canCreatePublicRooms ||
+          !capabilities.supports(KiteRoomJoinRule.public)) {
+        throw const RoomManagementValidationException(
+          'The homeserver does not allow public Space creation.',
+        );
+      }
+    }
+    return _rooms.createRoom(
+      KiteRoomCreationRequest(
+        kind: KiteRoomCreationKind.space,
+        name: _requiredName(name),
+        topic: _optionalText(topic),
+        invitees: const <String>[],
+        joinRule: isPublic ? KiteRoomJoinRule.public : KiteRoomJoinRule.invite,
+        encryptionEnabled: false,
+        historyVisibility: KiteRoomHistoryVisibility.shared,
+        canonicalAlias: null,
+        parentSpaceId: null,
       ),
     );
   }

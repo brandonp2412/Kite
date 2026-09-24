@@ -47,6 +47,8 @@ use matrix_sdk::{
             },
             space::child::SpaceChildEventContent,
         },
+        room::RoomType,
+        serde::Raw,
     },
 };
 use matrix_sdk_base::{
@@ -86,6 +88,12 @@ struct CreateRoomRequest {
     history_visibility: String,
     canonical_alias: Option<String>,
     parent_space_id: Option<String>,
+}
+
+fn space_creation_content() -> serde_json::Result<Raw<create_room::v3::CreationContent>> {
+    let mut content = create_room::v3::CreationContent::new();
+    content.room_type = Some(RoomType::Space);
+    Raw::new(&content)
 }
 
 pub struct KiteMatrixClient {
@@ -1639,7 +1647,8 @@ pub unsafe extern "C" fn kite_matrix_client_create_room(
     let is_direct = request.kind == "directMessage";
     let is_private = request.kind == "privateRoom";
     let is_public = request.kind == "publicRoom";
-    if !is_direct && !is_private && !is_public {
+    let is_space = request.kind == "space";
+    if !is_direct && !is_private && !is_public && !is_space {
         return error_json("invalid_room_kind", "The room creation type is invalid.");
     }
     if (is_direct || is_private) && request.join_rule != "invite" {
@@ -1652,6 +1661,18 @@ pub unsafe extern "C" fn kite_matrix_client_create_room(
         return error_json(
             "invalid_join_rule",
             "The requested room join rule is not supported.",
+        );
+    }
+    if is_space && request.join_rule != "invite" && request.join_rule != "public" {
+        return error_json(
+            "invalid_join_rule",
+            "The requested Space join rule is not supported.",
+        );
+    }
+    if is_space && request.encryption_enabled {
+        return error_json(
+            "invalid_space_encryption",
+            "Matrix Spaces cannot enable room encryption.",
         );
     }
     if request.invitees.iter().any(|value| value.contains('\0'))
@@ -1712,24 +1733,38 @@ pub unsafe extern "C" fn kite_matrix_client_create_room(
     native_request.topic = request.topic.filter(|value| !value.trim().is_empty());
     native_request.invite = invitees.clone();
     native_request.is_direct = is_direct;
-    native_request.preset = Some(if is_public {
+    let is_publicly_joinable = is_public || (is_space && request.join_rule == "public");
+    native_request.preset = Some(if is_publicly_joinable {
         create_room::v3::RoomPreset::PublicChat
     } else if is_direct {
         create_room::v3::RoomPreset::TrustedPrivateChat
     } else {
         create_room::v3::RoomPreset::PrivateChat
     });
-    native_request.visibility = if is_public {
+    native_request.visibility = if is_publicly_joinable {
         Visibility::Public
     } else {
         Visibility::Private
     };
+    if is_space {
+        native_request.creation_content = match space_creation_content() {
+            Ok(content) => Some(content),
+            Err(_) => {
+                return error_json(
+                    "invalid_space_creation",
+                    "The Matrix Space creation request is invalid.",
+                );
+            }
+        };
+    }
     native_request.initial_state.push(
-        InitialStateEvent::with_empty_state_key(RoomJoinRulesEventContent::new(if is_public {
-            JoinRule::Public
-        } else {
-            JoinRule::Invite
-        }))
+        InitialStateEvent::with_empty_state_key(RoomJoinRulesEventContent::new(
+            if is_publicly_joinable {
+                JoinRule::Public
+            } else {
+                JoinRule::Invite
+            },
+        ))
         .to_raw_any(),
     );
     native_request.initial_state.push(
@@ -3788,6 +3823,13 @@ mod tests {
         ]);
 
         assert_eq!(room_ids, vec!["!a:example.org", "!b:example.org"]);
+    }
+
+    #[test]
+    fn space_creation_content_sets_matrix_space_room_type() {
+        let content = space_creation_content().unwrap();
+        let value: Value = serde_json::from_str(content.json().get()).unwrap();
+        assert_eq!(value.get("type"), Some(&json!("m.space")));
     }
 
     #[test]

@@ -659,6 +659,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
         SpacesRoute(
           reduceMotion: MediaQuery.of(context).disableAnimations,
           controller: controller,
+          roomCreation: widget.roomCreation,
         ),
       );
       return;

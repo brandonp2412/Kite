@@ -201,6 +201,7 @@ final class MatrixRoomCreationManagementPort
             MatrixSdkRoomCreationKind.privateRoom,
           KiteRoomCreationKind.publicRoom =>
             MatrixSdkRoomCreationKind.publicRoom,
+          KiteRoomCreationKind.space => MatrixSdkRoomCreationKind.space,
         },
         name: request.name,
         topic: request.topic,

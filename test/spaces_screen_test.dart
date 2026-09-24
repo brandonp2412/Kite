@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/home/spaces_screen.dart';
+import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/testing/deterministic_room_management_adapter.dart';
 
 void main() {
   testWidgets('dedicated Spaces area browses joined and discoverable rooms', (
@@ -55,6 +57,48 @@ void main() {
       SpaceRoomJoinState.joined,
     );
     expect(find.byKey(const Key('space-room-join-coffee-club')), findsNothing);
+  });
+
+  testWidgets('Spaces area creates a production-shaped public Space', (
+    tester,
+  ) async {
+    final rooms = DeterministicRoomManagementPort();
+    final coordinator = RoomManagementCoordinator(
+      rooms: rooms,
+      directMetadata: DeterministicDirectRoomMetadataPort(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: SpacesScreen(
+          controller: SpacesController(),
+          roomCreation: coordinator,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('spaces-create')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('space-create-name')),
+      'Kite Community',
+    );
+    await tester.enterText(
+      find.byKey(const Key('space-create-topic')),
+      'Project rooms',
+    );
+    await tester.tap(find.byKey(const Key('space-create-public')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('space-create-submit')));
+    await tester.pumpAndSettle();
+
+    final request = rooms.invocations.last.creation!;
+    expect(request.kind, KiteRoomCreationKind.space);
+    expect(request.name, 'Kite Community');
+    expect(request.topic, 'Project rooms');
+    expect(request.joinRule, KiteRoomJoinRule.public);
+    expect(request.encryptionEnabled, isFalse);
+    expect(find.text('Kite Community created'), findsOneWidget);
   });
 
   test('controller rejects unknown Spaces and preserves joined room state', () {

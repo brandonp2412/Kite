@@ -1,42 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/spaces_controller.dart';
+import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/l10n/kite_local_formats.dart';
 import 'package:signals/signals_flutter.dart';
 
 class SpacesRoute extends PageRouteBuilder<void> {
-  SpacesRoute({required bool reduceMotion, SpacesController? controller})
-    : super(
-        transitionDuration: reduceMotion ? Duration.zero : KiteMotion.standard,
-        reverseTransitionDuration: reduceMotion
-            ? Duration.zero
-            : KiteMotion.standard,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SpacesScreen(controller: controller),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          if (reduceMotion) return child;
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: KiteMotion.standardCurve,
-            reverseCurve: KiteMotion.standardCurve,
-          );
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0.08, 0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          );
-        },
-      );
+  SpacesRoute({
+    required bool reduceMotion,
+    SpacesController? controller,
+    RoomManagementCoordinator? roomCreation,
+  }) : super(
+         transitionDuration: reduceMotion ? Duration.zero : KiteMotion.standard,
+         reverseTransitionDuration: reduceMotion
+             ? Duration.zero
+             : KiteMotion.standard,
+         pageBuilder: (context, animation, secondaryAnimation) =>
+             SpacesScreen(controller: controller, roomCreation: roomCreation),
+         transitionsBuilder: (context, animation, secondaryAnimation, child) {
+           if (reduceMotion) return child;
+           final curved = CurvedAnimation(
+             parent: animation,
+             curve: KiteMotion.standardCurve,
+             reverseCurve: KiteMotion.standardCurve,
+           );
+           return SlideTransition(
+             position: Tween<Offset>(
+               begin: const Offset(0.08, 0),
+               end: Offset.zero,
+             ).animate(curved),
+             child: child,
+           );
+         },
+       );
 }
 
 class SpacesScreen extends StatelessWidget {
-  const SpacesScreen({super.key, this.controller});
+  const SpacesScreen({super.key, this.controller, this.roomCreation});
 
   final SpacesController? controller;
+  final RoomManagementCoordinator? roomCreation;
 
   SpacesController get _controller => controller ?? spacesController;
+
+  Future<void> _openCreateSpace(BuildContext context) async {
+    final coordinator = roomCreation;
+    if (coordinator == null) return;
+    final created = await showModalBottomSheet<KiteCreatedRoom>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => _CreateSpaceSheet(coordinator: coordinator),
+    );
+    if (created == null || !context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${created.displayName} created')));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +90,13 @@ class SpacesScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (roomCreation != null)
+                      IconButton(
+                        key: const Key('spaces-create'),
+                        tooltip: 'Create Space',
+                        onPressed: () => _openCreateSpace(context),
+                        icon: const Icon(Icons.add_rounded),
+                      ),
                   ],
                 ),
               ),
@@ -468,6 +495,123 @@ class _SpaceRoomRow extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateSpaceSheet extends StatefulWidget {
+  const _CreateSpaceSheet({required this.coordinator});
+
+  final RoomManagementCoordinator coordinator;
+
+  @override
+  State<_CreateSpaceSheet> createState() => _CreateSpaceSheetState();
+}
+
+class _CreateSpaceSheetState extends State<_CreateSpaceSheet> {
+  final TextEditingController _name = TextEditingController();
+  final TextEditingController _topic = TextEditingController();
+  bool _isPublic = false;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _topic.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final created = await widget.coordinator.createSpace(
+        name: _name.text,
+        topic: _topic.text,
+        isPublic: _isPublic,
+      );
+      if (mounted) Navigator.of(context).pop(created);
+    } on RoomManagementValidationException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Kite could not create the Space.');
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+        KiteSpacing.lg,
+        KiteSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'Create Space',
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: KiteSpacing.md),
+            TextField(
+              key: const Key('space-create-name'),
+              controller: _name,
+              autofocus: true,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            const SizedBox(height: KiteSpacing.sm),
+            TextField(
+              key: const Key('space-create-topic'),
+              controller: _topic,
+              decoration: const InputDecoration(labelText: 'Topic (optional)'),
+            ),
+            const SizedBox(height: KiteSpacing.sm),
+            SwitchListTile.adaptive(
+              key: const Key('space-create-public'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Public Space'),
+              subtitle: const Text('Anyone can discover and join'),
+              value: _isPublic,
+              onChanged: _submitting
+                  ? null
+                  : (value) => setState(() => _isPublic = value),
+            ),
+            if (_error case final error?) ...<Widget>[
+              const SizedBox(height: KiteSpacing.xs),
+              Text(
+                error,
+                key: const Key('space-create-error'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: KiteSpacing.md),
+            FilledButton(
+              key: const Key('space-create-submit'),
+              onPressed: _submitting ? null : _submit,
+              child: _submitting
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Create Space'),
+            ),
+          ],
         ),
       ),
     );

@@ -138,6 +138,27 @@ void main() {
     },
   );
 
+  test('Space creation uses unencrypted Matrix Space semantics', () async {
+    final fixture = _fixture();
+
+    await fixture.coordinator.createSpace(
+      name: '  Kite Community  ',
+      topic: '  Project rooms  ',
+    );
+    var request = fixture.rooms.invocations.last.creation!;
+    expect(request.kind, KiteRoomCreationKind.space);
+    expect(request.name, 'Kite Community');
+    expect(request.topic, 'Project rooms');
+    expect(request.joinRule, KiteRoomJoinRule.invite);
+    expect(request.encryptionEnabled, isFalse);
+    expect(request.historyVisibility, KiteRoomHistoryVisibility.shared);
+
+    await fixture.coordinator.createSpace(name: 'Public', isPublic: true);
+    request = fixture.rooms.invocations.last.creation!;
+    expect(request.kind, KiteRoomCreationKind.space);
+    expect(request.joinRule, KiteRoomJoinRule.public);
+  });
+
   test(
     'room metadata mutations preserve Matrix identifiers and safe media URIs',
     () async {

@@ -55,6 +55,52 @@ void main() {
     },
   );
 
+  test(
+    'production room creation adapter maps Matrix Space room type',
+    () async {
+      MatrixSdkRoomCreationRequest? captured;
+      final port = MatrixRoomCreationManagementPort(
+        (request) async {
+          captured = request;
+          return const MatrixSdkCreatedRoom(
+            roomId: '!space:example.org',
+            isDirect: false,
+          );
+        },
+        reportRoom: (_, _) async {},
+        reportUser: (_, _, _) async {},
+        leaveRoom: (_) async {},
+        forgetRoom: (_) async {},
+        roomDetails: _details,
+        setName: (_, _) async {},
+        setTopic: (_, _) async {},
+        setAvatar: (_, _) async {},
+        setCanonicalAlias: (_, _) async {},
+        setJoinRule: (_, _) async {},
+        enableEncryption: (_) async {},
+        setHistoryVisibility: (_, _) async {},
+        setNotificationMode: (_, _) async {},
+      );
+
+      await port.createRoom(
+        KiteRoomCreationRequest(
+          kind: KiteRoomCreationKind.space,
+          name: 'Community',
+          topic: null,
+          invitees: const <String>[],
+          joinRule: KiteRoomJoinRule.invite,
+          encryptionEnabled: false,
+          historyVisibility: KiteRoomHistoryVisibility.shared,
+          canonicalAlias: null,
+          parentSpaceId: null,
+        ),
+      );
+
+      expect(captured?.kind, MatrixSdkRoomCreationKind.space);
+      expect(captured?.encryptionEnabled, isFalse);
+    },
+  );
+
   test('production direct-message open uses the Matrix DM fast path', () async {
     MatrixSdkRoomCreationRequest? createdRequest;
     String? openedUserId;

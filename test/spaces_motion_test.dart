@@ -4,6 +4,8 @@ import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/home/spaces_screen.dart';
+import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/testing/deterministic_room_management_adapter.dart';
 
 Rect _rectOf(WidgetTester tester, Finder finder) {
   final renderObject = tester.renderObject<RenderBox>(finder);
@@ -26,8 +28,15 @@ void main() {
       addTearDown(display.resetRefreshRate);
 
       spacesController.reset();
+      final roomCreation = RoomManagementCoordinator(
+        rooms: DeterministicRoomManagementPort(),
+        directMetadata: DeterministicDirectRoomMetadataPort(),
+      );
       await tester.pumpWidget(
-        const KiteApp(themeMode: ThemeMode.light, home: SpacesScreen()),
+        KiteApp(
+          themeMode: ThemeMode.light,
+          home: SpacesScreen(roomCreation: roomCreation),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -42,6 +51,19 @@ void main() {
 
       final header = find.byKey(const Key('spaces-header'));
       final headerRect = _rectOf(tester, header);
+      await tester.tap(find.byKey(const Key('spaces-create')));
+      for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+        await tester.pump(PerformanceContract.motionFrame);
+        expect(_rectOf(tester, header), headerRect);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('space-create-name')), findsOneWidget);
+      Navigator.of(tester.element(find.byKey(const Key('space-create-name'))))
+          .pop();
+      await tester.pumpAndSettle();
+      expect(_rectOf(tester, header), headerRect);
+
       await tester.tap(find.byKey(const Key('spaces-chip-people-space')));
       await tester.pump();
       expect(_rectOf(tester, header), headerRect);

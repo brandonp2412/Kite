@@ -96,7 +96,7 @@ final class MatrixSdkRoomMember {
   final int powerLevel;
 }
 
-enum MatrixSdkRoomCreationKind { directMessage, privateRoom, publicRoom }
+enum MatrixSdkRoomCreationKind { directMessage, privateRoom, publicRoom, space }
 
 final class MatrixSdkRoomCreationRequest {
   MatrixSdkRoomCreationRequest({
