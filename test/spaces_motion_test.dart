@@ -134,4 +134,77 @@ void main() {
       );
     },
   );
+
+  testWidgets('nested Space navigation preserves frame geometry at 120 Hz', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+
+    const child = SpaceSummary(
+      id: '!mobile:example.org',
+      name: 'Mobile',
+      description: 'Mobile clients',
+      memberCount: 12,
+      rooms: <SpaceRoomPreview>[],
+    );
+    const parent = SpaceSummary(
+      id: '!engineering:example.org',
+      name: 'Engineering',
+      description: 'Product and engineering',
+      memberCount: 42,
+      rooms: <SpaceRoomPreview>[],
+      childSpaceIds: <String>['!mobile:example.org'],
+    );
+    final controller = SpacesController(
+      spaces: const <SpaceSummary>[parent, child],
+    );
+
+    await tester.pumpWidget(
+      KiteApp(
+        themeMode: ThemeMode.light,
+        home: SpacesScreen(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final screen = find.byKey(const Key('spaces-screen'));
+    final screenRect = _rectOf(tester, screen);
+    final header = find.byKey(const Key('spaces-header'));
+    final headerRect = _rectOf(tester, header);
+
+    await tester.tap(
+      find.byKey(const Key('nested-space-open-!mobile:example.org')),
+    );
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, screen), screenRect);
+      expect(_rectOf(tester, header), headerRect);
+      expect(tester.takeException(), isNull);
+    }
+    expect(
+      find.byKey(const Key('space-parent-!engineering:example.org')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const Key('space-parent-!engineering:example.org')),
+    );
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(_rectOf(tester, screen), screenRect);
+      expect(_rectOf(tester, header), headerRect);
+      expect(tester.takeException(), isNull);
+    }
+    expect(
+      find.byKey(const Key('nested-space-row-!mobile:example.org')),
+      findsOneWidget,
+    );
+  });
 }

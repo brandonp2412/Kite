@@ -27,6 +27,15 @@ void main() {
             topic: 'Joined child room',
           ),
           MatrixRoomSummary(
+            roomId: '!nested:example.org',
+            displayName: 'Mobile',
+            lastActivity: DateTime.utc(2026, 9, 25),
+            streamPosition: 3,
+            isSpace: true,
+            memberCount: 12,
+            topic: 'Mobile clients',
+          ),
+          MatrixRoomSummary(
             roomId: '!space:example.org',
             displayName: 'Engineering',
             lastActivity: DateTime.utc(2026, 9, 25),
@@ -34,7 +43,10 @@ void main() {
             isSpace: true,
             memberCount: 42,
             topic: 'Product and engineering',
-            childRoomIds: const <String>['!chat:example.org'],
+            childRoomIds: const <String>[
+              '!chat:example.org',
+              '!nested:example.org',
+            ],
           ),
         ],
       ),
@@ -49,15 +61,15 @@ void main() {
     addTearDown(binding.dispose);
 
     expect(binding.roomListStore.roomIds, <String>['!chat:example.org']);
-    expect(binding.spacesController.spaces, hasLength(1));
-    expect(binding.spacesController.spaces.single.id, '!space:example.org');
-    expect(binding.spacesController.spaces.single.name, 'Engineering');
-    expect(binding.spacesController.spaces.single.memberCount, 42);
-    expect(
-      binding.spacesController.spaces.single.description,
-      'Product and engineering',
+    expect(binding.spacesController.spaces, hasLength(2));
+    final engineering = binding.spacesController.spaces.singleWhere(
+      (space) => space.id == '!space:example.org',
     );
-    final child = binding.spacesController.spaces.single.rooms.single;
+    expect(engineering.name, 'Engineering');
+    expect(engineering.memberCount, 42);
+    expect(engineering.description, 'Product and engineering');
+    expect(engineering.childSpaceIds, <String>['!nested:example.org']);
+    final child = engineering.rooms.single;
     expect(child.id, '!chat:example.org');
     expect(child.name, 'Chat');
     expect(child.topic, 'Joined child room');

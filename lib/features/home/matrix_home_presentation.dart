@@ -501,6 +501,12 @@ final class MatrixHomePresentationBinding {
                   ? summary.topic!.trim()
                   : 'Joined Matrix Space',
               memberCount: summary.memberCount,
+              childSpaceIds: <String>[
+                for (final childRoomId in summary.childRoomIds)
+                  if (cache.roomSummarySignal(childRoomId).value
+                      case final childSummary?)
+                    if (childSummary.isSpace) childSummary.roomId,
+              ],
               rooms: <SpaceRoomPreview>[
                 for (final childRoomId in summary.childRoomIds)
                   if (cache.roomSummarySignal(childRoomId).value

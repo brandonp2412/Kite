@@ -56,6 +56,7 @@ final class SpaceSummary {
     required this.description,
     required this.memberCount,
     required this.rooms,
+    this.childSpaceIds = const <String>[],
     this.external = false,
   });
 
@@ -64,6 +65,7 @@ final class SpaceSummary {
   final String description;
   final int memberCount;
   final List<SpaceRoomPreview> rooms;
+  final List<String> childSpaceIds;
   final bool external;
 }
 
@@ -160,6 +162,26 @@ final class SpacesController {
     selectedSpaceId.value = spaceId;
   }
 
+  List<SpaceSummary> childSpacesFor(String spaceId) {
+    final space = _space(spaceId);
+    final seen = <String>{};
+    return List<SpaceSummary>.unmodifiable(
+      space.childSpaceIds
+          .where((id) => id != spaceId && seen.add(id))
+          .map(_spaceOrNull)
+          .whereType<SpaceSummary>(),
+    );
+  }
+
+  List<SpaceSummary> parentSpacesFor(String spaceId) {
+    _space(spaceId);
+    return List<SpaceSummary>.unmodifiable(
+      spaces.where(
+        (space) => space.id != spaceId && space.childSpaceIds.contains(spaceId),
+      ),
+    );
+  }
+
   Signal<SpaceRoomJoinState> joinStateFor(String roomId) {
     final room = _room(roomId);
     return _joinStates.putIfAbsent(
@@ -214,6 +236,7 @@ final class SpacesController {
       description: description,
       memberCount: current.memberCount,
       rooms: current.rooms,
+      childSpaceIds: current.childSpaceIds,
       external: current.external,
     );
     _spaces.value = List<SpaceSummary>.unmodifiable(next);
@@ -266,6 +289,13 @@ final class SpacesController {
     orElse: () =>
         throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.'),
   );
+
+  SpaceSummary? _spaceOrNull(String spaceId) {
+    for (final space in spaces) {
+      if (space.id == spaceId) return space;
+    }
+    return null;
+  }
 
   SpaceRoomPreview _room(String roomId) {
     for (final space in spaces) {

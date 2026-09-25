@@ -359,6 +359,8 @@ class _SelectedSpaceBody extends StatelessWidget {
         if (space == null) {
           return const Center(child: Text('No Spaces joined yet'));
         }
+        final parentSpaces = controller.parentSpacesFor(space.id);
+        final childSpaces = controller.childSpacesFor(space.id);
         return CustomScrollView(
           key: Key('space-body-${space.id}'),
           slivers: <Widget>[
@@ -373,6 +375,65 @@ class _SelectedSpaceBody extends StatelessWidget {
                 child: _SpaceHero(space: space),
               ),
             ),
+            if (parentSpaces.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    KiteSpacing.lg,
+                    KiteSpacing.xs,
+                    KiteSpacing.lg,
+                    KiteSpacing.sm,
+                  ),
+                  child: Wrap(
+                    spacing: KiteSpacing.xs,
+                    runSpacing: KiteSpacing.xs,
+                    children: <Widget>[
+                      for (final parent in parentSpaces)
+                        TextButton.icon(
+                          key: Key('space-parent-${parent.id}'),
+                          onPressed: () => controller.selectSpace(parent.id),
+                          icon: const Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 18,
+                          ),
+                          label: Text(parent.name),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            if (childSpaces.isNotEmpty) ...<Widget>[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    KiteSpacing.lg,
+                    KiteSpacing.md,
+                    KiteSpacing.lg,
+                    KiteSpacing.sm,
+                  ),
+                  child: Text(
+                    'Spaces in this Space',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  KiteSpacing.md,
+                  0,
+                  KiteSpacing.md,
+                  KiteSpacing.sm,
+                ),
+                sliver: SliverList.builder(
+                  itemCount: childSpaces.length,
+                  itemBuilder: (context, index) => _NestedSpaceRow(
+                    space: childSpaces[index],
+                    onOpen: () => controller.selectSpace(childSpaces[index].id),
+                  ),
+                ),
+              ),
+            ],
             if (space.rooms.isNotEmpty) ...<Widget>[
               SliverToBoxAdapter(
                 child: Padding(
@@ -410,6 +471,69 @@ class _SelectedSpaceBody extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _NestedSpaceRow extends StatelessWidget {
+  const _NestedSpaceRow({required this.space, required this.onOpen});
+
+  final SpaceSummary space;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      key: Key('nested-space-row-${space.id}'),
+      height: 72,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(KiteRadii.md),
+        child: InkWell(
+          key: Key('nested-space-open-${space.id}'),
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(KiteRadii.md),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.sm),
+            child: Row(
+              children: <Widget>[
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: theme.colorScheme.secondaryContainer,
+                  foregroundColor: theme.colorScheme.onSecondaryContainer,
+                  child: Text(space.name.characters.first.toUpperCase()),
+                ),
+                const SizedBox(width: KiteSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        space.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${KiteLocalFormats.decimal(context, space.memberCount)} members',
+                        style: KiteTypography.metadata.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

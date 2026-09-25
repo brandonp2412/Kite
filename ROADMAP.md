@@ -175,6 +175,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Choose a Space during room creation or create a spaceless room.
   - Progress 2026-09-25: generic private/public room creation now offers the joined Spaces projected by the production home binding plus an explicit No Space default, while creation launched from a Space preselects that Space. Focused behavior and 120 Hz deterministic motion coverage pass. Keep unchecked while the global locked Waydroid frame-budget gate remains red on the recorded cold-DM baseline.
 - [ ] Nested Space navigation if present in current upstream baseline.
+  - Progress 2026-09-25: joined m.space child relationships now survive the production presentation projection instead of being discarded. The dedicated Spaces area shows joined child Spaces, supports direct child navigation and parent links back out, and tolerates multiple parents without recursive models. Focused projection/widget coverage, deterministic 120 Hz child -> parent navigation, full Flutter analysis/tests, release audit, all 15 Rust bridge tests, and the 23-test Dart/Rust ABI smoke suite pass. Unjoined hierarchy discovery remains pending, and the required Waydroid profile/jitter gate could not run because Glass currently has no Waydroid ADB device.
 
 **Benchmarks:** launch-to-room-list, filter change, Space change, invite accept, room creation, returning from a room without scroll movement.
 
