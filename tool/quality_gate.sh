@@ -31,4 +31,7 @@ printf '%s\n' 'Kite quality gate: Waydroid jitter self-test'
 printf '%s\n' 'Kite quality gate: back-navigation profile test'
 "$(dirname "$0")/verify_back_navigation_harness.sh" "${1:-}"
 
+printf '%s\n' 'Kite quality gate: composer image-editor profile test'
+"$(dirname "$0")/verify_composer_image_editor_harness.sh" "${1:-}"
+
 printf '%s\n' 'Kite quality gate passed.'

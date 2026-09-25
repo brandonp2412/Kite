@@ -30,6 +30,7 @@ import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
+import 'package:kite/features/timeline/composer_image_editor.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
@@ -5714,6 +5715,31 @@ class _ComposerState extends State<_Composer> {
     });
   }
 
+  Future<void> _editAttachment() async {
+    final attachment = _pendingAttachment;
+    final roomId = _pendingAttachmentRoomId;
+    final bytes = attachment?.localBytes;
+    if (attachment == null ||
+        attachment.kind != TimelineAttachmentKind.image ||
+        bytes == null ||
+        bytes.isEmpty ||
+        roomId == null) {
+      return;
+    }
+
+    final edited = await showComposerImageEditor(
+      context,
+      attachment: attachment,
+    );
+    if (!mounted || edited == null) return;
+    if (_pendingAttachment?.id != attachment.id ||
+        _pendingAttachmentRoomId != roomId) {
+      return;
+    }
+    setState(() => _pendingAttachment = edited);
+    _focusNode.requestFocus();
+  }
+
   Future<void> _startVoiceRecording() async {
     final port = _voiceMessagePort;
     if (port == null || _voiceRecording) return;
@@ -6107,6 +6133,11 @@ class _ComposerState extends State<_Composer> {
                     activeAttachment.kind != TimelineAttachmentKind.voice)
                   ComposerAttachmentPreview(
                     attachment: activeAttachment,
+                    onEdit:
+                        activeAttachment.kind == TimelineAttachmentKind.image &&
+                            activeAttachment.localBytes?.isNotEmpty == true
+                        ? _editAttachment
+                        : null,
                     onRemove: _removeAttachment,
                   ),
                 ValueListenableBuilder<TextEditingValue>(

@@ -3,9 +3,11 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/media/media_viewer.dart';
+import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
@@ -127,6 +129,20 @@ class _RetryingAttachmentSendPort implements TimelineAttachmentSendPort {
   }
 }
 
+class _LocalImageAttachmentPicker implements ComposerAttachmentPicker {
+  _LocalImageAttachmentPicker(this.attachment);
+
+  final TimelineAttachment attachment;
+
+  @override
+  Set<ComposerAttachmentSource> get supportedSources =>
+      const <ComposerAttachmentSource>{ComposerAttachmentSource.photos};
+
+  @override
+  Future<TimelineAttachment?> pick(ComposerAttachmentSource source) async =>
+      source == ComposerAttachmentSource.photos ? attachment : null;
+}
+
 void main() {
   tearDown(() {
     timelineController.reset(
@@ -219,6 +235,67 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('message-action-copy')), findsOneWidget);
     expect(find.text('Copy caption'), findsOneWidget);
+  });
+
+  testWidgets('composer edits a picked local image before sending', (
+    tester,
+  ) async {
+    final source = img.Image(width: 4, height: 2);
+    for (var y = 0; y < source.height; y++) {
+      for (var x = 0; x < source.width; x++) {
+        source.setPixelRgba(x, y, x < 2 ? 255 : 0, 0, x < 2 ? 0 : 255, 255);
+      }
+    }
+    final bytes = Uint8List.fromList(img.encodePng(source));
+    final attachment = TimelineAttachment(
+      id: 'editable-local-image',
+      kind: TimelineAttachmentKind.image,
+      name: 'editable.png',
+      sizeLabel: 'Image',
+      sizeBytes: bytes.length,
+      mimeType: 'image/png',
+      localBytes: bytes,
+    );
+    final sendPort = _RetryingAttachmentSendPort();
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      attachmentSendPort: sendPort,
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(
+      KiteApp(
+        themeMode: ThemeMode.light,
+        home: HomeScreen(
+          composerAttachmentPicker: _LocalImageAttachmentPicker(attachment),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('composer-attach')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('attachment-option-photo-library')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('composer-attachment-edit')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('composer-attachment-edit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('composer-image-rotate-right')));
+    await tester.tap(find.byKey(const Key('composer-image-apply')));
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('composer-image-editor')), findsNothing);
+    await tester.tap(find.byKey(const Key('composer-send')));
+    await tester.pumpAndSettle();
+
+    expect(sendPort.attachments, hasLength(1));
+    final edited = img.decodeImage(sendPort.attachments.single.localBytes!);
+    expect(edited, isNotNull);
+    expect(edited!.width, 2);
+    expect(edited.height, 4);
   });
 
   testWidgets('composer records, previews, and sends voice messages', (

@@ -272,6 +272,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Capture media from camera.
 - [ ] Media preview before send.
 - [ ] Image crop and rotate before send.
+  - Progress 2026-09-26: locally picked/captured images now open a dedicated pre-send editor with left/right 90-degree rotation, Original/Square/4:3/16:9 crop choices, and drag-to-reposition focal cropping. Decode/orientation/crop/encode work runs off the Flutter UI isolate; no-op edits preserve original bytes, JPEG edits stay JPEG, and other supported image inputs are normalised to PNG only when edited. The transformed local bytes remain retry-safe through the existing attachment send path. Focused processor/editor/composer regressions pass, existing 120 Hz attachment motion tests remain green, full Flutter analysis is clean, all 1,203 Flutter tests pass with 5 intentional native-library skips, the reviewed dependency/license audit passes for 114 hosted packages, and an Android x86_64 debug APK builds. A dedicated profile-mode crop/rotate/send benchmark is now wired into the repository quality gate alongside the deterministic 120 Hz motion test. Keep unchecked until that locked runtime gate is green.
 - [ ] Captions on media.
 - [ ] Voice-message record, cancel, preview, send, playback state.
 - [ ] Static location picker/share.

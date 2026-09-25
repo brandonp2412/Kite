@@ -250,10 +250,12 @@ class ComposerAttachmentPreview extends StatelessWidget {
   const ComposerAttachmentPreview({
     super.key,
     required this.attachment,
+    this.onEdit,
     required this.onRemove,
   });
 
   final TimelineAttachment attachment;
+  final VoidCallback? onEdit;
   final VoidCallback onRemove;
 
   @override
@@ -319,6 +321,13 @@ class ComposerAttachmentPreview extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onEdit != null)
+                IconButton(
+                  key: const Key('composer-attachment-edit'),
+                  tooltip: 'Crop or rotate image',
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.crop_rotate_rounded, size: 19),
+                ),
               IconButton(
                 key: const Key('composer-attachment-remove'),
                 tooltip: 'Remove attachment',
