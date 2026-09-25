@@ -342,6 +342,11 @@ final class MatrixProductionRuntime
     return accounts.createRoom(accountId: accountId, request: request);
   }
 
+  Future<List<MatrixSdkSpaceHierarchyEntry>> loadSpaceHierarchy({
+    required String accountId,
+    required String spaceId,
+  }) => accounts.loadSpaceHierarchy(accountId: accountId, spaceId: spaceId);
+
   Future<void> setSpaceChild({
     required String accountId,
     required String spaceId,

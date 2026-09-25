@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/home/spaces_controller.dart';
@@ -342,7 +344,37 @@ class _SpaceRail extends StatelessWidget {
   }
 }
 
-class _SelectedSpaceBody extends StatelessWidget {
+final class _RoomManagementSpaceDirectoryPort implements SpaceDirectoryPort {
+  const _RoomManagementSpaceDirectoryPort(this.coordinator);
+
+  final RoomManagementCoordinator coordinator;
+
+  @override
+  Future<SpaceJoinOutcome> joinRoom({
+    required String spaceId,
+    required String roomId,
+    required String joinRule,
+  }) async {
+    try {
+      switch (joinRule) {
+        case 'public':
+        case 'restricted':
+          await coordinator.joinRoomFromDirectory(roomId);
+          return SpaceJoinOutcome.joined;
+        case 'knock':
+        case 'knock_restricted':
+          await coordinator.requestRoomJoin(roomId);
+          return SpaceJoinOutcome.requested;
+        default:
+          return SpaceJoinOutcome.failed;
+      }
+    } catch (_) {
+      return SpaceJoinOutcome.failed;
+    }
+  }
+}
+
+class _SelectedSpaceBody extends StatefulWidget {
   const _SelectedSpaceBody({
     required this.controller,
     required this.roomManagement,
@@ -352,7 +384,153 @@ class _SelectedSpaceBody extends StatelessWidget {
   final RoomManagementCoordinator? roomManagement;
 
   @override
+  State<_SelectedSpaceBody> createState() => _SelectedSpaceBodyState();
+}
+
+class _SelectedSpaceBodyState extends State<_SelectedSpaceBody> {
+  final Set<String> _loadedSpaceIds = <String>{};
+  final Set<String> _loadingSpaceIds = <String>{};
+  late void Function() _disposeSelectionEffect;
+  int _selectionGeneration = 0;
+  String? _hierarchyErrorSpaceId;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindController();
+  }
+
+  @override
+  void didUpdateWidget(_SelectedSpaceBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller) ||
+        !identical(oldWidget.roomManagement, widget.roomManagement)) {
+      _disposeSelectionEffect();
+      _loadedSpaceIds.clear();
+      _loadingSpaceIds.clear();
+      _bindController();
+    }
+  }
+
+  void _bindController() {
+    final coordinator = widget.roomManagement;
+    if (coordinator != null &&
+        widget.controller.spaces.every((space) => space.id.startsWith('!'))) {
+      widget.controller.updateDirectoryPort(
+        _RoomManagementSpaceDirectoryPort(coordinator),
+      );
+    }
+    final generation = ++_selectionGeneration;
+    _disposeSelectionEffect = effect(() {
+      final spaceId = widget.controller.selectedSpaceId.value;
+      if (spaceId == null) return;
+      unawaited(
+        Future<void>.microtask(() async {
+          if (!mounted || generation != _selectionGeneration) return;
+          await _loadHierarchy(spaceId);
+        }),
+      );
+    });
+  }
+
+  Future<void> _loadHierarchy(String spaceId) async {
+    final coordinator = widget.roomManagement;
+    if (coordinator == null ||
+        !spaceId.startsWith('!') ||
+        _loadedSpaceIds.contains(spaceId) ||
+        !_loadingSpaceIds.add(spaceId)) {
+      return;
+    }
+    try {
+      final hierarchy = await coordinator.loadSpaceHierarchy(spaceId);
+      if (!mounted) return;
+      if (hierarchy.isEmpty) {
+        _loadedSpaceIds.add(spaceId);
+        return;
+      }
+      KiteSpaceHierarchyEntry? root;
+      for (final entry in hierarchy) {
+        if (entry.roomId == spaceId) {
+          root = entry;
+          break;
+        }
+      }
+      if (root == null) {
+        throw StateError('Matrix Space hierarchy omitted the requested Space.');
+      }
+      final byId = <String, KiteSpaceHierarchyEntry>{
+        for (final entry in hierarchy) entry.roomId: entry,
+      };
+      final current = widget.controller.spaceFor(spaceId);
+      if (current == null) return;
+      final childIds = <String>{...root.childRoomIds}..remove(spaceId);
+      final childEntries = <KiteSpaceHierarchyEntry>[
+        for (final childId in childIds) ?byId[childId],
+      ];
+      final joinedSpaceIds = widget.controller.spaces
+          .map((space) => space.id)
+          .toSet();
+      widget.controller.reconcileHierarchy(
+        spaceId: spaceId,
+        rooms: <SpaceRoomPreview>[
+          for (final child in childEntries)
+            if (!child.isSpace)
+              SpaceRoomPreview(
+                id: child.roomId,
+                name: _hierarchyName(child),
+                topic: child.topic?.trim() ?? '',
+                memberCount: child.joinedMembers,
+                joinRule: child.joinRule,
+                joined: current.rooms.any(
+                  (room) => room.id == child.roomId && room.joined,
+                ),
+              ),
+        ],
+        childSpaces: <SpaceSummary>[
+          for (final child in childEntries)
+            if (child.isSpace)
+              SpaceSummary(
+                id: child.roomId,
+                name: _hierarchyName(child),
+                description: child.topic?.trim().isNotEmpty == true
+                    ? child.topic!.trim()
+                    : 'Matrix Space',
+                memberCount: child.joinedMembers,
+                rooms: const <SpaceRoomPreview>[],
+                childSpaceIds: child.childRoomIds,
+                external: !joinedSpaceIds.contains(child.roomId),
+              ),
+        ],
+      );
+      _loadedSpaceIds.add(spaceId);
+      if (_hierarchyErrorSpaceId == spaceId && mounted) {
+        setState(() => _hierarchyErrorSpaceId = null);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _hierarchyErrorSpaceId = spaceId);
+    } finally {
+      _loadingSpaceIds.remove(spaceId);
+    }
+  }
+
+  String _hierarchyName(KiteSpaceHierarchyEntry entry) {
+    final name = entry.name?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final alias = entry.canonicalAlias?.trim();
+    if (alias != null && alias.isNotEmpty) return alias;
+    return entry.roomId;
+  }
+
+  @override
+  void dispose() {
+    _selectionGeneration++;
+    _disposeSelectionEffect();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     return SignalBuilder(
       builder: (context) {
         final space = controller.selectedSpace;
@@ -375,6 +553,33 @@ class _SelectedSpaceBody extends StatelessWidget {
                 child: _SpaceHero(space: space),
               ),
             ),
+            if (_hierarchyErrorSpaceId == space.id)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KiteSpacing.lg,
+                    vertical: KiteSpacing.xs,
+                  ),
+                  child: Row(
+                    key: Key('space-hierarchy-error-${space.id}'),
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          'Kite could not browse this Space.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          _loadedSpaceIds.remove(space.id);
+                          unawaited(_loadHierarchy(space.id));
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (parentSpaces.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
@@ -463,7 +668,7 @@ class _SelectedSpaceBody extends StatelessWidget {
                     space: space,
                     room: space.rooms[index],
                     controller: controller,
-                    roomManagement: roomManagement,
+                    roomManagement: widget.roomManagement,
                   ),
                 ),
               ),
@@ -725,6 +930,16 @@ class _SpaceRoomRow extends StatelessWidget {
                                 onPressed: () => _unlink(context),
                                 child: const Text('Remove'),
                               ),
+                      SpaceRoomJoinState.requested => Center(
+                        child: Text(
+                          'Requested',
+                          key: Key('space-room-requested-${room.id}'),
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                       SpaceRoomJoinState.joining => const Center(
                         child: SizedBox.square(
                           key: Key('space-room-joining'),
@@ -740,14 +955,33 @@ class _SpaceRoomRow extends StatelessWidget {
                         ),
                         child: const Text('Retry'),
                       ),
-                      SpaceRoomJoinState.idle => FilledButton.tonal(
-                        key: Key('space-room-join-${room.id}'),
-                        onPressed: () => controller.joinRoom(
-                          spaceId: space.id,
-                          roomId: room.id,
+                      SpaceRoomJoinState.idle => switch (room.joinRule) {
+                        'public' || 'restricted' => FilledButton.tonal(
+                          key: Key('space-room-join-${room.id}'),
+                          onPressed: () => controller.joinRoom(
+                            spaceId: space.id,
+                            roomId: room.id,
+                          ),
+                          child: const Text('Join'),
                         ),
-                        child: const Text('Join'),
-                      ),
+                        'knock' || 'knock_restricted' => FilledButton.tonal(
+                          key: Key('space-room-request-${room.id}'),
+                          onPressed: () => controller.joinRoom(
+                            spaceId: space.id,
+                            roomId: room.id,
+                          ),
+                          child: const Text('Request'),
+                        ),
+                        _ => Center(
+                          child: Text(
+                            'Invite only',
+                            key: Key('space-room-invite-only-${room.id}'),
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      },
                     };
                   },
                 ),

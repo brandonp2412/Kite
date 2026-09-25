@@ -33,6 +33,8 @@ typedef MatrixUserSearch = Future<List<MatrixSdkUserSearchResult>> Function(
 );
 typedef MatrixRoomDirectorySearch =
     Future<List<MatrixSdkRoomDirectoryResult>> Function(String query);
+typedef MatrixSpaceHierarchyLookup =
+    Future<List<MatrixSdkSpaceHierarchyEntry>> Function(String spaceId);
 
 final class MatrixRoomCreationManagementPort
     implements
@@ -40,6 +42,7 @@ final class MatrixRoomCreationManagementPort
         RoomUserSearchPort,
         RoomDirectorySearchPort,
         RoomDirectoryMembershipPort,
+        RoomSpaceHierarchyPort,
         DirectMessageOpenPort {
   const MatrixRoomCreationManagementPort(
     this._create, {
@@ -58,6 +61,7 @@ final class MatrixRoomCreationManagementPort
     required MatrixRoomRequiredTextMutation setNotificationMode,
     this.userSearch,
     this.roomDirectorySearch,
+    this.spaceHierarchyLookup,
     this.directoryJoin,
     this.directoryKnock,
     this.directMessageOpen,
@@ -83,6 +87,7 @@ final class MatrixRoomCreationManagementPort
   final MatrixRoomCreate _create;
   final MatrixUserSearch? userSearch;
   final MatrixRoomDirectorySearch? roomDirectorySearch;
+  final MatrixSpaceHierarchyLookup? spaceHierarchyLookup;
   final MatrixRoomMutation? directoryJoin;
   final MatrixRoomMutation? directoryKnock;
   final MatrixDirectMessageOpen? directMessageOpen;
@@ -129,6 +134,33 @@ final class MatrixRoomCreationManagementPort
           avatarUrl: result.avatarUrl == null
               ? null
               : Uri.parse(result.avatarUrl!),
+        ),
+    ];
+  }
+
+  @override
+  @override
+  Future<List<KiteSpaceHierarchyEntry>> loadSpaceHierarchy(
+    String spaceId,
+  ) async {
+    final lookup = spaceHierarchyLookup;
+    if (lookup == null) return const <KiteSpaceHierarchyEntry>[];
+    final results = await lookup(spaceId);
+    return <KiteSpaceHierarchyEntry>[
+      for (final result in results)
+        KiteSpaceHierarchyEntry(
+          roomId: result.roomId,
+          name: result.name,
+          topic: result.topic,
+          canonicalAlias: result.canonicalAlias,
+          avatarUrl: result.avatarUrl == null
+              ? null
+              : Uri.parse(result.avatarUrl!),
+          joinRule: result.joinRule,
+          worldReadable: result.worldReadable,
+          joinedMembers: result.joinedMembers,
+          isSpace: result.isSpace,
+          childRoomIds: result.childRoomIds,
         ),
     ];
   }

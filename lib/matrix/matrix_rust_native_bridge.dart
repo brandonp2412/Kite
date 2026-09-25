@@ -13,7 +13,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 30;
+const int kiteMatrixNativeAbiVersion = 31;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -4105,6 +4105,56 @@ final class MatrixRustSdkBoundary
     );
   }
 
+  MatrixSdkSpaceHierarchyEntry _spaceHierarchyEntry(Object? raw) {
+    if (raw is! Map<Object?, Object?>) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid Space hierarchy data',
+      );
+    }
+    final roomId = raw['roomId'];
+    final name = raw['name'];
+    final topic = raw['topic'];
+    final canonicalAlias = raw['canonicalAlias'];
+    final avatarUrl = raw['avatarUrl'];
+    final joinRule = raw['joinRule'];
+    final worldReadable = raw['worldReadable'];
+    final joinedMembers = raw['joinedMembers'];
+    final isSpace = raw['isSpace'];
+    final childRoomIds = raw['childRoomIds'];
+    if (roomId is! String ||
+        roomId.trim().isEmpty ||
+        (name != null && name is! String) ||
+        (topic != null && topic is! String) ||
+        (canonicalAlias != null && canonicalAlias is! String) ||
+        (avatarUrl != null && avatarUrl is! String) ||
+        joinRule is! String ||
+        joinRule.trim().isEmpty ||
+        worldReadable is! bool ||
+        joinedMembers is! int ||
+        joinedMembers < 0 ||
+        isSpace is! bool ||
+        childRoomIds is! List<Object?> ||
+        childRoomIds.any(
+          (childRoomId) => childRoomId is! String || childRoomId.trim().isEmpty,
+        )) {
+      throw const MatrixSdkContractException(
+        'Matrix Rust client returned invalid Space hierarchy data',
+      );
+    }
+    return MatrixSdkSpaceHierarchyEntry(
+      roomId: roomId,
+      name: name as String?,
+      topic: topic as String?,
+      canonicalAlias: canonicalAlias as String?,
+      avatarUrl: avatarUrl as String?,
+      joinRule: joinRule,
+      worldReadable: worldReadable,
+      joinedMembers: joinedMembers,
+      isSpace: isSpace,
+      childRoomIds: List<String>.unmodifiable(childRoomIds.cast<String>()),
+    );
+  }
+
   MatrixSdkUserSearchResult _userSearchResult(Object? raw) {
     if (raw is! Map<Object?, Object?>) {
       throw const MatrixSdkContractException(
@@ -4341,6 +4391,25 @@ final class MatrixRustSdkBoundary
         roomId: created.roomId,
         isDirect: created.isDirect,
       );
+    });
+  }
+
+  @override
+  @override
+  Future<List<MatrixSdkSpaceHierarchyEntry>> loadSpaceHierarchy(
+    String spaceId,
+  ) {
+    return _enqueue<List<MatrixSdkSpaceHierarchyEntry>>(() async {
+      final decoded = await _profile(action: 'space_hierarchy', value: spaceId);
+      final rawRooms = decoded['rooms'];
+      if (rawRooms is! List<Object?>) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned invalid Space hierarchy data',
+        );
+      }
+      return <MatrixSdkSpaceHierarchyEntry>[
+        for (final raw in rawRooms) _spaceHierarchyEntry(raw),
+      ];
     });
   }
 

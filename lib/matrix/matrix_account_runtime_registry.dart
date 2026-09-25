@@ -372,6 +372,17 @@ final class MatrixAccountRuntimeRegistry {
     return active.engine.createRoom(request);
   }
 
+  Future<List<MatrixSdkSpaceHierarchyEntry>> loadSpaceHierarchy({
+    required String accountId,
+    required String spaceId,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot browse a Matrix Space for an inactive account',
+    );
+    return active.engine.loadSpaceHierarchy(spaceId);
+  }
+
   Future<void> setSpaceChild({
     required String accountId,
     required String spaceId,

@@ -726,6 +726,10 @@ final class _AuthenticatedMatrixHomeState
           accountId: widget.session.userId,
           query: query,
         ),
+        spaceHierarchyLookup: (spaceId) => widget.runtime.loadSpaceHierarchy(
+          accountId: widget.session.userId,
+          spaceId: spaceId,
+        ),
         directoryJoin: (roomId) => widget.runtime.joinRoomFromDirectory(
           accountId: widget.session.userId,
           roomId: roomId,

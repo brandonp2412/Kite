@@ -4,6 +4,7 @@ enum RoomManagementInvocationType {
   capabilities,
   searchUsers,
   searchRoomDirectory,
+  loadSpaceHierarchy,
   joinRoomFromDirectory,
   requestRoomJoin,
   create,
@@ -56,7 +57,8 @@ final class DeterministicRoomManagementPort
         RoomManagementPort,
         RoomUserSearchPort,
         RoomDirectorySearchPort,
-        RoomDirectoryMembershipPort {
+        RoomDirectoryMembershipPort,
+        RoomSpaceHierarchyPort {
   DeterministicRoomManagementPort({
     this.seed = 0,
     KiteRoomCapabilities? roomCapabilities,
@@ -81,6 +83,8 @@ final class DeterministicRoomManagementPort
   KiteRoomCapabilities roomCapabilities;
   final List<KiteUserSearchResult> userSearchResults;
   final List<KiteRoomDirectoryResult> roomDirectoryResults;
+  final Map<String, List<KiteSpaceHierarchyEntry>> spaceHierarchyBySpaceId =
+      <String, List<KiteSpaceHierarchyEntry>>{};
   final List<RoomManagementInvocation> invocations =
       <RoomManagementInvocation>[];
   final Map<String, KiteRoomDetails> detailsByRoomId =
@@ -139,6 +143,22 @@ final class DeterministicRoomManagementPort
                 false))
           result,
     ];
+  }
+
+  @override
+  @override
+  Future<List<KiteSpaceHierarchyEntry>> loadSpaceHierarchy(
+    String spaceId,
+  ) async {
+    invocations.add(
+      RoomManagementInvocation(
+        type: RoomManagementInvocationType.loadSpaceHierarchy,
+        spaceId: spaceId,
+      ),
+    );
+    _throwIfRequested();
+    return spaceHierarchyBySpaceId[spaceId] ??
+        const <KiteSpaceHierarchyEntry>[];
   }
 
   @override

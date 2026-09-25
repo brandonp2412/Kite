@@ -175,6 +175,32 @@ final class MatrixSdkRoomDirectoryResult {
   final int joinedMembers;
 }
 
+final class MatrixSdkSpaceHierarchyEntry {
+  const MatrixSdkSpaceHierarchyEntry({
+    required this.roomId,
+    required this.name,
+    required this.topic,
+    required this.canonicalAlias,
+    required this.avatarUrl,
+    required this.joinRule,
+    required this.worldReadable,
+    required this.joinedMembers,
+    required this.isSpace,
+    required this.childRoomIds,
+  });
+
+  final String roomId;
+  final String? name;
+  final String? topic;
+  final String? canonicalAlias;
+  final String? avatarUrl;
+  final String joinRule;
+  final bool worldReadable;
+  final int joinedMembers;
+  final bool isSpace;
+  final List<String> childRoomIds;
+}
+
 final class MatrixSdkRoomDetails {
   MatrixSdkRoomDetails({
     required this.roomId,
@@ -265,6 +291,8 @@ abstract interface class MatrixSdkRoomCreator {
 }
 
 abstract interface class MatrixSdkSpaceManager {
+  Future<List<MatrixSdkSpaceHierarchyEntry>> loadSpaceHierarchy(String spaceId);
+
   Future<void> setSpaceChild({
     required String spaceId,
     required String roomId,
@@ -1163,6 +1191,22 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     }
     await _ensureOpen();
     return (creator as MatrixSdkRoomCreator).createRoom(request);
+  }
+
+  Future<List<MatrixSdkSpaceHierarchyEntry>> loadSpaceHierarchy(
+    String spaceId,
+  ) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkSpaceManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support Space hierarchy discovery',
+      );
+    }
+    final normalizedSpaceId = _validatedRoomId(spaceId);
+    await _ensureOpen();
+    return (manager as MatrixSdkSpaceManager).loadSpaceHierarchy(
+      normalizedSpaceId,
+    );
   }
 
   Future<void> setSpaceChild({

@@ -388,6 +388,196 @@ void main() {
     expect(find.text('Roadmap removed from Kite'), findsOneWidget);
   });
 
+  testWidgets(
+    'Spaces area discovers unjoined rooms and nested Spaces from hierarchy',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const space = SpaceSummary(
+        id: '!kite:example.org',
+        name: 'Kite',
+        description: 'Project Space',
+        memberCount: 4,
+        rooms: <SpaceRoomPreview>[],
+      );
+      final controller = SpacesController(spaces: const <SpaceSummary>[space]);
+      final rooms = DeterministicRoomManagementPort();
+      rooms.spaceHierarchyBySpaceId[space.id] = <KiteSpaceHierarchyEntry>[
+        KiteSpaceHierarchyEntry(
+          roomId: space.id,
+          name: space.name,
+          topic: space.description,
+          canonicalAlias: null,
+          avatarUrl: null,
+          joinRule: 'public',
+          worldReadable: false,
+          joinedMembers: 4,
+          isSpace: true,
+          childRoomIds: const <String>[
+            '!public:example.org',
+            '!knock:example.org',
+            '!mobile:example.org',
+          ],
+        ),
+        KiteSpaceHierarchyEntry(
+          roomId: '!public:example.org',
+          name: 'Public room',
+          topic: 'Open discussion',
+          canonicalAlias: '#public:example.org',
+          avatarUrl: null,
+          joinRule: 'public',
+          worldReadable: true,
+          joinedMembers: 18,
+          isSpace: false,
+          childRoomIds: const <String>[],
+        ),
+        KiteSpaceHierarchyEntry(
+          roomId: '!knock:example.org',
+          name: 'Request room',
+          topic: 'Ask to join',
+          canonicalAlias: null,
+          avatarUrl: null,
+          joinRule: 'knock',
+          worldReadable: false,
+          joinedMembers: 9,
+          isSpace: false,
+          childRoomIds: const <String>[],
+        ),
+        KiteSpaceHierarchyEntry(
+          roomId: '!mobile:example.org',
+          name: 'Mobile',
+          topic: 'Mobile clients',
+          canonicalAlias: null,
+          avatarUrl: null,
+          joinRule: 'public',
+          worldReadable: true,
+          joinedMembers: 7,
+          isSpace: true,
+          childRoomIds: const <String>['!android:example.org'],
+        ),
+      ];
+      final coordinator = RoomManagementCoordinator(
+        rooms: rooms,
+        directMetadata: DeterministicDirectRoomMetadataPort(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: SpacesScreen(controller: controller, roomCreation: coordinator),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        rooms.invocations
+            .where(
+              (call) =>
+                  call.type == RoomManagementInvocationType.loadSpaceHierarchy,
+            )
+            .single
+            .spaceId,
+        space.id,
+      );
+      expect(
+        find.byKey(const Key('space-room-join-!public:example.org')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('space-room-request-!knock:example.org')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('nested-space-row-!mobile:example.org')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('spaces-chip-!mobile:example.org')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('space-room-request-!knock:example.org')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        rooms.invocations.any(
+          (call) =>
+              call.type == RoomManagementInvocationType.requestRoomJoin &&
+              call.roomId == '!knock:example.org',
+        ),
+        isTrue,
+      );
+      expect(
+        find.byKey(const Key('space-room-requested-!knock:example.org')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('nested-space-open-!mobile:example.org')),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.selectedSpaceId.value, '!mobile:example.org');
+      expect(
+        find.byKey(const Key('space-parent-!kite:example.org')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('External Space'), findsOneWidget);
+    },
+  );
+
+  test('hierarchy overlays survive joined-Space cache reconciliation', () {
+    const root = SpaceSummary(
+      id: '!kite:example.org',
+      name: 'Kite',
+      description: 'Project Space',
+      memberCount: 4,
+      rooms: <SpaceRoomPreview>[],
+    );
+    final controller = SpacesController(spaces: const <SpaceSummary>[root]);
+    controller.reconcileHierarchy(
+      spaceId: root.id,
+      rooms: const <SpaceRoomPreview>[
+        SpaceRoomPreview(
+          id: '!public:example.org',
+          name: 'Public room',
+          topic: 'Open discussion',
+          memberCount: 18,
+          joinRule: 'public',
+        ),
+      ],
+      childSpaces: const <SpaceSummary>[
+        SpaceSummary(
+          id: '!mobile:example.org',
+          name: 'Mobile',
+          description: 'Mobile clients',
+          memberCount: 7,
+          rooms: <SpaceRoomPreview>[],
+          external: true,
+        ),
+      ],
+    );
+
+    controller.reconcileSpaces(const <SpaceSummary>[
+      SpaceSummary(
+        id: '!kite:example.org',
+        name: 'Kite renamed',
+        description: 'Updated project Space',
+        memberCount: 5,
+        rooms: <SpaceRoomPreview>[],
+      ),
+    ]);
+
+    expect(controller.spaces.single.name, 'Kite renamed');
+    expect(controller.spaces.single.rooms.single.id, '!public:example.org');
+    expect(controller.childSpacesFor(root.id).single.id, '!mobile:example.org');
+    controller.selectSpace('!mobile:example.org');
+    expect(controller.selectedSpace?.external, isTrue);
+  });
+
   test('controller rejects unknown Spaces and preserves joined room state', () {
     final controller = SpacesController();
     expect(() => controller.selectSpace('missing-space'), throwsArgumentError);

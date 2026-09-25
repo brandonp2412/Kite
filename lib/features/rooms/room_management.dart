@@ -94,6 +94,32 @@ final class KiteRoomDirectoryResult {
   final int joinedMembers;
 }
 
+final class KiteSpaceHierarchyEntry {
+  KiteSpaceHierarchyEntry({
+    required this.roomId,
+    required this.name,
+    required this.topic,
+    required this.canonicalAlias,
+    required this.avatarUrl,
+    required this.joinRule,
+    required this.worldReadable,
+    required this.joinedMembers,
+    required this.isSpace,
+    required Iterable<String> childRoomIds,
+  }) : childRoomIds = List<String>.unmodifiable(childRoomIds);
+
+  final String roomId;
+  final String? name;
+  final String? topic;
+  final String? canonicalAlias;
+  final Uri? avatarUrl;
+  final String joinRule;
+  final bool worldReadable;
+  final int joinedMembers;
+  final bool isSpace;
+  final List<String> childRoomIds;
+}
+
 final class KiteRoomDetails {
   KiteRoomDetails({
     required this.roomId,
@@ -133,6 +159,10 @@ abstract interface class RoomDirectorySearchPort {
 abstract interface class RoomDirectoryMembershipPort {
   Future<void> joinRoomFromDirectory(String roomId);
   Future<void> requestRoomJoin(String roomId);
+}
+
+abstract interface class RoomSpaceHierarchyPort {
+  Future<List<KiteSpaceHierarchyEntry>> loadSpaceHierarchy(String spaceId);
 }
 
 abstract interface class DirectMessageOpenPort {
@@ -243,6 +273,18 @@ final class RoomManagementCoordinator {
       return const <KiteUserSearchResult>[];
     }
     return (_rooms as RoomUserSearchPort).searchUsers(query);
+  }
+
+  Future<List<KiteSpaceHierarchyEntry>> loadSpaceHierarchy(
+    String spaceId,
+  ) async {
+    final rooms = _rooms;
+    if (rooms is! RoomSpaceHierarchyPort) {
+      return const <KiteSpaceHierarchyEntry>[];
+    }
+    return (rooms as RoomSpaceHierarchyPort).loadSpaceHierarchy(
+      _roomId(spaceId),
+    );
   }
 
   Future<List<KiteRoomDirectoryResult>> searchRoomDirectory(

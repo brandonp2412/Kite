@@ -3,14 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:signals/signals.dart';
 
-enum SpaceJoinOutcome { joined, failed }
+enum SpaceJoinOutcome { joined, requested, failed }
 
-enum SpaceRoomJoinState { idle, joining, joined, failed }
+enum SpaceRoomJoinState { idle, joining, joined, requested, failed }
 
 abstract interface class SpaceDirectoryPort {
   Future<SpaceJoinOutcome> joinRoom({
     required String spaceId,
     required String roomId,
+    required String joinRule,
   });
 }
 
@@ -25,6 +26,7 @@ final class DeterministicSpaceDirectoryPort implements SpaceDirectoryPort {
   Future<SpaceJoinOutcome> joinRoom({
     required String spaceId,
     required String roomId,
+    required String joinRule,
   }) async {
     await Future<void>.delayed(latency);
     return SpaceJoinOutcome.joined;
@@ -38,6 +40,7 @@ final class SpaceRoomPreview {
     required this.name,
     required this.topic,
     required this.memberCount,
+    this.joinRule = 'public',
     this.joined = false,
   });
 
@@ -45,6 +48,7 @@ final class SpaceRoomPreview {
   final String name;
   final String topic;
   final int memberCount;
+  final String joinRule;
   final bool joined;
 }
 
@@ -67,6 +71,16 @@ final class SpaceSummary {
   final List<SpaceRoomPreview> rooms;
   final List<String> childSpaceIds;
   final bool external;
+}
+
+final class _SpaceHierarchyOverlay {
+  const _SpaceHierarchyOverlay({
+    required this.rooms,
+    required this.childSpaces,
+  });
+
+  final List<SpaceRoomPreview> rooms;
+  final List<SpaceSummary> childSpaces;
 }
 
 const deterministicSpaces = <SpaceSummary>[
@@ -138,6 +152,11 @@ final class SpacesController {
        selectedSpaceId = signal(spaces.firstOrNull?.id);
 
   final Signal<List<SpaceSummary>> _spaces;
+  final Signal<Map<String, SpaceSummary>> _discoveredSpaces = signal(
+    const <String, SpaceSummary>{},
+  );
+  final Map<String, _SpaceHierarchyOverlay> _hierarchyOverlays =
+      <String, _SpaceHierarchyOverlay>{};
   SpaceDirectoryPort _port;
   final Signal<String?> selectedSpaceId;
   final Map<String, Signal<SpaceRoomJoinState>> _joinStates =
@@ -148,18 +167,21 @@ final class SpacesController {
   SpaceSummary? get selectedSpace {
     final id = selectedSpaceId.value;
     if (id == null) return null;
-    for (final space in spaces) {
-      if (space.id == id) return space;
-    }
-    return null;
+    return _spaceOrNull(id);
   }
 
+  SpaceSummary? spaceFor(String spaceId) => _spaceOrNull(spaceId);
+
   void selectSpace(String spaceId) {
-    if (!spaces.any((space) => space.id == spaceId)) {
+    if (_spaceOrNull(spaceId) == null) {
       throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.');
     }
     if (selectedSpaceId.value == spaceId) return;
     selectedSpaceId.value = spaceId;
+  }
+
+  void updateDirectoryPort(SpaceDirectoryPort port) {
+    _port = port;
   }
 
   List<SpaceSummary> childSpacesFor(String spaceId) {
@@ -175,9 +197,13 @@ final class SpacesController {
 
   List<SpaceSummary> parentSpacesFor(String spaceId) {
     _space(spaceId);
+    final seen = <String>{};
     return List<SpaceSummary>.unmodifiable(
-      spaces.where(
-        (space) => space.id != spaceId && space.childSpaceIds.contains(spaceId),
+      <SpaceSummary>[...spaces, ..._discoveredSpaces.value.values].where(
+        (space) =>
+            space.id != spaceId &&
+            seen.add(space.id) &&
+            space.childSpaceIds.contains(spaceId),
       ),
     );
   }
@@ -207,15 +233,54 @@ final class SpacesController {
     );
     final state = joinStateFor(room.id);
     if (state.value == SpaceRoomJoinState.joining ||
-        state.value == SpaceRoomJoinState.joined) {
+        state.value == SpaceRoomJoinState.joined ||
+        state.value == SpaceRoomJoinState.requested) {
       return;
     }
     state.value = SpaceRoomJoinState.joining;
-    final outcome = await _port.joinRoom(spaceId: spaceId, roomId: roomId);
+    final outcome = await _port.joinRoom(
+      spaceId: spaceId,
+      roomId: roomId,
+      joinRule: room.joinRule,
+    );
     state.value = switch (outcome) {
       SpaceJoinOutcome.joined => SpaceRoomJoinState.joined,
+      SpaceJoinOutcome.requested => SpaceRoomJoinState.requested,
       SpaceJoinOutcome.failed => SpaceRoomJoinState.failed,
     };
+  }
+
+  void reconcileHierarchy({
+    required String spaceId,
+    required List<SpaceRoomPreview> rooms,
+    required List<SpaceSummary> childSpaces,
+  }) {
+    final current = _space(spaceId);
+    _hierarchyOverlays[spaceId] = _SpaceHierarchyOverlay(
+      rooms: List<SpaceRoomPreview>.unmodifiable(rooms),
+      childSpaces: List<SpaceSummary>.unmodifiable(childSpaces),
+    );
+
+    final discovered = Map<String, SpaceSummary>.of(_discoveredSpaces.peek());
+    for (final child in childSpaces) {
+      if (spaces.any((space) => space.id == child.id)) {
+        discovered.remove(child.id);
+      } else {
+        discovered[child.id] = _applyHierarchyOverlay(child);
+      }
+    }
+
+    final joinedIndex = spaces.indexWhere((space) => space.id == spaceId);
+    if (joinedIndex >= 0) {
+      final next = spaces.toList(growable: true);
+      next[joinedIndex] = _applyHierarchyOverlay(current);
+      _spaces.value = List<SpaceSummary>.unmodifiable(next);
+    } else {
+      discovered[spaceId] = _applyHierarchyOverlay(current);
+    }
+    _discoveredSpaces.value = Map<String, SpaceSummary>.unmodifiable(
+      discovered,
+    );
   }
 
   void updateSpaceDetails({
@@ -258,21 +323,39 @@ final class SpacesController {
       rooms: List<SpaceRoomPreview>.unmodifiable(
         current.rooms.where((room) => room.id != roomId),
       ),
+      childSpaceIds: current.childSpaceIds,
       external: current.external,
     );
     _spaces.value = List<SpaceSummary>.unmodifiable(next);
+    if (_hierarchyOverlays[spaceId] case final overlay?) {
+      _hierarchyOverlays[spaceId] = _SpaceHierarchyOverlay(
+        rooms: List<SpaceRoomPreview>.unmodifiable(
+          overlay.rooms.where((room) => room.id != roomId),
+        ),
+        childSpaces: overlay.childSpaces,
+      );
+    }
     _joinStates.remove(roomId);
   }
 
   void reconcileSpaces(List<SpaceSummary> nextSpaces) {
-    final next = List<SpaceSummary>.unmodifiable(nextSpaces);
+    final joinedIds = nextSpaces.map((space) => space.id).toSet();
+    final discovered = Map<String, SpaceSummary>.of(_discoveredSpaces.peek())
+      ..removeWhere((spaceId, _) => joinedIds.contains(spaceId));
+    final next = List<SpaceSummary>.unmodifiable(
+      nextSpaces.map(_applyHierarchyOverlay),
+    );
     _spaces.value = next;
+    _discoveredSpaces.value = Map<String, SpaceSummary>.unmodifiable(
+      discovered,
+    );
+
     final selected = selectedSpaceId.peek();
-    if (selected == null || !next.any((space) => space.id == selected)) {
+    if (selected == null || _spaceOrNull(selected) == null) {
       selectedSpaceId.value = next.firstOrNull?.id;
     }
     final roomIds = <String>{
-      for (final space in next)
+      for (final space in <SpaceSummary>[...next, ...discovered.values])
         for (final room in space.rooms) room.id,
     };
     _joinStates.removeWhere((roomId, _) => !roomIds.contains(roomId));
@@ -284,26 +367,58 @@ final class SpacesController {
     _joinStates.clear();
   }
 
-  SpaceSummary _space(String spaceId) => spaces.firstWhere(
-    (space) => space.id == spaceId,
-    orElse: () =>
-        throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.'),
-  );
+  SpaceSummary _space(String spaceId) {
+    final space = _spaceOrNull(spaceId);
+    if (space != null) return space;
+    throw ArgumentError.value(spaceId, 'spaceId', 'Unknown Space.');
+  }
 
   SpaceSummary? _spaceOrNull(String spaceId) {
     for (final space in spaces) {
       if (space.id == spaceId) return space;
     }
-    return null;
+    return _discoveredSpaces.value[spaceId];
   }
 
   SpaceRoomPreview _room(String roomId) {
-    for (final space in spaces) {
+    for (final space in <SpaceSummary>[
+      ...spaces,
+      ..._discoveredSpaces.value.values,
+    ]) {
       for (final room in space.rooms) {
         if (room.id == roomId) return room;
       }
     }
     throw ArgumentError.value(roomId, 'roomId', 'Unknown Space room.');
+  }
+
+  SpaceSummary _applyHierarchyOverlay(SpaceSummary base) {
+    final overlay = _hierarchyOverlays[base.id];
+    if (overlay == null) return base;
+    final currentRooms = <String, SpaceRoomPreview>{
+      for (final room in base.rooms) room.id: room,
+    };
+    return SpaceSummary(
+      id: base.id,
+      name: base.name,
+      description: base.description,
+      memberCount: base.memberCount,
+      rooms: <SpaceRoomPreview>[
+        for (final room in overlay.rooms)
+          SpaceRoomPreview(
+            id: room.id,
+            name: room.name,
+            topic: room.topic,
+            memberCount: room.memberCount,
+            joinRule: room.joinRule,
+            joined: room.joined || currentRooms[room.id]?.joined == true,
+          ),
+      ],
+      childSpaceIds: <String>[
+        for (final child in overlay.childSpaces) child.id,
+      ],
+      external: base.external,
+    );
   }
 }
 

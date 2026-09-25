@@ -188,6 +188,58 @@ void main() {
     expect(result.joinedMembers, 1234);
   });
 
+  test('production Space hierarchy preserves Matrix metadata', () async {
+    final port = MatrixRoomCreationManagementPort(
+      (_) async => const MatrixSdkCreatedRoom(
+        roomId: '!unused:example.org',
+        isDirect: false,
+      ),
+      reportRoom: (_, _) async {},
+      reportUser: (_, _, _) async {},
+      leaveRoom: (_) async {},
+      forgetRoom: (_) async {},
+      roomDetails: _details,
+      setName: (_, _) async {},
+      setTopic: (_, _) async {},
+      setAvatar: (_, _) async {},
+      setCanonicalAlias: (_, _) async {},
+      setJoinRule: (_, _) async {},
+      enableEncryption: (_) async {},
+      setHistoryVisibility: (_, _) async {},
+      setNotificationMode: (_, _) async {},
+      spaceHierarchyLookup: (spaceId) async {
+        expect(spaceId, '!kite:example.org');
+        return const <MatrixSdkSpaceHierarchyEntry>[
+          MatrixSdkSpaceHierarchyEntry(
+            roomId: '!room:example.org',
+            name: 'Room',
+            topic: 'Space child',
+            canonicalAlias: '#room:example.org',
+            avatarUrl: 'mxc://example.org/room',
+            joinRule: 'knock',
+            worldReadable: false,
+            joinedMembers: 17,
+            isSpace: false,
+            childRoomIds: <String>['!nested:example.org'],
+          ),
+        ];
+      },
+    );
+
+    final result = (await port.loadSpaceHierarchy('!kite:example.org')).single;
+
+    expect(result.roomId, '!room:example.org');
+    expect(result.name, 'Room');
+    expect(result.topic, 'Space child');
+    expect(result.canonicalAlias, '#room:example.org');
+    expect(result.avatarUrl, Uri.parse('mxc://example.org/room'));
+    expect(result.joinRule, 'knock');
+    expect(result.worldReadable, isFalse);
+    expect(result.joinedMembers, 17);
+    expect(result.isSpace, isFalse);
+    expect(result.childRoomIds, <String>['!nested:example.org']);
+  });
+
   test(
     'production room directory membership routes Matrix mutations',
     () async {

@@ -214,6 +214,9 @@ void main() {
       final bobProfile = await boundary.loadProfile('@bob:kite.test');
       final userSearch = await boundary.searchUsers('bo');
       final roomDirectory = await boundary.searchRoomDirectory('kite');
+      final spaceHierarchy = await boundary.loadSpaceHierarchy(
+        '!space:kite.test',
+      );
       await boundary.joinRoomFromDirectory('!public:kite.test');
       await boundary.requestRoomJoin('!knock:kite.test');
       final ignoredUserIds = await boundary.loadIgnoredUserIds();
@@ -344,6 +347,11 @@ void main() {
       expect(roomDirectory.single.joinRule, 'public');
       expect(roomDirectory.single.worldReadable, isTrue);
       expect(roomDirectory.single.joinedMembers, 42);
+      expect(spaceHierarchy.single.roomId, '!nested:kite.test');
+      expect(spaceHierarchy.single.name, 'Nested Space');
+      expect(spaceHierarchy.single.isSpace, isTrue);
+      expect(spaceHierarchy.single.joinRule, 'restricted');
+      expect(spaceHierarchy.single.childRoomIds, <String>['!child:kite.test']);
       expect(ignoredUserIds, <String>{'@spam:kite.test'});
       expect(devices, hasLength(2));
       expect(devices.first.deviceId, 'KITEDEVICE');
@@ -363,6 +371,7 @@ void main() {
         ('@bob:kite.test', 'get', null),
         (null, 'search', 'bo'),
         (null, 'search_rooms', 'kite'),
+        (null, 'space_hierarchy', '!space:kite.test'),
         (null, 'join_room', '!public:kite.test'),
         (null, 'knock_room', '!knock:kite.test'),
         (null, 'ignored_users', null),
@@ -1754,6 +1763,24 @@ final class _FakeRustClient
             'userId': '@bob:kite.test',
             'displayName': 'Bob',
             'avatarUrl': 'mxc://kite.test/bob',
+          },
+        ],
+      };
+    }
+    if (action == 'space_hierarchy') {
+      return <String, Object?>{
+        'rooms': <Object?>[
+          <String, Object?>{
+            'roomId': '!nested:kite.test',
+            'name': 'Nested Space',
+            'topic': 'Nested hierarchy',
+            'canonicalAlias': '#nested:kite.test',
+            'avatarUrl': 'mxc://kite.test/nested',
+            'joinRule': 'restricted',
+            'worldReadable': false,
+            'joinedMembers': 12,
+            'isSpace': true,
+            'childRoomIds': <Object?>['!child:kite.test'],
           },
         ],
       };

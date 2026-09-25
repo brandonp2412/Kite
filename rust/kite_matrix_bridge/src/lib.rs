@@ -28,6 +28,7 @@ use matrix_sdk::{
                 reporting::report_user,
                 room::{Visibility, create_room},
                 session::{get_login_types::v3::LoginType, login},
+                space::get_hierarchy,
                 uiaa,
             },
             error::ErrorKind,
@@ -65,7 +66,7 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 30;
+const KITE_MATRIX_ABI_VERSION: u32 = 31;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
@@ -2953,6 +2954,74 @@ pub unsafe extern "C" fn kite_matrix_client_profile(
                 .collect::<Vec<_>>();
             json!({"results": results, "limited": search.limited})
         }
+        "space_hierarchy" => {
+            let Some(space_id) = value.filter(|value| !value.is_empty()) else {
+                return error_json("invalid_room", "The Matrix Space is invalid.");
+            };
+            let Ok(space_id) = RoomId::parse(space_id) else {
+                return error_json("invalid_room", "The Matrix Space is invalid.");
+            };
+            let mut next_batch = None;
+            let mut seen_batches = HashSet::new();
+            let mut rooms = Vec::new();
+            loop {
+                let mut request = get_hierarchy::v1::Request::new(space_id.to_owned());
+                request.from = next_batch.take();
+                request.limit = UInt::new(100);
+                request.max_depth = UInt::new(1);
+                let response = match client
+                    .runtime
+                    .block_on(async { matrix_client.send(request).await })
+                {
+                    Ok(response) => response,
+                    Err(_) => {
+                        return error_json(
+                            "space_hierarchy_failed",
+                            "The Matrix Space could not be browsed.",
+                        );
+                    }
+                };
+                rooms.extend(response.rooms.into_iter().map(|room| {
+                    let summary = room.summary;
+                    let is_space = matches!(summary.room_type.as_ref(), Some(RoomType::Space));
+                    let mut seen_children = HashSet::new();
+                    let child_room_ids = room
+                        .children_state
+                        .into_iter()
+                        .filter_map(|event| event.deserialize().ok())
+                        .map(|event| event.state_key.to_string())
+                        .filter(|room_id| seen_children.insert(room_id.clone()))
+                        .collect::<Vec<_>>();
+                    json!({
+                        "roomId": summary.room_id.as_str(),
+                        "name": summary.name.as_deref().filter(|name| !name.trim().is_empty()),
+                        "topic": summary.topic.as_deref().filter(|topic| !topic.trim().is_empty()),
+                        "canonicalAlias": summary.canonical_alias.as_ref().map(ToString::to_string),
+                        "avatarUrl": summary
+                            .avatar_url
+                            .as_ref()
+                            .filter(|url| url.is_valid())
+                            .map(ToString::to_string),
+                        "joinRule": summary.join_rule.as_str(),
+                        "worldReadable": summary.world_readable,
+                        "joinedMembers": summary.num_joined_members,
+                        "isSpace": is_space,
+                        "childRoomIds": child_room_ids,
+                    })
+                }));
+                let Some(batch) = response.next_batch else {
+                    break;
+                };
+                if !seen_batches.insert(batch.clone()) {
+                    return error_json(
+                        "space_hierarchy_failed",
+                        "The Matrix Space hierarchy pagination repeated.",
+                    );
+                }
+                next_batch = Some(batch);
+            }
+            json!({"rooms": rooms})
+        }
         "search_rooms" => {
             let filter = value
                 .map(str::trim)
@@ -4073,7 +4142,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 30);
+        assert_eq!(kite_matrix_abi_version(), 31);
     }
 
     #[test]
