@@ -88,6 +88,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
             'inviterDisplayName': invite.inviterDisplayName,
             'memberCount': invite.memberCount,
             if (invite.description != null) 'description': invite.description,
+            if (invite.isSpace) 'isSpace': true,
+            if (invite.joinRule != null) 'joinRule': invite.joinRule,
           },
       ],
       'rooms': <Object?>[
@@ -207,6 +209,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
     final inviterDisplayName = value['inviterDisplayName'];
     final memberCount = value['memberCount'];
     final description = value['description'];
+    final isSpace = value['isSpace'] ?? false;
+    final joinRule = value['joinRule'];
     if (roomId is! String ||
         !_isSafeIdentifier(roomId) ||
         roomName is! String ||
@@ -219,10 +223,15 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
         inviterDisplayName.contains('\u0000') ||
         memberCount is! int ||
         memberCount < 0 ||
+        isSpace is! bool ||
         (description != null &&
             (description is! String ||
                 description.trim().isEmpty ||
-                description.contains('\u0000')))) {
+                description.contains('\u0000'))) ||
+        (joinRule != null &&
+            (joinRule is! String ||
+                joinRule.trim().isEmpty ||
+                joinRule.contains('\u0000')))) {
       return null;
     }
     return MatrixRoomInvite(
@@ -232,6 +241,8 @@ final class FileMatrixPresentationStore implements MatrixPresentationStore {
       inviterDisplayName: inviterDisplayName,
       memberCount: memberCount,
       description: description as String?,
+      isSpace: isSpace,
+      joinRule: joinRule as String?,
     );
   }
 

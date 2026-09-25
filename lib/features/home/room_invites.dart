@@ -3,6 +3,16 @@ import 'package:signals/signals.dart';
 
 enum RoomInviteActionState { idle, accepting, declining, failed }
 
+enum RoomInviteVisibility { private, public, spaceMembers }
+
+extension RoomInviteVisibilityPresentation on RoomInviteVisibility {
+  String get label => switch (this) {
+    RoomInviteVisibility.private => 'Private',
+    RoomInviteVisibility.public => 'Public',
+    RoomInviteVisibility.spaceMembers => 'Space members',
+  };
+}
+
 @immutable
 final class RoomInvite {
   const RoomInvite({
@@ -11,7 +21,9 @@ final class RoomInvite {
     required this.inviterName,
     required this.memberCount,
     this.description,
+    this.isSpace = false,
     this.isExternal = false,
+    this.visibility,
   });
 
   final String id;
@@ -19,7 +31,9 @@ final class RoomInvite {
   final String inviterName;
   final int memberCount;
   final String? description;
+  final bool isSpace;
   final bool isExternal;
+  final RoomInviteVisibility? visibility;
 }
 
 abstract interface class RoomInvitePort {

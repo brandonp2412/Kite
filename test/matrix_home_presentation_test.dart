@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/features/home/matrix_home_presentation.dart';
+import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
@@ -461,6 +462,63 @@ void main() {
     expect(message.body, 'After edit');
     expect(message.edited, isTrue);
     expect(message.editHistoryState.value, <String>['Before edit']);
+  });
+
+  test('Space invites preserve visibility and hierarchy context', () {
+    final cache = MatrixPresentationCache(
+      initialSnapshot: MatrixPresentationSnapshot(
+        rooms: <MatrixRoomSummary>[
+          MatrixRoomSummary(
+            roomId: '!parent:example.org',
+            displayName: 'Parent Space',
+            lastActivity: DateTime.utc(2026, 9, 25),
+            streamPosition: 1,
+            isSpace: true,
+            childRoomIds: const <String>['!nested-invite:example.org'],
+          ),
+        ],
+        invites: const <MatrixRoomInvite>[
+          MatrixRoomInvite(
+            roomId: '!nested-invite:example.org',
+            roomName: 'Nested Space',
+            inviterId: '@alice:example.org',
+            inviterDisplayName: 'Alice',
+            memberCount: 8,
+            description: 'Inside the parent Space',
+            isSpace: true,
+            joinRule: 'restricted',
+          ),
+          MatrixRoomInvite(
+            roomId: '!external-invite:example.org',
+            roomName: 'External Space',
+            inviterId: '@bob:example.org',
+            inviterDisplayName: 'Bob',
+            memberCount: 12,
+            description: 'Outside the joined hierarchy',
+            isSpace: true,
+            joinRule: 'public',
+          ),
+        ],
+      ),
+    );
+    final binding = MatrixHomePresentationBinding(
+      cache: cache,
+      currentUserId: '@me:example.org',
+      sendPort: MatrixTimelineSendPort(
+        ({required roomId, required transactionId, required body}) async {},
+      ),
+    );
+    addTearDown(binding.dispose);
+
+    final nested = binding.inviteStore.invite('!nested-invite:example.org');
+    expect(nested.isSpace, isTrue);
+    expect(nested.isExternal, isFalse);
+    expect(nested.visibility, RoomInviteVisibility.spaceMembers);
+
+    final external = binding.inviteStore.invite('!external-invite:example.org');
+    expect(external.isSpace, isTrue);
+    expect(external.isExternal, isTrue);
+    expect(external.visibility, RoomInviteVisibility.public);
   });
 
   test('cached invites project through the production invite port', () async {

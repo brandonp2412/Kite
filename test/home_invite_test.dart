@@ -116,6 +116,64 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Space invite preview shows Space identity visibility and context',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final inviteStore = RoomInviteStore(const <RoomInvite>[
+        RoomInvite(
+          id: 'community-space',
+          roomName: 'Community',
+          inviterName: 'Alice',
+          memberCount: 42,
+          description: 'Community projects and planning',
+          isSpace: true,
+          isExternal: true,
+          visibility: RoomInviteVisibility.public,
+        ),
+      ]);
+      final session = AuthenticatedSession(
+        userId: '@me:example.org',
+        deviceId: 'KITE',
+        homeserver: HomeserverAddress.parse('https://matrix.example.org'),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: AuthenticatedAccountScope(
+            session: session,
+            signOut: () async {},
+            child: HomeScreen(inviteStore: inviteStore),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('home-account-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('home-account-invites')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Community'), findsOneWidget);
+      expect(
+        find.byKey(const Key('invite-space-kind-community-space')),
+        findsOneWidget,
+      );
+      expect(find.text('External Space'), findsOneWidget);
+      expect(find.textContaining('Invited by Alice'), findsOneWidget);
+      expect(find.textContaining('42 members'), findsOneWidget);
+      expect(find.textContaining('Public access'), findsOneWidget);
+      expect(
+        find.textContaining('Community projects and planning'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('homepage keeps invite cards out of the chat list', (
     tester,
   ) async {

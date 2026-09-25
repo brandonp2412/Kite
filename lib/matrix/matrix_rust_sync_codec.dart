@@ -98,6 +98,8 @@ final class MatrixRustSyncCodec {
           inviterDisplayName: inviterDisplayName,
           memberCount: _optionalNonNegativeInt(invite['memberCount']) ?? 0,
           description: description,
+          isSpace: _optionalBool(invite['isSpace']) ?? false,
+          joinRule: _optionalDisplayName(invite['joinRule']),
         ),
       );
     }

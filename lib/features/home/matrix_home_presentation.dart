@@ -533,6 +533,11 @@ final class MatrixHomePresentationBinding {
   }
 
   static List<RoomInvite> _matrixRoomInvites(MatrixPresentationCache cache) {
+    final joinedSpaceChildren = <String>{
+      for (final roomId in cache.roomOrder.value)
+        if (cache.roomSummarySignal(roomId).value case final summary?)
+          if (summary.isSpace) ...summary.childRoomIds,
+    };
     return List<RoomInvite>.unmodifiable(
       cache.invites.value.map(
         (invite) => RoomInvite(
@@ -541,9 +546,23 @@ final class MatrixHomePresentationBinding {
           inviterName: invite.inviterDisplayName,
           memberCount: invite.memberCount,
           description: invite.description,
+          isSpace: invite.isSpace,
+          isExternal:
+              invite.isSpace && !joinedSpaceChildren.contains(invite.roomId),
+          visibility: invite.isSpace
+              ? _roomInviteVisibility(invite.joinRule)
+              : null,
         ),
       ),
     );
+  }
+
+  static RoomInviteVisibility _roomInviteVisibility(String? joinRule) {
+    return switch (joinRule) {
+      'public' => RoomInviteVisibility.public,
+      'restricted' || 'knock_restricted' => RoomInviteVisibility.spaceMembers,
+      _ => RoomInviteVisibility.private,
+    };
   }
 
   static String _normalizeUserId(String userId) {

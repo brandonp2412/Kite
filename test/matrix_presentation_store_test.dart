@@ -27,6 +27,8 @@ void main() {
       expect(restored.invites.single.roomName, 'Persisted invite');
       expect(restored.invites.single.inviterDisplayName, 'Bob');
       expect(restored.invites.single.memberCount, 7);
+      expect(restored.invites.single.isSpace, isTrue);
+      expect(restored.invites.single.joinRule, 'public');
       expect(restored.rooms, hasLength(1));
       expect(restored.rooms.single.roomId, '!room:example.org');
       expect(restored.rooms.single.displayName, 'Persisted room');
@@ -346,6 +348,8 @@ MatrixPresentationSnapshot _snapshot({String cursor = 'sync-42'}) {
         inviterDisplayName: 'Bob',
         memberCount: 7,
         description: 'Cached before reconnect',
+        isSpace: true,
+        joinRule: 'public',
       ),
     ],
     rooms: <MatrixRoomSummary>[

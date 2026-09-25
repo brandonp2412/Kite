@@ -166,7 +166,9 @@ void main() {
           "inviterId": "@alice:kite.test",
           "inviterDisplayName": "Alice",
           "memberCount": 4,
-          "description": "SDK invite"
+          "description": "SDK invite",
+          "isSpace": true,
+          "joinRule": "restricted"
         }],
         "removedInviteRoomIds": [],
         "replaceInvites": true
@@ -178,6 +180,8 @@ void main() {
     expect(initial.batch.invites.single.roomName, 'Kite Lab');
     expect(initial.batch.invites.single.inviterDisplayName, 'Alice');
     expect(initial.batch.invites.single.memberCount, 4);
+    expect(initial.batch.invites.single.isSpace, isTrue);
+    expect(initial.batch.invites.single.joinRule, 'restricted');
 
     final cache = MatrixPresentationCache();
     cache.applySync(initial.batch);

@@ -136,6 +136,8 @@ final class MatrixRoomInvite {
     required this.inviterDisplayName,
     required this.memberCount,
     this.description,
+    this.isSpace = false,
+    this.joinRule,
   });
 
   final String roomId;
@@ -144,6 +146,8 @@ final class MatrixRoomInvite {
   final String inviterDisplayName;
   final int memberCount;
   final String? description;
+  final bool isSpace;
+  final String? joinRule;
 }
 
 final class MatrixReadReceipt {

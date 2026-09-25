@@ -1339,6 +1339,8 @@ pub unsafe extern "C" fn kite_matrix_client_sync_once(
                 "inviterDisplayName": inviter_display_name,
                 "memberCount": room.active_members_count(),
                 "description": room.topic().filter(|topic| !topic.trim().is_empty()),
+                "isSpace": room.is_space(),
+                "joinRule": room.join_rule().map(|rule| rule.as_str().to_owned()),
             }))
         })
         .collect::<Vec<_>>();

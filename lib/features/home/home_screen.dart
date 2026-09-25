@@ -1063,6 +1063,8 @@ class _RoomInvitesSheet extends StatelessWidget {
                         final details = <String>[
                           'Invited by ${invite.inviterName}',
                           memberLabel,
+                          if (invite.isSpace && invite.visibility != null)
+                            '${invite.visibility!.label} access',
                           if (invite.description != null) invite.description!,
                         ];
                         return Card(
@@ -1073,11 +1075,48 @@ class _RoomInvitesSheet extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: <Widget>[
-                                Text(
-                                  invite.roomName,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        invite.roomName,
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                    if (invite.isSpace) ...<Widget>[
+                                      const SizedBox(width: KiteSpacing.sm),
+                                      Container(
+                                        key: Key('invite-space-kind-$inviteId'),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: KiteSpacing.sm,
+                                          vertical: KiteSpacing.xs,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: theme
+                                              .colorScheme
+                                              .surfaceContainerHighest,
+                                          borderRadius: BorderRadius.circular(
+                                            KiteSpacing.md,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          invite.isExternal
+                                              ? 'External Space'
+                                              : 'Space',
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: KiteSpacing.xs),
                                 Text(
