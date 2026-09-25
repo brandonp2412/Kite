@@ -115,6 +115,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home-search')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('filter-chats-search-result')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('room-filter-option-invites')));
+    await tester.pumpAndSettle();
 
     final result = await measureFrames(
       binding: binding,
@@ -152,17 +158,22 @@ void main() {
         theme: KiteTheme.light,
         home: MediaQuery(
           data: const MediaQueryData(size: Size(390, 844)),
-          child: HomeScreen(roomListStore: store),
+          child: HomeScreen(
+            roomListStore: store,
+            onMarkAllRoomsRead: () async {},
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(store.roomSignal('bob').value.unreadThreadCount, 2);
+    await tester.longPress(find.byKey(const Key('room-bob')));
+    await tester.pumpAndSettle();
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('home-read-all')));
+        await tester.tap(find.byKey(const Key('room-mark-all-read-bob')));
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,

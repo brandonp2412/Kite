@@ -14,6 +14,7 @@ import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
 import 'package:kite/features/rooms/room_management.dart';
+import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/testing/deterministic_adapters.dart';
 import 'package:kite/testing/deterministic_room_management_adapter.dart';
@@ -1163,6 +1164,12 @@ void main() {
         hasMention: true,
       ),
     ]);
+    threadController.reset();
+    addTearDown(threadController.reset);
+    threadController.updateRoomUnreadThreadCount(
+      roomId: roomId,
+      unreadThreadCount: 2,
+    );
     var persistCalls = 0;
     await tester.pumpWidget(
       MaterialApp(
@@ -1196,7 +1203,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(persistCalls, 1);
+    expect(threadController.unreadThreadCountForRoom(roomId).value, 0);
     expect(store.roomSignal(roomId).value.unreadCount, 0);
+    expect(store.roomSignal(roomId).value.unreadThreadCount, 0);
     expect(store.roomSignal(roomId).value.hasMention, isFalse);
   });
 

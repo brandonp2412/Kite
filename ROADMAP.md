@@ -152,7 +152,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [x] Current Element X Sections organisation behaviour where enabled upstream.
   - Re-audited 2026-09-25: current Element X develop has no Sections model, presenter state, or home/room-list UI, so Sections behaviour is not currently in parity scope. Kite's historical unused section partition/collapse/move state and the obsolete profile benchmark targeting controls removed on 2026-09-19 were removed. Re-audit if upstream reintroduces Sections.
 - [ ] Read-all action.
-  - Progress 2026-09-24: the production Matrix mark-all-read mutation is exposed contextually from room long-press and desktop right-click options instead of adding permanent home/profile chrome. Local unread/mention state clears only after persistence succeeds; failure preserves local state and surfaces a fixed error. Mobile success/failure and desktop context-menu regressions pass. Keep unchecked until the required runtime quality gate is green.
+  - Progress 2026-09-25: the production Matrix mark-all-read mutation remains contextual from room long-press and desktop right-click options instead of adding permanent home/profile chrome. Successful read-all now also clears per-room thread unread state, while failure preserves local unread/mention/thread state. The profile benchmark targets the current contextual control and the focused state/motion regressions pass. Keep unchecked until the required runtime quality gate is green.
 - [ ] Invite cards and accept/decline flows.
 - [ ] Create DM from people search.
 - [ ] Create a room while inviting someone when no suitable DM exists.
