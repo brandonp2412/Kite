@@ -515,8 +515,10 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   RoomListStateStore? _ownedStore;
   RoomInviteStore? _ownedInviteStore;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'Home search');
   final List<void Function()> _disposeThreadUnreadEffects = <void Function()>[];
   String _searchQuery = '';
+  bool _searchFocused = false;
   UserProfileController? _loadedProfileController;
 
   RoomListStateStore get store => widget.store ?? _ownedStore!;
@@ -531,7 +533,13 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     if (widget.inviteStore == null) {
       _ownedInviteStore = RoomInviteStore(deterministicRoomInvites);
     }
+    _searchFocusNode.addListener(_handleSearchFocusChange);
     _bindThreadUnreadState();
+  }
+
+  void _handleSearchFocusChange() {
+    if (_searchFocused == _searchFocusNode.hasFocus) return;
+    setState(() => _searchFocused = _searchFocusNode.hasFocus);
   }
 
   @override
@@ -595,6 +603,9 @@ class _HomeSidebarState extends State<_HomeSidebar> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode
+      ..removeListener(_handleSearchFocusChange)
+      ..dispose();
     _clearThreadUnreadEffects();
     super.dispose();
   }
@@ -767,18 +778,37 @@ class _HomeSidebarState extends State<_HomeSidebar> {
     );
   }
 
+  Future<void> _openRoomFilterSheet() async {
+    final action = await _adaptiveSurface<_RoomFilterSheetAction>(
+      context,
+      (_) => _RoomFilterSheet(
+        store: store,
+        inviteCount: inviteStore.visibleInviteIds.value.length,
+      ),
+      scroll: true,
+    );
+    if (!mounted) return;
+    setState(() {});
+    if (action == _RoomFilterSheetAction.invites) {
+      await _openInvitesSheet();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final account = AuthenticatedAccountScope.maybeOf(context);
     final canCreateRoom = widget.roomCreation != null;
+    final activeFilterCount = store.selectedFilters.value.length;
     final searchField = TextField(
       key: const Key('home-search'),
       controller: _searchController,
+      focusNode: _searchFocusNode,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: 'Search chats',
         prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: account == null && _searchQuery.isEmpty
+        suffixIcon:
+            account == null && _searchQuery.isEmpty && activeFilterCount == 0
             ? null
             : Row(
                 mainAxisSize: MainAxisSize.min,
@@ -792,6 +822,16 @@ class _HomeSidebarState extends State<_HomeSidebar> {
                         setState(() => _searchQuery = '');
                       },
                       icon: const Icon(Icons.close_rounded),
+                    ),
+                  if (activeFilterCount > 0)
+                    IconButton(
+                      key: const Key('home-active-filters'),
+                      tooltip: '$activeFilterCount active chat filters',
+                      onPressed: _openRoomFilterSheet,
+                      icon: Badge.count(
+                        count: activeFilterCount,
+                        child: const Icon(Icons.tune_rounded),
+                      ),
                     ),
                   if (account != null)
                     IconButton(
@@ -863,6 +903,9 @@ class _HomeSidebarState extends State<_HomeSidebar> {
                   )
                 : null,
             onSearchRoomDirectory: canCreateRoom ? _openRoomDirectory : null,
+            searchFocused: _searchFocused,
+            activeFilterCount: activeFilterCount,
+            onFilterChats: _openRoomFilterSheet,
           ),
         ),
         SafeArea(
@@ -997,6 +1040,95 @@ class _HomeAccountSheet extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _RoomFilterSheetAction { invites }
+
+class _RoomFilterSheet extends StatelessWidget {
+  const _RoomFilterSheet({required this.store, required this.inviteCount});
+
+  final RoomListStateStore store;
+  final int inviteCount;
+
+  @override
+  Widget build(BuildContext context) {
+    const filters = <RoomListFilter>[
+      RoomListFilter.unreads,
+      RoomListFilter.people,
+      RoomListFilter.rooms,
+      RoomListFilter.favourites,
+    ];
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          KiteSpacing.lg,
+          0,
+          KiteSpacing.lg,
+          KiteSpacing.lg,
+        ),
+        child: SignalBuilder(
+          builder: (context) {
+            final selected = store.selectedFilters.value;
+            final visibleFilters = filters
+                .where((filter) {
+                  return selected.contains(filter) ||
+                      !selected.any(filter.incompatibleFilters.contains);
+                })
+                .toList(growable: false);
+            return Column(
+              key: const Key('room-filter-sheet'),
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        'Filter chats',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    if (selected.isNotEmpty)
+                      TextButton(
+                        key: const Key('room-filter-clear'),
+                        onPressed: store.clearFilters,
+                        child: const Text('Clear'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: KiteSpacing.sm),
+                Wrap(
+                  spacing: KiteSpacing.sm,
+                  runSpacing: KiteSpacing.sm,
+                  children: <Widget>[
+                    for (final filter in visibleFilters)
+                      FilterChip(
+                        key: Key('room-filter-option-${filter.name}'),
+                        label: Text(filter.label),
+                        selected: selected.contains(filter),
+                        onSelected: (_) => store.toggleFilter(filter),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: KiteSpacing.md),
+                const Divider(height: 1),
+                ListTile(
+                  key: const Key('room-filter-option-invites'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.mail_outline_rounded),
+                  title: const Text('Invites'),
+                  trailing: inviteCount == 0 ? null : Text('$inviteCount'),
+                  onTap: () =>
+                      Navigator.of(context).pop(_RoomFilterSheetAction.invites),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1442,6 +1574,9 @@ class _RoomList extends StatelessWidget {
     this.onCreateRoom,
     this.onStartDirectMessage,
     this.onSearchRoomDirectory,
+    this.searchFocused = false,
+    this.activeFilterCount = 0,
+    this.onFilterChats,
     super.key,
   });
 
@@ -1455,6 +1590,9 @@ class _RoomList extends StatelessWidget {
   final VoidCallback? onCreateRoom;
   final ValueChanged<String>? onStartDirectMessage;
   final ValueChanged<String>? onSearchRoomDirectory;
+  final bool searchFocused;
+  final int activeFilterCount;
+  final VoidCallback? onFilterChats;
 
   Future<bool> _markAllRoomsRead(BuildContext context) async {
     final persist = onMarkAllRoomsRead;
@@ -1847,6 +1985,8 @@ class _RoomList extends StatelessWidget {
                         false);
               })
               .toList(growable: false);
+          final showFilterChats =
+              searchFocused && normalizedQuery.isEmpty && onFilterChats != null;
           final showCreateRoom =
               normalizedQuery.isNotEmpty && onCreateRoom != null;
           final showStartDirectMessage =
@@ -1854,6 +1994,7 @@ class _RoomList extends StatelessWidget {
           final showSearchRoomDirectory =
               normalizedQuery.isNotEmpty && onSearchRoomDirectory != null;
           final actionCount =
+              (showFilterChats ? 1 : 0) +
               (showCreateRoom ? 1 : 0) +
               (showStartDirectMessage ? 1 : 0) +
               (showSearchRoomDirectory ? 1 : 0);
@@ -1878,6 +2019,25 @@ class _RoomList extends StatelessWidget {
             itemExtent: rowExtent,
             itemBuilder: (context, index) {
               var actionIndex = 0;
+              if (showFilterChats) {
+                if (index == actionIndex) {
+                  return SizedBox(
+                    height: rowExtent,
+                    child: ListTile(
+                      key: const Key('filter-chats-search-result'),
+                      leading: const Icon(Icons.tune_rounded),
+                      title: const Text('Filter chats'),
+                      subtitle: Text(
+                        activeFilterCount == 0
+                            ? 'Unreads, People, Rooms, Favourites and Invites'
+                            : '$activeFilterCount active',
+                      ),
+                      onTap: onFilterChats,
+                    ),
+                  );
+                }
+                actionIndex += 1;
+              }
               if (showCreateRoom) {
                 if (index == actionIndex) {
                   return SizedBox(

@@ -9,6 +9,7 @@ import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
 import 'package:kite/features/auth/encryption_recovery_controller.dart';
 import 'package:kite/features/home/home_screen.dart';
+import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
 import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/profile/user_profile_controller.dart';
@@ -217,6 +218,74 @@ void main() {
     expect(store.visibleRoomIds.value, isNot(contains('alice')));
     expect(store.visibleRoomIds.value, isNot(contains('bob')));
   });
+
+  test(
+    'compatible room-list filters compose and incompatible filters hide',
+    () {
+      final store = RoomListStateStore(const <RoomListEntry>[
+        RoomListEntry(
+          id: 'alice',
+          name: 'Alice',
+          latestEventBody: 'A',
+          unreadCount: 1,
+          isFavourite: true,
+          isDirect: true,
+        ),
+        RoomListEntry(
+          id: 'bob',
+          name: 'Bob',
+          latestEventBody: 'B',
+          isDirect: true,
+        ),
+        RoomListEntry(
+          id: 'team',
+          name: 'Team',
+          latestEventBody: 'C',
+          unreadCount: 1,
+          isFavourite: true,
+        ),
+        RoomListEntry(
+          id: 'general',
+          name: 'General',
+          latestEventBody: 'D',
+          unreadCount: 1,
+        ),
+      ]);
+
+      store.toggleFilter(RoomListFilter.unreads);
+      expect(store.visibleRoomIds.value, <String>['alice', 'team', 'general']);
+
+      store.toggleFilter(RoomListFilter.people);
+      expect(store.selectedFilters.value, <RoomListFilter>{
+        RoomListFilter.unreads,
+        RoomListFilter.people,
+      });
+      expect(store.visibleRoomIds.value, <String>['alice']);
+
+      store.toggleFilter(RoomListFilter.rooms);
+      expect(
+        store.selectedFilters.value,
+        isNot(contains(RoomListFilter.rooms)),
+      );
+      expect(store.visibleRoomIds.value, <String>['alice']);
+
+      store.toggleFilter(RoomListFilter.favourites);
+      expect(store.visibleRoomIds.value, <String>['alice']);
+
+      store.toggleFilter(RoomListFilter.people);
+      expect(store.visibleRoomIds.value, <String>['alice', 'team']);
+
+      store.clearFilters();
+      expect(store.selectedFilters.value, isEmpty);
+      expect(store.selectedFilter.value, RoomListFilter.all);
+      expect(store.visibleRoomIds.value, <String>[
+        'alice',
+        'bob',
+        'team',
+        'general',
+      ]);
+    },
+  );
 
   test('space selection composes with room filters without reordering', () {
     final store = RoomListStateStore(
@@ -852,6 +921,68 @@ void main() {
     expect(find.byKey(const Key('room-filter-sheet')), findsNothing);
     expect(store.selectedFilter.value, RoomListFilter.all);
   });
+
+  testWidgets(
+    'bottom search exposes transient compatible filters and existing invites',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final store = RoomListStateStore(
+        deterministicRoomListEntries(BenchmarkFixture.rooms),
+      );
+      final invites = RoomInviteStore(const <RoomInvite>[
+        RoomInvite(
+          id: 'invite-room',
+          roomName: 'Invited room',
+          inviterName: 'Alice',
+          memberCount: 3,
+        ),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: KiteTheme.light,
+          home: HomeScreen(roomListStore: store, inviteStore: invites),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('room-filter-row')), findsNothing);
+      expect(find.byKey(const Key('filter-chats-search-result')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('home-search')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('filter-chats-search-result')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('filter-chats-search-result')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('room-filter-sheet')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('room-filter-option-unreads')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('room-filter-option-people')));
+      await tester.pump();
+
+      expect(store.selectedFilters.value, <RoomListFilter>{
+        RoomListFilter.unreads,
+        RoomListFilter.people,
+      });
+      expect(find.byKey(const Key('room-filter-option-rooms')), findsNothing);
+      expect(
+        find.byKey(const Key('room-filter-option-favourites')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('room-filter-option-invites')));
+      await tester.pumpAndSettle();
+      expect(find.text('Invited room'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'existing direct conversation focuses without replacing the synced room',

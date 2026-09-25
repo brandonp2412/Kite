@@ -47,6 +47,12 @@ extension RoomListFilterPresentation on RoomListFilter {
     RoomListFilter.rooms => 'Rooms',
     RoomListFilter.favourites => 'Favourites',
   };
+
+  Set<RoomListFilter> get incompatibleFilters => switch (this) {
+    RoomListFilter.people => const <RoomListFilter>{RoomListFilter.rooms},
+    RoomListFilter.rooms => const <RoomListFilter>{RoomListFilter.people},
+    _ => const <RoomListFilter>{},
+  };
 }
 
 @immutable
@@ -176,6 +182,7 @@ final class RoomListStateStore {
          for (final room in rooms) room.id: _defaultSectionId(room),
        },
        selectedFilter = signal(RoomListFilter.all),
+       selectedFilters = signal<Set<RoomListFilter>>(const <RoomListFilter>{}),
        selectedSpaceId = signal<String?>(null),
        collapsedSectionIds = signal<Set<String>>(const <String>{}),
        hiddenRoomIds = signal<Set<String>>(const <String>{}),
@@ -223,6 +230,7 @@ final class RoomListStateStore {
   late final Map<String, Signal<int>> _sectionUnreadCounts;
   final List<RoomListSection> sections;
   final Signal<RoomListFilter> selectedFilter;
+  final Signal<Set<RoomListFilter>> selectedFilters;
   final Signal<String?> selectedSpaceId;
   final Signal<Set<String>> collapsedSectionIds;
   final Signal<Set<String>> hiddenRoomIds;
@@ -243,10 +251,11 @@ final class RoomListStateStore {
       throw ArgumentError.value(room.id, 'room.id', 'Unknown room.');
     }
     final previous = target.value;
-    final filter = selectedFilter.value;
+    final filters = selectedFilters.value;
     final spaceId = selectedSpaceId.value;
     final membershipChanged =
-        _matches(previous, filter, spaceId) != _matches(room, filter, spaceId);
+        _matches(previous, filters, spaceId) !=
+        _matches(room, filters, spaceId);
     final previousUnread = _hasUnreadState(previous);
     final nextUnread = _hasUnreadState(room);
     if (!_sameRoom(previous, room)) {
@@ -344,10 +353,40 @@ final class RoomListStateStore {
   }
 
   void selectFilter(RoomListFilter filter) {
-    if (selectedFilter.value == filter) {
+    final next = filter == RoomListFilter.all
+        ? const <RoomListFilter>{}
+        : <RoomListFilter>{filter};
+    if (setEquals(selectedFilters.value, next)) {
       return;
     }
+    selectedFilters.value = Set<RoomListFilter>.unmodifiable(next);
     selectedFilter.value = filter;
+    _refreshVisibleRoomIds();
+  }
+
+  void toggleFilter(RoomListFilter filter) {
+    if (filter == RoomListFilter.all) {
+      clearFilters();
+      return;
+    }
+    final next = Set<RoomListFilter>.of(selectedFilters.value);
+    if (!next.remove(filter)) {
+      if (next.any(filter.incompatibleFilters.contains)) {
+        return;
+      }
+      next.add(filter);
+    }
+    selectedFilters.value = Set<RoomListFilter>.unmodifiable(next);
+    selectedFilter.value = next.isEmpty ? RoomListFilter.all : next.last;
+    _refreshVisibleRoomIds();
+  }
+
+  void clearFilters() {
+    if (selectedFilters.value.isEmpty) {
+      return;
+    }
+    selectedFilters.value = const <RoomListFilter>{};
+    selectedFilter.value = RoomListFilter.all;
     _refreshVisibleRoomIds();
   }
 
@@ -381,7 +420,7 @@ final class RoomListStateStore {
         count.value = 0;
       }
     }
-    if (selectedFilter.value == RoomListFilter.unreads) {
+    if (selectedFilters.value.contains(RoomListFilter.unreads)) {
       _refreshVisibleRoomIds();
     }
   }
@@ -482,18 +521,22 @@ final class RoomListStateStore {
     return room.unreadCount > 0 || room.hasMention || room.hasMutedActivity;
   }
 
-  bool _matches(RoomListEntry room, RoomListFilter filter, String? spaceId) {
+  bool _matches(
+    RoomListEntry room,
+    Set<RoomListFilter> filters,
+    String? spaceId,
+  ) {
     return !hiddenRoomIds.value.contains(room.id) &&
-        room.matches(filter) &&
+        filters.every(room.matches) &&
         (spaceId == null || room.spaceIds.contains(spaceId));
   }
 
   void _refreshVisibleRoomIds() {
-    final filter = selectedFilter.value;
+    final filters = selectedFilters.value;
     final spaceId = selectedSpaceId.value;
     final next = List<String>.unmodifiable(
       roomIds.where(
-        (roomId) => _matches(_rooms[roomId]!.value, filter, spaceId),
+        (roomId) => _matches(_rooms[roomId]!.value, filters, spaceId),
       ),
     );
     if (!listEquals(visibleRoomIds.peek(), next)) {

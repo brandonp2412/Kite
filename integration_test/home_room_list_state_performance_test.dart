@@ -37,16 +37,23 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home-search')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('filter-chats-search-result')));
+    await tester.pumpAndSettle();
 
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('room-filter-people')));
+        await tester.tap(find.byKey(const Key('room-filter-option-people')));
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,
     );
 
+    expect(store.selectedFilters.value, <RoomListFilter>{
+      RoomListFilter.people,
+    });
     binding.reportData ??= <String, dynamic>{};
     binding.reportData!['room_list_filter_change'] = <String, dynamic>{
       'journey': 'room_list_filter_change',
