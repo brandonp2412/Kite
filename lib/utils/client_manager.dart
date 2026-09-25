@@ -14,6 +14,7 @@ import 'package:kite/utils/custom_http_client.dart';
 import 'package:kite/utils/custom_image_resizer.dart';
 import 'package:kite/utils/init_with_restore.dart';
 import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
+import 'package:kite/utils/notification_background_handler.dart';
 import 'package:kite/utils/platform_infos.dart';
 import 'package:matrix/encryption/utils/key_verification.dart';
 import 'package:matrix/matrix.dart';
@@ -164,9 +165,12 @@ abstract class ClientManager {
     final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
     await flutterLocalNotificationsPlugin.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('ic_notification'),
-        iOS: DarwinInitializationSettings(),
+      settings: InitializationSettings(
+        android: const AndroidInitializationSettings('ic_notification'),
+        iOS: const DarwinInitializationSettings(),
+        linux: LinuxInitializationSettings(
+          defaultActionName: KiteNotificationActions.open.name,
+        ),
       ),
     );
 
