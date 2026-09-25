@@ -111,6 +111,7 @@ class HomeScreen extends StatelessWidget {
     this.spacesController,
     this.roomCreation,
     this.roomManagement,
+    this.roomAvatarMedia,
     this.memberManagement,
     this.calls,
     this.timeline,
@@ -138,6 +139,7 @@ class HomeScreen extends StatelessWidget {
   final SpacesController? spacesController;
   final RoomManagementCoordinator? roomCreation;
   final RoomManagementCoordinator? roomManagement;
+  final RoomAvatarMediaPort? roomAvatarMedia;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineController? timeline;
@@ -216,6 +218,7 @@ class HomeScreen extends StatelessWidget {
                 spacesController: spacesController,
                 roomCreation: roomCreation,
                 roomManagement: roomManagement,
+                roomAvatarMedia: roomAvatarMedia,
                 onRoomFavouriteChanged: onRoomFavouriteChanged,
                 onMarkAllRoomsRead: onMarkAllRoomsRead,
                 profileAvatarPicker: profileAvatarPicker,
@@ -234,6 +237,7 @@ class HomeScreen extends StatelessWidget {
                         timelineMediaImageProvider: timelineMediaImageProvider,
                         timelineMediaActionPort: timelineMediaActionPort,
                         roomManagement: roomManagement,
+                        roomAvatarMedia: roomAvatarMedia,
                         memberManagement: memberManagement,
                         calls: calls,
                         onTimelineHistoryRequested: onTimelineHistoryRequested,
@@ -284,6 +288,7 @@ class HomeScreen extends StatelessWidget {
                     inviteStore: inviteStore,
                     roomCreation: roomCreation,
                     roomManagement: roomManagement,
+                    roomAvatarMedia: roomAvatarMedia,
                     onRoomFavouriteChanged: onRoomFavouriteChanged,
                     onMarkAllRoomsRead: onMarkAllRoomsRead,
                     profileAvatarPicker: profileAvatarPicker,
@@ -300,6 +305,7 @@ class HomeScreen extends StatelessWidget {
                     child: _ChatPanel(
                       roomListStore: roomListStore,
                       roomManagement: roomManagement,
+                      roomAvatarMedia: roomAvatarMedia,
                       memberManagement: memberManagement,
                       calls: calls,
                       onTimelineHistoryRequested: onTimelineHistoryRequested,
@@ -513,6 +519,7 @@ class _HomeSidebar extends StatefulWidget {
     this.spacesController,
     this.roomCreation,
     this.roomManagement,
+    this.roomAvatarMedia,
     this.onRoomFavouriteChanged,
     this.onMarkAllRoomsRead,
     this.profileAvatarPicker,
@@ -529,6 +536,7 @@ class _HomeSidebar extends StatefulWidget {
   final SpacesController? spacesController;
   final RoomManagementCoordinator? roomCreation;
   final RoomManagementCoordinator? roomManagement;
+  final RoomAvatarMediaPort? roomAvatarMedia;
   final RoomFavouriteChange? onRoomFavouriteChanged;
   final MarkAllRoomsRead? onMarkAllRoomsRead;
   final AvatarPicker? profileAvatarPicker;
@@ -702,6 +710,7 @@ class _HomeSidebarState extends State<_HomeSidebar> {
           reduceMotion: MediaQuery.of(context).disableAnimations,
           controller: controller,
           roomCreation: widget.roomCreation,
+          avatarMedia: widget.roomAvatarMedia,
         ),
       );
       return;
@@ -1421,6 +1430,7 @@ class _CompactChatScreen extends StatelessWidget {
     this.timelineMediaImageProvider,
     this.timelineMediaActionPort,
     this.roomManagement,
+    this.roomAvatarMedia,
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
@@ -1437,6 +1447,7 @@ class _CompactChatScreen extends StatelessWidget {
   final TimelineMediaImageProvider? timelineMediaImageProvider;
   final TimelineMediaActionPort? timelineMediaActionPort;
   final RoomManagementCoordinator? roomManagement;
+  final RoomAvatarMediaPort? roomAvatarMedia;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
@@ -1479,6 +1490,7 @@ class _CompactChatScreen extends StatelessWidget {
                 showHeader: false,
                 roomListStore: roomListStore,
                 roomManagement: roomManagement,
+                roomAvatarMedia: roomAvatarMedia,
                 memberManagement: memberManagement,
                 calls: calls,
                 onTimelineHistoryRequested: onTimelineHistoryRequested,
@@ -2500,6 +2512,7 @@ class _ChatPanel extends StatefulWidget {
     this.showHeader = true,
     this.roomListStore,
     this.roomManagement,
+    this.roomAvatarMedia,
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
@@ -2513,6 +2526,7 @@ class _ChatPanel extends StatefulWidget {
   final bool showHeader;
   final RoomListStateStore? roomListStore;
   final RoomManagementCoordinator? roomManagement;
+  final RoomAvatarMediaPort? roomAvatarMedia;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
@@ -2546,6 +2560,7 @@ class _ChatPanelState extends State<_ChatPanel> {
           _ChatHeader(
             roomListStore: widget.roomListStore,
             roomManagement: widget.roomManagement,
+            roomAvatarMedia: widget.roomAvatarMedia,
             memberManagement: widget.memberManagement,
             calls: widget.calls,
             roomMembersLoader: widget.roomMembersLoader,
@@ -2627,6 +2642,7 @@ class _ChatHeader extends StatelessWidget {
   const _ChatHeader({
     this.roomListStore,
     this.roomManagement,
+    this.roomAvatarMedia,
     this.memberManagement,
     this.calls,
     this.roomMembersLoader,
@@ -2635,6 +2651,7 @@ class _ChatHeader extends StatelessWidget {
 
   final RoomListStateStore? roomListStore;
   final RoomManagementCoordinator? roomManagement;
+  final RoomAvatarMediaPort? roomAvatarMedia;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final RoomMembersLoader? roomMembersLoader;
@@ -2750,6 +2767,7 @@ class _ChatHeader extends StatelessWidget {
                           roomId: room.id,
                           roomName: room.name,
                           management: roomManagement,
+                          avatarMedia: roomAvatarMedia,
                           memberManagement: memberManagement,
                           calls: calls,
                           isDirect: room.isDirect,

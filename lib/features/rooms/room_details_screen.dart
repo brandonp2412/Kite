@@ -21,6 +21,7 @@ class RoomDetailsScreen extends StatefulWidget {
     this.membersLoader,
     this.memberModerationEnabled = true,
     this.management,
+    this.avatarMedia,
     this.memberManagement,
     this.calls,
     this.isDirect = false,
@@ -35,6 +36,7 @@ class RoomDetailsScreen extends StatefulWidget {
   final RoomMembersStoreLoader? membersLoader;
   final bool memberModerationEnabled;
   final RoomManagementCoordinator? management;
+  final RoomAvatarMediaPort? avatarMedia;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final bool isDirect;
@@ -218,8 +220,11 @@ class _RoomDetailsScreenState extends State<RoomDetailsScreen> {
     if (management == null) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            RoomSettingsScreen(roomId: widget.roomId, coordinator: management),
+        builder: (_) => RoomSettingsScreen(
+          roomId: widget.roomId,
+          coordinator: management,
+          avatarMedia: widget.avatarMedia,
+        ),
       ),
     );
   }

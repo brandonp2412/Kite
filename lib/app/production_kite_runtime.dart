@@ -969,6 +969,7 @@ final class _AuthenticatedMatrixHomeState
             timelineMediaImageProvider: _timelineMediaImageProvider,
             timelineMediaActionPort: _timelineMediaActionPort(),
             roomCreation: _roomCreationCoordinator(),
+            roomAvatarMedia: CallbackRoomAvatarMediaPort(_pickProfileAvatar),
             memberManagement: _roomMemberManagementCoordinator(),
             onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {
               final paginationState = widget.runtime.paginationState(

@@ -14,13 +14,17 @@ class SpacesRoute extends PageRouteBuilder<void> {
     required bool reduceMotion,
     SpacesController? controller,
     RoomManagementCoordinator? roomCreation,
+    RoomAvatarMediaPort? avatarMedia,
   }) : super(
          transitionDuration: reduceMotion ? Duration.zero : KiteMotion.standard,
          reverseTransitionDuration: reduceMotion
              ? Duration.zero
              : KiteMotion.standard,
-         pageBuilder: (context, animation, secondaryAnimation) =>
-             SpacesScreen(controller: controller, roomCreation: roomCreation),
+         pageBuilder: (context, animation, secondaryAnimation) => SpacesScreen(
+           controller: controller,
+           roomCreation: roomCreation,
+           avatarMedia: avatarMedia,
+         ),
          transitionsBuilder: (context, animation, secondaryAnimation, child) {
            if (reduceMotion) return child;
            final curved = CurvedAnimation(
@@ -40,10 +44,16 @@ class SpacesRoute extends PageRouteBuilder<void> {
 }
 
 class SpacesScreen extends StatelessWidget {
-  const SpacesScreen({super.key, this.controller, this.roomCreation});
+  const SpacesScreen({
+    super.key,
+    this.controller,
+    this.roomCreation,
+    this.avatarMedia,
+  });
 
   final SpacesController? controller;
   final RoomManagementCoordinator? roomCreation;
+  final RoomAvatarMediaPort? avatarMedia;
 
   SpacesController get _controller => controller ?? spacesController;
 
@@ -71,6 +81,7 @@ class SpacesScreen extends StatelessWidget {
         builder: (_) => RoomSettingsScreen(
           roomId: space.id,
           coordinator: coordinator,
+          avatarMedia: avatarMedia,
           title: 'Space settings',
           onSaved: (details) {
             final savedName = details.name?.trim();

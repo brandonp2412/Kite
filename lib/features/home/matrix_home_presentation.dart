@@ -222,6 +222,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     this.timelineMediaImageProvider,
     this.timelineMediaActionPort,
     this.roomCreation,
+    this.roomAvatarMedia,
     this.memberManagement,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -248,6 +249,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final TimelineMediaImageProvider? timelineMediaImageProvider;
   final TimelineMediaActionPort? timelineMediaActionPort;
   final RoomManagementCoordinator? roomCreation;
+  final RoomAvatarMediaPort? roomAvatarMedia;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -327,6 +329,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         spacesController: _binding.spacesController,
         timeline: _binding.controller,
         roomCreation: widget.roomCreation,
+        roomAvatarMedia: widget.roomAvatarMedia,
         memberManagement: widget.memberManagement,
         onTimelineHistoryRequested: widget.onTimelineHistoryRequested,
         onRoomFavouriteChanged: widget.onRoomFavouriteChanged,

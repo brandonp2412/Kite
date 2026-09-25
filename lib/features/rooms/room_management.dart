@@ -238,6 +238,23 @@ abstract interface class RoomAvatarMediaPort {
   });
 }
 
+typedef RoomAvatarPicker = Future<Uri?> Function();
+
+final class CallbackRoomAvatarMediaPort implements RoomAvatarMediaPort {
+  const CallbackRoomAvatarMediaPort(this.pickAvatar);
+
+  final RoomAvatarPicker pickAvatar;
+
+  @override
+  Future<KiteRoomAvatarSelection?> chooseAndUploadAvatar({
+    required String roomId,
+    required Uri? currentAvatarUrl,
+  }) async {
+    final avatarUrl = await pickAvatar();
+    return avatarUrl == null ? null : KiteRoomAvatarSelection(avatarUrl);
+  }
+}
+
 abstract interface class DirectRoomMetadataPort {
   Future<void> replaceDirectRoomMapping({
     required String roomId,
