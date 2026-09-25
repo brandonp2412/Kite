@@ -11,7 +11,7 @@ fail() {
 
 main_manifest="android/app/src/main/AndroidManifest.xml"
 lockfile="pubspec.lock"
-reviewed_lock_sha="86f166157ba024e35ed9903d2a4198a700dcac0e5721b2a0fdd14b087819667f"
+reviewed_lock_sha="c7d9f3345fbc75f85b5460bda6f292870d7eee4323beffb159e1339599891589"
 
 printf '%s\n' 'Kite release audit: Android security surface'
 rg -q 'android:allowBackup="false"' "$main_manifest" || fail 'Android backups must be explicitly disabled for account/session data.'
