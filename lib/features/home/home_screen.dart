@@ -1600,6 +1600,9 @@ class _RoomList extends StatelessWidget {
     try {
       await persist();
       if (!context.mounted) return false;
+      for (final roomId in store.roomIds) {
+        threadController.markRoomThreadsRead(roomId);
+      }
       store.markAllRead();
       return true;
     } catch (_) {
