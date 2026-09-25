@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/testing/deterministic_adapters.dart';
@@ -146,6 +147,56 @@ void main() {
       timelineController.messagesFor('alice').value,
       hasLength(initialCount),
     );
+  });
+
+  testWidgets('timeline media viewer renders sanitized formatted captions', (
+    tester,
+  ) async {
+    final message = TimelineMessage(
+      id: 'formatted-media',
+      sender: 'Alice',
+      body: 'Harbour at dusk',
+      formattedBody: '<p>Harbour at <strong>dusk</strong></p>',
+      mine: false,
+      timeLabel: '10:00',
+      attachment: const TimelineAttachment(
+        id: 'formatted-media-image',
+        kind: TimelineAttachmentKind.image,
+        name: 'harbour.jpg',
+        sizeLabel: '2.2 MB · Photo',
+      ),
+    );
+    final model = TimelineMediaViewerModel.fromMessages(
+      roomId: 'alice',
+      messages: <TimelineMessage>[message],
+      initialMessageId: message.id,
+    );
+
+    expect(model.items.single.caption, isNull);
+    expect(model.items.single.captionBuilder, isNotNull);
+
+    await tester.pumpWidget(
+      KiteApp(
+        home: MediaViewer(
+          items: model.items,
+          initialIndex: model.initialIndex,
+          onSave: model.onSave,
+          onShare: model.onShare,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final caption = tester.widget<Text>(
+      find.byKey(const Key('media-caption-rich-text')),
+    );
+    expect(caption.textSpan!.toPlainText(), 'Harbour at dusk');
+    final root = caption.textSpan! as TextSpan;
+    final boldSpan = root.children!.whereType<TextSpan>().firstWhere(
+      (span) => span.text == 'dusk',
+    );
+    expect(boldSpan.style?.fontWeight, FontWeight.w700);
+    expect(boldSpan.style?.color, Colors.white);
   });
 
   testWidgets('timeline media opens viewer and browses adjacent media only', (

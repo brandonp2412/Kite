@@ -27,6 +27,7 @@ class MediaViewerItem {
     required this.thumbnailBuilder,
     required this.loadFullResolution,
     this.caption,
+    this.captionBuilder,
   });
 
   final String id;
@@ -35,6 +36,7 @@ class MediaViewerItem {
   final MediaVisualBuilder thumbnailBuilder;
   final MediaFullResolutionLoader loadFullResolution;
   final InlineSpan? caption;
+  final WidgetBuilder? captionBuilder;
 }
 
 class MediaViewerRoute extends PageRouteBuilder<void> {
@@ -359,7 +361,8 @@ class _MediaPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: '${item.semanticLabel}, ${KiteLocalFormats.decimal(context, index + 1)} of ${KiteLocalFormats.decimal(context, itemCount)}',
+      label:
+          '${item.semanticLabel}, ${KiteLocalFormats.decimal(context, index + 1)} of ${KiteLocalFormats.decimal(context, itemCount)}',
       image: true,
       child: Stack(
         key: Key('media-page-${item.id}'),
@@ -619,7 +622,10 @@ class _MediaCaptionOverlay extends StatelessWidget {
         final isDragging = dragging.value;
         final item = items[currentIndex.value];
         final caption = item.caption;
-        if (caption == null) return const SizedBox.shrink();
+        final captionBuilder = item.captionBuilder;
+        if (caption == null && captionBuilder == null) {
+          return const SizedBox.shrink();
+        }
 
         return IgnorePointer(
           child: AnimatedOpacity(
@@ -653,15 +659,20 @@ class _MediaCaptionOverlay extends StatelessWidget {
                     ),
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: RichText(
-                        key: const Key('media-caption'),
-                        text: TextSpan(
-                          style: KiteTypography.body.copyWith(
-                            color: Colors.white,
-                          ),
-                          children: <InlineSpan>[caption],
-                        ),
-                      ),
+                      child: captionBuilder != null
+                          ? KeyedSubtree(
+                              key: const Key('media-caption'),
+                              child: captionBuilder(context),
+                            )
+                          : RichText(
+                              key: const Key('media-caption'),
+                              text: TextSpan(
+                                style: KiteTypography.body.copyWith(
+                                  color: Colors.white,
+                                ),
+                                children: <InlineSpan>[caption!],
+                              ),
+                            ),
                     ),
                   ),
                 ),

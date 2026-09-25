@@ -306,6 +306,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Swipe/browse adjacent timeline media where upstream supports it.
 - [ ] Load full-resolution media only for the visible item.
 - [ ] Formatted media captions.
+  - Progress 2026-09-25: Matrix v1.10 media captions now follow the standard `body` + `filename` semantics while preserving the older MSC1767 caption fallback. When a media caption carries `org.matrix.custom.html`, Kite retains `formatted_body` through timeline projection and renders the sanitized rich caption in the shared full-screen media viewer using the existing timeline formatter; plain captions retain the lightweight `TextSpan` path. Focused Matrix projection and media-viewer tests pass. Keep unchecked until the required runtime performance gate is green.
 - [ ] Download/save media.
 - [ ] Share media internally and through the OS.
 - [ ] Avatar full-screen preview.

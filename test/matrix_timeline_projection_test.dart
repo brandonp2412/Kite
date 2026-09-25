@@ -267,6 +267,30 @@ void main() {
     expect(message.sentAt, DateTime.utc(2026, 9, 16, 10, 1).toLocal());
   });
 
+  test('Matrix timeline projection preserves formatted media captions', () {
+    final message = TimelineMessage.fromMatrixEvent(
+      _event(
+        eventId: r'$formatted-media',
+        streamPosition: 2,
+        senderId: '@alice:example.org',
+        msgtype: 'm.image',
+        body: 'Harbour at dusk',
+        extra: const <String, Object?>{
+          'filename': 'harbour.jpg',
+          'url': 'mxc://example.org/harbour',
+          'format': 'org.matrix.custom.html',
+          'formatted_body': '<p>Harbour at <strong>dusk</strong></p>',
+        },
+      ),
+      currentUserId: '@me:example.org',
+    );
+
+    expect(message, isNotNull);
+    expect(message!.body, 'Harbour at dusk');
+    expect(message.attachment!.name, 'harbour.jpg');
+    expect(message.formattedBody, '<p>Harbour at <strong>dusk</strong></p>');
+  });
+
   test('Matrix room projection uses replacement content for edit previews', () {
     final cache = MatrixPresentationCache();
     cache.applySync(

@@ -3,6 +3,7 @@ import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/timeline/timeline_attachment_formatting.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_message_body.dart';
 
 abstract interface class TimelineMediaActionPort {
   Future<void> save({required String roomId, required TimelineMessage message});
@@ -137,7 +138,33 @@ final class TimelineMediaViewerModel {
             thumbnailBuilder: resolvedResolver.thumbnailFor(message),
             loadFullResolution: () =>
                 resolvedResolver.loadFullResolution(message),
-            caption: message.body.isEmpty ? null : TextSpan(text: message.body),
+            caption: message.body.isEmpty || message.formattedBody != null
+                ? null
+                : TextSpan(text: message.body),
+            captionBuilder:
+                message.body.isEmpty || message.formattedBody == null
+                ? null
+                : (context) {
+                    final theme = Theme.of(context);
+                    final colors = theme.colorScheme;
+                    return Theme(
+                      data: theme.copyWith(
+                        colorScheme: colors.copyWith(
+                          onSurface: Colors.white,
+                          onSurfaceVariant: Colors.white70,
+                          primary: Colors.white,
+                          primaryContainer: Colors.white24,
+                          surfaceContainerLow: Colors.black54,
+                          outlineVariant: Colors.white24,
+                        ),
+                      ),
+                      child: TimelineMessageBody(
+                        body: message.body,
+                        formattedBody: message.formattedBody,
+                        textKey: const Key('media-caption-rich-text'),
+                      ),
+                    );
+                  },
           ),
       ]),
       onSave: (item) =>

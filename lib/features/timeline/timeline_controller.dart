@@ -628,7 +628,9 @@ class TimelineMessage {
       id: event.eventId,
       sender: event.senderDisplayName ?? event.senderId,
       body: mediaBody,
-      formattedBody: attachment == null ? formattedBody : null,
+      formattedBody: attachment == null || mediaBody.isNotEmpty
+          ? formattedBody
+          : null,
       mine: event.senderId == currentUserId,
       senderId: event.senderId,
       senderAvatarUrl: event.senderAvatarUrl,
@@ -1730,8 +1732,18 @@ bool _isMatrixVoiceMessage(Map<String, Object?> content) {
 }
 
 String _matrixMediaCaption(Map<String, Object?> content) {
-  final caption = content['org.matrix.msc1767.caption'];
-  return caption is String ? caption.trim() : '';
+  final legacyCaption = content['org.matrix.msc1767.caption'];
+  if (legacyCaption is String && legacyCaption.trim().isNotEmpty) {
+    return legacyCaption.trim();
+  }
+
+  final body = content['body'];
+  final filename = content['filename'];
+  if (body is! String || filename is! String) return '';
+  final normalizedBody = body.trim();
+  final normalizedFilename = filename.trim();
+  if (normalizedBody.isEmpty || normalizedBody == normalizedFilename) return '';
+  return normalizedBody;
 }
 
 String _defaultAttachmentName(TimelineAttachmentKind kind) => switch (kind) {
