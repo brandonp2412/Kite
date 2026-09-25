@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
@@ -24,6 +26,24 @@ class _RecordingTimelineMediaActionPort implements TimelineMediaActionPort {
     required TimelineMessage message,
   }) async {
     calls.add((action: 'share', roomId: roomId, eventId: message.id));
+  }
+}
+
+class _RetryingAttachmentSendPort implements TimelineAttachmentSendPort {
+  int calls = 0;
+  final List<TimelineAttachment> attachments = <TimelineAttachment>[];
+
+  @override
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+    String? replyToEventId,
+  }) async {
+    calls++;
+    attachments.add(attachment);
+    return calls == 1 ? TimelineSendOutcome.failed : TimelineSendOutcome.sent;
   }
 }
 
@@ -361,4 +381,37 @@ void main() {
       (action: 'share', roomId: 'alice', eventId: 'video-event'),
     ]);
   });
+  test(
+    'local attachment payload survives retry without staying in timeline',
+    () async {
+      final port = _RetryingAttachmentSendPort();
+      timelineController.reset(
+        sendPort: DeterministicTimelineSendPort(),
+        attachmentSendPort: port,
+      );
+      final attachment = TimelineAttachment(
+        id: 'local-image',
+        kind: TimelineAttachmentKind.image,
+        name: 'photo.png',
+        sizeLabel: 'Image',
+        sizeBytes: 3,
+        mimeType: 'image/png',
+        localBytes: Uint8List.fromList(<int>[1, 2, 3]),
+      );
+
+      final message = timelineController.sendAttachment('alice', attachment);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(message.attachment?.localBytes, isNull);
+      expect(port.attachments.single.localBytes, orderedEquals(<int>[1, 2, 3]));
+      expect(message.sendState.value, TimelineSendState.failed);
+
+      timelineController.retry('alice', message);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(port.calls, 2);
+      expect(port.attachments.last.localBytes, orderedEquals(<int>[1, 2, 3]));
+      expect(message.sendState.value, TimelineSendState.sent);
+    },
+  );
 }

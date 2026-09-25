@@ -139,6 +139,52 @@ void main() {
   );
 
   test(
+    'active account routes attachment sends through its SDK boundary',
+    () async {
+      final boundaries = <String, _FakeAccountBoundary>{};
+      final registry = _registry(boundaries);
+      addTearDown(registry.dispose);
+
+      await registry.activate('@alice:example.org');
+      final eventId = await registry.sendMediaMessage(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        transactionId: 'kite-media-1',
+        filename: 'photo.png',
+        mimeType: 'image/png',
+        bytes: Uint8List.fromList(<int>[1, 2, 3]),
+        caption: 'Harbour',
+        replyToEventId: r'$original',
+      );
+
+      expect(eventId, r'$media-1');
+      expect(boundaries['@alice:example.org']!.sentMediaMessages, hasLength(1));
+      final sent = boundaries['@alice:example.org']!.sentMediaMessages.single;
+      expect(sent.roomId, '!alice:example.org');
+      expect(sent.transactionId, 'kite-media-1');
+      expect(sent.filename, 'photo.png');
+      expect(sent.mimeType, 'image/png');
+      expect(sent.bytes, <int>[1, 2, 3]);
+      expect(sent.caption, 'Harbour');
+      expect(sent.replyToEventId, r'$original');
+
+      await registry.deactivate();
+      await expectLater(
+        registry.sendMediaMessage(
+          accountId: '@alice:example.org',
+          roomId: '!alice:example.org',
+          transactionId: 'kite-media-2',
+          filename: 'photo.png',
+          mimeType: 'image/png',
+          bytes: Uint8List.fromList(<int>[4]),
+          caption: '',
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
     'active account routes media uploads and rejects stale accounts',
     () async {
       final boundaries = <String, _FakeAccountBoundary>{};
@@ -1969,6 +2015,7 @@ final class _FakeAccountBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
+        MatrixSdkMediaMessageSender,
         MatrixSdkMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkDeviceManager,
@@ -2018,6 +2065,29 @@ final class _FakeAccountBoundary
   final List<String> paginationCalls = <String>[];
   final List<(String, String, String)> sentTextMessages =
       <(String, String, String)>[];
+  final List<
+    ({
+      String roomId,
+      String transactionId,
+      String filename,
+      String mimeType,
+      List<int> bytes,
+      String caption,
+      String? replyToEventId,
+    })
+  >
+  sentMediaMessages =
+      <
+        ({
+          String roomId,
+          String transactionId,
+          String filename,
+          String mimeType,
+          List<int> bytes,
+          String caption,
+          String? replyToEventId,
+        })
+      >[];
   final List<String?> sentReplacementTargets = <String?>[];
   final List<(String, String?)> profileMutations = <(String, String?)>[];
   final List<String> userSearches = <String>[];
@@ -2221,6 +2291,28 @@ final class _FakeAccountBoundary
   @override
   Future<void> setRoomFavourite(String roomId, bool isFavourite) async {
     favouriteWrites.add((roomId, isFavourite));
+  }
+
+  @override
+  Future<String> sendMediaMessage({
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  }) async {
+    sentMediaMessages.add((
+      roomId: roomId,
+      transactionId: transactionId,
+      filename: filename,
+      mimeType: mimeType,
+      bytes: List<int>.of(bytes),
+      caption: caption,
+      replyToEventId: replyToEventId,
+    ));
+    return r'$media-' + sentMediaMessages.length.toString();
   }
 
   @override

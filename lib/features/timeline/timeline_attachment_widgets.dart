@@ -5,6 +5,14 @@ import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:signals/signals_flutter.dart';
 
+enum ComposerAttachmentSource { photos, videos, camera, files }
+
+abstract interface class ComposerAttachmentPicker {
+  Set<ComposerAttachmentSource> get supportedSources;
+
+  Future<TimelineAttachment?> pick(ComposerAttachmentSource source);
+}
+
 const deterministicComposerAttachments = <TimelineAttachment>[
   TimelineAttachment(
     id: 'photo-library',
@@ -34,6 +42,7 @@ const deterministicComposerAttachments = <TimelineAttachment>[
 
 Future<TimelineAttachment?> showComposerAttachmentPicker(
   BuildContext context, {
+  ComposerAttachmentPicker? attachmentPicker,
   ValueChanged<TimelineLocationKind>? onLocationSelected,
   bool allowLiveLocation = true,
   VoidCallback? onPollSelected,
@@ -46,6 +55,7 @@ Future<TimelineAttachment?> showComposerAttachmentPicker(
     backgroundColor: context.kiteColors.canvas,
     constraints: const BoxConstraints(maxWidth: 440),
     builder: (_) => ComposerAttachmentPickerSheet(
+      attachmentPicker: attachmentPicker,
       onLocationSelected: onLocationSelected,
       allowLiveLocation: allowLiveLocation,
       onPollSelected: onPollSelected,
@@ -56,16 +66,24 @@ Future<TimelineAttachment?> showComposerAttachmentPicker(
 class ComposerAttachmentPickerSheet extends StatelessWidget {
   const ComposerAttachmentPickerSheet({
     super.key,
+    this.attachmentPicker,
     this.onLocationSelected,
     this.allowLiveLocation = true,
     this.onPollSelected,
   });
 
+  final ComposerAttachmentPicker? attachmentPicker;
   final ValueChanged<TimelineLocationKind>? onLocationSelected;
   final bool allowLiveLocation;
   final VoidCallback? onPollSelected;
 
   static const _labels = <String>['Photos', 'Videos', 'Camera', 'Files'];
+  static const _sources = <ComposerAttachmentSource>[
+    ComposerAttachmentSource.photos,
+    ComposerAttachmentSource.videos,
+    ComposerAttachmentSource.camera,
+    ComposerAttachmentSource.files,
+  ];
 
   static const _icons = <IconData>[
     Icons.photo_library_outlined,
@@ -82,16 +100,24 @@ class ComposerAttachmentPickerSheet extends StatelessWidget {
         index < deterministicComposerAttachments.length;
         index++
       )
-        _ComposerAttachmentActionTile(
-          key: Key(
-            'attachment-option-${deterministicComposerAttachments[index].id}',
+        if (attachmentPicker == null ||
+            attachmentPicker!.supportedSources.contains(_sources[index]))
+          _ComposerAttachmentActionTile(
+            key: Key(
+              'attachment-option-${deterministicComposerAttachments[index].id}',
+            ),
+            icon: _icons[index],
+            label: _labels[index],
+            onTap: () async {
+              final picker = attachmentPicker;
+              final attachment = picker == null
+                  ? deterministicComposerAttachments[index]
+                  : await picker.pick(_sources[index]);
+              if (context.mounted && attachment != null) {
+                Navigator.of(context).pop(attachment);
+              }
+            },
           ),
-          icon: _icons[index],
-          label: _labels[index],
-          onTap: () =>
-              Navigator.of(context)
-                  .pop(deterministicComposerAttachments[index]),
-        ),
       if (onLocationSelected != null)
         _ComposerAttachmentActionTile(
           key: const Key('attachment-option-location'),

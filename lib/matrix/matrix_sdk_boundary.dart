@@ -438,6 +438,18 @@ abstract interface class MatrixSdkTextMessageSender {
   });
 }
 
+abstract interface class MatrixSdkMediaMessageSender {
+  Future<String> sendMediaMessage({
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  });
+}
+
 abstract interface class MatrixSdkBoundary {
   Set<MatrixSdkCapability> get capabilities;
 
@@ -735,6 +747,62 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       body: body,
       replyToEventId: normalizedReplyToEventId,
       replacementEventId: normalizedReplacementEventId,
+    );
+  }
+
+  Future<String> sendMediaMessage({
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  }) async {
+    final sender = _boundary;
+    if (sender is! MatrixSdkMediaMessageSender) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support media messages',
+      );
+    }
+    final normalizedFilename = filename.trim();
+    if (normalizedFilename.isEmpty || normalizedFilename.contains('\u0000')) {
+      throw ArgumentError.value(
+        filename,
+        'filename',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    final normalizedMimeType = mimeType.trim().toLowerCase();
+    if (normalizedMimeType.isEmpty || normalizedMimeType.contains('\u0000')) {
+      throw ArgumentError.value(
+        mimeType,
+        'mimeType',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    if (bytes.isEmpty) {
+      throw ArgumentError.value(bytes, 'bytes', 'must not be empty');
+    }
+    final normalizedReplyToEventId = replyToEventId?.trim();
+    if (normalizedReplyToEventId != null &&
+        (normalizedReplyToEventId.isEmpty ||
+            normalizedReplyToEventId.contains('\u0000'))) {
+      throw ArgumentError.value(
+        replyToEventId,
+        'replyToEventId',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    return (sender as MatrixSdkMediaMessageSender).sendMediaMessage(
+      roomId: roomId,
+      transactionId: transactionId,
+      filename: normalizedFilename,
+      mimeType: normalizedMimeType,
+      bytes: bytes,
+      caption: caption.trim(),
+      replyToEventId: normalizedReplyToEventId,
     );
   }
 

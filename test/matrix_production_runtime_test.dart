@@ -195,6 +195,25 @@ void main() {
       expect(boundary.sentReplyTargets, <String?>[r'$original', null]);
       expect(boundary.sentReplacementTargets, <String?>[null, r'$original']);
 
+      final mediaEventId = await runtime.sendMediaMessage(
+        accountId: '@alice:example.org',
+        roomId: '!room:example.org',
+        transactionId: 'kite-media-1',
+        filename: 'photo.png',
+        mimeType: 'image/png',
+        bytes: Uint8List.fromList(<int>[5, 6, 7]),
+        caption: 'Media from Kite',
+        replyToEventId: r'$original',
+      );
+      expect(mediaEventId, r'$media');
+      expect(boundary.sentMediaMessages, hasLength(1));
+      final sentMedia = boundary.sentMediaMessages.single;
+      expect(sentMedia.filename, 'photo.png');
+      expect(sentMedia.mimeType, 'image/png');
+      expect(sentMedia.bytes, <int>[5, 6, 7]);
+      expect(sentMedia.caption, 'Media from Kite');
+      expect(sentMedia.replyToEventId, r'$original');
+
       await runtime.reportEvent(
         accountId: '@alice:example.org',
         roomId: '!room:example.org',
@@ -401,6 +420,7 @@ final class _FakeBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkTextMessageSender,
+        MatrixSdkMediaMessageSender,
         MatrixSdkMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkDeviceManager,
@@ -417,6 +437,29 @@ final class _FakeBoundary
   int closeCount = 0;
   final List<(String, String, String)> sentMessages =
       <(String, String, String)>[];
+  final List<
+    ({
+      String roomId,
+      String transactionId,
+      String filename,
+      String mimeType,
+      List<int> bytes,
+      String caption,
+      String? replyToEventId,
+    })
+  >
+  sentMediaMessages =
+      <
+        ({
+          String roomId,
+          String transactionId,
+          String filename,
+          String mimeType,
+          List<int> bytes,
+          String caption,
+          String? replyToEventId,
+        })
+      >[];
   final List<String?> sentReplyTargets = <String?>[];
   final List<String?> sentReplacementTargets = <String?>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
@@ -583,6 +626,28 @@ final class _FakeBoundary
     String? reason,
   }) async {
     eventReports.add((roomId, eventId, reason));
+  }
+
+  @override
+  Future<String> sendMediaMessage({
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  }) async {
+    sentMediaMessages.add((
+      roomId: roomId,
+      transactionId: transactionId,
+      filename: filename,
+      mimeType: mimeType,
+      bytes: List<int>.of(bytes),
+      caption: caption,
+      replyToEventId: replyToEventId,
+    ));
+    return r'$media';
   }
 
   @override

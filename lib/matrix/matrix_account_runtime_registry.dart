@@ -817,6 +817,35 @@ final class MatrixAccountRuntimeRegistry {
     );
   }
 
+  Future<String> sendMediaMessage({
+    required String accountId,
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<String>.error(
+        StateError('Cannot send Matrix media for an inactive account'),
+      );
+    }
+    return active.engine.sendMediaMessage(
+      roomId: roomId,
+      transactionId: transactionId,
+      filename: filename,
+      mimeType: mimeType,
+      bytes: bytes,
+      caption: caption,
+      replyToEventId: replyToEventId,
+    );
+  }
+
   Future<void> onTimelineViewportChanged({
     required String accountId,
     required String roomId,

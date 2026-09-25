@@ -121,6 +121,7 @@ class HomeScreen extends StatelessWidget {
     this.profileAvatarFallbackUri,
     this.recentPeople = const <KiteUserSearchResult>[],
     this.timelineMediaImageProvider,
+    this.composerAttachmentPicker,
     this.roomListLoading = false,
     this.timelineReloading = false,
     this.roomMembersLoader,
@@ -145,6 +146,7 @@ class HomeScreen extends StatelessWidget {
   final Uri? profileAvatarFallbackUri;
   final List<KiteUserSearchResult> recentPeople;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
+  final ComposerAttachmentPicker? composerAttachmentPicker;
   final bool roomListLoading;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
@@ -227,6 +229,7 @@ class HomeScreen extends StatelessWidget {
                         memberManagement: memberManagement,
                         calls: calls,
                         onTimelineHistoryRequested: onTimelineHistoryRequested,
+                        composerAttachmentPicker: composerAttachmentPicker,
                         timelineReloading: timelineReloading,
                         roomMembersLoader: roomMembersLoader,
                         memberModerationEnabled: memberModerationEnabled,
@@ -289,6 +292,7 @@ class HomeScreen extends StatelessWidget {
                       memberManagement: memberManagement,
                       calls: calls,
                       onTimelineHistoryRequested: onTimelineHistoryRequested,
+                      composerAttachmentPicker: composerAttachmentPicker,
                       timelineReloading: timelineReloading,
                       roomMembersLoader: roomMembersLoader,
                       memberModerationEnabled: memberModerationEnabled,
@@ -1392,6 +1396,7 @@ class _CompactChatScreen extends StatelessWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.composerAttachmentPicker,
     this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -1405,6 +1410,7 @@ class _CompactChatScreen extends StatelessWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final ComposerAttachmentPicker? composerAttachmentPicker;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -1444,6 +1450,7 @@ class _CompactChatScreen extends StatelessWidget {
                 memberManagement: memberManagement,
                 calls: calls,
                 onTimelineHistoryRequested: onTimelineHistoryRequested,
+                composerAttachmentPicker: composerAttachmentPicker,
                 timelineReloading: timelineReloading,
                 roomMembersLoader: roomMembersLoader,
                 memberModerationEnabled: memberModerationEnabled,
@@ -2462,6 +2469,7 @@ class _ChatPanel extends StatefulWidget {
     this.memberManagement,
     this.calls,
     this.onTimelineHistoryRequested,
+    this.composerAttachmentPicker,
     this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -2473,6 +2481,7 @@ class _ChatPanel extends StatefulWidget {
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
+  final ComposerAttachmentPicker? composerAttachmentPicker;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -2518,7 +2527,13 @@ class _ChatPanelState extends State<_ChatPanel> {
         ),
         const _TypingIndicator(),
         const Divider(height: 1),
-        SafeArea(top: false, child: _Composer(key: _composerKey)),
+        SafeArea(
+          top: false,
+          child: _Composer(
+            key: _composerKey,
+            attachmentPicker: widget.composerAttachmentPicker,
+          ),
+        ),
       ],
     );
   }
@@ -5473,7 +5488,9 @@ class _ReadReceiptDetailsSheet extends StatelessWidget {
 }
 
 class _Composer extends StatefulWidget {
-  const _Composer({super.key});
+  const _Composer({super.key, this.attachmentPicker});
+
+  final ComposerAttachmentPicker? attachmentPicker;
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -5548,6 +5565,7 @@ class _ComposerState extends State<_Composer> {
   Future<void> _pickAttachment(String roomId) async {
     final attachment = await showComposerAttachmentPicker(
       context,
+      attachmentPicker: widget.attachmentPicker,
       onLocationSelected: (kind) {
         if (!mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -8,6 +8,7 @@ import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/matrix/presentation_cache.dart';
@@ -47,6 +48,44 @@ typedef MatrixTextEditor = Future<void> Function({
   required String eventId,
   required String body,
 });
+
+typedef MatrixAttachmentSender = Future<void> Function({
+  required String roomId,
+  required String transactionId,
+  required TimelineAttachment attachment,
+  required String caption,
+  String? replyToEventId,
+});
+
+final class MatrixTimelineAttachmentSendPort
+    implements TimelineAttachmentSendPort {
+  const MatrixTimelineAttachmentSendPort(this._send);
+
+  final MatrixAttachmentSender _send;
+
+  @override
+  Future<TimelineSendOutcome> sendAttachment({
+    required String roomId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+    String? replyToEventId,
+  }) async {
+    try {
+      await _send(
+        roomId: roomId,
+        transactionId: transactionId,
+        attachment: attachment,
+        caption: caption,
+        replyToEventId: replyToEventId,
+      );
+      return TimelineSendOutcome.sent;
+    } catch (error) {
+      debugPrint('Matrix attachment send failed: $error');
+      return TimelineSendOutcome.failed;
+    }
+  }
+}
 
 typedef MatrixEventRedactor = Future<void> Function({
   required String roomId,
@@ -164,6 +203,8 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.cache,
     required this.currentUserId,
     required this.sendPort,
+    this.attachmentSendPort,
+    this.composerAttachmentPicker,
     this.editPort,
     this.redactionPort,
     this.linkOpenPort,
@@ -186,6 +227,8 @@ final class MatrixHomeScreen extends StatefulWidget {
   final MatrixPresentationCache cache;
   final String currentUserId;
   final TimelineSendPort sendPort;
+  final TimelineAttachmentSendPort? attachmentSendPort;
+  final ComposerAttachmentPicker? composerAttachmentPicker;
   final TimelineEditPort? editPort;
   final TimelineRedactionPort? redactionPort;
   final TimelineLinkOpenPort? linkOpenPort;
@@ -228,6 +271,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       return;
     }
     if (!identical(oldWidget.sendPort, widget.sendPort) ||
+        !identical(oldWidget.attachmentSendPort, widget.attachmentSendPort) ||
         !identical(oldWidget.editPort, widget.editPort) ||
         !identical(oldWidget.redactionPort, widget.redactionPort) ||
         !identical(oldWidget.linkOpenPort, widget.linkOpenPort) ||
@@ -235,6 +279,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         !identical(oldWidget.moderationPort, widget.moderationPort)) {
       _binding.updateTransport(
         sendPort: widget.sendPort,
+        attachmentSendPort: widget.attachmentSendPort,
         editPort: widget.editPort,
         redactionPort: widget.redactionPort,
         linkOpenPort: widget.linkOpenPort,
@@ -249,6 +294,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       cache: widget.cache,
       currentUserId: widget.currentUserId,
       sendPort: widget.sendPort,
+      attachmentSendPort: widget.attachmentSendPort,
       editPort: widget.editPort,
       linkOpenPort: widget.linkOpenPort,
       sharePort: widget.sharePort,
@@ -289,6 +335,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         ),
         recentPeople: _cachedRecentPeople(widget.cache, widget.currentUserId),
         timelineMediaImageProvider: widget.timelineMediaImageProvider,
+        composerAttachmentPicker: widget.composerAttachmentPicker,
         roomMembersLoader: widget.roomMembersLoader,
         memberModerationEnabled: widget.memberModerationEnabled,
       ),
@@ -350,6 +397,7 @@ final class MatrixHomePresentationBinding {
     required this.cache,
     required String currentUserId,
     required TimelineSendPort sendPort,
+    TimelineAttachmentSendPort? attachmentSendPort,
     TimelineEditPort? editPort,
     TimelineRedactionPort? redactionPort,
     TimelineLinkOpenPort? linkOpenPort,
@@ -363,6 +411,7 @@ final class MatrixHomePresentationBinding {
            controller ??
            TimelineController(
              sendPort: sendPort,
+             attachmentSendPort: attachmentSendPort,
              editPort: editPort,
              redactionPort: redactionPort,
              linkOpenPort: linkOpenPort,
@@ -379,6 +428,7 @@ final class MatrixHomePresentationBinding {
        ) {
     this.controller.reset(
       sendPort: sendPort,
+      attachmentSendPort: attachmentSendPort,
       editPort: editPort,
       redactionPort: redactionPort,
       linkOpenPort: linkOpenPort,
@@ -475,6 +525,7 @@ final class MatrixHomePresentationBinding {
 
   void updateTransport({
     required TimelineSendPort sendPort,
+    TimelineAttachmentSendPort? attachmentSendPort,
     TimelineEditPort? editPort,
     TimelineRedactionPort? redactionPort,
     TimelineLinkOpenPort? linkOpenPort,
@@ -483,6 +534,7 @@ final class MatrixHomePresentationBinding {
   }) {
     controller.updateTransport(
       sendPort: sendPort,
+      attachmentSendPort: attachmentSendPort,
       editPort: editPort,
       redactionPort: redactionPort,
       linkOpenPort: linkOpenPort,

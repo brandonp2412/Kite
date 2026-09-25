@@ -8,6 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use matrix_sdk::{
     Client, Error as MatrixError, HttpError, Room, RoomMemberships,
+    attachment::AttachmentConfig,
     authentication::matrix::MatrixSession,
     config::SyncSettings,
     encryption::{
@@ -15,6 +16,7 @@ use matrix_sdk::{
     },
     media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings},
     notification_settings::RoomNotificationMode,
+    room::reply::{EnforceThread, Reply as MatrixAttachmentReply},
     room_directory_search::RoomDirectorySearch,
     ruma::{
         EventId, Int, OwnedDeviceId, OwnedEventId, OwnedMxcUri, OwnedRoomId, OwnedTransactionId,
@@ -43,7 +45,10 @@ use matrix_sdk::{
                 encryption::RoomEncryptionEventContent,
                 history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
                 join_rules::{JoinRule, RoomJoinRulesEventContent},
-                message::{Relation, ReplacementMetadata, RoomMessageEventContent},
+                message::{
+                    AddMentions, Relation, ReplacementMetadata, RoomMessageEventContent,
+                    TextMessageEventContent,
+                },
                 power_levels::UserPowerLevel,
             },
             space::{child::SpaceChildEventContent, parent::SpaceParentEventContent},
@@ -66,7 +71,7 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 31;
+const KITE_MATRIX_ABI_VERSION: u32 = 32;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
@@ -1198,6 +1203,114 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
     }
 
     ok_json(json!({"eventId": response.response.event_id.as_str()}))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_send_media(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    transaction_id: *const c_char,
+    filename: *const c_char,
+    mime_type: *const c_char,
+    data: *const u8,
+    data_len: u64,
+    caption: *const c_char,
+    reply_to_event_id: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix media sending is unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(transaction_id) = (unsafe { required_utf8(transaction_id) }) else {
+        return error_json(
+            "invalid_transaction",
+            "The Matrix transaction ID is invalid.",
+        );
+    };
+    let Some(filename) = (unsafe { required_utf8(filename) }) else {
+        return error_json("invalid_media", "The Matrix media filename is invalid.");
+    };
+    let Some(mime_type) = (unsafe { required_utf8(mime_type) }) else {
+        return error_json("invalid_media_type", "The Matrix media type is invalid.");
+    };
+    let Some(caption) = (unsafe { required_utf8(caption) }) else {
+        return error_json("invalid_media", "The Matrix media caption is invalid.");
+    };
+    let reply_to_event_id = unsafe { required_utf8(reply_to_event_id) };
+
+    if room_id.is_empty() || transaction_id.is_empty() || filename.is_empty() {
+        return error_json("invalid_media", "The Matrix media message is invalid.");
+    }
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Ok(mime_type) = mime_type.parse::<mime::Mime>() else {
+        return error_json("invalid_media_type", "The Matrix media type is invalid.");
+    };
+    if data_len == 0 || data.is_null() {
+        return error_json("invalid_media", "The Matrix media file is empty.");
+    }
+    let Ok(data_len) = usize::try_from(data_len) else {
+        return error_json("invalid_media", "The Matrix media file is too large.");
+    };
+    let bytes = unsafe { std::slice::from_raw_parts(data, data_len) }.to_vec();
+    let reply_to_event_id = match reply_to_event_id {
+        Some(event_id) => match EventId::parse(event_id) {
+            Ok(event_id) => Some(event_id),
+            Err(_) => return error_json("invalid_reply", "The Matrix reply target is invalid."),
+        },
+        None => None,
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix media sending is unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_unavailable", "This Matrix room is not available yet.");
+    };
+    if !room.are_members_synced() && client.runtime.block_on(room.sync_members()).is_err() {
+        return error_json("send_failed", "The Matrix media message could not be sent.");
+    }
+
+    let mut config = AttachmentConfig::new().txn_id(OwnedTransactionId::from(transaction_id));
+    if !caption.is_empty() {
+        config = config.caption(Some(TextMessageEventContent::plain(caption)));
+    }
+    if let Some(event_id) = reply_to_event_id {
+        config = config.reply(Some(MatrixAttachmentReply {
+            event_id,
+            enforce_thread: EnforceThread::Unthreaded,
+            add_mentions: AddMentions::Yes,
+        }));
+    }
+
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let Ok(response) = client.runtime.block_on(async {
+        room.send_attachment(filename, &mime_type, bytes, config)
+            .await
+    }) else {
+        return error_json("send_failed", "The Matrix media message could not be sent.");
+    };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({"eventId": response.event_id.as_str()}))
 }
 
 #[unsafe(no_mangle)]
@@ -4144,7 +4257,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 31);
+        assert_eq!(kite_matrix_abi_version(), 32);
     }
 
     #[test]

@@ -302,6 +302,8 @@ final class TimelineAttachment {
     this.sizeBytes,
     this.durationLabel,
     this.duration,
+    this.mimeType,
+    this.localBytes,
     this.contentUri,
     this.encryptedFile,
     this.thumbnailContentUri,
@@ -315,6 +317,8 @@ final class TimelineAttachment {
   final int? sizeBytes;
   final String? durationLabel;
   final Duration? duration;
+  final String? mimeType;
+  final Uint8List? localBytes;
   final String? contentUri;
   final Map<String, Object?>? encryptedFile;
   final String? thumbnailContentUri;
@@ -327,6 +331,7 @@ abstract interface class TimelineAttachmentSendPort {
     required String transactionId,
     required TimelineAttachment attachment,
     required String caption,
+    String? replyToEventId,
   });
 }
 
@@ -344,6 +349,7 @@ final class DeterministicTimelineAttachmentSendPort
     required String transactionId,
     required TimelineAttachment attachment,
     required String caption,
+    String? replyToEventId,
   }) async {
     await Future<void>.delayed(latency);
     return TimelineSendOutcome.sent;
@@ -744,6 +750,8 @@ class TimelineController implements TimelineLocationShareDelegate {
   TimelinePollPort _pollPort;
   final Map<String, Signal<List<TimelineMessage>>> _messages =
       <String, Signal<List<TimelineMessage>>>{};
+  final Map<String, TimelineAttachment> _attachmentSendPayloads =
+      <String, TimelineAttachment>{};
   final Map<String, Signal<List<String>>> _typingUsers =
       <String, Signal<List<String>>>{};
   final Map<String, Signal<String?>> _unreadMarkerEventIds =
@@ -1086,9 +1094,29 @@ class TimelineController implements TimelineLocationShareDelegate {
   }) {
     final body = caption.trim();
     final localId = 'kite-local-${_transactionCounter++}';
+    final transactionId = _nextMatrixTransactionId();
+    if (attachment.localBytes != null) {
+      _attachmentSendPayloads[transactionId] = attachment;
+    }
+    final previewAttachment = attachment.localBytes == null
+        ? attachment
+        : TimelineAttachment(
+            id: attachment.id,
+            kind: attachment.kind,
+            name: attachment.name,
+            sizeLabel: attachment.sizeLabel,
+            sizeBytes: attachment.sizeBytes,
+            durationLabel: attachment.durationLabel,
+            duration: attachment.duration,
+            mimeType: attachment.mimeType,
+            contentUri: attachment.contentUri,
+            encryptedFile: attachment.encryptedFile,
+            thumbnailContentUri: attachment.thumbnailContentUri,
+            encryptedThumbnailFile: attachment.encryptedThumbnailFile,
+          );
     final message = TimelineMessage(
       id: localId,
-      transactionId: _nextMatrixTransactionId(),
+      transactionId: transactionId,
       sender: 'You',
       body: body,
       mine: true,
@@ -1097,7 +1125,7 @@ class TimelineController implements TimelineLocationShareDelegate {
       replyToMessageId: replyTo?.id,
       replyToSender: replyTo?.sender,
       replyToBody: replyTo?.body,
-      attachment: attachment,
+      attachment: previewAttachment,
       sendState: TimelineSendState.sending,
     );
     final roomMessages = messagesFor(roomId);
@@ -1450,6 +1478,7 @@ class TimelineController implements TimelineLocationShareDelegate {
 
   void updateTransport({
     required TimelineSendPort sendPort,
+    TimelineAttachmentSendPort? attachmentSendPort,
     TimelineEditPort? editPort,
     TimelineRedactionPort? redactionPort,
     TimelineLinkOpenPort? linkOpenPort,
@@ -1457,6 +1486,8 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineModerationPort? moderationPort,
   }) {
     _sendPort = sendPort;
+    _attachmentSendPort =
+        attachmentSendPort ?? const DeterministicTimelineAttachmentSendPort();
     _editPort = editPort ?? const DeterministicTimelineEditPort();
     _redactionPort =
         redactionPort ?? const DeterministicTimelineRedactionPort();
@@ -1488,6 +1519,7 @@ class TimelineController implements TimelineLocationShareDelegate {
     if (locationPort != null) _locationPort = locationPort;
     if (pollPort != null) _pollPort = pollPort;
     _transactionCounter = 0;
+    _attachmentSendPayloads.clear();
     _messages.clear();
     _typingUsers.clear();
     _unreadMarkerEventIds.clear();
@@ -1522,14 +1554,20 @@ class TimelineController implements TimelineLocationShareDelegate {
   }
 
   Future<void> _settleAttachment(String roomId, TimelineMessage message) async {
-    final attachment = message.attachment;
+    final transactionId = message.transactionId ?? message.id;
+    final attachment =
+        _attachmentSendPayloads[transactionId] ?? message.attachment;
     if (attachment == null) return;
     final outcome = await _attachmentSendPort.sendAttachment(
       roomId: roomId,
-      transactionId: message.transactionId ?? message.id,
+      transactionId: transactionId,
       attachment: attachment,
       caption: message.body,
+      replyToEventId: message.replyToMessageId,
     );
+    if (outcome == TimelineSendOutcome.sent) {
+      _attachmentSendPayloads.remove(transactionId);
+    }
     message.sendState.value = switch (outcome) {
       TimelineSendOutcome.sent => TimelineSendState.sent,
       TimelineSendOutcome.failed => TimelineSendState.failed,

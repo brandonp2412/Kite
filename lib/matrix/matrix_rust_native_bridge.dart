@@ -13,7 +13,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 31;
+const int kiteMatrixNativeAbiVersion = 32;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -350,6 +350,28 @@ typedef _ClientSendTextDart = Pointer<Char> Function(
   Pointer<Char>,
   Pointer<Char>,
 );
+typedef _ClientSendMediaNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Uint8>,
+  Uint64,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientSendMediaDart = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Uint8>,
+  int,
+  Pointer<Char>,
+  Pointer<Char>,
+);
 typedef _ClientSessionOperationNative = Pointer<Char> Function(Pointer<Void>);
 typedef _ClientSessionOperationDart = Pointer<Char> Function(Pointer<Void>);
 typedef _StringFreeNative = Void Function(Pointer<Char> value);
@@ -656,6 +678,76 @@ final class _MatrixNativeSendTextOperation {
       if (replacementEventIdUtf8 != null) calloc.free(replacementEventIdUtf8);
       if (replyToEventIdUtf8 != null) calloc.free(replyToEventIdUtf8);
       calloc.free(bodyUtf8);
+      calloc.free(transactionIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeSendMediaOperation {
+  const _MatrixNativeSendMediaOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.transactionId,
+    required this.filename,
+    required this.mimeType,
+    required this.bytes,
+    required this.caption,
+    required this.replyToEventId,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String transactionId;
+  final String filename;
+  final String mimeType;
+  final Uint8List bytes;
+  final String caption;
+  final String? replyToEventId;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final send = library
+        .lookupFunction<_ClientSendMediaNative, _ClientSendMediaDart>(
+          'kite_matrix_client_send_media',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final transactionIdUtf8 = transactionId.toNativeUtf8(allocator: calloc);
+    final filenameUtf8 = filename.toNativeUtf8(allocator: calloc);
+    final mimeTypeUtf8 = mimeType.toNativeUtf8(allocator: calloc);
+    final captionUtf8 = caption.toNativeUtf8(allocator: calloc);
+    final data = calloc<Uint8>(bytes.length);
+    data.asTypedList(bytes.length).setAll(0, bytes);
+    final replyToEventIdUtf8 = replyToEventId?.toNativeUtf8(allocator: calloc);
+    try {
+      final value = send(
+        Pointer<Void>.fromAddress(address),
+        roomIdUtf8.cast<Char>(),
+        transactionIdUtf8.cast<Char>(),
+        filenameUtf8.cast<Char>(),
+        mimeTypeUtf8.cast<Char>(),
+        data,
+        bytes.length,
+        captionUtf8.cast<Char>(),
+        replyToEventIdUtf8 == null
+            ? Pointer<Char>.fromAddress(0)
+            : replyToEventIdUtf8.cast<Char>(),
+      );
+      final payload = _readNativeString(value, freeString, 'media send');
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      if (replyToEventIdUtf8 != null) calloc.free(replyToEventIdUtf8);
+      data.asTypedList(bytes.length).fillRange(0, bytes.length, 0);
+      calloc.free(data);
+      calloc.free(captionUtf8);
+      calloc.free(mimeTypeUtf8);
+      calloc.free(filenameUtf8);
       calloc.free(transactionIdUtf8);
       calloc.free(roomIdUtf8);
     }
@@ -2000,6 +2092,18 @@ abstract interface class MatrixRustMediaPrefetchClient {
   });
 }
 
+abstract interface class MatrixRustMediaMessageClient {
+  Future<MatrixRustSendResult> sendMedia({
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  });
+}
+
 abstract interface class MatrixRustMediaClient {
   Future<String> uploadMedia({
     required String mimeType,
@@ -2310,6 +2414,7 @@ final class MatrixRustNativeClient
         MatrixRustTimelineRedactionClient,
         MatrixRustRoomSettingsClient,
         MatrixRustMediaPrefetchClient,
+        MatrixRustMediaMessageClient,
         MatrixRustMediaClient,
         MatrixRustProfileClient,
         MatrixRustEncryptionRecoveryClient,
@@ -2688,6 +2793,70 @@ final class MatrixRustNativeClient
           operation: 'session logout',
         ).call,
       );
+    });
+  }
+
+  @override
+  Future<MatrixRustSendResult> sendMedia({
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedTransactionId = transactionId.trim();
+    final normalizedFilename = filename.trim();
+    final normalizedMimeType = mimeType.trim().toLowerCase();
+    final normalizedCaption = caption.trim();
+    final normalizedReplyToEventId = replyToEventId?.trim();
+    if (normalizedRoomId.isEmpty ||
+        normalizedRoomId.contains('\u0000') ||
+        normalizedTransactionId.isEmpty ||
+        normalizedTransactionId.contains('\u0000') ||
+        normalizedFilename.isEmpty ||
+        normalizedFilename.contains('\u0000') ||
+        normalizedMimeType.isEmpty ||
+        normalizedMimeType.contains('\u0000') ||
+        bytes.isEmpty ||
+        normalizedCaption.contains('\u0000') ||
+        (normalizedReplyToEventId != null &&
+            (normalizedReplyToEventId.isEmpty ||
+                normalizedReplyToEventId.contains('\u0000')))) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError('Invalid Matrix media message payload'),
+      );
+    }
+    return _enqueue<MatrixRustSendResult>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeSendMediaOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          transactionId: normalizedTransactionId,
+          filename: normalizedFilename,
+          mimeType: normalizedMimeType,
+          bytes: bytes,
+          caption: normalizedCaption,
+          replyToEventId: normalizedReplyToEventId,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid send data.',
+        );
+      }
+      final eventId = decoded['eventId'];
+      if (eventId is! String || eventId.isEmpty) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid send data.',
+        );
+      }
+      return MatrixRustSendResult(eventId: eventId);
     });
   }
 
@@ -3614,6 +3783,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkBoundary,
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
+        MatrixSdkMediaMessageSender,
         MatrixSdkMediaManager,
         MatrixSdkMediaPrefetcher,
         MatrixSdkProfileManager,
@@ -3739,6 +3909,36 @@ final class MatrixRustSdkBoundary
         body: body,
         replyToEventId: replyToEventId,
         replacementEventId: replacementEventId,
+      );
+      return result.eventId;
+    });
+  }
+
+  @override
+  Future<String> sendMediaMessage({
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  }) {
+    return _enqueue<String>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustMediaMessageClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support media messages',
+        );
+      }
+      final result = await (client as MatrixRustMediaMessageClient).sendMedia(
+        roomId: roomId,
+        transactionId: transactionId,
+        filename: filename,
+        mimeType: mimeType,
+        bytes: bytes,
+        caption: caption,
+        replyToEventId: replyToEventId,
       );
       return result.eventId;
     });

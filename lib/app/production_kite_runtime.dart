@@ -15,6 +15,8 @@ import 'package:kite/features/rooms/matrix_room_member_management_adapter.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
+import 'package:kite/features/timeline/platform_composer_attachment_picker.dart';
+import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
@@ -635,6 +637,34 @@ final class _AuthenticatedMatrixHomeState
     );
   }
 
+  ComposerAttachmentPicker _composerAttachmentPicker() {
+    return const PlatformComposerAttachmentPicker();
+  }
+
+  Future<void> _sendTimelineAttachment({
+    required String roomId,
+    required String transactionId,
+    required TimelineAttachment attachment,
+    required String caption,
+    String? replyToEventId,
+  }) async {
+    final mimeType = attachment.mimeType;
+    final bytes = attachment.localBytes;
+    if (mimeType == null || bytes == null || bytes.isEmpty) {
+      throw StateError('Selected Matrix attachment has no local send payload');
+    }
+    await widget.runtime.sendMediaMessage(
+      accountId: widget.session.userId,
+      roomId: roomId,
+      transactionId: transactionId,
+      mimeType: mimeType,
+      bytes: bytes,
+      caption: caption,
+      filename: attachment.name,
+      replyToEventId: replyToEventId,
+    );
+  }
+
   Future<Uri?> _pickProfileAvatar() {
     return PlatformAvatarPicker(
       uploadMedia: ({required mimeType, required bytes}) =>
@@ -848,6 +878,10 @@ final class _AuthenticatedMatrixHomeState
                     );
                   },
             ),
+            attachmentSendPort: MatrixTimelineAttachmentSendPort(
+              _sendTimelineAttachment,
+            ),
+            composerAttachmentPicker: _composerAttachmentPicker(),
             sharePort: const PlatformTimelineSharePort(),
             moderationPort: MatrixTimelineModerationPort(({
               required roomId,

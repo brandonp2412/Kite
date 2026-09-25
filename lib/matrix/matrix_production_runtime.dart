@@ -636,6 +636,28 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<String> sendMediaMessage({
+    required String accountId,
+    required String roomId,
+    required String transactionId,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+    required String caption,
+    String? replyToEventId,
+  }) {
+    return accounts.sendMediaMessage(
+      accountId: accountId,
+      roomId: roomId,
+      transactionId: transactionId,
+      filename: filename,
+      mimeType: mimeType,
+      bytes: bytes,
+      caption: caption,
+      replyToEventId: replyToEventId,
+    );
+  }
+
   Future<bool> removeAccount(String accountId) async {
     final normalizedAccountId = _normalizeAccountId(accountId);
     final removedRuntime = await accounts.removeAccount(normalizedAccountId);
