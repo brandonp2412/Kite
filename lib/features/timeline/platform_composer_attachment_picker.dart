@@ -1,29 +1,42 @@
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart' show ImagePicker, ImageSource;
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 typedef ComposerFileSelector = Future<XFile?> Function(
   ComposerAttachmentSource source,
 );
+typedef ComposerCameraCapture = Future<XFile?> Function();
 
 final class PlatformComposerAttachmentPicker
     implements ComposerAttachmentPicker {
-  const PlatformComposerAttachmentPicker({this.selectFile});
+  const PlatformComposerAttachmentPicker({
+    this.selectFile,
+    this.captureImage,
+    this.cameraAvailable,
+  });
 
   final ComposerFileSelector? selectFile;
+  final ComposerCameraCapture? captureImage;
+  final bool? cameraAvailable;
 
   @override
   Set<ComposerAttachmentSource> get supportedSources =>
-      const <ComposerAttachmentSource>{
+      <ComposerAttachmentSource>{
         ComposerAttachmentSource.photos,
         ComposerAttachmentSource.videos,
         ComposerAttachmentSource.files,
+        if (cameraAvailable ?? _cameraSupportedByPlatform())
+          ComposerAttachmentSource.camera,
       };
 
   @override
   Future<TimelineAttachment?> pick(ComposerAttachmentSource source) async {
     if (!supportedSources.contains(source)) return null;
-    final file = await (selectFile?.call(source) ?? _selectFile(source));
+    final file = source == ComposerAttachmentSource.camera
+        ? await (captureImage?.call() ?? _captureImage())
+        : await (selectFile?.call(source) ?? _selectFile(source));
     if (file == null) return null;
 
     final bytes = await file.readAsBytes();
@@ -42,6 +55,15 @@ final class PlatformComposerAttachmentPicker
       mimeType: mimeType,
       localBytes: bytes,
     );
+  }
+
+  static bool _cameraSupportedByPlatform() =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  static Future<XFile?> _captureImage() {
+    return ImagePicker().pickImage(source: ImageSource.camera);
   }
 
   static Future<XFile?> _selectFile(ComposerAttachmentSource source) {
@@ -82,7 +104,8 @@ final class PlatformComposerAttachmentPicker
   static String _mimeType(XFile file, ComposerAttachmentSource source) {
     final provided = file.mimeType?.trim().toLowerCase();
     if (provided != null && provided.isNotEmpty) {
-      if (source == ComposerAttachmentSource.photos &&
+      if ((source == ComposerAttachmentSource.photos ||
+              source == ComposerAttachmentSource.camera) &&
           !provided.startsWith('image/')) {
         throw StateError('Selected file is not an image');
       }
@@ -114,7 +137,8 @@ final class PlatformComposerAttachmentPicker
       final value when value.endsWith('.pdf') => 'application/pdf',
       _ => 'application/octet-stream',
     };
-    if (source == ComposerAttachmentSource.photos &&
+    if ((source == ComposerAttachmentSource.photos ||
+            source == ComposerAttachmentSource.camera) &&
         !inferred.startsWith('image/')) {
       throw StateError('Selected file is not an image');
     }
@@ -130,6 +154,7 @@ final class PlatformComposerAttachmentPicker
     ComposerAttachmentSource source,
   ) {
     if (source == ComposerAttachmentSource.photos ||
+        source == ComposerAttachmentSource.camera ||
         mimeType.startsWith('image/')) {
       return TimelineAttachmentKind.image;
     }

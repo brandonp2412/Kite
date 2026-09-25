@@ -28,17 +28,38 @@ void main() {
     },
   );
 
-  test('production picker exposes only sources backed by file selector', () {
-    const picker = PlatformComposerAttachmentPicker();
+  test('production picker exposes only sources available on this platform', () {
+    const picker = PlatformComposerAttachmentPicker(cameraAvailable: false);
 
     expect(picker.supportedSources, <ComposerAttachmentSource>{
       ComposerAttachmentSource.photos,
       ComposerAttachmentSource.videos,
       ComposerAttachmentSource.files,
     });
-    expect(
-      picker.supportedSources,
-      isNot(contains(ComposerAttachmentSource.camera)),
+  });
+
+  test('camera capture returns an image attachment when available', () async {
+    final bytes = Uint8List.fromList(<int>[9, 8, 7]);
+    var fileSelectorCalls = 0;
+    final picker = PlatformComposerAttachmentPicker(
+      cameraAvailable: true,
+      selectFile: (_) async {
+        fileSelectorCalls++;
+        return null;
+      },
+      captureImage: () async =>
+          XFile.fromData(bytes, path: 'camera.jpg', mimeType: 'image/jpeg'),
     );
+
+    expect(picker.supportedSources, contains(ComposerAttachmentSource.camera));
+
+    final attachment = await picker.pick(ComposerAttachmentSource.camera);
+
+    expect(fileSelectorCalls, 0);
+    expect(attachment, isNotNull);
+    expect(attachment!.kind, TimelineAttachmentKind.image);
+    expect(attachment.name, 'camera.jpg');
+    expect(attachment.mimeType, 'image/jpeg');
+    expect(attachment.localBytes, orderedEquals(bytes));
   });
 }
