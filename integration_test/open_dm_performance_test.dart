@@ -3,12 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/performance_contract.dart';
+import 'package:kite/design/kite_shader_warm_up.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 
 import 'performance_benchmark_harness.dart';
 
 void main() {
+  PaintingBinding.shaderWarmUp = const KiteShaderWarmUp();
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const virtualizedBenchmark = bool.fromEnvironment(
     'KITE_VIRTUALIZED_BENCHMARK',
