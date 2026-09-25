@@ -836,6 +836,11 @@ class _HomeSidebarState extends State<_HomeSidebar> {
 
     return Column(
       children: <Widget>[
+        if (widget.spacesController != null)
+          _HomeSpaceFilterRow(
+            controller: widget.spacesController!,
+            store: store,
+          ),
         Expanded(
           child: _RoomList(
             key: ValueKey<String>(_searchQuery),
@@ -1335,6 +1340,53 @@ class _CompactChatEdgeSwipeState extends State<_CompactChatEdgeSwipe> {
       onHorizontalDragEnd: _handleDragEnd,
       onHorizontalDragCancel: _handleDragCancel,
       child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _HomeSpaceFilterRow extends StatelessWidget {
+  const _HomeSpaceFilterRow({required this.controller, required this.store});
+
+  final SpacesController controller;
+  final RoomListStateStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    return SignalBuilder(
+      builder: (context) {
+        final spaces = controller.spaces;
+        if (spaces.isEmpty) return const SizedBox.shrink();
+        final selectedSpaceId = store.selectedSpaceId.value;
+        return SizedBox(
+          key: const Key('home-space-filter-row'),
+          height: 52,
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(
+              KiteSpacing.md,
+              KiteSpacing.xs,
+              KiteSpacing.md,
+              KiteSpacing.xs,
+            ),
+            scrollDirection: Axis.horizontal,
+            itemCount: spaces.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(width: KiteSpacing.xs),
+            itemBuilder: (context, index) {
+              final space = index == 0 ? null : spaces[index - 1];
+              final spaceId = space?.id;
+              return ChoiceChip(
+                key: Key(
+                  spaceId == null
+                      ? 'home-space-filter-all'
+                      : 'home-space-filter-$spaceId',
+                ),
+                label: Text(space?.name ?? 'All'),
+                selected: selectedSpaceId == spaceId,
+                onSelected: (_) => store.selectSpace(spaceId),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

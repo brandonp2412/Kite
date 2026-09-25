@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
 import 'package:kite/benchmark/benchmark_fixture.dart';
+import 'package:kite/benchmark/performance_contract.dart';
 import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/auth/authenticated_account_scope.dart';
 import 'package:kite/features/auth/authentication_gateway.dart';
@@ -1322,6 +1323,73 @@ void main() {
       findsNothing,
     );
     expect(find.text('New conversation'), findsNothing);
+  });
+
+  testWidgets('Space filter row preserves room-list viewport geometry', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final store = RoomListStateStore(
+      deterministicRoomListEntries(BenchmarkFixture.rooms),
+    );
+    final spaces = SpacesController(
+      spaces: const <SpaceSummary>[
+        SpaceSummary(
+          id: 'kite-space',
+          name: 'Kite',
+          description: 'Kite rooms',
+          memberCount: 8,
+          rooms: <SpaceRoomPreview>[],
+        ),
+        SpaceSummary(
+          id: 'people-space',
+          name: 'People',
+          description: 'People rooms',
+          memberCount: 4,
+          rooms: <SpaceRoomPreview>[],
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: HomeScreen(roomListStore: store, spacesController: spaces),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final roomList = find.byKey(const Key('room-list'));
+    expect(find.byKey(const Key('home-space-filter-row')), findsOneWidget);
+    expect(find.byKey(const Key('home-space-filter-all')), findsOneWidget);
+    expect(
+      find.byKey(const Key('home-space-filter-kite-space')),
+      findsOneWidget,
+    );
+    final display = tester.binding.platformDispatcher.displays.first;
+    display.refreshRate = PerformanceContract.motionRefreshRateHz;
+    addTearDown(display.resetRefreshRate);
+    final initialViewport = tester.getRect(roomList);
+
+    await tester.tap(find.byKey(const Key('home-space-filter-kite-space')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(tester.getRect(roomList), initialViewport);
+      expect(tester.takeException(), isNull);
+    }
+    expect(store.selectedSpaceId.value, 'kite-space');
+    expect(store.visibleRoomIds.value, <String>['kite', 'room-3']);
+
+    await tester.tap(find.byKey(const Key('home-space-filter-all')));
+    for (var index = 0; index < PerformanceContract.motionSamples; index++) {
+      await tester.pump(PerformanceContract.motionFrame);
+      expect(tester.getRect(roomList), initialViewport);
+      expect(tester.takeException(), isNull);
+    }
+    expect(store.selectedSpaceId.value, isNull);
   });
 
   testWidgets('joined Spaces open contextually from the account menu', (

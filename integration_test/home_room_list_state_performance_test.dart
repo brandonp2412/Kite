@@ -7,6 +7,7 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/home/room_invites.dart';
 import 'package:kite/features/home/room_list_presentation.dart';
+import 'package:kite/features/home/spaces_controller.dart';
 import 'package:kite/features/threads/thread_controller.dart';
 
 import 'performance_benchmark_harness.dart';
@@ -59,12 +60,13 @@ void main() {
     final store = RoomListStateStore(
       deterministicRoomListEntries(BenchmarkFixture.rooms),
     );
+    final spaces = SpacesController();
     await tester.pumpWidget(
       MaterialApp(
         theme: KiteTheme.light,
         home: MediaQuery(
           data: const MediaQueryData(size: Size(390, 844)),
-          child: HomeScreen(roomListStore: store),
+          child: HomeScreen(roomListStore: store, spacesController: spaces),
         ),
       ),
     );
@@ -73,7 +75,7 @@ void main() {
     final result = await measureFrames(
       binding: binding,
       action: () async {
-        await tester.tap(find.byKey(const Key('space-filter-kite-space')));
+        await tester.tap(find.byKey(const Key('home-space-filter-kite-space')));
         await tester.pumpAndSettle();
       },
       enforceTotalSpan: enforceTotalSpan,

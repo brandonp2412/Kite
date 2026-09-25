@@ -408,9 +408,17 @@ final class MatrixHomePresentationBinding {
   late final void Function() _disposeTimelineProjection;
 
   void _projectCache() {
-    roomListStore.reconcile(matrixRoomListEntries(cache));
-    spacesController.reconcileSpaces(_matrixSpaces(cache));
-    inviteStore.reconcile(_matrixRoomInvites(cache));
+    final spaces = _matrixSpaces(cache);
+    batch(() {
+      roomListStore.reconcile(matrixRoomListEntries(cache));
+      spacesController.reconcileSpaces(spaces);
+      final selectedSpaceId = roomListStore.selectedSpaceId.peek();
+      if (selectedSpaceId != null &&
+          !spaces.any((space) => space.id == selectedSpaceId)) {
+        roomListStore.selectSpace(null);
+      }
+      inviteStore.reconcile(_matrixRoomInvites(cache));
+    });
 
     final roomIds = roomListStore.roomIds;
     if (roomIds.isEmpty || roomIds.contains(selectedRoom.peek())) return;

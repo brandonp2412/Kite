@@ -27,6 +27,12 @@ void main() {
             topic: 'Joined child room',
           ),
           MatrixRoomSummary(
+            roomId: '!other:example.org',
+            displayName: 'Other room',
+            lastActivity: DateTime.utc(2026, 9, 24),
+            streamPosition: 1,
+          ),
+          MatrixRoomSummary(
             roomId: '!nested:example.org',
             displayName: 'Mobile',
             lastActivity: DateTime.utc(2026, 9, 25),
@@ -39,7 +45,7 @@ void main() {
             roomId: '!space:example.org',
             displayName: 'Engineering',
             lastActivity: DateTime.utc(2026, 9, 25),
-            streamPosition: 1,
+            streamPosition: 0,
             isSpace: true,
             memberCount: 42,
             topic: 'Product and engineering',
@@ -60,7 +66,18 @@ void main() {
     );
     addTearDown(binding.dispose);
 
-    expect(binding.roomListStore.roomIds, <String>['!chat:example.org']);
+    expect(binding.roomListStore.roomIds, <String>[
+      '!chat:example.org',
+      '!other:example.org',
+    ]);
+    expect(
+      binding.roomListStore.roomSignal('!chat:example.org').value.spaceIds,
+      <String>['!space:example.org'],
+    );
+    expect(
+      binding.roomListStore.roomSignal('!other:example.org').value.spaceIds,
+      isEmpty,
+    );
     expect(binding.spacesController.spaces, hasLength(2));
     final engineering = binding.spacesController.spaces.singleWhere(
       (space) => space.id == '!space:example.org',
@@ -75,6 +92,11 @@ void main() {
     expect(child.topic, 'Joined child room');
     expect(child.memberCount, 7);
     expect(child.joined, isTrue);
+
+    binding.roomListStore.selectSpace('!space:example.org');
+    expect(binding.roomListStore.visibleRoomIds.value, <String>[
+      '!chat:example.org',
+    ]);
   });
 
   test('Matrix home binding preserves the injected link opener', () async {

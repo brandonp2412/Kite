@@ -79,8 +79,9 @@ final class RoomListEntry {
 
   factory RoomListEntry.fromMatrix(
     MatrixRoomSummary summary,
-    MatrixTimelineEvent? latestEvent,
-  ) {
+    MatrixTimelineEvent? latestEvent, {
+    List<String> spaceIds = const <String>[],
+  }) {
     return RoomListEntry(
       id: summary.roomId,
       name: summary.displayName,
@@ -96,6 +97,7 @@ final class RoomListEntry {
       isMuted: summary.isMuted,
       isFavourite: summary.isFavourite,
       isDirect: summary.isDirect,
+      spaceIds: List<String>.unmodifiable(spaceIds),
     );
   }
 
@@ -501,6 +503,15 @@ final class RoomListStateStore {
 }
 
 List<RoomListEntry> matrixRoomListEntries(MatrixPresentationCache cache) {
+  final spaceIdsByRoom = <String, List<String>>{};
+  for (final roomId in cache.roomOrder.value) {
+    final summary = cache.roomSummarySignal(roomId).value;
+    if (summary == null || !summary.isSpace) continue;
+    for (final childRoomId in summary.childRoomIds) {
+      (spaceIdsByRoom[childRoomId] ??= <String>[]).add(summary.roomId);
+    }
+  }
+
   return List<RoomListEntry>.unmodifiable(<RoomListEntry>[
     for (final roomId in cache.roomOrder.value)
       if (cache.roomSummarySignal(roomId).value case final summary?)
@@ -508,6 +519,7 @@ List<RoomListEntry> matrixRoomListEntries(MatrixPresentationCache cache) {
           RoomListEntry.fromMatrix(
             summary,
             _latestTimelineEvent(cache.timelineSignal(roomId).value),
+            spaceIds: spaceIdsByRoom[summary.roomId] ?? const <String>[],
           ),
   ]);
 }
