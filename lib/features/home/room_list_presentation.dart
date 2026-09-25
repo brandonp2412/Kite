@@ -14,30 +14,10 @@ final class JoinedSpace {
   final String name;
 }
 
-@immutable
-final class RoomListSection {
-  const RoomListSection({required this.id, required this.name});
-
-  final String id;
-  final String name;
-}
-
 const deterministicJoinedSpaces = <JoinedSpace>[
   JoinedSpace(id: 'kite-space', name: 'Kite'),
   JoinedSpace(id: 'people-space', name: 'People'),
 ];
-
-const deterministicRoomListSections = <RoomListSection>[
-  RoomListSection(id: 'favourites', name: 'Favourites'),
-  RoomListSection(id: 'people', name: 'People'),
-  RoomListSection(id: 'rooms', name: 'Rooms'),
-];
-
-String _defaultSectionId(RoomListEntry room) {
-  if (room.isFavourite) return 'favourites';
-  if (room.isDirect) return 'people';
-  return 'rooms';
-}
 
 extension RoomListFilterPresentation on RoomListFilter {
   String get label => switch (this) {
@@ -171,70 +151,30 @@ final class RoomListEntry {
 }
 
 final class RoomListStateStore {
-  RoomListStateStore(
-    List<RoomListEntry> rooms, {
-    this.sections = deterministicRoomListSections,
-  }) : _roomIds = List<String>.unmodifiable(rooms.map((room) => room.id)),
-       _rooms = <String, Signal<RoomListEntry>>{
-         for (final room in rooms) room.id: signal(room),
-       },
-       _sectionByRoom = <String, String>{
-         for (final room in rooms) room.id: _defaultSectionId(room),
-       },
-       selectedFilter = signal(RoomListFilter.all),
-       selectedFilters = signal<Set<RoomListFilter>>(const <RoomListFilter>{}),
-       selectedSpaceId = signal<String?>(null),
-       collapsedSectionIds = signal<Set<String>>(const <String>{}),
-       hiddenRoomIds = signal<Set<String>>(const <String>{}),
-       sectionLayoutRevision = signal(0),
-       visibleRoomIds = signal<List<String>>(
-         List<String>.unmodifiable(rooms.map((room) => room.id)),
-       ) {
+  RoomListStateStore(List<RoomListEntry> rooms)
+    : _roomIds = List<String>.unmodifiable(rooms.map((room) => room.id)),
+      _rooms = <String, Signal<RoomListEntry>>{
+        for (final room in rooms) room.id: signal(room),
+      },
+      selectedFilter = signal(RoomListFilter.all),
+      selectedFilters = signal<Set<RoomListFilter>>(const <RoomListFilter>{}),
+      selectedSpaceId = signal<String?>(null),
+      hiddenRoomIds = signal<Set<String>>(const <String>{}),
+      visibleRoomIds = signal<List<String>>(
+        List<String>.unmodifiable(rooms.map((room) => room.id)),
+      ) {
     if (_rooms.length != rooms.length) {
       throw ArgumentError.value(rooms, 'rooms', 'Room IDs must be unique.');
     }
-    if (sections.isEmpty ||
-        sections.map((section) => section.id).toSet().length !=
-            sections.length) {
-      throw ArgumentError.value(
-        sections,
-        'sections',
-        'Section IDs must be unique and non-empty.',
-      );
-    }
-    final sectionIds = sections.map((section) => section.id).toSet();
-    if (_sectionByRoom.values.any(
-      (sectionId) => !sectionIds.contains(sectionId),
-    )) {
-      throw ArgumentError.value(
-        sections,
-        'sections',
-        'Default room sections must exist.',
-      );
-    }
-    _sectionUnreadCounts = <String, Signal<int>>{
-      for (final section in sections)
-        section.id: signal(
-          rooms.where((room) {
-            return _sectionByRoom[room.id] == section.id &&
-                _hasUnreadState(room);
-          }).length,
-        ),
-    };
   }
 
   List<String> _roomIds;
   final Map<String, Signal<RoomListEntry>> _rooms;
-  final Map<String, String> _sectionByRoom;
   List<String> get roomIds => _roomIds;
-  late final Map<String, Signal<int>> _sectionUnreadCounts;
-  final List<RoomListSection> sections;
   final Signal<RoomListFilter> selectedFilter;
   final Signal<Set<RoomListFilter>> selectedFilters;
   final Signal<String?> selectedSpaceId;
-  final Signal<Set<String>> collapsedSectionIds;
   final Signal<Set<String>> hiddenRoomIds;
-  final Signal<int> sectionLayoutRevision;
   final Signal<List<String>> visibleRoomIds;
 
   Signal<RoomListEntry> roomSignal(String roomId) {
@@ -256,14 +196,8 @@ final class RoomListStateStore {
     final membershipChanged =
         _matches(previous, filters, spaceId) !=
         _matches(room, filters, spaceId);
-    final previousUnread = _hasUnreadState(previous);
-    final nextUnread = _hasUnreadState(room);
     if (!_sameRoom(previous, room)) {
       target.value = room;
-    }
-    if (previousUnread != nextUnread) {
-      final count = _sectionUnreadCounts[_sectionByRoom[room.id]]!;
-      count.value += nextUnread ? 1 : -1;
     }
     if (membershipChanged) {
       _refreshVisibleRoomIds();
@@ -283,47 +217,21 @@ final class RoomListStateStore {
     if (ids.toSet().length != ids.length) {
       throw ArgumentError.value(rooms, 'rooms', 'Room IDs must be unique.');
     }
-    final sectionIds = sections.map((section) => section.id).toSet();
-    for (final room in effectiveRooms) {
-      if (!_rooms.containsKey(room.id) &&
-          !sectionIds.contains(_defaultSectionId(room))) {
-        throw ArgumentError.value(
-          room,
-          'rooms',
-          'Default room section must exist.',
-        );
-      }
-    }
 
     batch(() {
       final incomingIds = ids.toSet();
       for (final roomId in _roomIds.where(
         (roomId) => !incomingIds.contains(roomId),
       )) {
-        final previous = _rooms.remove(roomId)?.peek();
-        final sectionId = _sectionByRoom.remove(roomId);
-        if (previous != null &&
-            sectionId != null &&
-            _hasUnreadState(previous)) {
-          _sectionUnreadCounts[sectionId]!.value--;
-        }
+        _rooms.remove(roomId);
       }
       for (final room in effectiveRooms) {
         final target = _rooms[room.id];
         if (target == null) {
           _rooms[room.id] = signal(room);
-          final sectionId = _defaultSectionId(room);
-          _sectionByRoom[room.id] = sectionId;
-          if (_hasUnreadState(room)) {
-            _sectionUnreadCounts[sectionId]!.value++;
-          }
           continue;
         }
         final previous = target.peek();
-        if (_hasUnreadState(previous) != _hasUnreadState(room)) {
-          final count = _sectionUnreadCounts[_sectionByRoom[room.id]]!;
-          count.value += _hasUnreadState(room) ? 1 : -1;
-        }
         if (!_sameRoom(previous, room)) {
           target.value = room;
         }
@@ -415,50 +323,9 @@ final class RoomListStateStore {
         hasMutedActivity: false,
       );
     }
-    for (final count in _sectionUnreadCounts.values) {
-      if (count.value != 0) {
-        count.value = 0;
-      }
-    }
     if (selectedFilters.value.contains(RoomListFilter.unreads)) {
       _refreshVisibleRoomIds();
     }
-  }
-
-  String sectionIdFor(String roomId) {
-    final sectionId = _sectionByRoom[roomId];
-    if (sectionId == null) {
-      throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
-    }
-    return sectionId;
-  }
-
-  List<String> visibleRoomIdsForSection(String sectionId) {
-    if (!sections.any((section) => section.id == sectionId)) {
-      throw ArgumentError.value(sectionId, 'sectionId', 'Unknown section.');
-    }
-    return List<String>.unmodifiable(
-      visibleRoomIds.value.where(
-        (roomId) => _sectionByRoom[roomId] == sectionId,
-      ),
-    );
-  }
-
-  int sectionUnreadCount(String sectionId) {
-    final count = _sectionUnreadCounts[sectionId];
-    if (count == null) {
-      throw ArgumentError.value(sectionId, 'sectionId', 'Unknown section.');
-    }
-    return count.value;
-  }
-
-  void toggleSectionCollapsed(String sectionId) {
-    if (!sections.any((section) => section.id == sectionId)) {
-      throw ArgumentError.value(sectionId, 'sectionId', 'Unknown section.');
-    }
-    final next = Set<String>.of(collapsedSectionIds.value);
-    if (!next.add(sectionId)) next.remove(sectionId);
-    collapsedSectionIds.value = Set<String>.unmodifiable(next);
   }
 
   void hideRoom(String roomId) {
@@ -498,27 +365,6 @@ final class RoomListStateStore {
       throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
     }
     setFavourite(roomId, !target.value.isFavourite);
-  }
-
-  void moveRoomToSection(String roomId, String sectionId) {
-    if (!_sectionByRoom.containsKey(roomId)) {
-      throw ArgumentError.value(roomId, 'roomId', 'Unknown room.');
-    }
-    if (!sections.any((section) => section.id == sectionId)) {
-      throw ArgumentError.value(sectionId, 'sectionId', 'Unknown section.');
-    }
-    final previousSectionId = _sectionByRoom[roomId]!;
-    if (previousSectionId == sectionId) return;
-    _sectionByRoom[roomId] = sectionId;
-    if (_hasUnreadState(_rooms[roomId]!.value)) {
-      _sectionUnreadCounts[previousSectionId]!.value--;
-      _sectionUnreadCounts[sectionId]!.value++;
-    }
-    sectionLayoutRevision.value++;
-  }
-
-  static bool _hasUnreadState(RoomListEntry room) {
-    return room.unreadCount > 0 || room.hasMention || room.hasMutedActivity;
   }
 
   bool _matches(

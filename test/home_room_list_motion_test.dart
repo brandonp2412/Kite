@@ -122,7 +122,6 @@ void main() {
         expect(tester.takeException(), isNull);
       }
       expect(store.roomSignal('alice').value.isFavourite, isTrue);
-      expect(store.sectionIdFor('alice'), 'people');
     },
   );
 

@@ -330,37 +330,7 @@ void main() {
     },
   );
 
-  test(
-    'sections expose stable grouping, unread state, collapse and room moves',
-    () {
-      final store = RoomListStateStore(
-        deterministicRoomListEntries(BenchmarkFixture.rooms),
-      );
-
-      expect(store.sectionIdFor('room-3'), 'favourites');
-      expect(store.sectionIdFor('alice'), 'people');
-      expect(store.sectionIdFor('kite'), 'rooms');
-      expect(store.sectionUnreadCount('favourites'), 1);
-      expect(store.sectionUnreadCount('people'), 1);
-      expect(store.sectionUnreadCount('rooms'), 1);
-
-      store.toggleSectionCollapsed('people');
-      expect(store.collapsedSectionIds.value, contains('people'));
-      store.toggleSectionCollapsed('people');
-      expect(store.collapsedSectionIds.value, isNot(contains('people')));
-
-      final revision = store.sectionLayoutRevision.value;
-      store.moveRoomToSection('alice', 'favourites');
-      expect(store.sectionIdFor('alice'), 'favourites');
-      expect(store.sectionLayoutRevision.value, revision + 1);
-      expect(
-        store.visibleRoomIdsForSection('favourites'),
-        containsAllInOrder(<String>['alice', 'room-3']),
-      );
-    },
-  );
-
-  test('favourite state stays leaf-level and preserves section identity', () {
+  test('favourite state stays leaf-level', () {
     final store = RoomListStateStore(
       deterministicRoomListEntries(BenchmarkFixture.rooms),
     );
@@ -369,11 +339,9 @@ void main() {
     store.toggleFavourite('alice');
     expect(store.roomSignal('alice'), same(aliceSignal));
     expect(aliceSignal.value.isFavourite, isTrue);
-    expect(store.sectionIdFor('alice'), 'people');
 
     store.toggleFavourite('alice');
     expect(aliceSignal.value.isFavourite, isFalse);
-    expect(store.sectionIdFor('alice'), 'people');
   });
 
   test('room-list store rejects duplicate IDs', () {
