@@ -6,12 +6,15 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -30,6 +33,7 @@ import javax.crypto.SecretKey
 
 class MainActivity : FlutterActivity() {
     private val appLockExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val mediaSaveExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var notificationPermissionResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -46,6 +50,10 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             NOTIFICATION_CHANNEL,
         ).setMethodCallHandler(::handleNotificationCall)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            MEDIA_SAVE_CHANNEL,
+        ).setMethodCallHandler(::handleMediaSaveCall)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -61,6 +69,10 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             NOTIFICATION_CHANNEL,
         ).setMethodCallHandler(null)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            MEDIA_SAVE_CHANNEL,
+        ).setMethodCallHandler(null)
         notificationPermissionResult?.error(
             "notification_permission_cancelled",
             "Notification permission request was interrupted.",
@@ -68,6 +80,7 @@ class MainActivity : FlutterActivity() {
         )
         notificationPermissionResult = null
         appLockExecutor.shutdown()
+        mediaSaveExecutor.shutdown()
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -84,6 +97,83 @@ class MainActivity : FlutterActivity() {
             grantResults.isNotEmpty() &&
                 grantResults[0] == PackageManager.PERMISSION_GRANTED,
         )
+    }
+
+    private fun handleMediaSaveCall(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method != "save") {
+            result.notImplemented()
+            return
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            result.error(
+                "media_save_unsupported",
+                "Saving Matrix media to public Downloads requires Android 10 or newer.",
+                null,
+            )
+            return
+        }
+        val name = call.argument<String>("name")?.trim()
+        val mimeType = call.argument<String>("mimeType")?.trim()
+        val bytes = call.argument<ByteArray>("bytes")
+        if (
+            name.isNullOrEmpty() ||
+            name.contains('/') ||
+            name.contains('\\') ||
+            name.contains('\u0000') ||
+            bytes == null ||
+            bytes.isEmpty()
+        ) {
+            result.error("invalid_media_save", "The media save payload is invalid.", null)
+            return
+        }
+        val resolvedMimeType = mimeType
+            ?.takeIf { it.isNotEmpty() && !it.contains('\u0000') }
+            ?: "application/octet-stream"
+        mediaSaveExecutor.execute {
+            try {
+                val uri = saveMediaToDownloads(name, resolvedMimeType, bytes)
+                runOnUiThread { result.success(uri) }
+            } catch (error: Throwable) {
+                runOnUiThread {
+                    result.error(
+                        "media_save_failed",
+                        error.message ?: "Could not save Matrix media.",
+                        null,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun saveMediaToDownloads(
+        name: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): String {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/Kite",
+            )
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Could not create a Downloads entry.")
+        try {
+            contentResolver.openOutputStream(uri, "w")?.use { stream ->
+                stream.write(bytes)
+                stream.flush()
+            } ?: throw IllegalStateException("Could not open the Downloads entry.")
+            values.clear()
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            contentResolver.update(uri, values, null, null)
+            return uri.toString()
+        } catch (error: Throwable) {
+            contentResolver.delete(uri, null, null)
+            throw error
+        }
     }
 
     private fun handleNotificationCall(call: MethodCall, result: MethodChannel.Result) {
@@ -252,7 +342,7 @@ class MainActivity : FlutterActivity() {
     private fun requiredNotificationString(call: MethodCall, name: String): String {
         val value = call.argument<String>(name)
             ?: throw IllegalArgumentException("Missing notification field: " + name)
-        require(value.isNotEmpty() && value == value.trim() && !value.contains(' ')) {
+        require(value.isNotEmpty() && value == value.trim() && !value.contains('\u0000')) {
             "Invalid notification field: " + name
         }
         return value
@@ -260,7 +350,7 @@ class MainActivity : FlutterActivity() {
 
     private fun optionalNotificationString(call: MethodCall, name: String): String? {
         val value = call.argument<String>(name) ?: return null
-        require(value.isNotEmpty() && value == value.trim() && !value.contains(' ')) {
+        require(value.isNotEmpty() && value == value.trim() && !value.contains('\u0000')) {
             "Invalid notification field: " + name
         }
         return value
@@ -529,6 +619,7 @@ class MainActivity : FlutterActivity() {
         const val APP_LOCK_CHANNEL = "nz.presley.kite/app_lock"
         const val MATRIX_BOOTSTRAP_CHANNEL = "nz.presley.kite/matrix_bootstrap"
         const val NOTIFICATION_CHANNEL = "nz.presley.kite/notifications"
+        const val MEDIA_SAVE_CHANNEL = "nz.presley.kite/media_save"
         const val NOTIFICATION_CHANNEL_ID = "kite_messages"
         const val NOTIFICATION_OPEN_ACTION = "nz.presley.kite.OPEN_NOTIFICATION"
         const val NOTIFICATION_PERMISSION_REQUEST_CODE = 4601

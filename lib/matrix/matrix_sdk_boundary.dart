@@ -243,6 +243,13 @@ abstract interface class MatrixSdkMediaManager {
   });
 }
 
+abstract interface class MatrixSdkOriginalMediaManager {
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  });
+}
+
 abstract interface class MatrixSdkMediaPrefetcher {
   Future<Map<String, Uint8List>> prefetchMedia({
     required List<String> contentUris,
@@ -955,18 +962,10 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     return completed + prefetched.length;
   }
 
-  Future<Uint8List> downloadMedia({
-    required String contentUri,
+  static String _validatedMediaContentUri(
+    String contentUri, {
     Map<String, Object?>? encryptedFile,
-    required int width,
-    required int height,
-  }) async {
-    final manager = _boundary;
-    if (manager is! MatrixSdkMediaManager) {
-      throw const MatrixSdkContractException(
-        'Matrix SDK boundary does not support media downloads',
-      );
-    }
+  }) {
     final normalizedContentUri = contentUri.trim();
     final uri = Uri.tryParse(normalizedContentUri);
     if (uri == null ||
@@ -984,16 +983,60 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         'must be a valid Matrix content URI without NUL bytes',
       );
     }
-    if (encryptedFile != null) {
-      final encryptedUrl = encryptedFile['url'];
-      if (encryptedUrl != normalizedContentUri) {
-        throw ArgumentError.value(
-          encryptedFile,
-          'encryptedFile',
-          'must describe the requested Matrix content URI',
-        );
-      }
+    if (encryptedFile != null && encryptedFile['url'] != normalizedContentUri) {
+      throw ArgumentError.value(
+        encryptedFile,
+        'encryptedFile',
+        'must describe the requested Matrix content URI',
+      );
     }
+    return normalizedContentUri;
+  }
+
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkOriginalMediaManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support original media downloads',
+      );
+    }
+    final normalizedContentUri = _validatedMediaContentUri(
+      contentUri,
+      encryptedFile: encryptedFile,
+    );
+    await _ensureOpen();
+    final bytes = await (manager as MatrixSdkOriginalMediaManager)
+        .downloadOriginalMedia(
+          contentUri: normalizedContentUri,
+          encryptedFile: encryptedFile,
+        );
+    if (bytes.isEmpty) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary returned empty original media data',
+      );
+    }
+    return bytes;
+  }
+
+  Future<Uint8List> downloadMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+    required int width,
+    required int height,
+  }) async {
+    final manager = _boundary;
+    if (manager is! MatrixSdkMediaManager) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support media downloads',
+      );
+    }
+    final normalizedContentUri = _validatedMediaContentUri(
+      contentUri,
+      encryptedFile: encryptedFile,
+    );
     if (width <= 0 || width > 4096) {
       throw ArgumentError.value(width, 'width', 'must be between 1 and 4096');
     }

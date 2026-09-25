@@ -17,6 +17,7 @@ import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/platform_composer_attachment_picker.dart';
 import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
+import 'package:kite/features/timeline/platform_timeline_media_action_port.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
@@ -642,6 +643,22 @@ final class _AuthenticatedMatrixHomeState
     return const PlatformComposerAttachmentPicker();
   }
 
+  TimelineMediaActionPort _timelineMediaActionPort() {
+    return PlatformTimelineMediaActionPort(
+      loadOriginalMedia: (attachment) {
+        final contentUri = attachment.contentUri;
+        if (contentUri == null || contentUri.trim().isEmpty) {
+          throw StateError('Timeline media has no Matrix content URI');
+        }
+        return widget.runtime.downloadOriginalMedia(
+          accountId: widget.session.userId,
+          contentUri: contentUri,
+          encryptedFile: attachment.encryptedFile,
+        );
+      },
+    );
+  }
+
   Future<void> _sendTimelineAttachment({
     required String roomId,
     required String transactionId,
@@ -950,6 +967,7 @@ final class _AuthenticatedMatrixHomeState
             profileAvatarPicker: _pickProfileAvatar,
             profileAvatarImageProvider: _profileAvatarImageProvider,
             timelineMediaImageProvider: _timelineMediaImageProvider,
+            timelineMediaActionPort: _timelineMediaActionPort(),
             roomCreation: _roomCreationCoordinator(),
             memberManagement: _roomMemberManagementCoordinator(),
             onTimelineHistoryRequested: (roomId, oldestVisibleIndex) async {

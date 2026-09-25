@@ -8,6 +8,10 @@ typedef MediaVisualBuilder = Widget Function(BuildContext context);
 typedef MediaFullResolutionLoader = Future<MediaVisualBuilder> Function();
 typedef MediaViewerActionHandler = Future<void> Function(MediaViewerItem item);
 
+final class MediaViewerActionCancelled implements Exception {
+  const MediaViewerActionCancelled();
+}
+
 enum _MediaViewerAction { save, share }
 
 @immutable
@@ -243,6 +247,8 @@ class _MediaViewerState extends State<MediaViewer> {
           duration: const Duration(seconds: 2),
         ),
       );
+    } on MediaViewerActionCancelled {
+      return;
     } catch (_) {
       if (!mounted) return;
       final messenger = ScaffoldMessenger.maybeOf(context);

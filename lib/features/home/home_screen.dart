@@ -122,6 +122,7 @@ class HomeScreen extends StatelessWidget {
     this.profileAvatarFallbackUri,
     this.recentPeople = const <KiteUserSearchResult>[],
     this.timelineMediaImageProvider,
+    this.timelineMediaActionPort,
     this.composerAttachmentPicker,
     this.composerVoiceMessagePortFactory,
     this.roomListLoading = false,
@@ -148,6 +149,7 @@ class HomeScreen extends StatelessWidget {
   final Uri? profileAvatarFallbackUri;
   final List<KiteUserSearchResult> recentPeople;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
+  final TimelineMediaActionPort? timelineMediaActionPort;
   final ComposerAttachmentPicker? composerAttachmentPicker;
   final ComposerVoiceMessagePortFactory? composerVoiceMessagePortFactory;
   final bool roomListLoading;
@@ -200,6 +202,7 @@ class HomeScreen extends StatelessWidget {
         roomListStore: roomListStore,
         avatarImageProvider: profileAvatarImageProvider,
         timelineMediaImageProvider: timelineMediaImageProvider,
+        timelineMediaActionPort: timelineMediaActionPort,
         timelineHistoryRequest: onTimelineHistoryRequested,
         child: Scaffold(
           body: SafeArea(
@@ -228,6 +231,7 @@ class HomeScreen extends StatelessWidget {
                         roomListStore: roomListStore,
                         avatarImageProvider: profileAvatarImageProvider,
                         timelineMediaImageProvider: timelineMediaImageProvider,
+                        timelineMediaActionPort: timelineMediaActionPort,
                         roomManagement: roomManagement,
                         memberManagement: memberManagement,
                         calls: calls,
@@ -257,6 +261,7 @@ class HomeScreen extends StatelessWidget {
       roomListStore: roomListStore,
       avatarImageProvider: profileAvatarImageProvider,
       timelineMediaImageProvider: timelineMediaImageProvider,
+      timelineMediaActionPort: timelineMediaActionPort,
       timelineHistoryRequest: onTimelineHistoryRequested,
       child: CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
@@ -413,6 +418,7 @@ class _HomeTimelineControllerScope extends InheritedWidget {
     required this.roomListStore,
     required this.avatarImageProvider,
     required this.timelineMediaImageProvider,
+    required this.timelineMediaActionPort,
     required this.timelineHistoryRequest,
     required super.child,
   });
@@ -421,6 +427,7 @@ class _HomeTimelineControllerScope extends InheritedWidget {
   final RoomListStateStore? roomListStore;
   final AvatarImageProvider? avatarImageProvider;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
+  final TimelineMediaActionPort? timelineMediaActionPort;
   final TimelineHistoryRequest? timelineHistoryRequest;
 
   static TimelineController of(BuildContext context) {
@@ -452,6 +459,14 @@ class _HomeTimelineControllerScope extends InheritedWidget {
         ?.timelineMediaImageProvider;
   }
 
+  static TimelineMediaActionPort? timelineMediaActionPortOf(
+    BuildContext context,
+  ) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_HomeTimelineControllerScope>()
+        ?.timelineMediaActionPort;
+  }
+
   static TimelineHistoryRequest? timelineHistoryRequestOf(
     BuildContext context,
   ) {
@@ -469,6 +484,7 @@ class _HomeTimelineControllerScope extends InheritedWidget {
         timelineMediaImageProvider,
         oldWidget.timelineMediaImageProvider,
       ) ||
+      !identical(timelineMediaActionPort, oldWidget.timelineMediaActionPort) ||
       !identical(timelineHistoryRequest, oldWidget.timelineHistoryRequest);
 }
 
@@ -484,6 +500,9 @@ AvatarImageProvider? _homeAvatarImageProvider(BuildContext context) =>
 TimelineMediaImageProvider? _homeTimelineMediaImageProvider(
   BuildContext context,
 ) => _HomeTimelineControllerScope.timelineMediaImageProviderOf(context);
+
+TimelineMediaActionPort? _homeTimelineMediaActionPort(BuildContext context) =>
+    _HomeTimelineControllerScope.timelineMediaActionPortOf(context);
 
 class _HomeSidebar extends StatefulWidget {
   const _HomeSidebar({
@@ -1399,6 +1418,7 @@ class _CompactChatScreen extends StatelessWidget {
     this.roomListStore,
     this.avatarImageProvider,
     this.timelineMediaImageProvider,
+    this.timelineMediaActionPort,
     this.roomManagement,
     this.memberManagement,
     this.calls,
@@ -1414,6 +1434,7 @@ class _CompactChatScreen extends StatelessWidget {
   final RoomListStateStore? roomListStore;
   final AvatarImageProvider? avatarImageProvider;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
+  final TimelineMediaActionPort? timelineMediaActionPort;
   final RoomManagementCoordinator? roomManagement;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final KiteCallCoordinator? calls;
@@ -1431,6 +1452,7 @@ class _CompactChatScreen extends StatelessWidget {
       roomListStore: roomListStore,
       avatarImageProvider: avatarImageProvider,
       timelineMediaImageProvider: timelineMediaImageProvider,
+      timelineMediaActionPort: timelineMediaActionPort,
       timelineHistoryRequest: onTimelineHistoryRequested,
       child: Scaffold(
         key: const Key('compact-chat-screen'),
@@ -2694,6 +2716,14 @@ class _ChatHeader extends StatelessWidget {
                           roomId: roomId,
                           messages: _homeTimelineController(context)
                               .messagesFor(roomId),
+                          mediaResolver: DeterministicTimelineMediaResolver(
+                            imageProvider: _homeTimelineMediaImageProvider(
+                              context,
+                            ),
+                          ),
+                          mediaActionPort:
+                              _homeTimelineMediaActionPort(context) ??
+                              const DeterministicTimelineMediaActionPort(),
                           onLoadOlder: historyRequest == null
                               ? null
                               : () => historyRequest(roomId, 0),
@@ -3469,6 +3499,9 @@ class _MessageRow extends StatelessWidget {
       messages: _homeTimelineController(context).messagesFor(roomId).peek(),
       initialMessageId: message.id,
       imageProvider: _homeTimelineMediaImageProvider(context),
+      actionPort:
+          _homeTimelineMediaActionPort(context) ??
+          const DeterministicTimelineMediaActionPort(),
     );
     Navigator.of(context).push(
       MediaViewerRoute(

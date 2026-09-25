@@ -168,6 +168,22 @@ void main() {
     expect(find.byKey(const Key('media-action-progress')), findsNothing);
   });
 
+  testWidgets('cancelled media action leaves viewer open without a snackbar', (
+    tester,
+  ) async {
+    await pumpViewer(
+      tester,
+      onSave: (_) async => throw const MediaViewerActionCancelled(),
+    );
+
+    await tester.tap(find.byKey(const Key('media-save')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('media-viewer')), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byKey(const Key('media-action-progress')), findsNothing);
+  });
+
   testWidgets('single tap hides chrome without removing media', (tester) async {
     await pumpViewer(tester);
 

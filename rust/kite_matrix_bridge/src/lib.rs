@@ -71,7 +71,7 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 33;
+const KITE_MATRIX_ABI_VERSION: u32 = 34;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
@@ -3799,6 +3799,20 @@ pub unsafe extern "C" fn kite_matrix_client_prefetch_media(
 }
 
 #[unsafe(no_mangle)]
+fn media_download_dimensions(width: u64, height: u64) -> Option<(UInt, UInt, bool)> {
+    let original_file = width == 0 && height == 0;
+    if (width == 0) != (height == 0) {
+        return None;
+    }
+    let width = UInt::new(if original_file { 1 } else { width })?;
+    let height = UInt::new(if original_file { 1 } else { height })?;
+    if width == UInt::MIN || height == UInt::MIN {
+        return None;
+    }
+    Some((width, height, original_file))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn kite_matrix_client_download_media(
     client: *mut KiteMatrixClient,
     content_uri: *const c_char,
@@ -3825,15 +3839,9 @@ pub unsafe extern "C" fn kite_matrix_client_download_media(
         }
         MediaSource::Plain(content_uri)
     };
-    let Some(width) = UInt::new(width) else {
+    let Some((width, height, original_file)) = media_download_dimensions(width, height) else {
         return error_json("invalid_media_size", "The Matrix media size is invalid.");
     };
-    let Some(height) = UInt::new(height) else {
-        return error_json("invalid_media_size", "The Matrix media size is invalid.");
-    };
-    if width == UInt::MIN || height == UInt::MIN {
-        return error_json("invalid_media_size", "The Matrix media size is invalid.");
-    }
 
     let client = unsafe { &mut *client };
     let Some(matrix_client) = client.client.as_ref() else {
@@ -3843,7 +3851,7 @@ pub unsafe extern "C" fn kite_matrix_client_download_media(
         .matrix_auth()
         .session()
         .map(|session| session.tokens.access_token);
-    let supports_thumbnail = matches!(&source, MediaSource::Plain(_));
+    let supports_thumbnail = !original_file && matches!(&source, MediaSource::Plain(_));
     let thumbnail = MediaRequestParameters {
         source: source.clone(),
         format: MediaFormat::Thumbnail(MediaThumbnailSettings::new(width, height)),
@@ -4290,7 +4298,23 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 33);
+        assert_eq!(kite_matrix_abi_version(), 34);
+    }
+
+    #[test]
+    fn original_media_uses_zero_dimension_sentinel() {
+        let (width, height, original_file) = media_download_dimensions(0, 0).unwrap();
+        assert_eq!(width, UInt::from(1_u8));
+        assert_eq!(height, UInt::from(1_u8));
+        assert!(original_file);
+
+        let (width, height, original_file) = media_download_dimensions(384, 216).unwrap();
+        assert_eq!(width, UInt::from(384_u16));
+        assert_eq!(height, UInt::from(216_u16));
+        assert!(!original_file);
+
+        assert!(media_download_dimensions(0, 216).is_none());
+        assert!(media_download_dimensions(384, 0).is_none());
     }
 
     #[test]

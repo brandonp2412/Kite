@@ -13,7 +13,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 33;
+const int kiteMatrixNativeAbiVersion = 34;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -2138,6 +2138,13 @@ abstract interface class MatrixRustMediaClient {
   });
 }
 
+abstract interface class MatrixRustOriginalMediaClient {
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  });
+}
+
 abstract interface class MatrixRustProfileClient {
   Future<Map<String, Object?>> profile({
     String? userId,
@@ -2436,6 +2443,7 @@ final class MatrixRustNativeClient
         MatrixRustMediaPrefetchClient,
         MatrixRustMediaMessageClient,
         MatrixRustMediaClient,
+        MatrixRustOriginalMediaClient,
         MatrixRustProfileClient,
         MatrixRustEncryptionRecoveryClient,
         MatrixRustRoomFavouriteClient,
@@ -3086,6 +3094,38 @@ final class MatrixRustNativeClient
           contentUri: mediaSource,
           width: width,
           height: height,
+        ).call,
+      );
+    }, priority: _MatrixOperationPriority.interactive);
+  }
+
+  @override
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) {
+    final normalizedContentUri = contentUri.trim();
+    if (!normalizedContentUri.startsWith('mxc://') ||
+        normalizedContentUri.contains('\u0000')) {
+      return Future<Uint8List>.error(
+        ArgumentError.value(
+          contentUri,
+          'contentUri',
+          'must be a valid Matrix content URI without NUL bytes',
+        ),
+      );
+    }
+    final mediaSource = encryptedFile == null
+        ? normalizedContentUri
+        : jsonEncode(<String, Object?>{'file': encryptedFile});
+    return _enqueue<Uint8List>(() async {
+      return Isolate.run<Uint8List>(
+        _MatrixNativeDownloadMediaOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          contentUri: mediaSource,
+          width: 0,
+          height: 0,
         ).call,
       );
     }, priority: _MatrixOperationPriority.interactive);
@@ -3816,6 +3856,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkMediaMessageSender,
         MatrixSdkMediaManager,
+        MatrixSdkOriginalMediaManager,
         MatrixSdkMediaPrefetcher,
         MatrixSdkProfileManager,
         MatrixSdkEncryptionRecoveryManager,
@@ -4073,6 +4114,32 @@ final class MatrixRustSdkBoundary
       if (bytes.isEmpty) {
         throw const MatrixSdkContractException(
           'Matrix Rust client returned empty media data',
+        );
+      }
+      return bytes;
+    }, priority: _MatrixOperationPriority.interactive);
+  }
+
+  @override
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) {
+    return _enqueue<Uint8List>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustOriginalMediaClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support original media downloads',
+        );
+      }
+      final bytes = await (client as MatrixRustOriginalMediaClient)
+          .downloadOriginalMedia(
+            contentUri: contentUri,
+            encryptedFile: encryptedFile,
+          );
+      if (bytes.isEmpty) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client returned empty original media data',
         );
       }
       return bytes;

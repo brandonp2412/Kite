@@ -198,6 +198,42 @@ void main() {
         await engine.close();
       },
     );
+    test(
+      'original media bypasses resized cache and preserves encryption metadata',
+      () async {
+        final boundary = _FakeSdkBoundary(
+          capabilities: const <MatrixSdkCapability>{
+            MatrixSdkCapability.auditedEncryption,
+            MatrixSdkCapability.encryptedPersistentStore,
+            MatrixSdkCapability.incrementalSync,
+          },
+        );
+        final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+        const contentUri = 'mxc://kite.test/original-image';
+        const encryptedFile = <String, Object?>{'url': contentUri, 'v': 'v2'};
+        final originalBytes = Uint8List.fromList(<int>[7, 6, 5, 4]);
+        boundary.mediaBytes[contentUri] = originalBytes;
+
+        await engine.prefetchMedia(
+          contentUris: const <String>[contentUri],
+          encryptedFiles: const <String, Map<String, Object?>>{
+            contentUri: encryptedFile,
+          },
+          width: 720,
+          height: 720,
+        );
+        final loaded = await engine.downloadOriginalMedia(
+          contentUri: contentUri,
+          encryptedFile: encryptedFile,
+        );
+
+        expect(loaded, originalBytes);
+        expect(boundary.originalMediaDownloadCalls, 1);
+        expect(boundary.mediaDownloadCalls, 0);
+        await engine.close();
+      },
+    );
+
     test('visible avatars batch and deduplicate concurrent requests', () async {
       final boundary = _FakeSdkBoundary(
         capabilities: {
@@ -935,6 +971,7 @@ final class _FakeSdkBoundary
     implements
         MatrixSdkBoundary,
         MatrixSdkMediaManager,
+        MatrixSdkOriginalMediaManager,
         MatrixSdkMediaPrefetcher {
   _FakeSdkBoundary({
     required this.capabilities,
@@ -961,6 +998,7 @@ final class _FakeSdkBoundary
   final Map<String, Uint8List> mediaBytes = <String, Uint8List>{};
   int prefetchCalls = 0;
   int mediaDownloadCalls = 0;
+  int originalMediaDownloadCalls = 0;
 
   @override
   Stream<MatrixSyncBatch> get syncBatches => _sync.stream;
@@ -1028,6 +1066,15 @@ final class _FakeSdkBoundary
   }) async {
     mediaDownloadCalls += 1;
     return mediaBytes[contentUri] ?? Uint8List.fromList(<int>[9]);
+  }
+
+  @override
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) async {
+    originalMediaDownloadCalls += 1;
+    return mediaBytes[contentUri] ?? Uint8List.fromList(<int>[8]);
   }
 
   @override

@@ -198,6 +198,21 @@ final class MatrixAccountRuntimeRegistry {
     );
   }
 
+  Future<Uint8List> downloadOriginalMedia({
+    required String accountId,
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) {
+    final active = _requireActiveAccount(
+      accountId,
+      'Cannot download original Matrix media for an inactive account',
+    );
+    return active.engine.downloadOriginalMedia(
+      contentUri: contentUri,
+      encryptedFile: encryptedFile,
+    );
+  }
+
   Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) {
     final active = _requireActiveAccount(
       accountId,

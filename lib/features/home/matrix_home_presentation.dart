@@ -220,6 +220,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     this.profileAvatarPicker,
     this.profileAvatarImageProvider,
     this.timelineMediaImageProvider,
+    this.timelineMediaActionPort,
     this.roomCreation,
     this.memberManagement,
     this.roomMembersLoader,
@@ -245,6 +246,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final AvatarPicker? profileAvatarPicker;
   final AvatarImageProvider? profileAvatarImageProvider;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
+  final TimelineMediaActionPort? timelineMediaActionPort;
   final RoomManagementCoordinator? roomCreation;
   final managed.RoomMemberManagementCoordinator? memberManagement;
   final RoomMembersLoader? roomMembersLoader;
@@ -338,6 +340,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         ),
         recentPeople: _cachedRecentPeople(widget.cache, widget.currentUserId),
         timelineMediaImageProvider: widget.timelineMediaImageProvider,
+        timelineMediaActionPort: widget.timelineMediaActionPort,
         composerAttachmentPicker: widget.composerAttachmentPicker,
         composerVoiceMessagePortFactory: widget.composerVoiceMessagePortFactory,
         roomMembersLoader: widget.roomMembersLoader,

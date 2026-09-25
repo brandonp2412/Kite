@@ -229,6 +229,14 @@ void main() {
         height: 384,
       );
       expect(downloaded, <int>[4, 3, 2, 1]);
+      final original = await registry.downloadOriginalMedia(
+        accountId: '@alice:example.org',
+        contentUri: 'mxc://example.org/original',
+      );
+      expect(original, <int>[8, 7, 6, 5]);
+      expect(boundaries['@alice:example.org']!.originalMediaDownloads, <String>[
+        'mxc://example.org/original',
+      ]);
       final users = await registry.searchUsers(
         accountId: '@alice:example.org',
         query: 'bob',
@@ -2035,6 +2043,7 @@ final class _FakeAccountBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkMediaMessageSender,
         MatrixSdkMediaManager,
+        MatrixSdkOriginalMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkDeviceManager,
         MatrixSdkRoomFavouriteManager,
@@ -2120,6 +2129,7 @@ final class _FakeAccountBoundary
   final List<(String, bool)> ignoredUserWrites = <(String, bool)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
+  final List<String> originalMediaDownloads = <String>[];
   final List<(String, bool)> favouriteWrites = <(String, bool)>[];
   final List<(String, String, String?, String?)> roomLifecycleActions =
       <(String, String, String?, String?)>[];
@@ -2147,6 +2157,15 @@ final class _FakeAccountBoundary
   }) async {
     mediaDownloads.add((contentUri, width, height));
     return Uint8List.fromList(<int>[4, 3, 2, 1]);
+  }
+
+  @override
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) async {
+    originalMediaDownloads.add(contentUri);
+    return Uint8List.fromList(<int>[8, 7, 6, 5]);
   }
 
   @override

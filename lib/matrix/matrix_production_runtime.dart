@@ -253,6 +253,16 @@ final class MatrixProductionRuntime
     height: height,
   );
 
+  Future<Uint8List> downloadOriginalMedia({
+    required String accountId,
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) => accounts.downloadOriginalMedia(
+    accountId: accountId,
+    contentUri: contentUri,
+    encryptedFile: encryptedFile,
+  );
+
   Future<MatrixSdkProfileDetails> loadOwnProfile({required String accountId}) =>
       accounts.loadOwnProfile(accountId: accountId);
 

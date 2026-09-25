@@ -116,6 +116,14 @@ void main() {
       expect(boundary.mediaDownloads, <(String, int, int)>[
         ('mxc://example.org/avatar', 384, 384),
       ]);
+      final originalMedia = await runtime.downloadOriginalMedia(
+        accountId: '@alice:example.org',
+        contentUri: 'mxc://example.org/original',
+      );
+      expect(originalMedia, <int>[8, 7, 6, 5]);
+      expect(boundary.originalMediaDownloads, <String>[
+        'mxc://example.org/original',
+      ]);
 
       final ownProfile = await runtime.loadOwnProfile(
         accountId: '@alice:example.org',
@@ -422,6 +430,7 @@ final class _FakeBoundary
         MatrixSdkTextMessageSender,
         MatrixSdkMediaMessageSender,
         MatrixSdkMediaManager,
+        MatrixSdkOriginalMediaManager,
         MatrixSdkProfileManager,
         MatrixSdkDeviceManager,
         MatrixSdkRoomFavouriteManager,
@@ -478,6 +487,7 @@ final class _FakeBoundary
   final List<(String, bool)> ignoredUserWrites = <(String, bool)>[];
   final List<(String, List<int>)> mediaUploads = <(String, List<int>)>[];
   final List<(String, int, int)> mediaDownloads = <(String, int, int)>[];
+  final List<String> originalMediaDownloads = <String>[];
 
   @override
   Set<MatrixSdkCapability> get capabilities => const <MatrixSdkCapability>{
@@ -533,6 +543,15 @@ final class _FakeBoundary
   }) async {
     mediaDownloads.add((contentUri, width, height));
     return Uint8List.fromList(<int>[4, 3, 2, 1]);
+  }
+
+  @override
+  Future<Uint8List> downloadOriginalMedia({
+    required String contentUri,
+    Map<String, Object?>? encryptedFile,
+  }) async {
+    originalMediaDownloads.add(contentUri);
+    return Uint8List.fromList(<int>[8, 7, 6, 5]);
   }
 
   @override
