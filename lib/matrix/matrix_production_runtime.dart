@@ -645,6 +645,9 @@ final class MatrixProductionRuntime
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   }) {
     return accounts.sendMediaMessage(
       accountId: accountId,
@@ -655,6 +658,9 @@ final class MatrixProductionRuntime
       bytes: bytes,
       caption: caption,
       replyToEventId: replyToEventId,
+      voiceMessage: voiceMessage,
+      duration: duration,
+      waveform: waveform,
     );
   }
 

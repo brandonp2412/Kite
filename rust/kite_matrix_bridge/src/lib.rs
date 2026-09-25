@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use matrix_sdk::{
     Client, Error as MatrixError, HttpError, Room, RoomMemberships,
-    attachment::AttachmentConfig,
+    attachment::{AttachmentConfig, AttachmentInfo, BaseAudioInfo},
     authentication::matrix::MatrixSession,
     config::SyncSettings,
     encryption::{
@@ -71,7 +71,7 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 32;
+const KITE_MATRIX_ABI_VERSION: u32 = 33;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
@@ -1214,6 +1214,9 @@ pub unsafe extern "C" fn kite_matrix_client_send_media(
     mime_type: *const c_char,
     data: *const u8,
     data_len: u64,
+    voice_message: u8,
+    duration_ms: u64,
+    waveform_json: *const c_char,
     caption: *const c_char,
     reply_to_event_id: *const c_char,
 ) -> *mut c_char {
@@ -1234,6 +1237,9 @@ pub unsafe extern "C" fn kite_matrix_client_send_media(
     };
     let Some(mime_type) = (unsafe { required_utf8(mime_type) }) else {
         return error_json("invalid_media_type", "The Matrix media type is invalid.");
+    };
+    let Some(waveform_json) = (unsafe { required_utf8(waveform_json) }) else {
+        return error_json("invalid_media", "The Matrix voice waveform is invalid.");
     };
     let Some(caption) = (unsafe { required_utf8(caption) }) else {
         return error_json("invalid_media", "The Matrix media caption is invalid.");
@@ -1256,6 +1262,30 @@ pub unsafe extern "C" fn kite_matrix_client_send_media(
         return error_json("invalid_media", "The Matrix media file is too large.");
     };
     let bytes = unsafe { std::slice::from_raw_parts(data, data_len) }.to_vec();
+    let voice_info = if voice_message != 0 {
+        if mime_type.type_() != mime::AUDIO {
+            return error_json(
+                "invalid_media_type",
+                "A Matrix voice message must be audio.",
+            );
+        }
+        let Ok(waveform) = serde_json::from_str::<Vec<f32>>(waveform_json) else {
+            return error_json("invalid_media", "The Matrix voice waveform is invalid.");
+        };
+        if waveform
+            .iter()
+            .any(|sample| !sample.is_finite() || !(0.0..=1.0).contains(sample))
+        {
+            return error_json("invalid_media", "The Matrix voice waveform is invalid.");
+        }
+        Some(BaseAudioInfo {
+            duration: (duration_ms > 0).then(|| Duration::from_millis(duration_ms)),
+            size: UInt::try_from(data_len).ok(),
+            waveform: Some(waveform),
+        })
+    } else {
+        None
+    };
     let reply_to_event_id = match reply_to_event_id {
         Some(event_id) => match EventId::parse(event_id) {
             Ok(event_id) => Some(event_id),
@@ -1276,6 +1306,9 @@ pub unsafe extern "C" fn kite_matrix_client_send_media(
     }
 
     let mut config = AttachmentConfig::new().txn_id(OwnedTransactionId::from(transaction_id));
+    if let Some(info) = voice_info {
+        config = config.info(AttachmentInfo::Voice(info));
+    }
     if !caption.is_empty() {
         config = config.caption(Some(TextMessageEventContent::plain(caption)));
     }
@@ -4257,7 +4290,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 32);
+        assert_eq!(kite_matrix_abi_version(), 33);
     }
 
     #[test]

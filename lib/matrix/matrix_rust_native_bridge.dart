@@ -13,7 +13,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 32;
+const int kiteMatrixNativeAbiVersion = 33;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -358,6 +358,9 @@ typedef _ClientSendMediaNative = Pointer<Char> Function(
   Pointer<Char>,
   Pointer<Uint8>,
   Uint64,
+  Uint8,
+  Uint64,
+  Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
 );
@@ -369,6 +372,9 @@ typedef _ClientSendMediaDart = Pointer<Char> Function(
   Pointer<Char>,
   Pointer<Uint8>,
   int,
+  int,
+  int,
+  Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
 );
@@ -695,6 +701,9 @@ final class _MatrixNativeSendMediaOperation {
     required this.bytes,
     required this.caption,
     required this.replyToEventId,
+    required this.voiceMessage,
+    required this.duration,
+    required this.waveform,
   });
 
   final String libraryPath;
@@ -706,6 +715,9 @@ final class _MatrixNativeSendMediaOperation {
   final Uint8List bytes;
   final String caption;
   final String? replyToEventId;
+  final bool voiceMessage;
+  final Duration? duration;
+  final List<double> waveform;
 
   Object? call() {
     final library = DynamicLibrary.open(libraryPath);
@@ -722,6 +734,7 @@ final class _MatrixNativeSendMediaOperation {
     final filenameUtf8 = filename.toNativeUtf8(allocator: calloc);
     final mimeTypeUtf8 = mimeType.toNativeUtf8(allocator: calloc);
     final captionUtf8 = caption.toNativeUtf8(allocator: calloc);
+    final waveformUtf8 = jsonEncode(waveform).toNativeUtf8(allocator: calloc);
     final data = calloc<Uint8>(bytes.length);
     data.asTypedList(bytes.length).setAll(0, bytes);
     final replyToEventIdUtf8 = replyToEventId?.toNativeUtf8(allocator: calloc);
@@ -734,6 +747,9 @@ final class _MatrixNativeSendMediaOperation {
         mimeTypeUtf8.cast<Char>(),
         data,
         bytes.length,
+        voiceMessage ? 1 : 0,
+        duration?.inMilliseconds ?? 0,
+        waveformUtf8.cast<Char>(),
         captionUtf8.cast<Char>(),
         replyToEventIdUtf8 == null
             ? Pointer<Char>.fromAddress(0)
@@ -745,6 +761,7 @@ final class _MatrixNativeSendMediaOperation {
       if (replyToEventIdUtf8 != null) calloc.free(replyToEventIdUtf8);
       data.asTypedList(bytes.length).fillRange(0, bytes.length, 0);
       calloc.free(data);
+      calloc.free(waveformUtf8);
       calloc.free(captionUtf8);
       calloc.free(mimeTypeUtf8);
       calloc.free(filenameUtf8);
@@ -2101,6 +2118,9 @@ abstract interface class MatrixRustMediaMessageClient {
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   });
 }
 
@@ -2805,6 +2825,9 @@ final class MatrixRustNativeClient
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   }) {
     final normalizedRoomId = roomId.trim();
     final normalizedTransactionId = transactionId.trim();
@@ -2820,6 +2843,11 @@ final class MatrixRustNativeClient
         normalizedFilename.contains('\u0000') ||
         normalizedMimeType.isEmpty ||
         normalizedMimeType.contains('\u0000') ||
+        (voiceMessage && !normalizedMimeType.startsWith('audio/')) ||
+        (duration != null && duration.isNegative) ||
+        waveform.any(
+          (sample) => !sample.isFinite || sample < 0 || sample > 1,
+        ) ||
         bytes.isEmpty ||
         normalizedCaption.contains('\u0000') ||
         (normalizedReplyToEventId != null &&
@@ -2841,6 +2869,9 @@ final class MatrixRustNativeClient
           bytes: bytes,
           caption: normalizedCaption,
           replyToEventId: normalizedReplyToEventId,
+          voiceMessage: voiceMessage,
+          duration: duration,
+          waveform: waveform,
         ).call,
       );
       if (decoded is! Map<String, dynamic>) {
@@ -3923,6 +3954,9 @@ final class MatrixRustSdkBoundary
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   }) {
     return _enqueue<String>(() async {
       final client = _requireClient();
@@ -3939,6 +3973,9 @@ final class MatrixRustSdkBoundary
         bytes: bytes,
         caption: caption,
         replyToEventId: replyToEventId,
+        voiceMessage: voiceMessage,
+        duration: duration,
+        waveform: waveform,
       );
       return result.eventId;
     });

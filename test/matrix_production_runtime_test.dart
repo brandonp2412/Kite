@@ -446,6 +446,9 @@ final class _FakeBoundary
       List<int> bytes,
       String caption,
       String? replyToEventId,
+      bool voiceMessage,
+      Duration? duration,
+      List<double> waveform,
     })
   >
   sentMediaMessages =
@@ -458,6 +461,9 @@ final class _FakeBoundary
           List<int> bytes,
           String caption,
           String? replyToEventId,
+          bool voiceMessage,
+          Duration? duration,
+          List<double> waveform,
         })
       >[];
   final List<String?> sentReplyTargets = <String?>[];
@@ -637,6 +643,9 @@ final class _FakeBoundary
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   }) async {
     sentMediaMessages.add((
       roomId: roomId,
@@ -646,6 +655,9 @@ final class _FakeBoundary
       bytes: List<int>.of(bytes),
       caption: caption,
       replyToEventId: replyToEventId,
+      voiceMessage: voiceMessage,
+      duration: duration,
+      waveform: List<double>.of(waveform),
     ));
     return r'$media';
   }

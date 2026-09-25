@@ -16,6 +16,7 @@ import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/platform_composer_attachment_picker.dart';
+import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
@@ -662,6 +663,9 @@ final class _AuthenticatedMatrixHomeState
       caption: caption,
       filename: attachment.name,
       replyToEventId: replyToEventId,
+      voiceMessage: attachment.kind == TimelineAttachmentKind.voice,
+      duration: attachment.duration,
+      waveform: attachment.waveform,
     );
   }
 
@@ -882,6 +886,8 @@ final class _AuthenticatedMatrixHomeState
               _sendTimelineAttachment,
             ),
             composerAttachmentPicker: _composerAttachmentPicker(),
+            composerVoiceMessagePortFactory:
+                PlatformComposerVoiceMessagePort.new,
             sharePort: const PlatformTimelineSharePort(),
             moderationPort: MatrixTimelineModerationPort(({
               required roomId,

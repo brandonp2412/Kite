@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Kite uses the camera to capture media you choose to send.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Kite uses the microphone only when you choose to record a voice message.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

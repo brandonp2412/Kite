@@ -492,6 +492,10 @@ void main() {
           },
           extra: const <String, Object?>{
             'org.matrix.msc3245.voice': <String, Object?>{},
+            'org.matrix.msc1767.audio': <String, Object?>{
+              'duration': 12000,
+              'waveform': <int>[0, 512, 1024],
+            },
           },
         ),
         _event(
@@ -518,6 +522,7 @@ void main() {
       expect(messages[1].attachment?.sizeBytes, 2200000);
       expect(messages[1].attachment?.duration, const Duration(seconds: 65));
       expect(messages[2].attachment?.kind, TimelineAttachmentKind.voice);
+      expect(messages[2].attachment?.waveform, const <double>[0, 0.5, 1]);
       expect(messages[2].mine, isTrue);
       expect(messages[3].attachment?.kind, TimelineAttachmentKind.audio);
       expect(messages[3].attachment?.name, 'theme.mid');

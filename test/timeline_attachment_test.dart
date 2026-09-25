@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/app/kite_app.dart';
+import 'package:kite/features/home/home_screen.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
+import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
 import 'package:kite/testing/deterministic_adapters.dart';
 
 class _RecordingTimelineMediaActionPort implements TimelineMediaActionPort {
@@ -26,6 +29,83 @@ class _RecordingTimelineMediaActionPort implements TimelineMediaActionPort {
     required TimelineMessage message,
   }) async {
     calls.add((action: 'share', roomId: roomId, eventId: message.id));
+  }
+}
+
+class _FakeComposerVoiceMessagePort implements ComposerVoiceMessagePort {
+  final StreamController<double> amplitudeController =
+      StreamController<double>.broadcast();
+  final StreamController<Duration> positionController =
+      StreamController<Duration>.broadcast();
+  final StreamController<void> completedController =
+      StreamController<void>.broadcast();
+
+  bool started = false;
+  bool cancelled = false;
+  bool played = false;
+  bool paused = false;
+  bool disposed = false;
+  Duration? sought;
+
+  @override
+  Stream<double> get amplitudes => amplitudeController.stream;
+
+  @override
+  Stream<Duration> get playbackPositions => positionController.stream;
+
+  @override
+  Stream<void> get playbackCompleted => completedController.stream;
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> startRecording() async {
+    started = true;
+  }
+
+  @override
+  Future<TimelineAttachment?> stopRecording() async {
+    return TimelineAttachment(
+      id: 'voice-preview',
+      kind: TimelineAttachmentKind.voice,
+      name: 'Voice message.m4a',
+      sizeLabel: 'Voice message',
+      sizeBytes: 3,
+      duration: const Duration(seconds: 3),
+      mimeType: 'audio/mp4',
+      localBytes: Uint8List.fromList(<int>[1, 2, 3]),
+      waveform: const <double>[0.2, 0.8, 0.4],
+    );
+  }
+
+  @override
+  Future<void> cancelRecording() async {
+    cancelled = true;
+  }
+
+  @override
+  Future<void> play(TimelineAttachment attachment) async {
+    played = true;
+    paused = false;
+  }
+
+  @override
+  Future<void> pause() async {
+    paused = true;
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    sought = position;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposed = true;
+    await amplitudeController.close();
+    await positionController.close();
+    await completedController.close();
   }
 }
 
@@ -139,6 +219,76 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('message-action-copy')), findsOneWidget);
     expect(find.text('Copy caption'), findsOneWidget);
+  });
+
+  testWidgets('composer records, previews, and sends voice messages', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final voicePort = _FakeComposerVoiceMessagePort();
+    timelineController.reset(
+      sendPort: DeterministicTimelineSendPort(),
+      attachmentSendPort: const DeterministicTimelineAttachmentSendPort(
+        latency: Duration.zero,
+      ),
+    );
+    selectRoom('alice');
+    await tester.pumpWidget(
+      KiteApp(
+        themeMode: ThemeMode.light,
+        home: HomeScreen(composerVoiceMessagePortFactory: () => voicePort),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('composer-voice-start')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('composer-voice-start')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(voicePort.started, isTrue);
+    expect(
+      find.byKey(const Key('composer-voice-recording-duration')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('composer-voice-stop')), findsOneWidget);
+
+    voicePort.amplitudeController.add(0.75);
+    await tester.pump();
+    expect(
+      find.byKey(const Key('composer-voice-recording-waveform')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('composer-voice-stop')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(
+      find.byKey(const Key('composer-voice-preview-toggle')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('composer-send')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('composer-voice-preview-toggle')));
+    await tester.pump();
+    expect(voicePort.played, isTrue);
+
+    await tester.tap(find.byKey(const Key('composer-send')));
+    await tester.pump();
+    final message = timelineController.messagesFor('alice').value.last;
+    expect(message.attachment?.kind, TimelineAttachmentKind.voice);
+    expect(message.attachment?.duration, const Duration(seconds: 3));
+    expect(message.attachment?.waveform, const <double>[0.2, 0.8, 0.4]);
+    expect(
+      find.byKey(const Key('composer-voice-preview-toggle')),
+      findsNothing,
+    );
+
+    await tester.pumpAndSettle();
+    expect(message.sendState.value, TimelineSendState.sent);
   });
 
   testWidgets('attachment preview can be removed without sending', (

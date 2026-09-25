@@ -8,6 +8,7 @@ import 'package:kite/features/profile/user_profile_screen.dart';
 import 'package:kite/features/rooms/room_management.dart';
 import 'package:kite/features/rooms/room_member_management.dart' as managed;
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/features/timeline/timeline_media_viewer.dart';
@@ -205,6 +206,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.sendPort,
     this.attachmentSendPort,
     this.composerAttachmentPicker,
+    this.composerVoiceMessagePortFactory,
     this.editPort,
     this.redactionPort,
     this.linkOpenPort,
@@ -229,6 +231,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final TimelineSendPort sendPort;
   final TimelineAttachmentSendPort? attachmentSendPort;
   final ComposerAttachmentPicker? composerAttachmentPicker;
+  final ComposerVoiceMessagePortFactory? composerVoiceMessagePortFactory;
   final TimelineEditPort? editPort;
   final TimelineRedactionPort? redactionPort;
   final TimelineLinkOpenPort? linkOpenPort;
@@ -336,6 +339,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         recentPeople: _cachedRecentPeople(widget.cache, widget.currentUserId),
         timelineMediaImageProvider: widget.timelineMediaImageProvider,
         composerAttachmentPicker: widget.composerAttachmentPicker,
+        composerVoiceMessagePortFactory: widget.composerVoiceMessagePortFactory,
         roomMembersLoader: widget.roomMembersLoader,
         memberModerationEnabled: widget.memberModerationEnabled,
       ),

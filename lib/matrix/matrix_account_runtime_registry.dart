@@ -826,6 +826,9 @@ final class MatrixAccountRuntimeRegistry {
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   }) {
     final normalizedAccountId = _normalizeAccountId(accountId);
     _ensureNotDisposed();
@@ -843,6 +846,9 @@ final class MatrixAccountRuntimeRegistry {
       bytes: bytes,
       caption: caption,
       replyToEventId: replyToEventId,
+      voiceMessage: voiceMessage,
+      duration: duration,
+      waveform: waveform,
     );
   }
 

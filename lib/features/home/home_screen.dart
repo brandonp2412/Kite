@@ -32,6 +32,7 @@ import 'package:kite/features/threads/thread_controller.dart';
 import 'package:kite/features/threads/thread_view.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
 import 'package:kite/features/timeline/timeline_location_card.dart';
 import 'package:kite/features/timeline/timeline_location_share_sheet.dart';
@@ -122,6 +123,7 @@ class HomeScreen extends StatelessWidget {
     this.recentPeople = const <KiteUserSearchResult>[],
     this.timelineMediaImageProvider,
     this.composerAttachmentPicker,
+    this.composerVoiceMessagePortFactory,
     this.roomListLoading = false,
     this.timelineReloading = false,
     this.roomMembersLoader,
@@ -147,6 +149,7 @@ class HomeScreen extends StatelessWidget {
   final List<KiteUserSearchResult> recentPeople;
   final TimelineMediaImageProvider? timelineMediaImageProvider;
   final ComposerAttachmentPicker? composerAttachmentPicker;
+  final ComposerVoiceMessagePortFactory? composerVoiceMessagePortFactory;
   final bool roomListLoading;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
@@ -230,6 +233,8 @@ class HomeScreen extends StatelessWidget {
                         calls: calls,
                         onTimelineHistoryRequested: onTimelineHistoryRequested,
                         composerAttachmentPicker: composerAttachmentPicker,
+                        composerVoiceMessagePortFactory:
+                            composerVoiceMessagePortFactory,
                         timelineReloading: timelineReloading,
                         roomMembersLoader: roomMembersLoader,
                         memberModerationEnabled: memberModerationEnabled,
@@ -293,6 +298,8 @@ class HomeScreen extends StatelessWidget {
                       calls: calls,
                       onTimelineHistoryRequested: onTimelineHistoryRequested,
                       composerAttachmentPicker: composerAttachmentPicker,
+                      composerVoiceMessagePortFactory:
+                          composerVoiceMessagePortFactory,
                       timelineReloading: timelineReloading,
                       roomMembersLoader: roomMembersLoader,
                       memberModerationEnabled: memberModerationEnabled,
@@ -1397,6 +1404,7 @@ class _CompactChatScreen extends StatelessWidget {
     this.calls,
     this.onTimelineHistoryRequested,
     this.composerAttachmentPicker,
+    this.composerVoiceMessagePortFactory,
     this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -1411,6 +1419,7 @@ class _CompactChatScreen extends StatelessWidget {
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final ComposerAttachmentPicker? composerAttachmentPicker;
+  final ComposerVoiceMessagePortFactory? composerVoiceMessagePortFactory;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -1451,6 +1460,8 @@ class _CompactChatScreen extends StatelessWidget {
                 calls: calls,
                 onTimelineHistoryRequested: onTimelineHistoryRequested,
                 composerAttachmentPicker: composerAttachmentPicker,
+                composerVoiceMessagePortFactory:
+                    composerVoiceMessagePortFactory,
                 timelineReloading: timelineReloading,
                 roomMembersLoader: roomMembersLoader,
                 memberModerationEnabled: memberModerationEnabled,
@@ -2470,6 +2481,7 @@ class _ChatPanel extends StatefulWidget {
     this.calls,
     this.onTimelineHistoryRequested,
     this.composerAttachmentPicker,
+    this.composerVoiceMessagePortFactory,
     this.timelineReloading = false,
     this.roomMembersLoader,
     this.memberModerationEnabled = true,
@@ -2482,6 +2494,7 @@ class _ChatPanel extends StatefulWidget {
   final KiteCallCoordinator? calls;
   final TimelineHistoryRequest? onTimelineHistoryRequested;
   final ComposerAttachmentPicker? composerAttachmentPicker;
+  final ComposerVoiceMessagePortFactory? composerVoiceMessagePortFactory;
   final bool timelineReloading;
   final RoomMembersLoader? roomMembersLoader;
   final bool memberModerationEnabled;
@@ -2532,6 +2545,7 @@ class _ChatPanelState extends State<_ChatPanel> {
           child: _Composer(
             key: _composerKey,
             attachmentPicker: widget.composerAttachmentPicker,
+            voiceMessagePortFactory: widget.composerVoiceMessagePortFactory,
           ),
         ),
       ],
@@ -5488,9 +5502,14 @@ class _ReadReceiptDetailsSheet extends StatelessWidget {
 }
 
 class _Composer extends StatefulWidget {
-  const _Composer({super.key, this.attachmentPicker});
+  const _Composer({
+    super.key,
+    this.attachmentPicker,
+    this.voiceMessagePortFactory,
+  });
 
   final ComposerAttachmentPicker? attachmentPicker;
+  final ComposerVoiceMessagePortFactory? voiceMessagePortFactory;
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -5509,9 +5528,56 @@ class _ComposerState extends State<_Composer> {
   final OverlayPortalController _emojiOverlayController =
       OverlayPortalController();
   final LayerLink _emojiLayerLink = LayerLink();
+  ComposerVoiceMessagePort? _voiceMessagePort;
+  StreamSubscription<double>? _voiceAmplitudeSubscription;
+  StreamSubscription<Duration>? _voicePositionSubscription;
+  StreamSubscription<void>? _voiceCompletedSubscription;
+  Timer? _voiceElapsedTimer;
+  DateTime? _voiceRecordingStartedAt;
+  bool _voiceRecording = false;
+  bool _voicePlaying = false;
+  Duration _voiceElapsed = Duration.zero;
+  Duration _voicePlaybackPosition = Duration.zero;
+  List<double> _voiceLevels = const <double>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _voiceMessagePort = widget.voiceMessagePortFactory?.call();
+    final port = _voiceMessagePort;
+    if (port != null) {
+      _voiceAmplitudeSubscription = port.amplitudes.listen((level) {
+        if (!mounted || !_voiceRecording) return;
+        setState(() {
+          _voiceLevels = <double>[..._voiceLevels, level].reversed
+              .take(24)
+              .toList(growable: false)
+              .reversed
+              .toList(growable: false);
+        });
+      });
+      _voicePositionSubscription = port.playbackPositions.listen((position) {
+        if (!mounted) return;
+        setState(() => _voicePlaybackPosition = position);
+      });
+      _voiceCompletedSubscription = port.playbackCompleted.listen((_) {
+        if (!mounted) return;
+        setState(() {
+          _voicePlaying = false;
+          _voicePlaybackPosition = Duration.zero;
+        });
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _voiceElapsedTimer?.cancel();
+    unawaited(_voiceAmplitudeSubscription?.cancel());
+    unawaited(_voicePositionSubscription?.cancel());
+    unawaited(_voiceCompletedSubscription?.cancel());
+    final port = _voiceMessagePort;
+    if (port != null) unawaited(port.dispose());
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -5604,10 +5670,120 @@ class _ComposerState extends State<_Composer> {
 
   void _removeAttachment() {
     if (_pendingAttachment == null) return;
+    if (_pendingAttachment?.kind == TimelineAttachmentKind.voice) {
+      unawaited(_voiceMessagePort?.pause());
+    }
     setState(() {
       _pendingAttachment = null;
       _pendingAttachmentRoomId = null;
+      _voicePlaying = false;
+      _voicePlaybackPosition = Duration.zero;
     });
+  }
+
+  Future<void> _startVoiceRecording() async {
+    final port = _voiceMessagePort;
+    if (port == null || _voiceRecording) return;
+    try {
+      final permitted = await port.requestPermission();
+      if (!mounted) return;
+      if (!permitted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission is required.')),
+        );
+        return;
+      }
+      await port.startRecording();
+      if (!mounted) return;
+      _voiceElapsedTimer?.cancel();
+      _voiceRecordingStartedAt = DateTime.now();
+      _voiceElapsedTimer = Timer.periodic(const Duration(milliseconds: 100), (
+        _,
+      ) {
+        if (!mounted || !_voiceRecording) return;
+        final startedAt = _voiceRecordingStartedAt;
+        if (startedAt == null) return;
+        setState(() => _voiceElapsed = DateTime.now().difference(startedAt));
+      });
+      setState(() {
+        _voiceRecording = true;
+        _voiceElapsed = Duration.zero;
+        _voiceLevels = const <double>[];
+        _voicePlaying = false;
+        _voicePlaybackPosition = Duration.zero;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Voice recording could not start: $error')),
+      );
+    }
+  }
+
+  Future<void> _stopVoiceRecording(String roomId) async {
+    final port = _voiceMessagePort;
+    if (port == null || !_voiceRecording) return;
+    _voiceElapsedTimer?.cancel();
+    try {
+      final attachment = await port.stopRecording();
+      if (!mounted) return;
+      if (attachment == null) {
+        setState(() {
+          _voiceRecording = false;
+          _voiceElapsed = Duration.zero;
+          _voiceLevels = const <double>[];
+        });
+        return;
+      }
+      setState(() {
+        _voiceRecording = false;
+        _voiceElapsed = Duration.zero;
+        _voiceLevels = const <double>[];
+        _pendingAttachment = attachment;
+        _pendingAttachmentRoomId = roomId;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _voiceRecording = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Voice recording could not finish: $error')),
+      );
+    }
+  }
+
+  Future<void> _cancelVoiceRecording() async {
+    final port = _voiceMessagePort;
+    if (port == null || !_voiceRecording) return;
+    _voiceElapsedTimer?.cancel();
+    await port.cancelRecording();
+    if (!mounted) return;
+    setState(() {
+      _voiceRecording = false;
+      _voiceElapsed = Duration.zero;
+      _voiceLevels = const <double>[];
+    });
+  }
+
+  Future<void> _toggleVoicePlayback(TimelineAttachment attachment) async {
+    final port = _voiceMessagePort;
+    if (port == null) return;
+    if (_voicePlaying) {
+      await port.pause();
+      if (!mounted) return;
+      setState(() => _voicePlaying = false);
+      return;
+    }
+    await port.play(attachment);
+    if (!mounted) return;
+    setState(() => _voicePlaying = true);
+  }
+
+  Future<void> _seekVoicePlayback(Duration position) async {
+    final port = _voiceMessagePort;
+    if (port == null) return;
+    await port.seek(position);
+    if (!mounted) return;
+    setState(() => _voicePlaybackPosition = position);
   }
 
   void _toggleFormatting() {
@@ -5894,7 +6070,8 @@ class _ComposerState extends State<_Composer> {
                     message: activeMessage,
                     onClose: () => _clearContext(restoreEditDraft: true),
                   ),
-                if (activeAttachment != null)
+                if (activeAttachment != null &&
+                    activeAttachment.kind != TimelineAttachmentKind.voice)
                   ComposerAttachmentPreview(
                     attachment: activeAttachment,
                     onRemove: _removeAttachment,
@@ -5978,21 +6155,30 @@ class _ComposerState extends State<_Composer> {
                           children: <Widget>[
                             IconButton(
                               key: const Key('composer-attach'),
-                              tooltip: AppLocalizations.of(context)
-                                  .addAttachmentTooltip,
+                              tooltip: _voiceRecording
+                                  ? 'Cancel voice recording'
+                                  : AppLocalizations.of(context)
+                                        .addAttachmentTooltip,
                               onPressed: activeMode == _ComposerMode.edit
                                   ? null
+                                  : _voiceRecording
+                                  ? () => unawaited(_cancelVoiceRecording())
                                   : () => _pickAttachment(roomId),
                               style: IconButton.styleFrom(
                                 minimumSize: const Size.square(48),
                                 padding: EdgeInsets.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              icon: const Icon(
-                                Icons.add_circle_outline_rounded,
+                              icon: Icon(
+                                _voiceRecording
+                                    ? Icons.close_rounded
+                                    : Icons.add_circle_outline_rounded,
                               ),
                             ),
-                            if (!compactComposer)
+                            if (!compactComposer &&
+                                !_voiceRecording &&
+                                activeAttachment?.kind !=
+                                    TimelineAttachmentKind.voice)
                               IconButton(
                                 key: const Key('composer-format-toggle'),
                                 tooltip: _formattingVisible
@@ -6005,7 +6191,10 @@ class _ComposerState extends State<_Composer> {
                                       : Icons.text_format_outlined,
                                 ),
                               ),
-                            if (!compactComposer)
+                            if (!compactComposer &&
+                                !_voiceRecording &&
+                                activeAttachment?.kind !=
+                                    TimelineAttachmentKind.voice)
                               IconButton(
                                 key: const Key('composer-emoji'),
                                 tooltip: 'Emoji',
@@ -6014,61 +6203,109 @@ class _ComposerState extends State<_Composer> {
                               ),
                             const SizedBox(width: KiteSpacing.xxs),
                             Expanded(
-                              child: TextField(
-                                key: const Key('composer-field'),
-                                controller: _controller,
-                                focusNode: _focusNode,
-                                minLines: 1,
-                                maxLines: 2,
-                                textInputAction: TextInputAction.newline,
-                                style: KiteTypography.body,
-                                decoration: InputDecoration(
-                                  hintText: activeMode == _ComposerMode.edit
-                                      ? AppLocalizations.of(context)
-                                            .editMessageHint
-                                      : activeAttachment != null
-                                      ? 'Add a caption…'
-                                      : AppLocalizations.of(context)
-                                            .messageHint,
-                                  isDense: true,
-                                  filled: true,
-                                  fillColor: context.kiteColors.field,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: KiteSpacing.md,
-                                    vertical: KiteSpacing.sm,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderSide: BorderSide.none,
-                                    borderRadius: BorderRadius.circular(
-                                      KiteRadii.lg,
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderSide: BorderSide.none,
-                                    borderRadius: BorderRadius.circular(
-                                      KiteRadii.lg,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderSide: BorderSide(
-                                      color: colors.primary.withValues(
-                                        alpha: 0.42,
+                              child: _voiceRecording
+                                  ? ComposerVoiceRecordingIndicator(
+                                      elapsed: _voiceElapsed,
+                                      levels: _voiceLevels,
+                                    )
+                                  : activeAttachment?.kind ==
+                                        TimelineAttachmentKind.voice
+                                  ? ComposerVoiceMessagePreview(
+                                      attachment: activeAttachment!,
+                                      playing: _voicePlaying,
+                                      position: _voicePlaybackPosition,
+                                      onToggle: () => unawaited(
+                                        _toggleVoicePlayback(activeAttachment),
                                       ),
-                                      width: KiteStroke.emphasis,
+                                      onSeek: (position) => unawaited(
+                                        _seekVoicePlayback(position),
+                                      ),
+                                      onRemove: _removeAttachment,
+                                    )
+                                  : TextField(
+                                      key: const Key('composer-field'),
+                                      controller: _controller,
+                                      focusNode: _focusNode,
+                                      minLines: 1,
+                                      maxLines: 2,
+                                      textInputAction: TextInputAction.newline,
+                                      style: KiteTypography.body,
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            activeMode == _ComposerMode.edit
+                                            ? AppLocalizations.of(context)
+                                                  .editMessageHint
+                                            : activeAttachment != null
+                                            ? 'Add a caption…'
+                                            : AppLocalizations.of(context)
+                                                  .messageHint,
+                                        isDense: true,
+                                        filled: true,
+                                        fillColor: context.kiteColors.field,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: KiteSpacing.md,
+                                              vertical: KiteSpacing.sm,
+                                            ),
+                                        border: OutlineInputBorder(
+                                          borderSide: BorderSide.none,
+                                          borderRadius: BorderRadius.circular(
+                                            KiteRadii.lg,
+                                          ),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderSide: BorderSide.none,
+                                          borderRadius: BorderRadius.circular(
+                                            KiteRadii.lg,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderSide: BorderSide(
+                                            color: colors.primary.withValues(
+                                              alpha: 0.42,
+                                            ),
+                                            width: KiteStroke.emphasis,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            KiteRadii.lg,
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    borderRadius: BorderRadius.circular(
-                                      KiteRadii.lg,
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ),
                             const SizedBox(width: KiteSpacing.xs),
                             ValueListenableBuilder<TextEditingValue>(
                               valueListenable: _controller,
                               builder: (context, value, child) {
+                                if (_voiceRecording) {
+                                  return IconButton.filled(
+                                    key: const Key('composer-voice-stop'),
+                                    tooltip: 'Finish voice recording',
+                                    onPressed: () =>
+                                        unawaited(_stopVoiceRecording(roomId)),
+                                    style: IconButton.styleFrom(
+                                      minimumSize: const Size.square(48),
+                                    ),
+                                    icon: const Icon(Icons.stop_rounded),
+                                  );
+                                }
                                 final editing =
                                     activeMode == _ComposerMode.edit;
+                                if (!editing &&
+                                    value.text.trim().isEmpty &&
+                                    activeAttachment == null &&
+                                    _voiceMessagePort != null) {
+                                  return IconButton.filledTonal(
+                                    key: const Key('composer-voice-start'),
+                                    tooltip: 'Record voice message',
+                                    onPressed: () =>
+                                        unawaited(_startVoiceRecording()),
+                                    style: IconButton.styleFrom(
+                                      minimumSize: const Size.square(48),
+                                    ),
+                                    icon: const Icon(Icons.mic_none_rounded),
+                                  );
+                                }
                                 final enabled = editing
                                     ? value.text.trim().isNotEmpty
                                     : value.text.trim().isNotEmpty ||

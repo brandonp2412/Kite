@@ -447,6 +447,9 @@ abstract interface class MatrixSdkMediaMessageSender {
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   });
 }
 
@@ -758,6 +761,9 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   }) async {
     final sender = _boundary;
     if (sender is! MatrixSdkMediaMessageSender) {
@@ -794,6 +800,25 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         'must not be empty or contain NUL bytes',
       );
     }
+    if (voiceMessage && !normalizedMimeType.startsWith('audio/')) {
+      throw ArgumentError.value(
+        mimeType,
+        'mimeType',
+        'voice messages must use an audio MIME type',
+      );
+    }
+    if (duration != null && duration.isNegative) {
+      throw ArgumentError.value(duration, 'duration', 'must not be negative');
+    }
+    if (waveform.any(
+      (sample) => !sample.isFinite || sample < 0 || sample > 1,
+    )) {
+      throw ArgumentError.value(
+        waveform,
+        'waveform',
+        'samples must be finite values from 0 to 1',
+      );
+    }
     await _ensureOpen();
     return (sender as MatrixSdkMediaMessageSender).sendMediaMessage(
       roomId: roomId,
@@ -803,6 +828,9 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       bytes: bytes,
       caption: caption.trim(),
       replyToEventId: normalizedReplyToEventId,
+      voiceMessage: voiceMessage,
+      duration: duration,
+      waveform: waveform,
     );
   }
 

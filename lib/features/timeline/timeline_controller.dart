@@ -304,6 +304,7 @@ final class TimelineAttachment {
     this.duration,
     this.mimeType,
     this.localBytes,
+    this.waveform = const <double>[],
     this.contentUri,
     this.encryptedFile,
     this.thumbnailContentUri,
@@ -319,6 +320,7 @@ final class TimelineAttachment {
   final Duration? duration;
   final String? mimeType;
   final Uint8List? localBytes;
+  final List<double> waveform;
   final String? contentUri;
   final Map<String, Object?>? encryptedFile;
   final String? thumbnailContentUri;
@@ -1109,6 +1111,7 @@ class TimelineController implements TimelineLocationShareDelegate {
             durationLabel: attachment.durationLabel,
             duration: attachment.duration,
             mimeType: attachment.mimeType,
+            waveform: attachment.waveform,
             contentUri: attachment.contentUri,
             encryptedFile: attachment.encryptedFile,
             thumbnailContentUri: attachment.thumbnailContentUri,
@@ -1733,10 +1736,23 @@ TimelineAttachment? _matrixAttachment(
   final size = infoMap['size'];
   final sizeBytes = size is int && size >= 0 ? size : null;
   final sizeLabel = _attachmentKindLabel(kind);
-  final durationMilliseconds = infoMap['duration'];
+  final audioDetails = event.content['org.matrix.msc1767.audio'];
+  final audioDetailsMap = audioDetails is Map
+      ? audioDetails
+      : const <Object?, Object?>{};
+  final durationMilliseconds =
+      infoMap['duration'] ?? audioDetailsMap['duration'];
   final duration = durationMilliseconds is int && durationMilliseconds >= 0
       ? Duration(milliseconds: durationMilliseconds)
       : null;
+  final rawWaveform = audioDetailsMap['waveform'];
+  final waveform = rawWaveform is List
+      ? List<double>.unmodifiable(
+          rawWaveform.whereType<num>().map(
+            (sample) => (sample.toDouble() / 1024).clamp(0.0, 1.0),
+          ),
+        )
+      : const <double>[];
   final url = event.content['url'];
   final file = event.content['file'];
   final encryptedFile = file is Map
@@ -1772,6 +1788,7 @@ TimelineAttachment? _matrixAttachment(
     sizeLabel: sizeLabel,
     sizeBytes: sizeBytes,
     duration: duration,
+    waveform: waveform,
     contentUri: contentUri,
     encryptedFile: encryptedFile,
     thumbnailContentUri: thumbnailContentUri,

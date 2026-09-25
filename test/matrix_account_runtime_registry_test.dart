@@ -167,6 +167,24 @@ void main() {
       expect(sent.bytes, <int>[1, 2, 3]);
       expect(sent.caption, 'Harbour');
       expect(sent.replyToEventId, r'$original');
+      expect(sent.voiceMessage, isFalse);
+
+      await registry.sendMediaMessage(
+        accountId: '@alice:example.org',
+        roomId: '!alice:example.org',
+        transactionId: 'kite-voice-1',
+        filename: 'Voice message.m4a',
+        mimeType: 'audio/mp4',
+        bytes: Uint8List.fromList(<int>[4, 5, 6]),
+        caption: '',
+        voiceMessage: true,
+        duration: const Duration(seconds: 2),
+        waveform: const <double>[0.1, 0.9, 0.3],
+      );
+      final voice = boundaries['@alice:example.org']!.sentMediaMessages.last;
+      expect(voice.voiceMessage, isTrue);
+      expect(voice.duration, const Duration(seconds: 2));
+      expect(voice.waveform, const <double>[0.1, 0.9, 0.3]);
 
       await registry.deactivate();
       await expectLater(
@@ -2074,6 +2092,9 @@ final class _FakeAccountBoundary
       List<int> bytes,
       String caption,
       String? replyToEventId,
+      bool voiceMessage,
+      Duration? duration,
+      List<double> waveform,
     })
   >
   sentMediaMessages =
@@ -2086,6 +2107,9 @@ final class _FakeAccountBoundary
           List<int> bytes,
           String caption,
           String? replyToEventId,
+          bool voiceMessage,
+          Duration? duration,
+          List<double> waveform,
         })
       >[];
   final List<String?> sentReplacementTargets = <String?>[];
@@ -2302,6 +2326,9 @@ final class _FakeAccountBoundary
     required Uint8List bytes,
     required String caption,
     String? replyToEventId,
+    bool voiceMessage = false,
+    Duration? duration,
+    List<double> waveform = const <double>[],
   }) async {
     sentMediaMessages.add((
       roomId: roomId,
@@ -2311,6 +2338,9 @@ final class _FakeAccountBoundary
       bytes: List<int>.of(bytes),
       caption: caption,
       replyToEventId: replyToEventId,
+      voiceMessage: voiceMessage,
+      duration: duration,
+      waveform: List<double>.of(waveform),
     ));
     return r'$media-' + sentMediaMessages.length.toString();
   }

@@ -334,6 +334,140 @@ class ComposerAttachmentPreview extends StatelessWidget {
   }
 }
 
+class ComposerVoiceRecordingIndicator extends StatelessWidget {
+  const ComposerVoiceRecordingIndicator({
+    super.key,
+    required this.elapsed,
+    required this.levels,
+  });
+
+  final Duration elapsed;
+  final List<double> levels;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final visibleLevels = levels.isEmpty ? const <double>[0.08] : levels;
+    return Semantics(
+      label: 'Recording voice message, ${_voiceDurationLabel(elapsed)}',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.errorContainer.withValues(alpha: 0.38),
+          borderRadius: BorderRadius.circular(KiteRadii.lg),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: KiteSpacing.md),
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.mic_rounded, size: 19, color: colors.error),
+              const SizedBox(width: KiteSpacing.sm),
+              Text(
+                _voiceDurationLabel(elapsed),
+                key: const Key('composer-voice-recording-duration'),
+                style: KiteTypography.metadata.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: KiteSpacing.sm),
+              Expanded(
+                child: Row(
+                  key: const Key('composer-voice-recording-waveform'),
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    for (final level
+                        in visibleLevels.reversed.take(18).toList().reversed)
+                      Container(
+                        width: 2,
+                        height: 5 + (level.clamp(0.0, 1.0) * 22),
+                        decoration: BoxDecoration(
+                          color: colors.error.withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ComposerVoiceMessagePreview extends StatelessWidget {
+  const ComposerVoiceMessagePreview({
+    super.key,
+    required this.attachment,
+    required this.playing,
+    required this.position,
+    required this.onToggle,
+    required this.onSeek,
+    required this.onRemove,
+  });
+
+  final TimelineAttachment attachment;
+  final bool playing;
+  final Duration position;
+  final VoidCallback onToggle;
+  final ValueChanged<Duration> onSeek;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final duration = attachment.duration ?? Duration.zero;
+    final durationMs = duration.inMilliseconds;
+    final positionMs = position.inMilliseconds.clamp(0, durationMs);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(KiteRadii.lg),
+      ),
+      child: Row(
+        children: <Widget>[
+          IconButton.filledTonal(
+            key: const Key('composer-voice-preview-toggle'),
+            tooltip: playing ? 'Pause voice message' : 'Play voice message',
+            onPressed: onToggle,
+            icon: Icon(
+              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            ),
+          ),
+          Expanded(
+            child: Slider(
+              key: const Key('composer-voice-preview-seek'),
+              value: durationMs == 0 ? 0 : positionMs.toDouble(),
+              max: durationMs <= 0 ? 1 : durationMs.toDouble(),
+              onChanged: durationMs <= 0
+                  ? null
+                  : (value) => onSeek(Duration(milliseconds: value.round())),
+            ),
+          ),
+          Text(
+            _voiceDurationLabel(position > Duration.zero ? position : duration),
+            key: const Key('composer-voice-preview-duration'),
+            style: KiteTypography.metadata,
+          ),
+          IconButton(
+            key: const Key('composer-voice-preview-remove'),
+            tooltip: 'Discard voice message',
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded, size: 19),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _voiceDurationLabel(Duration duration) {
+  final minutes = duration.inMinutes;
+  final seconds = duration.inSeconds.remainder(60);
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
 class TimelineAttachmentCard extends StatelessWidget {
   const TimelineAttachmentCard({
     super.key,
@@ -474,15 +608,20 @@ class _TimelineAudioCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final voice = attachment.kind == TimelineAttachmentKind.voice;
-    final waveform = List<double>.generate(
-      19,
-      (index) =>
-          7 +
-          ((attachment.id.codeUnitAt(index % attachment.id.length) +
-                  index * 5) %
-              16),
-      growable: false,
-    );
+    final waveform = attachment.waveform.isNotEmpty
+        ? attachment.waveform
+              .take(19)
+              .map((sample) => 7 + sample.clamp(0.0, 1.0) * 16)
+              .toList(growable: false)
+        : List<double>.generate(
+            19,
+            (index) =>
+                7 +
+                ((attachment.id.codeUnitAt(index % attachment.id.length) +
+                        index * 5) %
+                    16),
+            growable: false,
+          );
 
     return Padding(
       padding: const EdgeInsets.symmetric(
