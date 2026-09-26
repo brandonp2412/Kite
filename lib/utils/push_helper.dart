@@ -437,7 +437,7 @@ Future<void> updateSummaryNotification({
 }) async {
   final activeNotifications =
       (await flutterLocalNotificationsPlugin.getActiveNotifications())
-          .where((n) => n.groupKey == clientName)
+          .where((n) => n.groupKey == clientName && n.id != clientName.hashCode)
           .toList();
 
   if (activeNotifications.length <= 1) {
@@ -464,6 +464,7 @@ Future<void> updateSummaryNotification({
           activeNotifications.map((n) => n.body ?? '').toList(),
         ),
         autoCancel: false,
+        silent: true,
       ),
     ),
   );
