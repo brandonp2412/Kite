@@ -445,6 +445,15 @@ abstract interface class MatrixSdkTextMessageSender {
   });
 }
 
+abstract interface class MatrixSdkLocationMessageSender {
+  Future<String> sendLocationMessage({
+    required String roomId,
+    required String transactionId,
+    required String body,
+    required String geoUri,
+  });
+}
+
 abstract interface class MatrixSdkMediaMessageSender {
   Future<String> sendMediaMessage({
     required String roomId,
@@ -757,6 +766,44 @@ final class MatrixBoundaryEngine implements MatrixEngine {
       body: body,
       replyToEventId: normalizedReplyToEventId,
       replacementEventId: normalizedReplacementEventId,
+    );
+  }
+
+  Future<String> sendLocationMessage({
+    required String roomId,
+    required String transactionId,
+    required String body,
+    required String geoUri,
+  }) async {
+    final sender = _boundary;
+    if (sender is! MatrixSdkLocationMessageSender) {
+      throw const MatrixSdkContractException(
+        'Matrix SDK boundary does not support location messages',
+      );
+    }
+    final normalizedBody = body.trim();
+    final normalizedGeoUri = geoUri.trim();
+    if (normalizedBody.isEmpty || normalizedBody.contains('\u0000')) {
+      throw ArgumentError.value(
+        body,
+        'body',
+        'must not be empty or contain NUL bytes',
+      );
+    }
+    if (!normalizedGeoUri.startsWith('geo:') ||
+        normalizedGeoUri.contains('\u0000')) {
+      throw ArgumentError.value(
+        geoUri,
+        'geoUri',
+        'must be a geo URI without NUL bytes',
+      );
+    }
+    await _ensureOpen();
+    return (sender as MatrixSdkLocationMessageSender).sendLocationMessage(
+      roomId: roomId,
+      transactionId: transactionId,
+      body: normalizedBody,
+      geoUri: normalizedGeoUri,
     );
   }
 

@@ -5684,6 +5684,7 @@ class _ComposerState extends State<_Composer> {
     final attachment = await showComposerAttachmentPicker(
       context,
       attachmentPicker: widget.attachmentPicker,
+      allowLiveLocation: _homeTimelineController(context).supportsLiveLocation,
       onLocationSelected: (kind) {
         if (!mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -18,6 +18,9 @@ class _ThreadLocationShareDelegate implements TimelineLocationShareDelegate {
   final TimelineMessage parent;
 
   @override
+  bool get supportsLiveLocation => false;
+
+  @override
   Future<TimelineLocationPreparation> prepareLocation(
     TimelineLocationKind kind,
   ) => threadController.prepareLocation(kind);

@@ -11,7 +11,7 @@ fail() {
 
 main_manifest="android/app/src/main/AndroidManifest.xml"
 lockfile="pubspec.lock"
-reviewed_lock_sha="f01ad44f2e0775851553b971d6f162eaf2df24c8bb517fb02dc44f8558a78cc8"
+reviewed_lock_sha="4d207a28281260ba5a0e346e45af1d4981ffa1ff574ccac3fdc04e32d79deccc"
 
 printf '%s\n' 'Kite release audit: Android security surface'
 rg -q 'android:allowBackup="false"' "$main_manifest" || fail 'Android backups must be explicitly disabled for account/session data.'
@@ -68,6 +68,7 @@ hosted_count=0
 bsd_count=0
 mit_count=0
 apache_count=0
+mpl_count=0
 while read -r package version; do
   [[ -n "$package" && -n "$version" ]] || continue
   hosted_count=$((hosted_count + 1))
@@ -84,7 +85,9 @@ while read -r package version; do
     continue
   fi
 
-  if rg -qi 'Apache License.*Version 2\.0' "$license_file"; then
+  if rg -qi 'Mozilla Public License Version 2\.0' "$license_file"; then
+    mpl_count=$((mpl_count + 1))
+  elif rg -qi 'Apache License.*Version 2\.0' "$license_file"; then
     apache_count=$((apache_count + 1))
   elif rg -qi 'Permission is hereby granted, free of charge' "$license_file"; then
     mit_count=$((mit_count + 1))
@@ -108,5 +111,5 @@ done < <(
 
 [[ "$hosted_count" -gt 0 ]] || fail 'No hosted dependencies were discovered in pubspec.lock.'
 [[ "$license_failures" == "0" ]] || fail "$license_failures dependency license checks failed."
-printf 'Kite release audit passed: %s hosted dependency licenses verified (%s BSD, %s Apache-2.0, %s MIT).\n' \
-  "$hosted_count" "$bsd_count" "$apache_count" "$mit_count"
+printf 'Kite release audit passed: %s hosted dependency licenses verified (%s BSD, %s Apache-2.0, %s MIT, %s MPL-2.0).\n' \
+  "$hosted_count" "$bsd_count" "$apache_count" "$mit_count" "$mpl_count"
