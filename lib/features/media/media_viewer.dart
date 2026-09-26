@@ -390,11 +390,13 @@ class _MediaPage extends StatelessWidget {
                 return const SizedBox.shrink();
               }
               return RepaintBoundary(
-                child: AnimatedOpacity(
+                child: TweenAnimationBuilder<double>(
                   key: Key('media-full-${item.id}'),
-                  opacity: 1,
+                  tween: Tween<double>(begin: 0, end: 1),
                   duration: KiteMotion.resolve(context, KiteMotion.fast),
                   curve: KiteMotion.standardCurve,
+                  builder: (context, opacity, child) =>
+                      Opacity(opacity: opacity, child: child),
                   child: resolved.builder(context),
                 ),
               );

@@ -63,6 +63,31 @@ void main() {
     expect(find.byKey(const Key('media-full-fixture-0')), findsOneWidget);
   });
 
+  testWidgets('full resolution fades over the retained thumbnail', (
+    tester,
+  ) async {
+    await pumpViewer(tester);
+
+    final fullResolution = find.byKey(const Key('media-full-fixture-0'));
+    final opacityFinder = find.descendant(
+      of: fullResolution,
+      matching: find.byType(Opacity),
+    );
+
+    expect(find.byKey(const Key('media-thumbnail-fixture-0')), findsOneWidget);
+    expect(tester.widget<Opacity>(opacityFinder).opacity, 0);
+
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(
+      tester.widget<Opacity>(opacityFinder).opacity,
+      inExclusiveRange(0, 1),
+    );
+    expect(find.byKey(const Key('media-thumbnail-fixture-0')), findsOneWidget);
+
+    await tester.pumpAndSettle();
+    expect(tester.widget<Opacity>(opacityFinder).opacity, 1);
+  });
+
   testWidgets('formatted caption and image semantics follow current media', (
     tester,
   ) async {
