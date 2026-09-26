@@ -46,8 +46,8 @@ use matrix_sdk::{
                 history_visibility::{HistoryVisibility, RoomHistoryVisibilityEventContent},
                 join_rules::{JoinRule, RoomJoinRulesEventContent},
                 message::{
-                    AddMentions, Relation, ReplacementMetadata, RoomMessageEventContent,
-                    TextMessageEventContent,
+                    AddMentions, LocationMessageEventContent, MessageType, Relation,
+                    ReplacementMetadata, RoomMessageEventContent, TextMessageEventContent,
                 },
                 power_levels::UserPowerLevel,
             },
@@ -71,7 +71,7 @@ use tokio::{
     task::JoinSet,
 };
 
-const KITE_MATRIX_ABI_VERSION: u32 = 34;
+const KITE_MATRIX_ABI_VERSION: u32 = 35;
 const KITE_MATRIX_SESSION_STORE_KEY: &[u8] = b"kite.matrix.session.v1";
 const KITE_MATRIX_MEDIA_PREFETCH_CONCURRENCY: usize = 6;
 const KITE_MATRIX_MEDIA_PREFETCH_TIMEOUT: Duration = Duration::from_secs(1);
@@ -1188,6 +1188,84 @@ pub unsafe extern "C" fn kite_matrix_client_send_text(
             .await
     }) else {
         return error_json("send_failed", "The Matrix message could not be sent.");
+    };
+    if persist_session_if_access_token_changed(
+        &client.runtime,
+        matrix_client,
+        previous_access_token.as_deref(),
+    )
+    .is_err()
+    {
+        return error_json(
+            "session_persist_failed",
+            "Could not save the refreshed Matrix session.",
+        );
+    }
+
+    ok_json(json!({"eventId": response.response.event_id.as_str()}))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kite_matrix_client_send_location(
+    client: *mut KiteMatrixClient,
+    room_id: *const c_char,
+    transaction_id: *const c_char,
+    body: *const c_char,
+    geo_uri: *const c_char,
+) -> *mut c_char {
+    if client.is_null() {
+        return error_json("client_closed", "Matrix location sending is unavailable.");
+    }
+    let Some(room_id) = (unsafe { required_utf8(room_id) }) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+    let Some(transaction_id) = (unsafe { required_utf8(transaction_id) }) else {
+        return error_json(
+            "invalid_transaction",
+            "The Matrix transaction ID is invalid.",
+        );
+    };
+    let Some(body) = (unsafe { required_utf8(body) }) else {
+        return error_json("invalid_location", "The Matrix location is invalid.");
+    };
+    let Some(geo_uri) = (unsafe { required_utf8(geo_uri) }) else {
+        return error_json("invalid_location", "The Matrix location is invalid.");
+    };
+    if room_id.is_empty()
+        || transaction_id.is_empty()
+        || body.is_empty()
+        || !geo_uri.starts_with("geo:")
+    {
+        return error_json("invalid_location", "The Matrix location is invalid.");
+    }
+    let Ok(room_id) = RoomId::parse(room_id) else {
+        return error_json("invalid_room", "The Matrix room is invalid.");
+    };
+
+    let client = unsafe { &mut *client };
+    let Some(matrix_client) = client.client.as_ref() else {
+        return error_json("client_closed", "Matrix location sending is unavailable.");
+    };
+    let Some(room) = matrix_client.get_room(&room_id) else {
+        return error_json("room_unavailable", "This Matrix room is not available yet.");
+    };
+    if !room.are_members_synced() && client.runtime.block_on(room.sync_members()).is_err() {
+        return error_json("send_failed", "The Matrix location could not be sent.");
+    }
+
+    let previous_access_token = matrix_client
+        .matrix_auth()
+        .session()
+        .map(|session| session.tokens.access_token);
+    let content = RoomMessageEventContent::new(MessageType::Location(
+        LocationMessageEventContent::new(body.to_owned(), geo_uri.to_owned()),
+    ));
+    let Ok(response) = client.runtime.block_on(async {
+        room.send(content)
+            .with_transaction_id(OwnedTransactionId::from(transaction_id))
+            .await
+    }) else {
+        return error_json("send_failed", "The Matrix location could not be sent.");
     };
     if persist_session_if_access_token_changed(
         &client.runtime,
@@ -4298,7 +4376,7 @@ mod tests {
 
     #[test]
     fn abi_version_is_pinned() {
-        assert_eq!(kite_matrix_abi_version(), 34);
+        assert_eq!(kite_matrix_abi_version(), 35);
     }
 
     #[test]

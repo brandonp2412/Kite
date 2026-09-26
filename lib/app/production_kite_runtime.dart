@@ -18,6 +18,7 @@ import 'package:kite/features/rooms/room_members.dart';
 import 'package:kite/features/timeline/platform_composer_attachment_picker.dart';
 import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
 import 'package:kite/features/timeline/platform_timeline_media_action_port.dart';
+import 'package:kite/features/timeline/platform_timeline_location_port.dart';
 import 'package:kite/features/timeline/timeline_attachment_widgets.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_link_preview.dart';
@@ -896,6 +897,22 @@ final class _AuthenticatedMatrixHomeState
                       transactionId: transactionId,
                       body: body,
                       replyToEventId: replyToEventId,
+                    );
+                  },
+            ),
+            locationPort: PlatformTimelineLocationPort(
+              sendStaticLocation:
+                  ({
+                    required roomId,
+                    required transactionId,
+                    required location,
+                  }) async {
+                    await widget.runtime.sendLocationMessage(
+                      accountId: widget.session.userId,
+                      roomId: roomId,
+                      transactionId: transactionId,
+                      body: location.label,
+                      geoUri: 'geo:${location.latitude},${location.longitude}',
                     );
                   },
             ),

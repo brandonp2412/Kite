@@ -178,6 +178,8 @@ final class TimelineLocationPreparation {
 }
 
 abstract interface class TimelineLocationPort {
+  bool get supportsLiveLocation;
+
   Future<TimelineLocationPreparation> prepare(TimelineLocationKind kind);
   Future<TimelineSendOutcome> sendLocation({
     required String roomId,
@@ -199,6 +201,9 @@ final class DeterministicTimelineLocationPort implements TimelineLocationPort {
     this.latitude = -36.8468,
     this.longitude = 174.7682,
   });
+
+  @override
+  bool get supportsLiveLocation => true;
 
   TimelineLocationPermission permission;
   final Duration latency;
@@ -640,11 +645,16 @@ class TimelineMessage {
     final rawBody = content['body'];
     final body = rawBody is String ? rawBody.trim() : '';
     final attachment = _matrixAttachment(event, msgtype, body);
+    final location = _matrixLocation(content, msgtype, body);
     final supportedText =
         msgtype == 'm.text' || msgtype == 'm.notice' || msgtype == 'm.emote';
-    if (!supportedText && attachment == null) return null;
+    if (!supportedText && attachment == null && location == null) return null;
 
-    final mediaBody = attachment == null ? body : _matrixMediaCaption(content);
+    final mediaBody = attachment == null && location == null
+        ? body
+        : attachment == null
+        ? ''
+        : _matrixMediaCaption(content);
     final replyToMessageId = _matrixReplyToEventId(content);
     final formattedBody = _matrixFormattedBody(content);
     return TimelineMessage(
@@ -664,6 +674,7 @@ class TimelineMessage {
       replyToSender: replyToMessageId == null ? null : replyTarget?.sender,
       replyToBody: replyToMessageId == null ? null : replyTarget?.body,
       attachment: attachment,
+      location: location,
     );
   }
 
@@ -704,6 +715,8 @@ class TimelineMessage {
 }
 
 abstract interface class TimelineLocationShareDelegate {
+  bool get supportsLiveLocation;
+
   Future<TimelineLocationPreparation> prepareLocation(
     TimelineLocationKind kind,
   );
@@ -1141,6 +1154,9 @@ class TimelineController implements TimelineLocationShareDelegate {
   }
 
   @override
+  bool get supportsLiveLocation => _locationPort.supportsLiveLocation;
+
+  @override
   Future<TimelineLocationPreparation> prepareLocation(
     TimelineLocationKind kind,
   ) => _locationPort.prepare(kind);
@@ -1481,6 +1497,7 @@ class TimelineController implements TimelineLocationShareDelegate {
 
   void updateTransport({
     required TimelineSendPort sendPort,
+    TimelineLocationPort? locationPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineEditPort? editPort,
     TimelineRedactionPort? redactionPort,
@@ -1489,6 +1506,7 @@ class TimelineController implements TimelineLocationShareDelegate {
     TimelineModerationPort? moderationPort,
   }) {
     _sendPort = sendPort;
+    if (locationPort != null) _locationPort = locationPort;
     _attachmentSendPort =
         attachmentSendPort ?? const DeterministicTimelineAttachmentSendPort();
     _editPort = editPort ?? const DeterministicTimelineEditPort();
@@ -1703,6 +1721,39 @@ String? _matrixReplyToEventId(Map<String, Object?> content) {
   if (eventId is! String) return null;
   final normalized = eventId.trim();
   return normalized.isEmpty ? null : normalized;
+}
+
+TimelineLocation? _matrixLocation(
+  Map<String, Object?> content,
+  String msgtype,
+  String body,
+) {
+  if (msgtype != 'm.location') return null;
+  final rawGeoUri = content['geo_uri'];
+  if (rawGeoUri is! String) return null;
+  final geoUri = rawGeoUri.trim();
+  if (!geoUri.startsWith('geo:')) return null;
+  final coordinatePart = geoUri.substring(4).split(';').first;
+  final coordinates = coordinatePart.split(',');
+  if (coordinates.length < 2) return null;
+  final latitude = double.tryParse(coordinates[0].trim());
+  final longitude = double.tryParse(coordinates[1].trim());
+  if (latitude == null ||
+      longitude == null ||
+      !latitude.isFinite ||
+      !longitude.isFinite ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180) {
+    return null;
+  }
+  return TimelineLocation(
+    kind: TimelineLocationKind.staticLocation,
+    latitude: latitude,
+    longitude: longitude,
+    label: body.isEmpty ? 'Shared location' : body,
+  );
 }
 
 TimelineAttachment? _matrixAttachment(

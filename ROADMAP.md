@@ -276,6 +276,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Captions on media.
 - [ ] Voice-message record, cancel, preview, send, playback state.
 - [ ] Static location picker/share.
+  - Progress 2026-09-26: production static location sharing now requests foreground location permission from the device, obtains a real current fix, serializes standard Matrix `m.location` events through native Rust SDK ABI 35, and projects synced `geo_uri` events back into location cards. Live location is capability-gated out of production until its update/stop protocol lands. Android/iOS foreground-location declarations are included, and the dependency audit now covers 128 hosted packages including the reviewed MPL-2.0 transitive dependencies introduced by geolocation. Flutter analysis, the complete Flutter test suite, Rust format/build/tests, the Dart/Rust ABI smoke test, and an Android x86_64 JNI build pass. Keep unchecked until the required locked Waydroid runtime gate completes green.
 - [ ] Live location start/stop/status and permission handling.
 - [ ] Create/respond/end polls.
 - [ ] Sending progress, retry, cancel where supported, and deterministic failure UI.

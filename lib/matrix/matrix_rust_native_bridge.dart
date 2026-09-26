@@ -13,7 +13,7 @@ import 'package:kite/matrix/matrix_models.dart';
 import 'package:kite/matrix/matrix_rust_sync_codec.dart';
 import 'package:kite/matrix/matrix_sdk_boundary.dart';
 
-const int kiteMatrixNativeAbiVersion = 34;
+const int kiteMatrixNativeAbiVersion = 35;
 
 const Duration _matrixRustSyncPollTimeout = Duration(seconds: 1);
 const int _matrixRustMaxRetryDelaySeconds = 30;
@@ -345,6 +345,20 @@ typedef _ClientSendTextNative = Pointer<Char> Function(
 typedef _ClientSendTextDart = Pointer<Char> Function(
   Pointer<Void>,
   Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientSendLocationNative = Pointer<Char> Function(
+  Pointer<Void>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+  Pointer<Char>,
+);
+typedef _ClientSendLocationDart = Pointer<Char> Function(
+  Pointer<Void>,
   Pointer<Char>,
   Pointer<Char>,
   Pointer<Char>,
@@ -683,6 +697,56 @@ final class _MatrixNativeSendTextOperation {
     } finally {
       if (replacementEventIdUtf8 != null) calloc.free(replacementEventIdUtf8);
       if (replyToEventIdUtf8 != null) calloc.free(replyToEventIdUtf8);
+      calloc.free(bodyUtf8);
+      calloc.free(transactionIdUtf8);
+      calloc.free(roomIdUtf8);
+    }
+  }
+}
+
+final class _MatrixNativeSendLocationOperation {
+  const _MatrixNativeSendLocationOperation({
+    required this.libraryPath,
+    required this.address,
+    required this.roomId,
+    required this.transactionId,
+    required this.body,
+    required this.geoUri,
+  });
+
+  final String libraryPath;
+  final int address;
+  final String roomId;
+  final String transactionId;
+  final String body;
+  final String geoUri;
+
+  Object? call() {
+    final library = DynamicLibrary.open(libraryPath);
+    final send = library
+        .lookupFunction<_ClientSendLocationNative, _ClientSendLocationDart>(
+          'kite_matrix_client_send_location',
+        );
+    final freeString = library
+        .lookupFunction<_StringFreeNative, _StringFreeDart>(
+          'kite_matrix_string_free',
+        );
+    final roomIdUtf8 = roomId.toNativeUtf8(allocator: calloc);
+    final transactionIdUtf8 = transactionId.toNativeUtf8(allocator: calloc);
+    final bodyUtf8 = body.toNativeUtf8(allocator: calloc);
+    final geoUriUtf8 = geoUri.toNativeUtf8(allocator: calloc);
+    try {
+      final value = send(
+        Pointer<Void>.fromAddress(address),
+        roomIdUtf8.cast<Char>(),
+        transactionIdUtf8.cast<Char>(),
+        bodyUtf8.cast<Char>(),
+        geoUriUtf8.cast<Char>(),
+      );
+      final payload = _readNativeString(value, freeString, 'location send');
+      return _decodeNativeEnvelope(payload);
+    } finally {
+      calloc.free(geoUriUtf8);
       calloc.free(bodyUtf8);
       calloc.free(transactionIdUtf8);
       calloc.free(roomIdUtf8);
@@ -2191,6 +2255,15 @@ abstract interface class MatrixRustRoomReadClient {
   Future<void> markRoomRead({required String roomId, required String eventId});
 }
 
+abstract interface class MatrixRustLocationMessageClient {
+  Future<MatrixRustSendResult> sendLocation({
+    required String roomId,
+    required String transactionId,
+    required String body,
+    required String geoUri,
+  });
+}
+
 abstract interface class MatrixRustClient {
   bool get isClosed;
 
@@ -2429,6 +2502,7 @@ final class _MatrixSerialOperationQueue {
 final class MatrixRustNativeClient
     implements
         MatrixRustClient,
+        MatrixRustLocationMessageClient,
         MatrixRustSessionClient,
         MatrixRustLogoutClient,
         MatrixRustRoomCreator,
@@ -2594,6 +2668,83 @@ final class MatrixRustNativeClient
           body: body,
           replyToEventId: normalizedReplyToEventId,
           replacementEventId: normalizedReplacementEventId,
+        ).call,
+      );
+      if (decoded is! Map<String, dynamic>) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid send data.',
+        );
+      }
+      final eventId = decoded['eventId'];
+      if (eventId is! String || eventId.isEmpty) {
+        throw const MatrixRustNativeException(
+          code: 'invalid_native_response',
+          publicMessage: 'The Matrix native bridge returned invalid send data.',
+        );
+      }
+      return MatrixRustSendResult(eventId: eventId);
+    });
+  }
+
+  @override
+  Future<MatrixRustSendResult> sendLocation({
+    required String roomId,
+    required String transactionId,
+    required String body,
+    required String geoUri,
+  }) {
+    final normalizedRoomId = roomId.trim();
+    final normalizedTransactionId = transactionId.trim();
+    final normalizedBody = body.trim();
+    final normalizedGeoUri = geoUri.trim();
+    if (normalizedRoomId.isEmpty || normalizedRoomId.contains('\u0000')) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          roomId,
+          'roomId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedTransactionId.isEmpty ||
+        normalizedTransactionId.contains('\u0000')) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          transactionId,
+          'transactionId',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (normalizedBody.isEmpty || normalizedBody.contains('\u0000')) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          body,
+          'body',
+          'must not be empty or contain NUL bytes',
+        ),
+      );
+    }
+    if (!normalizedGeoUri.startsWith('geo:') ||
+        normalizedGeoUri.contains('\u0000')) {
+      return Future<MatrixRustSendResult>.error(
+        ArgumentError.value(
+          geoUri,
+          'geoUri',
+          'must be a geo URI without NUL bytes',
+        ),
+      );
+    }
+    return _enqueue<MatrixRustSendResult>(() async {
+      final decoded = await Isolate.run<Object?>(
+        _MatrixNativeSendLocationOperation(
+          libraryPath: libraryPath,
+          address: _requireAddress(),
+          roomId: normalizedRoomId,
+          transactionId: normalizedTransactionId,
+          body: normalizedBody,
+          geoUri: normalizedGeoUri,
         ).call,
       );
       if (decoded is! Map<String, dynamic>) {
@@ -3854,6 +4005,7 @@ final class MatrixRustSdkBoundary
         MatrixSdkBoundary,
         MatrixSdkPasswordAuthenticator,
         MatrixSdkTextMessageSender,
+        MatrixSdkLocationMessageSender,
         MatrixSdkMediaMessageSender,
         MatrixSdkMediaManager,
         MatrixSdkOriginalMediaManager,
@@ -3982,6 +4134,31 @@ final class MatrixRustSdkBoundary
         replyToEventId: replyToEventId,
         replacementEventId: replacementEventId,
       );
+      return result.eventId;
+    });
+  }
+
+  @override
+  Future<String> sendLocationMessage({
+    required String roomId,
+    required String transactionId,
+    required String body,
+    required String geoUri,
+  }) {
+    return _enqueue<String>(() async {
+      final client = _requireClient();
+      if (client is! MatrixRustLocationMessageClient) {
+        throw const MatrixSdkContractException(
+          'Matrix Rust client does not support location messages',
+        );
+      }
+      final result = await (client as MatrixRustLocationMessageClient)
+          .sendLocation(
+            roomId: roomId,
+            transactionId: transactionId,
+            body: body,
+            geoUri: geoUri,
+          );
       return result.eventId;
     });
   }

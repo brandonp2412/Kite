@@ -832,6 +832,29 @@ final class MatrixAccountRuntimeRegistry {
     );
   }
 
+  Future<String> sendLocationMessage({
+    required String accountId,
+    required String roomId,
+    required String transactionId,
+    required String body,
+    required String geoUri,
+  }) {
+    final normalizedAccountId = _normalizeAccountId(accountId);
+    _ensureNotDisposed();
+    final active = _activeRuntime;
+    if (active == null || activeAccountId.value != normalizedAccountId) {
+      return Future<String>.error(
+        StateError('Cannot send a Matrix location for an inactive account'),
+      );
+    }
+    return active.engine.sendLocationMessage(
+      roomId: roomId,
+      transactionId: transactionId,
+      body: body,
+      geoUri: geoUri,
+    );
+  }
+
   Future<String> sendMediaMessage({
     required String accountId,
     required String roomId,

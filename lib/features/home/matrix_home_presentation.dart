@@ -204,6 +204,7 @@ final class MatrixHomeScreen extends StatefulWidget {
     required this.cache,
     required this.currentUserId,
     required this.sendPort,
+    this.locationPort,
     this.attachmentSendPort,
     this.composerAttachmentPicker,
     this.composerVoiceMessagePortFactory,
@@ -231,6 +232,7 @@ final class MatrixHomeScreen extends StatefulWidget {
   final MatrixPresentationCache cache;
   final String currentUserId;
   final TimelineSendPort sendPort;
+  final TimelineLocationPort? locationPort;
   final TimelineAttachmentSendPort? attachmentSendPort;
   final ComposerAttachmentPicker? composerAttachmentPicker;
   final ComposerVoiceMessagePortFactory? composerVoiceMessagePortFactory;
@@ -278,6 +280,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       return;
     }
     if (!identical(oldWidget.sendPort, widget.sendPort) ||
+        !identical(oldWidget.locationPort, widget.locationPort) ||
         !identical(oldWidget.attachmentSendPort, widget.attachmentSendPort) ||
         !identical(oldWidget.editPort, widget.editPort) ||
         !identical(oldWidget.redactionPort, widget.redactionPort) ||
@@ -286,6 +289,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
         !identical(oldWidget.moderationPort, widget.moderationPort)) {
       _binding.updateTransport(
         sendPort: widget.sendPort,
+        locationPort: widget.locationPort,
         attachmentSendPort: widget.attachmentSendPort,
         editPort: widget.editPort,
         redactionPort: widget.redactionPort,
@@ -301,6 +305,7 @@ final class _MatrixHomeScreenState extends State<MatrixHomeScreen> {
       cache: widget.cache,
       currentUserId: widget.currentUserId,
       sendPort: widget.sendPort,
+      locationPort: widget.locationPort,
       attachmentSendPort: widget.attachmentSendPort,
       editPort: widget.editPort,
       linkOpenPort: widget.linkOpenPort,
@@ -407,6 +412,7 @@ final class MatrixHomePresentationBinding {
     required this.cache,
     required String currentUserId,
     required TimelineSendPort sendPort,
+    TimelineLocationPort? locationPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineEditPort? editPort,
     TimelineRedactionPort? redactionPort,
@@ -438,6 +444,7 @@ final class MatrixHomePresentationBinding {
        ) {
     this.controller.reset(
       sendPort: sendPort,
+      locationPort: locationPort,
       attachmentSendPort: attachmentSendPort,
       editPort: editPort,
       redactionPort: redactionPort,
@@ -535,6 +542,7 @@ final class MatrixHomePresentationBinding {
 
   void updateTransport({
     required TimelineSendPort sendPort,
+    TimelineLocationPort? locationPort,
     TimelineAttachmentSendPort? attachmentSendPort,
     TimelineEditPort? editPort,
     TimelineRedactionPort? redactionPort,
@@ -544,6 +552,7 @@ final class MatrixHomePresentationBinding {
   }) {
     controller.updateTransport(
       sendPort: sendPort,
+      locationPort: locationPort,
       attachmentSendPort: attachmentSendPort,
       editPort: editPort,
       redactionPort: redactionPort,

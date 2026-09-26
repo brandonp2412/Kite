@@ -646,6 +646,22 @@ final class MatrixProductionRuntime
     );
   }
 
+  Future<String> sendLocationMessage({
+    required String accountId,
+    required String roomId,
+    required String transactionId,
+    required String body,
+    required String geoUri,
+  }) {
+    return accounts.sendLocationMessage(
+      accountId: accountId,
+      roomId: roomId,
+      transactionId: transactionId,
+      body: body,
+      geoUri: geoUri,
+    );
+  }
+
   Future<String> sendMediaMessage({
     required String accountId,
     required String roomId,
