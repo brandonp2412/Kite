@@ -153,15 +153,23 @@ final class TimelineMediaViewerModel {
     final playbackPort = actionPort is TimelineMediaPlaybackPort
         ? actionPort as TimelineMediaPlaybackPort
         : null;
-    final resolvedResolver =
-        resolver ??
+    final playbackLoader = playbackPort == null
+        ? null
+        : (TimelineMessage message) =>
+              playbackPort.loadOriginal(roomId: roomId, message: message);
+    final resolvedResolver = switch (resolver) {
+      DeterministicTimelineMediaResolver deterministic
+          when deterministic.playbackLoader == null && playbackLoader != null =>
         DeterministicTimelineMediaResolver(
-          imageProvider: imageProvider,
-          playbackLoader: playbackPort == null
-              ? null
-              : (message) =>
-                    playbackPort.loadOriginal(roomId: roomId, message: message),
-        );
+          imageProvider: deterministic.imageProvider,
+          playbackLoader: playbackLoader,
+        ),
+      final TimelineMediaResolver resolver => resolver,
+      null => DeterministicTimelineMediaResolver(
+        imageProvider: imageProvider,
+        playbackLoader: playbackLoader,
+      ),
+    };
     final messageById = <String, TimelineMessage>{
       for (final message in mediaMessages) message.id: message,
     };

@@ -577,6 +577,7 @@ void main() {
         roomId: '!room:kite.test',
         messages: <TimelineMessage>[message],
         initialMessageId: message.id,
+        resolver: const DeterministicTimelineMediaResolver(),
         actionPort: port,
       );
 

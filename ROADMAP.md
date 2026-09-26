@@ -319,6 +319,7 @@ Kite should not merely contain the same controls. It must have the same level of
 - [ ] Avatar full-screen preview.
   - 2026-09-23 progress: profile avatars open the shared hero-transition media viewer; regular avatar requests stay at 192px while the visible full-screen avatar requests 1600px media. Behavior, 120 Hz motion, full Flutter tests, analyze, and release audit pass. Keep this unchecked until the required device jitter gate completes for this branch.
 - [ ] Media/file/link gallery tabs where present upstream.
+  - Progress 2026-09-26: the existing Shared content Media/Files/Links gallery now renders real production Matrix media thumbnails instead of deterministic placeholders, and gallery-opened videos retain the production original-media playback loader even when the gallery injects its own thumbnail resolver. Focused gallery/media and 120 Hz motion coverage pass, full analysis is clean, the release audit passes for 121 hosted packages, and the full 1,207-test deterministic Flutter suite passes with 5 intentional native-library skips. Keep unchecked until the required device runtime gate is green.
 - [ ] Content scanner/warning flow if part of current Element X public baseline.
 - [ ] Correct encrypted-media caching and cleanup.
 

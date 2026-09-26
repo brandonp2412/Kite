@@ -4,7 +4,29 @@ import 'package:kite/design/kite_theme.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/media/room_content_gallery.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
+import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:signals/signals.dart';
+
+final class _RecordingGalleryMediaResolver implements TimelineMediaResolver {
+  final List<String> thumbnailMessageIds = <String>[];
+
+  @override
+  MediaVisualBuilder thumbnailFor(TimelineMessage message) {
+    thumbnailMessageIds.add(message.id);
+    return (_) => ColoredBox(
+      key: Key('resolved-gallery-thumbnail-${message.id}'),
+      color: Colors.blue,
+    );
+  }
+
+  @override
+  Future<MediaVisualBuilder> loadFullResolution(TimelineMessage message) async {
+    return (_) => ColoredBox(
+      key: Key('resolved-gallery-full-${message.id}'),
+      color: Colors.green,
+    );
+  }
+}
 
 List<TimelineMessage> _messages() => <TimelineMessage>[
   TimelineMessage(
@@ -128,6 +150,38 @@ void main() {
     await tester.tap(find.byKey(const Key('room-content-link-link-message-0')));
     await tester.pump();
     expect(openedLink.toString(), 'https://matrix.org/docs/');
+  });
+
+  testWidgets('media grid renders thumbnails through the injected resolver', (
+    tester,
+  ) async {
+    final messages = signal<List<TimelineMessage>>(_messages());
+    final resolver = _RecordingGalleryMediaResolver();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: KiteTheme.light,
+        home: RoomContentGallery(
+          roomId: 'design',
+          messages: messages,
+          mediaResolver: resolver,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('resolved-gallery-thumbnail-photo-message')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('resolved-gallery-thumbnail-video-message')),
+      findsOneWidget,
+    );
+    expect(
+      resolver.thumbnailMessageIds.toSet(),
+      containsAll(<String>{'photo-message', 'video-message'}),
+    );
   });
 
   testWidgets('cached shared content renders before requesting older history', (

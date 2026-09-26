@@ -263,7 +263,7 @@ class _MediaGrid extends StatelessWidget {
           itemCount: messages.length,
           itemBuilder: (context, index) {
             final message = messages[index];
-            final attachment = message.attachment!;
+            final thumbnail = mediaResolver.thumbnailFor(message);
             return Semantics(
               button: true,
               label: '${timelineMediaSemanticLabel(message)}, open media',
@@ -276,7 +276,7 @@ class _MediaGrid extends StatelessWidget {
                   onTap: () => _open(context, message),
                   child: Hero(
                     tag: timelineMediaHeroTag(message),
-                    child: TimelineMediaVisual(attachment: attachment),
+                    child: thumbnail(context),
                   ),
                 ),
               ),
