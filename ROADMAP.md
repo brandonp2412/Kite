@@ -308,6 +308,7 @@ Kite should not merely contain the same controls. It must have the same level of
 
 - [ ] Full-screen image viewer with smooth hero transition and no source-thumbnail flash.
 - [ ] Video viewer/playback.
+  - Progress 2026-09-26: the shared media viewer now upgrades visible Matrix video items from their thumbnail into real playback using the original downloaded/decrypted bytes from the existing production media port. Playback is lazy per visible item, preserves adjacent-media browsing plus save/share, exposes play/pause and scrubbing controls, and keeps the Matrix thumbnail as the pre-playback visual. video_player and its hosted transitive dependencies passed the pinned dependency/license review (121 hosted packages total). Focused media regressions pass, full analysis is clean, all 1,206 Flutter tests pass with 5 intentional native-library skips, and the quality gate passes the release audit, Rust bridge tests/build, and Dart/Rust ABI smoke stage. Keep unchecked because the required locked Waydroid jitter stage cannot start without an available ADB device.
 - [ ] Swipe/browse adjacent timeline media where upstream supports it.
 - [ ] Load full-resolution media only for the visible item.
 - [ ] Formatted media captions.

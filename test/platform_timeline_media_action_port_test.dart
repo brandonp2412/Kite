@@ -35,6 +35,26 @@ void main() {
     );
   }
 
+  test('playback loads original encrypted Matrix media bytes', () async {
+    var loadCalls = 0;
+    final port = PlatformTimelineMediaActionPort(
+      loadOriginalMedia: (attachment) async {
+        loadCalls += 1;
+        expect(attachment.contentUri, 'mxc://kite.test/photo');
+        expect(attachment.encryptedFile?['v'], 'v2');
+        return Uint8List.fromList(<int>[8, 6, 7, 5]);
+      },
+    );
+
+    final bytes = await port.loadOriginal(
+      roomId: '!room:kite.test',
+      message: remoteImage(),
+    );
+
+    expect(loadCalls, 1);
+    expect(bytes, <int>[8, 6, 7, 5]);
+  });
+
   test(
     'Android save downloads original bytes and writes public media payload',
     () async {

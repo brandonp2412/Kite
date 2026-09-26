@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:kite/design/kite_tokens.dart';
 import 'package:kite/features/media/media_viewer.dart';
 import 'package:kite/features/timeline/timeline_attachment_formatting.dart';
 import 'package:kite/features/timeline/timeline_controller.dart';
 import 'package:kite/features/timeline/timeline_message_body.dart';
+import 'package:video_player/video_player.dart';
 
 abstract interface class TimelineMediaActionPort {
   Future<void> save({required String roomId, required TimelineMessage message});
@@ -13,6 +16,17 @@ abstract interface class TimelineMediaActionPort {
     required TimelineMessage message,
   });
 }
+
+abstract interface class TimelineMediaPlaybackPort {
+  Future<Uint8List> loadOriginal({
+    required String roomId,
+    required TimelineMessage message,
+  });
+}
+
+typedef TimelineMediaPlaybackLoader = Future<Uint8List> Function(
+  TimelineMessage message,
+);
 
 final class DeterministicTimelineMediaActionPort
     implements TimelineMediaActionPort {
@@ -52,9 +66,13 @@ abstract interface class TimelineMediaResolver {
 
 final class DeterministicTimelineMediaResolver
     implements TimelineMediaResolver {
-  const DeterministicTimelineMediaResolver({this.imageProvider});
+  const DeterministicTimelineMediaResolver({
+    this.imageProvider,
+    this.playbackLoader,
+  });
 
   final TimelineMediaImageProvider? imageProvider;
+  final TimelineMediaPlaybackLoader? playbackLoader;
 
   @override
   MediaVisualBuilder thumbnailFor(TimelineMessage message) {
@@ -69,17 +87,28 @@ final class DeterministicTimelineMediaResolver
   }
 
   @override
-  Future<MediaVisualBuilder> loadFullResolution(TimelineMessage message) {
+  Future<MediaVisualBuilder> loadFullResolution(TimelineMessage message) async {
     final attachment = message.attachment!;
-    return Future<MediaVisualBuilder>.value(
-      (context) => TimelineMediaVisual(
-        attachment: attachment,
-        imageProvider: imageProvider?.call(
-          attachment,
-          TimelineMediaImageVariant.fullResolution,
-        ),
-        detailed: true,
+    final loadPlayback = playbackLoader;
+    if (attachment.kind == TimelineAttachmentKind.video &&
+        loadPlayback != null) {
+      try {
+        final bytes = await loadPlayback(message);
+        if (bytes.isNotEmpty) {
+          return (context) =>
+              TimelineVideoPlayer(attachment: attachment, bytes: bytes);
+        }
+      } catch (_) {
+        // Keep the viewer usable when the original video cannot be resolved.
+      }
+    }
+    return (context) => TimelineMediaVisual(
+      attachment: attachment,
+      imageProvider: imageProvider?.call(
+        attachment,
+        TimelineMediaImageVariant.fullResolution,
       ),
+      detailed: true,
     );
   }
 }
@@ -121,9 +150,18 @@ final class TimelineMediaViewerModel {
       );
     }
 
+    final playbackPort = actionPort is TimelineMediaPlaybackPort
+        ? actionPort as TimelineMediaPlaybackPort
+        : null;
     final resolvedResolver =
         resolver ??
-        DeterministicTimelineMediaResolver(imageProvider: imageProvider);
+        DeterministicTimelineMediaResolver(
+          imageProvider: imageProvider,
+          playbackLoader: playbackPort == null
+              ? null
+              : (message) =>
+                    playbackPort.loadOriginal(roomId: roomId, message: message),
+        );
     final messageById = <String, TimelineMessage>{
       for (final message in mediaMessages) message.id: message,
     };
@@ -195,6 +233,143 @@ String timelineMediaSemanticLabel(TimelineMessage message) {
   return '$type: ${attachment.name}';
 }
 
+class TimelineVideoPlayer extends StatefulWidget {
+  const TimelineVideoPlayer({
+    super.key,
+    required this.attachment,
+    required this.bytes,
+  });
+
+  final TimelineAttachment attachment;
+  final Uint8List bytes;
+
+  @override
+  State<TimelineVideoPlayer> createState() => _TimelineVideoPlayerState();
+}
+
+class _TimelineVideoPlayerState extends State<TimelineVideoPlayer> {
+  VideoPlayerController? _controller;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final mimeType = widget.attachment.mimeType?.trim().isNotEmpty == true
+          ? widget.attachment.mimeType!.trim()
+          : 'video/mp4';
+      final controller = VideoPlayerController.networkUrl(
+        Uri.dataFromBytes(widget.bytes, mimeType: mimeType),
+      );
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      controller.addListener(_onPlaybackChanged);
+      _controller = controller;
+      setState(() {});
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error);
+    }
+  }
+
+  void _onPlaybackChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _togglePlayback() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (controller.value.isPlaying) {
+      await controller.pause();
+    } else {
+      if (controller.value.position >= controller.value.duration) {
+        await controller.seekTo(Duration.zero);
+      }
+      await controller.play();
+    }
+  }
+
+  @override
+  void dispose() {
+    final controller = _controller;
+    if (controller != null) {
+      controller.removeListener(_onPlaybackChanged);
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (_error != null) {
+      return TimelineMediaVisual(attachment: widget.attachment, detailed: true);
+    }
+    if (controller == null || !controller.value.isInitialized) {
+      return const Center(
+        child: SizedBox.square(
+          key: Key('timeline-video-loading'),
+          dimension: 36,
+          child: CircularProgressIndicator(strokeWidth: 3),
+        ),
+      );
+    }
+
+    final value = controller.value;
+    final aspectRatio = value.aspectRatio.isFinite && value.aspectRatio > 0
+        ? value.aspectRatio
+        : 16 / 9;
+    return ColoredBox(
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Center(
+            child: AspectRatio(
+              aspectRatio: aspectRatio,
+              child: VideoPlayer(controller),
+            ),
+          ),
+          Center(
+            child: Semantics(
+              button: true,
+              label: value.isPlaying ? 'Pause video' : 'Play video',
+              child: IconButton.filled(
+                key: const Key('timeline-video-play-pause'),
+                tooltip: value.isPlaying ? 'Pause video' : 'Play video',
+                onPressed: _togglePlayback,
+                iconSize: 38,
+                icon: Icon(
+                  value.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: KiteSpacing.md,
+            right: KiteSpacing.md,
+            bottom: KiteSpacing.md,
+            child: VideoProgressIndicator(
+              controller,
+              allowScrubbing: true,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class TimelineMediaVisual extends StatelessWidget {
   const TimelineMediaVisual({
     super.key,
@@ -244,7 +419,9 @@ class TimelineMediaVisual extends StatelessWidget {
     );
     final provider = imageProvider;
     final visual =
-        attachment.kind == TimelineAttachmentKind.image && provider != null
+        (attachment.kind == TimelineAttachmentKind.image ||
+                attachment.kind == TimelineAttachmentKind.video) &&
+            provider != null
         ? Image(
             image: provider,
             fit: BoxFit.cover,

@@ -13,9 +13,19 @@ import 'package:kite/features/timeline/timeline_media_viewer.dart';
 import 'package:kite/features/timeline/platform_composer_voice_message_port.dart';
 import 'package:kite/testing/deterministic_adapters.dart';
 
-class _RecordingTimelineMediaActionPort implements TimelineMediaActionPort {
+class _RecordingTimelineMediaActionPort
+    implements TimelineMediaActionPort, TimelineMediaPlaybackPort {
   final List<({String action, String roomId, String eventId})> calls =
       <({String action, String roomId, String eventId})>[];
+
+  @override
+  Future<Uint8List> loadOriginal({
+    required String roomId,
+    required TimelineMessage message,
+  }) async {
+    calls.add((action: 'play', roomId: roomId, eventId: message.id));
+    return Uint8List.fromList(<int>[0, 1, 2, 3]);
+  }
 
   @override
   Future<void> save({
@@ -543,6 +553,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('media-viewer')), findsNothing);
   });
+
+  testWidgets(
+    'visible video resolves original bytes through the production playback port',
+    (tester) async {
+      final port = _RecordingTimelineMediaActionPort();
+      final message = TimelineMessage(
+        id: 'video-playback-event',
+        sender: 'Alice',
+        body: 'Video caption',
+        mine: false,
+        timeLabel: '10:02',
+        attachment: const TimelineAttachment(
+          id: 'video-playback',
+          kind: TimelineAttachmentKind.video,
+          name: 'clip.mp4',
+          sizeLabel: '8 MB · Video',
+          mimeType: 'video/mp4',
+          contentUri: 'mxc://kite.test/clip',
+        ),
+      );
+      final model = TimelineMediaViewerModel.fromMessages(
+        roomId: '!room:kite.test',
+        messages: <TimelineMessage>[message],
+        initialMessageId: message.id,
+        actionPort: port,
+      );
+
+      final builder = await model.items.single.loadFullResolution();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: Builder(builder: builder)),
+        ),
+      );
+
+      expect(find.byType(TimelineVideoPlayer), findsOneWidget);
+      expect(port.calls, <({String action, String roomId, String eventId})>[
+        (
+          action: 'play',
+          roomId: '!room:kite.test',
+          eventId: 'video-playback-event',
+        ),
+      ]);
+    },
+  );
 
   test('timeline media actions stay scoped to their room and event', () async {
     final port = _RecordingTimelineMediaActionPort();
