@@ -517,11 +517,11 @@ final class MatrixBoundaryEngine implements MatrixEngine {
 
   static const int _mediaCacheEntryLimit = 48;
   static const int _mediaCacheByteLimit = 64 * 1024 * 1024;
-  final Map<(String, int, int), Future<Uint8List>> _mediaLoads = {};
+  final Map<(String, int, int, String?), Future<Uint8List>> _mediaLoads = {};
   final Map<(int, int), Map<String, Completer<Uint8List>>> _avatarBatches = {};
 
-  final Map<(String, int, int), Uint8List> _mediaCache =
-      <(String, int, int), Uint8List>{};
+  final Map<(String, int, int, String?), Uint8List> _mediaCache =
+      <(String, int, int, String?), Uint8List>{};
   int _mediaCacheBytes = 0;
   bool _opened = false;
   bool _started = false;
@@ -927,7 +927,13 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     var completed = 0;
     final pendingUris = <String>[];
     for (final contentUri in normalizedUris) {
-      if (_cachedMedia(contentUri, width, height) != null) {
+      if (_cachedMedia(
+            contentUri,
+            width,
+            height,
+            encryptedFile: encryptedFiles[contentUri],
+          ) !=
+          null) {
         completed += 1;
       } else {
         pendingUris.add(contentUri);
@@ -957,6 +963,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         width: width,
         height: height,
         bytes: entry.value,
+        encryptedFile: encryptedFiles[entry.key],
       );
     }
     return completed + prefetched.length;
@@ -1043,10 +1050,20 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     if (height <= 0 || height > 4096) {
       throw ArgumentError.value(height, 'height', 'must be between 1 and 4096');
     }
-    final cached = _cachedMedia(normalizedContentUri, width, height);
+    final cached = _cachedMedia(
+      normalizedContentUri,
+      width,
+      height,
+      encryptedFile: encryptedFile,
+    );
     if (cached != null) return cached;
     await _ensureOpen();
-    final key = (normalizedContentUri, width, height);
+    final key = (
+      normalizedContentUri,
+      width,
+      height,
+      _mediaEncryptionIdentity(encryptedFile),
+    );
     if (encryptedFile == null) {
       final pending = _mediaLoads[key];
       if (pending != null) return pending;
@@ -1074,6 +1091,7 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         width: width,
         height: height,
         bytes: bytes,
+        encryptedFile: encryptedFile,
       );
       return bytes;
     });
@@ -1826,8 +1844,18 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     _opened = false;
   }
 
-  Uint8List? _cachedMedia(String contentUri, int width, int height) {
-    final key = (contentUri, width, height);
+  Uint8List? _cachedMedia(
+    String contentUri,
+    int width,
+    int height, {
+    Map<String, Object?>? encryptedFile,
+  }) {
+    final key = (
+      contentUri,
+      width,
+      height,
+      _mediaEncryptionIdentity(encryptedFile),
+    );
     final bytes = _mediaCache.remove(key);
     if (bytes == null) return null;
     _mediaCache[key] = bytes;
@@ -1839,10 +1867,16 @@ final class MatrixBoundaryEngine implements MatrixEngine {
     required int width,
     required int height,
     required Uint8List bytes,
+    Map<String, Object?>? encryptedFile,
   }) {
     if (bytes.lengthInBytes > _mediaCacheByteLimit) return;
 
-    final key = (contentUri, width, height);
+    final key = (
+      contentUri,
+      width,
+      height,
+      _mediaEncryptionIdentity(encryptedFile),
+    );
     final previous = _mediaCache.remove(key);
     if (previous != null) {
       _mediaCacheBytes -= previous.lengthInBytes;
@@ -1858,6 +1892,42 @@ final class MatrixBoundaryEngine implements MatrixEngine {
         _mediaCacheBytes -= removed.lengthInBytes;
       }
     }
+  }
+
+  static String? _mediaEncryptionIdentity(Map<String, Object?>? encryptedFile) {
+    if (encryptedFile == null) return null;
+    return _canonicalMediaIdentity(encryptedFile);
+  }
+
+  static String _canonicalMediaIdentity(Object? value) {
+    if (value == null) return 'n';
+    if (value is String) return 's${value.length}:$value';
+    if (value is bool) return value ? 'b1' : 'b0';
+    if (value is num) return 'd${value.toString()}';
+    if (value is Map) {
+      final entries =
+          value.entries
+              .map((entry) => MapEntry(entry.key.toString(), entry.value))
+              .toList(growable: false)
+            ..sort((left, right) => left.key.compareTo(right.key));
+      final encodedEntries = entries
+          .map(
+            (entry) =>
+                'k${entry.key.length}:${entry.key}'
+                '${_canonicalMediaIdentity(entry.value)}',
+          )
+          .join();
+      return 'm${entries.length}:$encodedEntries';
+    }
+    if (value is Iterable) {
+      final items = value.map(_canonicalMediaIdentity).toList(growable: false);
+      return 'l${items.length}:${items.join()}';
+    }
+    throw ArgumentError.value(
+      value,
+      'encryptedFile',
+      'must contain only JSON-compatible Matrix encryption metadata',
+    );
   }
 
   Future<void> _ensureOpen() async {

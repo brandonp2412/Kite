@@ -322,6 +322,7 @@ Kite should not merely contain the same controls. It must have the same level of
   - Progress 2026-09-26: the existing Shared content Media/Files/Links gallery now renders real production Matrix media thumbnails instead of deterministic placeholders, and gallery-opened videos retain the production original-media playback loader even when the gallery injects its own thumbnail resolver. Focused gallery/media and 120 Hz motion coverage pass, full analysis is clean, the release audit passes for 121 hosted packages, and the full 1,207-test deterministic Flutter suite passes with 5 intentional native-library skips. Keep unchecked until the required device runtime gate is green.
 - [ ] Content scanner/warning flow if part of current Element X public baseline.
 - [ ] Correct encrypted-media caching and cleanup.
+  - Progress 2026-09-26: resized Matrix media cache entries now include a canonical identity for encrypted-file metadata instead of keying decrypted bytes only by MXC URI and dimensions. Equivalent metadata with different map ordering still shares the warm cache, while different encryption keys and unencrypted requests cannot reuse decrypted bytes from another identity. Focused Matrix foundation coverage and scoped analysis pass; keep unchecked until the required full quality/runtime gate is green.
 
 ## Milestone 8 — 1:1 and group voice/video calling
 

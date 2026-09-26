@@ -198,6 +198,73 @@ void main() {
         await engine.close();
       },
     );
+    test('encrypted media cache is isolated by encryption metadata', () async {
+      final boundary = _FakeSdkBoundary(
+        capabilities: const <MatrixSdkCapability>{
+          MatrixSdkCapability.auditedEncryption,
+          MatrixSdkCapability.encryptedPersistentStore,
+          MatrixSdkCapability.incrementalSync,
+        },
+      );
+      final engine = MatrixBoundaryEngine(boundary: boundary, store: _store);
+      const contentUri = 'mxc://kite.test/encrypted-cache-identity';
+      final imageBytes = Uint8List.fromList(<int>[4, 3, 2, 1]);
+      const encryptedFile = <String, Object?>{
+        'url': contentUri,
+        'v': 'v2',
+        'key': <String, Object?>{'k': 'first', 'alg': 'A256CTR'},
+      };
+      const differentKey = <String, Object?>{
+        'key': <String, Object?>{'alg': 'A256CTR', 'k': 'second'},
+        'v': 'v2',
+        'url': contentUri,
+      };
+      boundary.mediaBytes[contentUri] = imageBytes;
+
+      await engine.prefetchMedia(
+        contentUris: const <String>[contentUri],
+        encryptedFiles: const <String, Map<String, Object?>>{
+          contentUri: encryptedFile,
+        },
+        width: 720,
+        height: 720,
+      );
+      expect(
+        await engine.downloadMedia(
+          contentUri: contentUri,
+          encryptedFile: const <String, Object?>{
+            'v': 'v2',
+            'url': contentUri,
+            'key': <String, Object?>{'alg': 'A256CTR', 'k': 'first'},
+          },
+          width: 720,
+          height: 720,
+        ),
+        imageBytes,
+        reason: 'Equivalent metadata with different map order shares cache.',
+      );
+      expect(boundary.mediaDownloadCalls, 0);
+
+      await engine.downloadMedia(
+        contentUri: contentUri,
+        encryptedFile: differentKey,
+        width: 720,
+        height: 720,
+      );
+      await engine.downloadMedia(
+        contentUri: contentUri,
+        width: 720,
+        height: 720,
+      );
+      expect(
+        boundary.mediaDownloadCalls,
+        2,
+        reason: 'Decrypted bytes must not cross encryption identities or become an unencrypted cache hit.',
+      );
+
+      await engine.close();
+    });
+
     test(
       'original media bypasses resized cache and preserves encryption metadata',
       () async {
