@@ -589,8 +589,10 @@ class ChatController extends State<ChatPageWithRoom>
       return;
     }
 
+    final setOnLatestEvent = eventId == null;
+
     // We only set read marker if we are at the bottom.
-    if (_scrolledUp) return;
+    if (_scrolledUp && setOnLatestEvent) return;
 
     // We do not set read marker if we offer user the scroll up banner.
     if (scrollUpBannerEventId != null) return;
@@ -606,7 +608,6 @@ class ChatController extends State<ChatPageWithRoom>
       return;
     }
 
-    final setOnLatestEvent = eventId == null;
     eventId ??= timeline.events.firstWhereOrNull((event) {
       if (event.eventId == room.lastEvent?.eventId) return true;
       if (room.client.pushruleEvaluator.match(event).notify) {
