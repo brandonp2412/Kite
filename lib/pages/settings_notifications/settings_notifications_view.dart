@@ -152,6 +152,19 @@ class SettingsNotificationsView extends StatelessWidget {
                         if (distributors == null || distributors.isEmpty) {
                           if (pushService?.firebaseEnabled == true &&
                               pushService?.fcmToken == null) {
+                            if (Matrix.of(
+                              context,
+                            ).androidDirectNotificationsEnabled) {
+                              return const ListTile(
+                                title: Text(
+                                  'Direct Matrix notifications active',
+                                ),
+                                subtitle: Text(
+                                  'Using a foreground sync service instead of Firebase.',
+                                ),
+                                leading: Icon(Icons.check_circle_outline),
+                              );
+                            }
                             return ListTile(
                               title: Text(
                                 L10n.of(

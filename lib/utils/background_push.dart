@@ -17,6 +17,7 @@ import 'package:fluffychat/main.dart';
 import 'package:fluffychat/utils/notification_background_handler.dart';
 import 'package:fluffychat/utils/push_helper.dart';
 import 'package:fluffychat/widgets/fluffy_chat_app.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:material_ui/material_ui.dart';
@@ -30,6 +31,9 @@ import '../widgets/matrix.dart';
 import 'platform_infos.dart';
 
 class BackgroundPush {
+  static const _personalFcmChannel = MethodChannel(
+    'chat.fluffy.fluffychat.test/fcm',
+  );
   static BackgroundPush? _instance;
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -351,24 +355,37 @@ class BackgroundPush {
       await _noFcmWarning();
       return;
     }
+
     if (_fcmToken?.isEmpty ?? true) {
-      if (PlatformInfos.isIOS) {
-        await firebase.requestPermission();
-      }
-      const max = 5;
-      for (var i = 0; i < max; i++) {
+      if (PlatformInfos.isAndroid) {
         try {
-          await Future.delayed(const Duration(seconds: 1));
-          _fcmToken = await firebase.getToken();
-          if (_fcmToken != null) break;
-        } catch (e, s) {
-          Logs().w(
-            '[Push] cannot get token - try ($i/$max)',
-            e,
-            e is String ? null : s,
+          _fcmToken = await _personalFcmChannel.invokeMethod<String>(
+            'registerInstallation',
           );
+          Logs().i('[Push] Registered Firebase Installation ID');
+        } catch (e, s) {
+          Logs().w('[Push] Unable to register Firebase Installation ID', e, s);
+        }
+      } else {
+        if (PlatformInfos.isIOS) {
+          await firebase.requestPermission();
+        }
+        const max = 5;
+        for (var i = 0; i < max; i++) {
+          try {
+            await Future.delayed(const Duration(seconds: 1));
+            _fcmToken = await firebase.getToken();
+            if (_fcmToken != null) break;
+          } catch (e, s) {
+            Logs().w(
+              '[Push] cannot get token - try ($i/$max)',
+              e,
+              e is String ? null : s,
+            );
+          }
         }
       }
+
       if (_fcmToken == null) {
         if (PlatformInfos.isAndroid && matrix != null) {
           await matrix!.enableAndroidDirectNotifications();

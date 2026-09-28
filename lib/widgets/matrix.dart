@@ -183,6 +183,9 @@ class MatrixState extends State<Matrix> {
 
   bool _androidDirectNotificationsEnabled = false;
 
+  bool get androidDirectNotificationsEnabled =>
+      _androidDirectNotificationsEnabled;
+
   String? _cachedPassword;
   Timer? _cachedPasswordClearTimer;
 
