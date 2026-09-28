@@ -32,7 +32,7 @@ SYNAPSE_PORT = 18008
 ADMIN_USER = "perf"
 PASSWORD = "kite-perf-local-only"
 WAYDROID_IP = "192.168.240.2"
-WAYDROID_HOST_IP = "192.168.240.1"
+WAYDROID_LOOPBACK = "127.0.0.1"
 PERF_PACKAGE = "app.kite.perf"
 ANDROID_SDK = "/opt/android-sdk"
 PUBSPEC_LOCK = ROOT / "pubspec.lock"
@@ -353,6 +353,23 @@ def connect_waydroid_adb(timeout: float = 45.0) -> str:
     raise RuntimeError(f"Waydroid ADB device unavailable; connected devices:\n{devices}")
 
 
+def ensure_synapse_adb_reverse(serial: str) -> None:
+    remote = f"tcp:{SYNAPSE_PORT}"
+    run(
+        ["adb", "-s", serial, "reverse", remote, remote],
+        timeout=10,
+    )
+    listing = run(
+        ["adb", "-s", serial, "reverse", "--list"],
+        capture=True,
+        timeout=10,
+    ).stdout
+    if remote not in listing:
+        raise RuntimeError(
+            f"ADB reverse tunnel for local Synapse was not established: {listing!r}"
+        )
+
+
 def verify_waydroid(serial: str) -> None:
     result = run(
         ["adb", "-s", serial, "shell", "getprop", "ro.product.model"],
@@ -502,11 +519,11 @@ def run_iteration(
         "--target=integration_test/performance_test.dart",
         "-d",
         serial,
-        f"--dart-define=HOMESERVER={WAYDROID_HOST_IP}:{SYNAPSE_PORT}",
+        f"--dart-define=HOMESERVER={WAYDROID_LOOPBACK}:{SYNAPSE_PORT}",
         f"--dart-define=USER1_NAME={ADMIN_USER}",
         f"--dart-define=USER1_PW={PASSWORD}",
         f"--dart-define=KITE_PERF_RUN_ID={run_id}",
-        f"--dart-define=KITE_PERF_HOMESERVER=http://{WAYDROID_HOST_IP}:{SYNAPSE_PORT}",
+        f"--dart-define=KITE_PERF_HOMESERVER=http://{WAYDROID_LOOPBACK}:{SYNAPSE_PORT}",
         f"--dart-define=KITE_PERF_DEPENDENCY_LOCK_SHA={dependency_lock_sha}",
     ]
 
@@ -590,6 +607,7 @@ def main() -> int:
         verify_waydroid(serial)
 
         with device_lock(serial, args.lock_wait_seconds):
+            ensure_synapse_adb_reverse(serial)
             if reset_state or args.reset_app_data:
                 clear_perf_app_data(serial)
 
