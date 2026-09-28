@@ -75,11 +75,13 @@ extension AuthFlows on FluffyChatTester {
 
   static final Map<String, String> userPassphrases = {};
 
-  Future<bool> ensureLoggedIn() async {
+  Future<bool> ensureLoggedIn({bool initializeCryptoIdentity = true}) async {
     if (await isVisible('Sign in') == false) return false;
 
     await login();
-    await initCryptoIdentity();
+    if (initializeCryptoIdentity) {
+      await initCryptoIdentity();
+    }
 
     await skipNoNotificationsDialog();
     return true;

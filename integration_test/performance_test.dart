@@ -54,7 +54,7 @@ void main() {
 
   testWidgets('Kite Nox Waydroid performance fixture', (tester) async {
     final kite = await tester.startFluffyChatTest();
-    await kite.ensureLoggedIn();
+    await kite.ensureLoggedIn(initializeCryptoIdentity: false);
 
     await kite.waitFor(
       const Key('chat_list_scroll'),
