@@ -36,6 +36,13 @@ WAYDROID_LOOPBACK = "127.0.0.1"
 PERF_PACKAGE = "app.kite.perf"
 ANDROID_SDK = "/opt/android-sdk"
 PUBSPEC_LOCK = ROOT / "pubspec.lock"
+REQUIRED_PERFORMANCE_KEYS = {
+    "chat_list_cold_scroll",
+    "chat_list_warm_scroll",
+    "chat_timeline_cold_scroll",
+    "chat_timeline_warm_scroll",
+    "settings_scroll_control",
+}
 
 
 def run(
@@ -461,6 +468,21 @@ def restore_pubspec_lock(original_lock: bytes) -> None:
     PUBSPEC_LOCK.write_bytes(original_lock)
 
 
+def validate_performance_result(result_file: Path) -> str | None:
+    if not result_file.exists():
+        return "integration driver produced no performance result file"
+    try:
+        data = json.loads(result_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return f"performance result is invalid JSON: {error}"
+    if not isinstance(data, dict):
+        return "performance result root is not an object"
+    missing = sorted(REQUIRED_PERFORMANCE_KEYS.difference(data))
+    if missing:
+        return f"performance result is missing scenarios: {', '.join(missing)}"
+    return None
+
+
 def append_summary(
     result_dir: Path,
     *,
@@ -469,6 +491,7 @@ def append_summary(
     elapsed_seconds: float,
     result_file: Path,
     dependency_lock_sha: str,
+    result_validation_error: str | None,
 ) -> None:
     record: dict[str, object] = {
         "runId": run_id,
@@ -479,6 +502,8 @@ def append_summary(
         "unixTime": int(time.time()),
         "dependencyLockSha256": dependency_lock_sha,
     }
+    if result_validation_error is not None:
+        record["resultValidationError"] = result_validation_error
     if result_file.exists():
         try:
             record["performance"] = json.loads(result_file.read_text(encoding="utf-8"))
@@ -539,17 +564,23 @@ def run_iteration(
         )
     elapsed = time.monotonic() - start
 
-    if process.returncode != 0:
+    result_validation_error = validate_performance_result(result_file)
+    returncode = process.returncode
+    if returncode == 0 and result_validation_error is not None:
+        returncode = 86
+
+    if returncode != 0:
         capture_failure(serial, result_dir, run_id)
     append_summary(
         result_dir,
         run_id=run_id,
-        returncode=process.returncode,
+        returncode=returncode,
         elapsed_seconds=elapsed,
         result_file=result_file,
         dependency_lock_sha=dependency_lock_sha,
+        result_validation_error=result_validation_error,
     )
-    return process.returncode
+    return returncode
 
 
 def stop_process(process: subprocess.Popen[str] | None) -> None:
