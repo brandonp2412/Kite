@@ -548,6 +548,7 @@ def run_iteration(
         f"--dart-define=USER1_NAME={ADMIN_USER}",
         f"--dart-define=USER1_PW={PASSWORD}",
         f"--dart-define=KITE_PERF_RUN_ID={run_id}",
+        "--dart-define=KITE_PERF_HARNESS=true",
         f"--dart-define=KITE_PERF_HOMESERVER=http://{WAYDROID_LOOPBACK}:{SYNAPSE_PORT}",
         f"--dart-define=KITE_PERF_USER={ADMIN_USER}",
         f"--dart-define=KITE_PERF_PASSWORD={PASSWORD}",

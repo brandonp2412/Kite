@@ -36,6 +36,8 @@ import '../utils/background_push.dart';
 import '../utils/start_push_foreground_service.dart';
 import 'local_notifications_extension.dart';
 
+const _performanceHarnessEnabled = bool.fromEnvironment('KITE_PERF_HARNESS');
+
 class Matrix extends StatefulWidget {
   final Widget? child;
 
@@ -333,7 +335,11 @@ class MatrixState extends State<Matrix> {
   }
 
   Future<void> enableAndroidDirectNotifications() async {
-    if (!PlatformInfos.isAndroid || _androidDirectNotificationsEnabled) return;
+    if (_performanceHarnessEnabled ||
+        !PlatformInfos.isAndroid ||
+        _androidDirectNotificationsEnabled) {
+      return;
+    }
 
     final notifications = FlutterLocalNotificationsPlugin();
     await notifications.initialize(
