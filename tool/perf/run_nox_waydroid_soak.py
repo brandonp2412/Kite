@@ -283,9 +283,10 @@ def adb_devices() -> list[tuple[str, str]]:
     result = run(["adb", "devices", "-l"], capture=True, check=False)
     devices: list[tuple[str, str]] = []
     for line in result.stdout.splitlines()[1:]:
-        if "\tdevice" not in line:
+        fields = line.split()
+        if len(fields) < 2 or fields[1] != "device":
             continue
-        serial = line.split()[0]
+        serial = fields[0]
         devices.append((serial, line))
     return devices
 
