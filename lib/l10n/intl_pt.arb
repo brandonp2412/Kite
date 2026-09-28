@@ -921,7 +921,7 @@
             }
         }
     },
-    "@newMessageInFluffyChat": {
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1954,10 +1954,6 @@
                 "type": "String"
             }
         }
-    },
-    "@noGoogleServicesWarning": {
-        "type": "String",
-        "placeholders": {}
     },
     "@changedTheDisplaynameTo": {
         "type": "String",

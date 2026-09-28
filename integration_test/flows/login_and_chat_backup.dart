@@ -3,19 +3,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/widgets/adaptive_dialogs/dialog_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/widgets/adaptive_dialogs/dialog_text_field.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/environment_constants.dart';
-import '../utils/fluffy_chat_tester.dart';
+import '../utils/kite_tester.dart';
 import 'auth_flows.dart';
 
-Future<void> loginAndChatBackup(WidgetTester widgetTester) => widgetTester
-    .startFluffyChatTest()
-    .then((tester) => tester._loginAndChatBackup());
+Future<void> loginAndChatBackup(WidgetTester widgetTester) =>
+    widgetTester.startKiteTest().then((tester) => tester._loginAndChatBackup());
 
-extension on FluffyChatTester {
+extension on KiteTester {
   Future<void> _loginAndChatBackup() async {
     // Set up with only recovery key:
     await login();

@@ -761,7 +761,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} convidou-te para o FluffyChat.\n1. Instala o FluffyChat: https://fluffychat.im\n2. Regista-te ou inicia sessão.\n3. Abre a ligação de convite: {link}",
+    "inviteText": "{username} convidou-te para o Kite.\n1. Instala o Kite: https://brandonp2412.github.io/Kite/\n2. Regista-te ou inicia sessão.\n3. Abre a ligação de convite: {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -918,8 +918,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "Nova mensagem no FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "Nova mensagem no Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -950,11 +950,6 @@
     },
     "noEncryptionForPublicRooms": "Só podes ativar a encriptação quando a sala não for publicamente acessível.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Parece que não tens nenhuns serviços da Google no seu telemóvel. É uma boa decisão para a sua privacidade! Para receber notificações instantâneas no FluffyChat, recomendamos que uses https://microg.org/ ou https://unifiedpush.org/.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

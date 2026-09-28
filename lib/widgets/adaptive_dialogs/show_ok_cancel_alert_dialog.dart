@@ -3,10 +3,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/url_launcher.dart';
-import 'package:fluffychat/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/url_launcher.dart';
+import 'package:kite/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum OkCancelResult { ok, cancel }

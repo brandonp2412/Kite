@@ -515,7 +515,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} uzaicināja pievienoties FluffyChat.\n1. Jāapmeklē fluffychat.im un jāuzstāda lietotne \n2. Jāizveido konts vai jāpiesakās \n3. Jāatver uzaicinājuma saite: \n {link}",
+    "inviteText": "{username} uzaicināja pievienoties Kite.\n1. Jāapmeklē brandonp2412.github.io/Kite/ un jāuzstāda lietotne \n2. Jāizveido konts vai jāpiesakās \n3. Jāatver uzaicinājuma saite: \n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -840,8 +840,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Jauna ziņa FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Jauna ziņa Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1697,11 +1697,6 @@
         "type": "String",
         "placeholders": {}
     },
-    "noGoogleServicesWarning": "Izskatās, ka Firebase mākoņziņojumapmaiņa nav pieejama šajā ierīcē. Lai joprojām saņemtu pašpiegādes paziņojumus, mēs iesakām uzstādīt ntfy. Ar ntfy vai citu UnifiedPush nodrošinātāju ir iespējams saņemt pašpiegādes paziņojumus drošā veidā. ntfy var lejupielādēt no Play Store vai F-Droid.",
-    "@noGoogleServicesWarning": {
-        "type": "String",
-        "placeholders": {}
-    },
     "addEmail": "Pievienot e-pasta adresi",
     "@addEmail": {
         "type": "String",
@@ -2461,7 +2456,7 @@
     "theProcessWasCanceled": "Darbība tika atcelta.",
     "signIn": "Pieteikties",
     "createNewAccount": "Izveidot jaunu kontu",
-    "signUpGreeting": "FluffyChat ir decentralizēta. Jāatlasa serveris, kurā ir vēlēšanās izveidot savu kontu, un aiziet!",
+    "signUpGreeting": "Kite ir decentralizēta. Jāatlasa serveris, kurā ir vēlēšanās izveidot savu kontu, un aiziet!",
     "signInGreeting": "Jau ir Matrix konts? Laipni lūdzam atpakaļ! Jāatlasa savs mājasserveris un jāpiesakās.",
     "reset": "Atiestatīt",
     "createNewTag": "Izveidot jaunu birku",
@@ -2488,13 +2483,13 @@
     "unsetLowPriority": "Noņemt zemu svatīgumu",
     "setLowPriority": "Iestatīt zemu svarīgumu",
     "removeTag": "Noņemt birku",
-    "supportFluffyChat": "Atbalstīt FluffyChat",
+    "supportKite": "Atbalstīt Kite",
     "discardEdits": "Ir nesaglabātas izmaiņas. Atmest labojumus?",
     "@discardEdits": {
         "type": "String",
         "placeholders": {}
     },
-    "possibleByYou": "Šis laidiens bija iespējams pateicoties Tavam atbalstam. FluffyChat joprojām ir brīva, atvērta pirmkoda un pilnībā kopienas virzīta.",
+    "possibleByYou": "Šis laidiens bija iespējams pateicoties Tavam atbalstam. Kite joprojām ir brīva, atvērta pirmkoda un pilnībā kopienas virzīta.",
     "hideRoomsInSpaces": "Paslēpt istabas, kas ir vietā",
     "showThumbnailsInTimeline": "Rādīt attēlu un video sīktēlus",
     "appSubtitle": "Droša [matrix] saziņa",
@@ -2696,7 +2691,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "newPassphraseDescription": "FluffyChat izmanto pilnīgu šifrēšanu. Lai nezaudētu savas ziņas, lūgums izvēlēties drošu paroles vārdkopu, lai aizsargātu savu kripto identitāti un šifrēto ziņu rezerves kopiju.",
+    "newPassphraseDescription": "Kite izmanto pilnīgu šifrēšanu. Lai nezaudētu savas ziņas, lūgums izvēlēties drošu paroles vārdkopu, lai aizsargātu savu kripto identitāti un šifrēto ziņu rezerves kopiju.",
     "@newPassphraseDescription": {
         "type": "String",
         "placeholders": {}

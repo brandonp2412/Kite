@@ -1,12 +1,12 @@
-- [ ] I have read and understood the [contributing guidelines](https://github.com/krille-chan/fluffychat/blob/main/CONTRIBUTING.md). 
+- [ ] I have read CONTRIBUTING.md.
+- [ ] I kept this change focused and preserved required licence attribution.
+- [ ] I ran the relevant formatting, analysis, and tests.
 
-### Pull Request has been tested on:
+### Tested on
 
-- [ ] Android
-- [ ] iOS
-- [ ] Browser (Chromium based)
-- [ ] Browser (Firefox based)
-- [ ] Browser (WebKit based)
-- [ ] Desktop Linux
-- [ ] Desktop Windows
-- [ ] Desktop macOS
+- [ ] Android
+- [ ] iOS
+- [ ] Web
+- [ ] Linux
+- [ ] Windows
+- [ ] macOS

@@ -3,11 +3,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat_access_settings/chat_access_settings_controller.dart';
-import 'package:fluffychat/utils/fluffy_share.dart';
-import 'package:fluffychat/utils/matrix_sdk_extensions/matrix_locals.dart';
-import 'package:fluffychat/widgets/layouts/max_width_body.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat_access_settings/chat_access_settings_controller.dart';
+import 'package:kite/utils/kite_share.dart';
+import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
+import 'package:kite/widgets/layouts/max_width_body.dart';
 import 'package:material_ui/material_ui.dart' hide Visibility;
 import 'package:matrix/matrix.dart';
 

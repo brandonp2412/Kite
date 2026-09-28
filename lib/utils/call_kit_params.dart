@@ -5,15 +5,15 @@
 
 import 'dart:ui';
 
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
-import 'package:fluffychat/utils/notification_avatar_extension.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
+import 'package:kite/utils/notification_avatar_extension.dart';
 import 'package:matrix/matrix.dart';
 import 'package:uuid/uuid.dart';
 
-Future<CallKitParams> buildFluffyChatCallKitParams(
+Future<CallKitParams> buildKiteCallKitParams(
   Room room, {
   L10n? l10n,
   MatrixRtcCallIntent intent = .video,

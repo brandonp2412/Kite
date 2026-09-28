@@ -6,9 +6,9 @@
 import 'dart:convert';
 
 import 'package:async/async.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:kite/utils/platform_infos.dart';
 import 'package:managed_configurations/managed_configurations.dart';
 import 'package:matrix/matrix_api_lite/utils/logs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,10 +27,6 @@ enum AppSettings<T> {
   showNoGoogle<bool>('chat.fluffy.show_no_google', false),
   unifiedPushRegistered<bool>('chat.fluffy.unifiedpush.registered', false),
   unifiedPushEndpoint<String>('chat.fluffy.unifiedpush.endpoint', ''),
-  pushNotificationsGatewayUrl<String>(
-    'pushNotificationsGatewayUrl',
-    'https://push.fluffychat.im/_matrix/push/v1/notify',
-  ),
   pushNotificationsPusherFormat<String>(
     'pushNotificationsPusherFormat',
     'event_id_only',
@@ -52,7 +48,7 @@ enum AppSettings<T> {
   ),
   displayChatDetailsColumn('chat.fluffy.display_chat_details_column', false),
   // AppConfig-mirrored settings
-  applicationName<String>('chat.fluffy.application_name', 'FluffyChat'),
+  applicationName<String>('chat.fluffy.application_name', 'Kite'),
   defaultHomeserver<String>('chat.fluffy.default_homeserver', 'matrix.org'),
   // colorSchemeSeed stored as ARGB int
   colorSchemeSeedInt<int>('chat.fluffy.color_scheme_seed', 0xFF5625BA),

@@ -3,9 +3,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/utils/platform_infos.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:kite/utils/platform_infos.dart';
 import 'package:matrix/matrix_api_lite/utils/logs.dart';
 import 'package:universal_html/html.dart' as html;
 
@@ -50,9 +50,9 @@ abstract class ForegroundServices {
       final l10n = await L10n.delegate.load(PlatformDispatcher.instance.locale);
       FlutterForegroundTask.init(
         androidNotificationOptions: AndroidNotificationOptions(
-          channelId: 'fluffychat_sync',
+          channelId: 'kite_sync',
           channelName: directSync
-              ? 'FluffyChat background sync'
+              ? 'Kite background sync'
               : l10n.loadingMessages,
           channelDescription: directSync
               ? 'Keeps Matrix connected for message notifications'

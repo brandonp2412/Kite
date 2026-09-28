@@ -4,14 +4,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:async/async.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/app_locale_controller.dart';
-import 'package:fluffychat/utils/fluffy_share.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/matrix.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/app_locale_controller.dart';
+import 'package:kite/utils/kite_share.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart' hide Result;
 import 'package:url_launcher/url_launcher.dart';

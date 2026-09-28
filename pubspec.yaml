@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: fluffychat
-description: Chat with your friends.
+name: kite
+description: A fast, focused Matrix client.
 publish_to: none
 # On version bump please also increase:
 # 1. The build number (for F-Droid)
@@ -138,8 +138,8 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: assets/logo/img/logo_standalone.png
-    background_color: "#FFFFFF"
-    theme_color: "#41a2bc"
+    background_color: "#003197"
+    theme_color: "#003197"
 
 # Guidelines for adding a dependency override:
 # 1. Don't do it if you can avoid it or fix it upstream in a manageable time

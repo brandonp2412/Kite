@@ -5,15 +5,15 @@
 
 import 'dart:math';
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/utils/file_description.dart';
-import 'package:fluffychat/utils/matrix_sdk_extensions/event_extension.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/utils/url_launcher.dart';
-import 'package:fluffychat/widgets/blur_hash.dart';
-import 'package:fluffychat/widgets/mxc_image.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/utils/file_description.dart';
+import 'package:kite/utils/matrix_sdk_extensions/event_extension.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/utils/url_launcher.dart';
+import 'package:kite/widgets/blur_hash.dart';
+import 'package:kite/widgets/mxc_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

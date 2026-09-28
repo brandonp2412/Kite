@@ -697,7 +697,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username}があなたをFluffyChatに招待しました。\n1. FluffyChatをインストール:　fluffychat.im \n2. アカウントの作成、またはサインインを行う\n3. 招待リンクを開く\n {link}",
+    "inviteText": "{username}があなたをKiteに招待しました。\n1. Kiteをインストール:　brandonp2412.github.io/Kite/ \n2. アカウントの作成、またはサインインを行う\n3. 招待リンクを開く\n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -844,8 +844,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 FluffyChatに新しいメッセージがあります",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Kiteに新しいメッセージがあります",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -876,11 +876,6 @@
     },
     "noEncryptionForPublicRooms": "ルームを非公開にした後暗号化を有効にできます。",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "あなたのスマホにはGoogleサービスがないようですね。プライバシーを保護するための良い選択です！プッシュ通知を受け取るには https://microg.org/ または https://unifiedpush.org/ を使うことをお勧めします。",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

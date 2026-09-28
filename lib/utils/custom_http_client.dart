@@ -6,12 +6,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:fluffychat/config/isrg_x1.dart';
-import 'package:fluffychat/config/isrg_x2.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:http/retry.dart' as retry;
+import 'package:kite/config/isrg_x1.dart';
+import 'package:kite/config/isrg_x2.dart';
+import 'package:kite/utils/platform_infos.dart';
 
 /// Custom HTTP client that adds the ISRG Root certificates used by Let's
 /// Encrypt. Older Android versions may not include these roots in their

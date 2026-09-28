@@ -5,15 +5,15 @@
 
 import 'dart:convert';
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
-import 'package:fluffychat/widgets/fluffy_chat_app.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
+import 'package:kite/widgets/kite_app.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 import 'package:universal_html/universal_html.dart' as html;
@@ -60,7 +60,7 @@ class ErrorReporter {
   Future<void> _onErrorCallback(Object error, [StackTrace? stackTrace]) async {
     final context =
         this.context ??
-        FluffyChatApp.router.routerDelegate.navigatorKey.currentContext;
+        KiteApp.router.routerDelegate.navigatorKey.currentContext;
     final text = '$error\n${stackTrace ?? ''}';
 
     if (context == null || !context.mounted) {
@@ -144,7 +144,7 @@ class ErrorReporter {
         scheme: 'https',
         host: 'api.github.com',
         path: '/search/issues',
-        query: 'q=repo:krille-chan/fluffychat+is:issue+$hash',
+        query: 'q=repo:brandonp2412/Kite+is:issue+$hash',
       ),
     );
     try {

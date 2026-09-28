@@ -540,7 +540,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "دعاك {username} إلى FluffyChat.\n1. قم بزيارة موقع fluffychat.im وقم بتثبيت التطبيق\n2. قم بإنشاءحساب أو تسجيل الدخول\n3. افتح رابط الدعوة:\n {link}",
+    "inviteText": "دعاك {username} إلى Kite.\n1. قم بزيارة موقع brandonp2412.github.io/Kite/ وقم بتثبيت التطبيق\n2. قم بإنشاءحساب أو تسجيل الدخول\n3. افتح رابط الدعوة:\n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -672,8 +672,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 رسالة جديدة في FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 رسالة جديدة في Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -689,11 +689,6 @@
     },
     "noEmotesFound": "لم يُعثر على انفعالة. 😕",
     "@noEmotesFound": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "يبدو أن خدمة Firebase Cloud Messaging غير متاحة على جهازك. لمواصلة تلقي الإشعارات، نوصي بتثبيت ntfy. باستخدام ntfy أو أي مزود خدمة Unified Push آخر، يمكنك تلقي إشعارات الدفع بطريقة آمنة للبيانات. يمكنك تنزيل ntfy من PlayStore أو من F-Droid.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },
@@ -2455,7 +2450,7 @@
     "advancedConfigurations": "التكويناتالمتقدمة",
     "signIn": "تسجيل الدخول",
     "createNewAccount": "إنشاء حساب جديد",
-    "signUpGreeting": "FluffyChat لا مركزي! اختر الخادم الذي تريد إنشاء حسابك عليه ولنبدأ!",
+    "signUpGreeting": "Kite لا مركزي! اختر الخادم الذي تريد إنشاء حسابك عليه ولنبدأ!",
     "signInGreeting": "هل لديك حساب بالفعل في ماتريكس؟ أهلاً بك مجدداً! اختر خادمك المنزلي وسجّل الدخول.",
     "theProcessWasCanceled": "تم إلغاء العملية.",
     "join": "انضمام",
@@ -2474,7 +2469,7 @@
     },
     "createNewChat": "إنشاء محادثة جديدة",
     "reset": "إعادة تعيين",
-    "supportFluffyChat": "ادعم FluffyChat",
+    "supportKite": "ادعم Kite",
     "support": "دعم",
     "setLowPriority": "حدد أولوية منخفضة",
     "unsetLowPriority": "إلغاء تعيين الأولوية المنخفضة",
@@ -2484,7 +2479,7 @@
     "tagName": "اسم الوسم",
     "createNewTag": "إنشاء وسم جديد",
     "hideRoomsInSpaces": "إخفاء الغرف الموجودة في مساحة",
-    "possibleByYou": "لم يكن هذا الإصدار ليتحقق لولا دعمكم. سيظل FluffyChat مجانيًا ومفتوح المصدر، ويعتمد كليًا على جهود المجتمع.",
+    "possibleByYou": "لم يكن هذا الإصدار ليتحقق لولا دعمكم. سيظل Kite مجانيًا ومفتوح المصدر، ويعتمد كليًا على جهود المجتمع.",
     "showThumbnailsInTimeline": "عرض الصور المصغرة للصور ومقاطع الفيديو",
     "appSubtitle": "اتصال آمن [مصفوفة]",
     "appDescription": "التواصل بشكل مشفر عبر شبكة [المصفوفة] اللامركزية بطريقة سهلة ومتاحة للجميع.",
@@ -2558,7 +2553,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "newPassphraseDescription": "يستخدم تطبيق FluffyChat التشفير التام بين الطرفين. ولضمان عدم فقدان رسائلك، يُرجى اختيار عبارة مرور قوية لحماية هويتك الرقمية ونسخة احتياطية من رسائلك المشفرة.",
+    "newPassphraseDescription": "يستخدم تطبيق Kite التشفير التام بين الطرفين. ولضمان عدم فقدان رسائلك، يُرجى اختيار عبارة مرور قوية لحماية هويتك الرقمية ونسخة احتياطية من رسائلك المشفرة.",
     "@newPassphraseDescription": {
         "type": "String",
         "placeholders": {}

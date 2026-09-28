@@ -815,7 +815,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} vous a invité·e sur FluffyChat.\n1. Visiter fluffychat.im et installer l'application\n2. Inscrivez-vous ou connectez-vous\n3. Ouvrez le lien d'invitation :\n{link}",
+    "inviteText": "{username} vous a invité·e sur Kite.\n1. Visiter brandonp2412.github.io/Kite/ et installer l'application\n2. Inscrivez-vous ou connectez-vous\n3. Ouvrez le lien d'invitation :\n{link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -972,8 +972,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Nouveau message dans FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Nouveau message dans Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1004,11 +1004,6 @@
     },
     "noEncryptionForPublicRooms": "Vous pouvez activer le chiffrement seulement quand le salon n'est plus accessible au public.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Firebase Cloud Messaging ne semble pas être disponible sur votre appareil. Pour continuer à recevoir des notifications poussées, nous vous recommandons d'installer ntfy. Avec ntfy ou un autre fournisseur Unified Push, vous pouvez recevoir des notifications poussées de manière sécurisée. Vous pouvez télécharger ntfy sur le PlayStore ou sur F-Droid.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },
@@ -2317,7 +2312,7 @@
     "notificationRuleIsUserMentionDescription": "Notifie l'utilisateur/trice lorsqu'il est mentionné directement dans un message.",
     "notificationRuleServerAcl": "Retire les Évènements ACL du Serveur",
     "advancedConfigurations": "Configurations avancées",
-    "signUpGreeting": "FluffyChat est décentralisé ! Selectionnez un hôte sur lequel vous voulez créer un compte et c'est parti !",
+    "signUpGreeting": "Kite est décentralisé ! Selectionnez un hôte sur lequel vous voulez créer un compte et c'est parti !",
     "notificationRuleCall": "Appeler",
     "baseUrl": "URL racine",
     "pause": "Pause",
@@ -2487,7 +2482,7 @@
     "approve": "Approuver",
     "notificationRuleRoomnotifDescription": "Notifie l'utilisateur/trice lorsqu'un message contient '@room'.",
     "generalNotificationSettings": "Réglages généraux des notifications",
-    "supportFluffyChat": "Soutenir FluffyChat",
+    "supportKite": "Soutenir Kite",
     "notificationRuleEncrypted": "Chiffré",
     "pleaseFillOut": "Veuillez remplir",
     "changedTheChatName": "{username} a changé le nom de la discussion",
@@ -2508,7 +2503,7 @@
     "showMore": "Voir plus",
     "showLess": "Voir moins",
     "hideRoomsInSpaces": "Cacher les salons qui sont dans un espace",
-    "possibleByYou": "Cette mise à jour a été possible uniquement grâce à votre support. FluffyChat restera gratuit, open-source et entièrement communautaire.",
+    "possibleByYou": "Cette mise à jour a été possible uniquement grâce à votre support. Kite restera gratuit, open-source et entièrement communautaire.",
     "showThumbnailsInTimeline": "Afficher les apperçus des images et vidéos",
     "appSubtitle": "Communication [matrix] Sécurisée",
     "appDescription": "Communiquez de façon chiffrée sur le réseau décentralisé [matrix] de façon aisée et accessible pour tous.",
@@ -2590,7 +2585,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "newPassphraseDescription": "FluffyChat utilise le chiffrement de bout en bout. Pour ne pas perdre vos messages, veuillez choisir une phrase de passe forte pour sécuriser votre profile crypto et votre sauvegarde chiffrée des messages.",
+    "newPassphraseDescription": "Kite utilise le chiffrement de bout en bout. Pour ne pas perdre vos messages, veuillez choisir une phrase de passe forte pour sécuriser votre profile crypto et votre sauvegarde chiffrée des messages.",
     "@newPassphraseDescription": {
         "type": "String",
         "placeholders": {}

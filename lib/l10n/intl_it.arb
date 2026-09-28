@@ -690,7 +690,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} ti ha invitato/a a FluffyChat.\n1. Visita fluffychat.im e installa l'applicazione\n2. Iscriviti o accedi\n3. Apri il collegamento di invito: \n {link}",
+    "inviteText": "{username} ti ha invitato/a a Kite.\n1. Visita brandonp2412.github.io/Kite/ e installa l'applicazione\n2. Iscriviti o accedi\n3. Apri il collegamento di invito: \n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -837,8 +837,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Nuovo messaggio in FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Nuovo messaggio in Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -869,11 +869,6 @@
     },
     "noEncryptionForPublicRooms": "Puoi attivare la crittografia solo quando la stanza non è più accessibile pubblicamente.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Firebase Cloud Messaging non sembra essere disponibile sul tuo dispositivo. Per continuare a ricevere notifiche push, ti consigliamo di installare ntfy. Con ntfy o un altro provider Unified Push puoi ricevere notifiche push in modo sicuro per i dati. Puoi scaricare ntfy dal PlayStore o da F-Droid.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },
@@ -2542,7 +2537,7 @@
         "description": "This should be a very short string because there is not much space in the button!"
     },
     "createNewChat": "Crea una nuova chat",
-    "supportFluffyChat": "Supporta FluffyChat",
+    "supportKite": "Supporta Kite",
     "setLowPriority": "Imposta priorità bassa",
     "unsetLowPriority": "Rimuovi priorità bassa",
     "playSoundOnNotification": "Riproduci suono per le notifiche",

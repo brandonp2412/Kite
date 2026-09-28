@@ -5,17 +5,16 @@
 
 import 'package:collection/collection.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat/chat.dart';
-import 'package:fluffychat/pages/chat/encryption_info.dart';
-import 'package:fluffychat/pages/chat/events/message.dart';
-import 'package:fluffychat/pages/chat/seen_by_row.dart';
-import 'package:fluffychat/pages/chat/typing_indicators.dart';
-import 'package:fluffychat/utils/account_config.dart';
-import 'package:fluffychat/utils/matrix_sdk_extensions/filtered_timeline_extension.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat/chat.dart';
+import 'package:kite/pages/chat/events/message.dart';
+import 'package:kite/pages/chat/seen_by_row.dart';
+import 'package:kite/pages/chat/typing_indicators.dart';
+import 'package:kite/utils/account_config.dart';
+import 'package:kite/utils/matrix_sdk_extensions/filtered_timeline_extension.dart';
+import 'package:kite/utils/platform_infos.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix_api_lite/model/event_types.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
@@ -98,7 +97,6 @@ class ChatEventList extends StatelessWidget {
                   children: [
                     if (events.isNotEmpty) SeenByRow(event: events.first),
                     TypingIndicators(controller),
-                    EncryptionInfo(room: controller.room),
                   ],
                 );
               }
@@ -218,9 +216,6 @@ class ChatEventList extends StatelessWidget {
                           event.eventId,
                       onEdit: controller.editSelectedEventAction,
                       timeline: timeline,
-                      displayReadMarker:
-                          i > 0 &&
-                          controller.readMarkerEventId == event.eventId,
                       nextEvent: nextEvent,
                       previousEvent: previousEvent,
                       wallpaperMode: hasWallpaper,

@@ -4,17 +4,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:collection/collection.dart';
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/custom_http_client.dart';
-import 'package:fluffychat/utils/custom_image_resizer.dart';
-import 'package:fluffychat/utils/init_with_restore.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_vodozemac/flutter_vodozemac.dart' as vod;
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/custom_http_client.dart';
+import 'package:kite/utils/custom_image_resizer.dart';
+import 'package:kite/utils/init_with_restore.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
+import 'package:kite/utils/platform_infos.dart';
 import 'package:matrix/encryption/utils/key_verification.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';

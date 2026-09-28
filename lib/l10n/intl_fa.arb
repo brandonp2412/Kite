@@ -1009,8 +1009,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 پیام جدید در فلافی‌چت",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 پیام جدید در فلافی‌چت",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1291,11 +1291,6 @@
         "type": "String",
         "placeholders": {}
     },
-    "noGoogleServicesWarning": "به نظر می‌رسد دستگاه شما سرویس‌های گوگل ندارد. این انتخاب خوبی برای حریم خصوصی است! برای دریافت آگاه‌سازها در فلافی‌چت، پیشنهاد می‌کنیم از https://ntfy.sh استفاده کنید. با ntfy یا یک فراهم‌کننده UnifiedPush می‌توانید آگاه‌سازهای امن دریافت کنید. می‌توانید ntfy را از Play Store یا F-Droid بارگیری کنید.",
-    "@noGoogleServicesWarning": {
-        "type": "String",
-        "placeholders": {}
-    },
     "noEncryptionForPublicRooms": "رمزنگاری را تنها زمانی می‌توانید فعال کنید که اتاق عمومی نباشد.",
     "@noEncryptionForPublicRooms": {
         "type": "String",
@@ -1337,7 +1332,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} شما را به فلافی‌چت دعوت کرد.\n۱. به fluffychat.im بروید و برنامه را نصب کنید\n۲. ثبت‌نام کنید یا وارد شوید\n۳. پیوند دعوت را باز کنید:\n {link}",
+    "inviteText": "{username} شما را به فلافی‌چت دعوت کرد.\n۱. به brandonp2412.github.io/Kite/ بروید و برنامه را نصب کنید\n۲. ثبت‌نام کنید یا وارد شوید\n۳. پیوند دعوت را باز کنید:\n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -2487,7 +2482,7 @@
     },
     "createNewChat": "ساخت چت جدید",
     "reset": "ریست کردن",
-    "supportFluffyChat": "حمایت از فلافی چت",
+    "supportKite": "حمایت از فلافی چت",
     "support": "پشتیبانی",
     "setLowPriority": "تنظیم اولویت پایین",
     "unsetLowPriority": "لغو تنظیم اولویت پایین",

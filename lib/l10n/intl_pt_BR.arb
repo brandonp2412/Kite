@@ -813,7 +813,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} convidou você para o FluffyChat.\n1. Visite fluffychat.im e instale o aplicativo\n2. Entre ou crie uma conta\n3. Abra o link do convite:\n{link}",
+    "inviteText": "{username} convidou você para o Kite.\n1. Visite brandonp2412.github.io/Kite/ e instale o aplicativo\n2. Entre ou crie uma conta\n3. Abra o link do convite:\n{link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -970,8 +970,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Nova mensagem no FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Nova mensagem no Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1002,11 +1002,6 @@
     },
     "noEncryptionForPublicRooms": "Você só poderá ativar a criptografia quando a sala não for mais publicamente acessível.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "O Firebase Cloud Messaging não parece estar disponível no seu dispositivo. Para receber notificações push, recomendados que você instwl3 o ntfy. Com o ntfy outro provedor do UnifiedPush, você pode receber notificações push de um modo seguro em relação aos dados. Você pode baixar o ntfy da Play Store ou do F-Droid.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

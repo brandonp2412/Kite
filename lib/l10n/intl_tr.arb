@@ -815,7 +815,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} sizi FluffyChat'e davet etti.\n1. fluffychat.im adresini ziyaret edin ve uygulamayı kurun \n2. Kaydolun veya oturum açın \n3. Davet bağlantısını açın: \n {link}",
+    "inviteText": "{username} sizi Kite'e davet etti.\n1. brandonp2412.github.io/Kite/ adresini ziyaret edin ve uygulamayı kurun \n2. Kaydolun veya oturum açın \n3. Davet bağlantısını açın: \n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -972,8 +972,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 FluffyChat'te yeni mesaj",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Kite'te yeni mesaj",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1004,11 +1004,6 @@
     },
     "noEncryptionForPublicRooms": "Şifrelemeyi yalnızca oda artık herkese açık olmadığında etkinleştirebilirsiniz.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Görünüşe göre cihazınızda Firebase Cloud Messaging yok. Buna rağmen bildirim almaya devam etmek için ntfy yüklemenizi öneriyoruz. ntfy veya başka bir Unified Push sağlayıcısı ile anlık bildirimlerinizi güvenli bir şekilde alabilirsiniz. ntfy'ı PlayStore veya F-Droid'den indirebilirsiniz.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

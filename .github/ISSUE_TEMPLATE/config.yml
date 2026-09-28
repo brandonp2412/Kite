@@ -1,5 +1,5 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 contact_links:
-  - name: 👬 FluffyChat Community
-    url: https://matrix.to/#/#fluffy-space:matrix.org
-    about: Please ask and answer questions here.
+  - name: Kite support
+    url: https://brandonp2412.github.io/Kite/support/
+    about: Support information and project links for Kite.

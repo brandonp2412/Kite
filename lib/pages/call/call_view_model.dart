@@ -8,20 +8,20 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:collection/collection.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/call_kit_params.dart';
-import 'package:fluffychat/utils/error_reporter.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/call_keys_event_content.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/utils/position_from_build_context.dart';
-import 'package:fluffychat/widgets/future_loading_dialog.dart';
-import 'package:fluffychat/widgets/matrix.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:just_audio/just_audio.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/call_kit_params.dart';
+import 'package:kite/utils/error_reporter.dart';
+import 'package:kite/utils/matrix_live_kit_calls/call_keys_event_content.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/utils/position_from_build_context.dart';
+import 'package:kite/widgets/future_loading_dialog.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
@@ -393,10 +393,7 @@ class CallViewModel extends ValueNotifier<CallViewModelState> {
             )
             ?.id;
         if (callKitId == null) {
-          final params = await buildFluffyChatCallKitParams(
-            room,
-            intent: intent,
-          );
+          final params = await buildKiteCallKitParams(room, intent: intent);
           await FlutterCallkitIncoming.startCall(params);
           callKitId = params.id;
         }

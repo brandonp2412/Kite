@@ -3,17 +3,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/beautify_string_extension.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/widgets/app_lock.dart';
-import 'package:fluffychat/widgets/layouts/max_width_body.dart';
-import 'package:fluffychat/widgets/matrix.dart';
-import 'package:fluffychat/widgets/settings_switch_list_tile.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/beautify_string_extension.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/widgets/app_lock.dart';
+import 'package:kite/widgets/layouts/max_width_body.dart';
+import 'package:kite/widgets/matrix.dart';
+import 'package:kite/widgets/settings_switch_list_tile.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';

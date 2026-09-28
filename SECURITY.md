@@ -5,18 +5,14 @@ SPDX-FileCopyrightText: 2019-Present Contributors to FluffyChat
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-# Security Policy
+# Security policy
 
-If you believe you have discovered a security vulnerability in this project, **do not open a public issue**.
+Please do not open a public issue for a vulnerability that could put Kite users or their accounts at risk.
 
-To report a security issue responsibly, please go to the Security tab or visit:
+Report security issues through Kite's private GitHub security advisory form:
 
-https://github.com/krille-chan/fluffychat/security/advisories/new
+https://github.com/brandonp2412/Kite/security/advisories/new
 
-The following information can help us address the issue:
+Include the affected Kite version, platform, reproduction steps, expected impact, and any relevant logs with secrets or personal data removed.
 
-- Clear steps to reproduce the vulnerability
-- The software version you are using
-- The affected platforms
-
-We appreciate your report and will respond as quickly as possible. Please note that this project is maintained by volunteers and is provided without guarantees.
+For ordinary bugs, use https://github.com/brandonp2412/Kite/issues.

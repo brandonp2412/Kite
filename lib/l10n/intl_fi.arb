@@ -1,6 +1,6 @@
 {
     "repeatPassword": "Salasana uudelleen",
-    "about": "Tietoa FluffyChatista",
+    "about": "Tietoa Kiteista",
     "@about": {
         "type": "String",
         "placeholders": {}
@@ -638,7 +638,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} kutsui sinut FluffyChattiin.\n1. Viereaile sivulla: https://fluffychat.im ja asenna sovellus\n2. Rekisteröidy tai kirjaudu sisään\n3. Avaa kutsulinkki:\n{link}",
+    "inviteText": "{username} kutsui sinut Kitetiin.\n1. Viereaile sivulla: https://brandonp2412.github.io/Kite/ ja asenna sovellus\n2. Rekisteröidy tai kirjaudu sisään\n3. Avaa kutsulinkki:\n{link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -776,8 +776,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Uusi viesti FluffyChätissä",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Uusi viesti FluffyChätissä",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1051,11 +1051,6 @@
     },
     "noEmotesFound": "Emoteja ei löytynyt. 😕",
     "@noEmotesFound": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Firebase Cloud Messaging -palvelu ei vaikuta olevan saatavilla laitteellasi. Saadaksesi push-ilmoituksia silti, suosittelemme Ntfy-sovelluksen asentamista. Käyttämällä Ntfy-sovellusta tai muuta Unified Push -tarjoajaa, saat push-ilmoitukset tietoturvallisella tavalla. Voit ladata Ntfy-sovelluksen Play Kaupasta tai F-Droidista.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

@@ -3,10 +3,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';

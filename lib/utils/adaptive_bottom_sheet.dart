@@ -5,8 +5,8 @@
 
 import 'dart:math';
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/themes.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/themes.dart';
 import 'package:material_ui/material_ui.dart';
 
 Future<T?> showAdaptiveBottomSheet<T>({

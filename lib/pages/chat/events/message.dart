@@ -7,18 +7,18 @@ import 'dart:ui' as ui;
 
 import 'package:collection/collection.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/adaptive_bottom_sheet.dart';
-import 'package:fluffychat/utils/date_time_extension.dart';
-import 'package:fluffychat/utils/file_description.dart';
-import 'package:fluffychat/utils/matrix_sdk_extensions/matrix_locals.dart';
-import 'package:fluffychat/utils/string_color.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/matrix.dart';
-import 'package:fluffychat/widgets/member_actions_popup_menu_button.dart';
 import 'package:flutter/services.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/adaptive_bottom_sheet.dart';
+import 'package:kite/utils/date_time_extension.dart';
+import 'package:kite/utils/file_description.dart';
+import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
+import 'package:kite/utils/string_color.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/matrix.dart';
+import 'package:kite/widgets/member_actions_popup_menu_button.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 import 'package:swipe_to_action/swipe_to_action.dart';
@@ -34,7 +34,6 @@ class Message extends StatelessWidget {
   final Event event;
   final Event? nextEvent;
   final Event? previousEvent;
-  final bool displayReadMarker;
   final void Function(Event) onSelect;
   final void Function(Event) onInfoTab;
   final void Function(String) scrollToEventId;
@@ -59,7 +58,6 @@ class Message extends StatelessWidget {
     this.event, {
     this.nextEvent,
     this.previousEvent,
-    this.displayReadMarker = false,
     this.longPressSelect = false,
     required this.bigEmojis,
     required this.onSelect,
@@ -892,41 +890,6 @@ class Message extends StatelessWidget {
                             ),
                           ),
                         ),
-                ),
-              if (displayReadMarker)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 16.0,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(
-                          AppConfig.borderRadius / 3,
-                        ),
-                        color: theme.colorScheme.surface.withAlpha(128),
-                      ),
-                      child: Text(
-                        L10n.of(context).readUpToHere,
-                        style: TextStyle(fontSize: 11),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                      ),
-                    ),
-                  ],
                 ),
             ],
           ),

@@ -5,18 +5,18 @@
 
 import 'package:collection/collection.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/code_highlight_theme.dart';
-import 'package:fluffychat/utils/event_checkbox_extension.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/future_loading_dialog.dart';
-import 'package:fluffychat/widgets/mxc_image.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:highlight/highlight.dart' show highlight;
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as parser;
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/code_highlight_theme.dart';
+import 'package:kite/utils/event_checkbox_extension.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/future_loading_dialog.dart';
+import 'package:kite/widgets/mxc_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

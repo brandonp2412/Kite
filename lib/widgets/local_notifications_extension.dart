@@ -3,19 +3,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/client_download_content_extension.dart';
-import 'package:fluffychat/utils/matrix_sdk_extensions/matrix_locals.dart';
-import 'package:fluffychat/utils/notification_avatar_extension.dart';
-import 'package:fluffychat/utils/notification_background_handler.dart';
-import 'package:fluffychat/utils/push_helper.dart';
-import 'package:fluffychat/widgets/fluffy_chat_app.dart';
-import 'package:fluffychat/widgets/incoming_call_dialog.dart';
-import 'package:fluffychat/widgets/matrix.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/client_download_content_extension.dart';
+import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
+import 'package:kite/utils/notification_avatar_extension.dart';
+import 'package:kite/utils/notification_background_handler.dart';
+import 'package:kite/utils/push_helper.dart';
+import 'package:kite/widgets/incoming_call_dialog.dart';
+import 'package:kite/widgets/kite_app.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 import 'package:universal_html/html.dart' as html;
@@ -29,7 +29,7 @@ extension LocalNotificationsExtension on MatrixState {
     if (event.type == RtcNotificationContent.eventType &&
         event.tryParseRtcNotificationContent()?.notificationType == .ring) {
       final context =
-          FluffyChatApp.router.routerDelegate.navigatorKey.currentContext ??
+          KiteApp.router.routerDelegate.navigatorKey.currentContext ??
           this.context;
       showDialog<bool>(
         context: context,
@@ -38,7 +38,7 @@ extension LocalNotificationsExtension on MatrixState {
         if (joinCall != true) return;
         if (!context.mounted) return;
         setActiveClient(event.room.client);
-        FluffyChatApp.router.go('/rooms/${event.room.id}?action=call');
+        KiteApp.router.go('/rooms/${event.room.id}?action=call');
       });
     }
 
@@ -133,17 +133,17 @@ extension LocalNotificationsExtension on MatrixState {
             EventTypes.Encrypted ||
             EventTypes.Sticker => [
               LinuxNotificationAction(
-                key: FluffyChatNotificationActions.markAsRead.name,
+                key: KiteNotificationActions.markAsRead.name,
                 label: l10n.markAsRead,
               ),
               LinuxNotificationAction(
-                key: FluffyChatNotificationActions.mute.name,
+                key: KiteNotificationActions.mute.name,
                 label: l10n.mute,
               ),
             ],
             RtcNotificationContent.eventType => [
               LinuxNotificationAction(
-                key: FluffyChatNotificationActions.enterCall.name,
+                key: KiteNotificationActions.enterCall.name,
                 label: l10n.enterCall,
               ),
             ],
@@ -151,7 +151,7 @@ extension LocalNotificationsExtension on MatrixState {
           },
         ),
       ),
-      payload: FluffyChatPushPayload(
+      payload: KitePushPayload(
         client.clientName,
         event.room.id,
         event.eventId,

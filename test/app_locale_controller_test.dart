@@ -3,8 +3,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/utils/app_locale_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kite/utils/app_locale_controller.dart';
 
 void main() {
   test('locale override resolves only shipped locales', () {
