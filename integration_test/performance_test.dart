@@ -118,7 +118,8 @@ void main() {
       reportKey: 'chat_timeline_warm_scroll',
     );
 
-    await kite.goBack();
+    await binding.handlePopRoute();
+    await tester.pumpAndSettle();
     await kite.waitFor(
       const Key('chat_list_scroll'),
       timeout: const Duration(seconds: 30),
