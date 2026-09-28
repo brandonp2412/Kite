@@ -344,6 +344,10 @@ class BackgroundPush {
   Future<void> setupFirebase(Client client) async {
     Logs().v('Setup firebase');
     if (!firebaseEnabled) {
+      if (PlatformInfos.isAndroid && matrix != null) {
+        await matrix!.enableAndroidDirectNotifications();
+        return;
+      }
       await _noFcmWarning();
       return;
     }
@@ -366,9 +370,17 @@ class BackgroundPush {
         }
       }
       if (_fcmToken == null) {
+        if (PlatformInfos.isAndroid && matrix != null) {
+          await matrix!.enableAndroidDirectNotifications();
+          return;
+        }
         await _noFcmWarning();
         return;
       }
+    }
+
+    if (PlatformInfos.isAndroid && matrix != null) {
+      await matrix!.disableAndroidDirectNotifications();
     }
     await setupPusher(
       client: client,

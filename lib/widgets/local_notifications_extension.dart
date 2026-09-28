@@ -3,6 +3,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:fluffychat/config/app_config.dart';
 import 'package:fluffychat/config/setting_keys.dart';
 import 'package:fluffychat/l10n/l10n.dart';
 import 'package:fluffychat/utils/client_download_content_extension.dart';
@@ -106,6 +107,15 @@ extension LocalNotificationsExtension on MatrixState {
       title: title,
       body: body,
       notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          AppConfig.pushNotificationsChannelId,
+          l10n.incomingMessages,
+          channelDescription: l10n.incomingMessages,
+          importance: Importance.high,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.message,
+          groupKey: event.room.client.clientName,
+        ),
         linux: LinuxNotificationDetails(
           sound: ThemeLinuxSound('message-new-instant'),
           actions: switch (event.type) {

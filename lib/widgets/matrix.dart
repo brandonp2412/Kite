@@ -33,6 +33,7 @@ import '../config/setting_keys.dart';
 import '../pages/key_verification/key_verification_dialog.dart';
 import '../utils/account_bundles.dart';
 import '../utils/background_push.dart';
+import '../utils/start_push_foreground_service.dart';
 import 'local_notifications_extension.dart';
 
 class Matrix extends StatefulWidget {
@@ -180,6 +181,8 @@ class MatrixState extends State<Matrix> {
   final onLogoutSub = <String, StreamSubscription<LoginState>>{};
   final onUiaRequest = <String, StreamSubscription<UiaRequest>>{};
 
+  bool _androidDirectNotificationsEnabled = false;
+
   String? _cachedPassword;
   Timer? _cachedPasswordClearTimer;
 
@@ -261,6 +264,9 @@ class MatrixState extends State<Matrix> {
           widget.clients.remove(c);
           ClientManager.removeClientNameFromStore(c.clientName, store);
           InitWithRestoreExtension.deleteSessionBackup(name);
+          if (widget.clients.isEmpty && _androidDirectNotificationsEnabled) {
+            unawaited(disableAndroidDirectNotifications());
+          }
 
           if (loggedInWithMultipleClients) {
             final snackbarContext =
@@ -281,6 +287,9 @@ class MatrixState extends State<Matrix> {
           FluffyChatApp.router.go('/');
         });
     onUiaRequest[name] ??= c.onUiaRequest.stream.listen(uiaRequestHandler);
+    if (_androidDirectNotificationsEnabled && PlatformInfos.isAndroid) {
+      _registerAndroidDirectNotification(c);
+    }
     if (PlatformInfos.isWeb || PlatformInfos.isLinux) {
       FlutterLocalNotificationsPlugin().initialize(
         settings: InitializationSettings(
@@ -302,6 +311,74 @@ class MatrixState extends State<Matrix> {
         );
       });
     }
+  }
+
+  void _registerAndroidDirectNotification(Client client) {
+    if (!_androidDirectNotificationsEnabled || !PlatformInfos.isAndroid) return;
+
+    Future<void> register() async {
+      if (client.prevBatch == null) {
+        await client.onSync.stream.first;
+      }
+      if (!_androidDirectNotificationsEnabled || !client.isLogged()) return;
+      onNotification[client.clientName] ??= client.onNotification.stream.listen(
+        showLocalNotification,
+      );
+    }
+
+    unawaited(register());
+  }
+
+  Future<void> enableAndroidDirectNotifications() async {
+    if (!PlatformInfos.isAndroid || _androidDirectNotificationsEnabled) return;
+
+    _androidDirectNotificationsEnabled = true;
+    final notifications = FlutterLocalNotificationsPlugin();
+    await notifications.initialize(
+      settings: const InitializationSettings(
+        android: AndroidInitializationSettings('notifications_icon'),
+      ),
+      onDidReceiveNotificationResponse: (response) => notificationTap(
+        response,
+        clients: widget.clients,
+        router: FluffyChatApp.router,
+        l10n: null,
+      ),
+    );
+    await notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
+
+    for (final client in widget.clients) {
+      client.backgroundSync = true;
+      client.syncPresence =
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed
+          ? null
+          : PresenceType.unavailable;
+      _registerAndroidDirectNotification(client);
+    }
+
+    await ForegroundServices.startService(
+      ForegroundServices.directSyncServiceName,
+    );
+    Logs().i(
+      '[Push] FCM unavailable; using direct foreground Matrix sync notifications',
+    );
+  }
+
+  Future<void> disableAndroidDirectNotifications() async {
+    if (!_androidDirectNotificationsEnabled) return;
+
+    _androidDirectNotificationsEnabled = false;
+    for (final client in widget.clients) {
+      await onNotification.remove(client.clientName)?.cancel();
+    }
+    await ForegroundServices.stopService(
+      ForegroundServices.directSyncServiceName,
+    );
+    Logs().i('[Push] Direct foreground notification fallback stopped');
   }
 
   void _cancelSubs(String name) {
@@ -360,9 +437,12 @@ class MatrixState extends State<Matrix> {
           ? null
           : PresenceType.unavailable;
       if (PlatformInfos.isMobile) {
-        client.backgroundSync = foreground;
-        client.requestHistoryOnLimitedTimeline = !foreground;
-        Logs().v('Set background sync to', foreground);
+        final backgroundSync =
+            foreground ||
+            (PlatformInfos.isAndroid && _androidDirectNotificationsEnabled);
+        client.backgroundSync = backgroundSync;
+        client.requestHistoryOnLimitedTimeline = !backgroundSync;
+        Logs().v('Set background sync to', backgroundSync);
       }
     }
   }
