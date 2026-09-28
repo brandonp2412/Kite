@@ -335,7 +335,6 @@ class MatrixState extends State<Matrix> {
   Future<void> enableAndroidDirectNotifications() async {
     if (!PlatformInfos.isAndroid || _androidDirectNotificationsEnabled) return;
 
-    _androidDirectNotificationsEnabled = true;
     final notifications = FlutterLocalNotificationsPlugin();
     await notifications.initialize(
       settings: const InitializationSettings(
@@ -354,6 +353,20 @@ class MatrixState extends State<Matrix> {
         >()
         ?.requestNotificationsPermission();
 
+    final serviceStarted = await ForegroundServices.startService(
+      ForegroundServices.directSyncServiceName,
+    );
+    if (!serviceStarted) {
+      Logs().e('[Push] Direct foreground notification service failed to start');
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _androidDirectNotificationsEnabled = true);
+    } else {
+      _androidDirectNotificationsEnabled = true;
+    }
+
     for (final client in widget.clients) {
       client.backgroundSync = true;
       client.syncPresence =
@@ -363,25 +376,24 @@ class MatrixState extends State<Matrix> {
       _registerAndroidDirectNotification(client);
     }
 
-    await ForegroundServices.startService(
-      ForegroundServices.directSyncServiceName,
-    );
-    Logs().i(
-      '[Push] FCM unavailable; using direct foreground Matrix sync notifications',
-    );
+    Logs().i('[Push] Direct foreground Matrix notifications active');
   }
 
   Future<void> disableAndroidDirectNotifications() async {
     if (!_androidDirectNotificationsEnabled) return;
 
-    _androidDirectNotificationsEnabled = false;
+    if (mounted) {
+      setState(() => _androidDirectNotificationsEnabled = false);
+    } else {
+      _androidDirectNotificationsEnabled = false;
+    }
     for (final client in widget.clients) {
       await onNotification.remove(client.clientName)?.cancel();
     }
     await ForegroundServices.stopService(
       ForegroundServices.directSyncServiceName,
     );
-    Logs().i('[Push] Direct foreground notification fallback stopped');
+    Logs().i('[Push] Direct foreground notification service stopped');
   }
 
   void _cancelSubs(String name) {
@@ -428,6 +440,18 @@ class MatrixState extends State<Matrix> {
           }
         },
       );
+
+      if (PlatformInfos.isAndroid) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final hasLoggedInClient = widget.clients.any(
+            (client) => client.onLoginStateChanged.value == LoginState.loggedIn,
+          );
+          if (hasLoggedInClient) {
+            unawaited(enableAndroidDirectNotifications());
+          }
+        });
+      }
     }
   }
 

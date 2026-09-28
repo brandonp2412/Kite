@@ -7,7 +7,6 @@ import 'package:fluffychat/config/setting_keys.dart';
 import 'package:fluffychat/config/themes.dart';
 import 'package:fluffychat/l10n/l10n.dart';
 import 'package:fluffychat/pages/settings_notifications/push_rule_extensions.dart';
-import 'package:fluffychat/utils/background_push.dart';
 import 'package:fluffychat/utils/platform_infos.dart';
 import 'package:fluffychat/utils/push_helper.dart';
 import 'package:fluffychat/widgets/layouts/max_width_body.dart';
@@ -15,8 +14,6 @@ import 'package:fluffychat/widgets/settings_switch_list_tile.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
-import 'package:unifiedpush/unifiedpush.dart';
-import 'package:unifiedpush_ui/unifiedpush_ui.dart';
 
 import '../../utils/localized_exception_extension.dart';
 import '../../widgets/matrix.dart';
@@ -136,74 +133,36 @@ class SettingsNotificationsView extends StatelessWidget {
                       Divider(color: theme.dividerColor),
                     ],
 
-                  if (pushService?.firebaseEnabled != true)
+                  if (PlatformInfos.isAndroid)
+                    ListTile(
+                      title: Text(
+                        Matrix.of(context).androidDirectNotificationsEnabled
+                            ? 'Direct Matrix notifications active'
+                            : 'Direct Matrix notification service is not running',
+                      ),
+                      subtitle: Text(
+                        Matrix.of(context).androidDirectNotificationsEnabled
+                            ? 'Foreground sync is keeping Matrix connected for notifications.'
+                            : 'Reopen the app to restart the foreground notification service.',
+                      ),
+                      leading: Icon(
+                        Matrix.of(context).androidDirectNotificationsEnabled
+                            ? Icons.check_circle_outline
+                            : Icons.error_outline,
+                        color:
+                            Matrix.of(context).androidDirectNotificationsEnabled
+                            ? null
+                            : theme.colorScheme.error,
+                      ),
+                    ),
+                  if (!PlatformInfos.isAndroid &&
+                      pushService?.firebaseEnabled != true)
                     ListTile(
                       title: Text(L10n.of(context).buildDoesNotSupportFirebase),
                       leading: Icon(
                         Icons.close,
                         color: theme.colorScheme.error,
                       ),
-                    ),
-                  if (PlatformInfos.isAndroid)
-                    FutureBuilder(
-                      future: UnifiedPush.getDistributors(),
-                      builder: (context, snapshot) {
-                        final distributors = snapshot.data;
-                        if (distributors == null || distributors.isEmpty) {
-                          if (pushService?.firebaseEnabled == true &&
-                              pushService?.fcmToken == null) {
-                            if (Matrix.of(
-                              context,
-                            ).androidDirectNotificationsEnabled) {
-                              return const ListTile(
-                                title: Text(
-                                  'Direct Matrix notifications active',
-                                ),
-                                subtitle: Text(
-                                  'Using a foreground sync service instead of Firebase.',
-                                ),
-                                leading: Icon(Icons.check_circle_outline),
-                              );
-                            }
-                            return ListTile(
-                              title: Text(
-                                L10n.of(
-                                  context,
-                                ).unableToRegisterDeviceForFirebase,
-                              ),
-                              leading: Icon(
-                                Icons.close,
-                                color: theme.colorScheme.error,
-                              ),
-                            );
-                          }
-                          return SizedBox.shrink();
-                        }
-                        return ListTile(
-                          title: Text(L10n.of(context).unifiedPushDistributors),
-                          leading: Icon(Icons.info_outlined),
-                          subtitle: SelectableText(distributors.join(', ')),
-                          trailing: distributors.length >= 2
-                              ? IconButton(
-                                  onPressed: () => UnifiedPushUi(
-                                    context: context,
-                                    instances: ['default'],
-                                    unifiedPushFunctions: UPFunctions(),
-                                    showNoDistribDialog: false,
-                                    onNoDistribDialogDismissed:
-                                        () {}, // TODO: Implement me
-                                  ).registerAppWithDialog(),
-                                  icon: Icon(Icons.edit_outlined),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor:
-                                        theme.colorScheme.primaryContainer,
-                                    foregroundColor:
-                                        theme.colorScheme.onPrimaryContainer,
-                                  ),
-                                )
-                              : null,
-                        );
-                      },
                     ),
                   ListTile(
                     title: Text(

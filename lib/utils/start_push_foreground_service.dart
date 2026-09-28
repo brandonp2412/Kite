@@ -35,79 +35,78 @@ abstract class ForegroundServices {
     _runningAsDirectSync = false;
   }
 
-  static Future<void> startService(String name) async {
+  static Future<bool> startService(String name) async {
     try {
       if (!runningServices.contains(name)) {
         runningServices.add(name);
       }
       if (kIsWeb) {
         html.window.addEventListener('beforeunload', _beforeUnload);
-        return;
+        return true;
       }
-      if (PlatformInfos.isMobile) {
-        final directSync = name == directSyncServiceName;
-        final l10n = await L10n.delegate.load(
-          PlatformDispatcher.instance.locale,
-        );
-        FlutterForegroundTask.init(
-          androidNotificationOptions: AndroidNotificationOptions(
-            channelId: 'fluffychat_sync',
-            channelName: directSync
-                ? 'FluffyChat background sync'
-                : l10n.loadingMessages,
-            channelDescription: directSync
-                ? 'Keeps Matrix connected for message notifications'
-                : l10n.loadingMessages,
-            onlyAlertOnce: true,
-            playSound: false,
-            enableVibration: false,
-            priority: NotificationPriority.LOW,
-          ),
-          iosNotificationOptions: const IOSNotificationOptions(
-            showNotification: false,
-            playSound: false,
-          ),
-          foregroundTaskOptions: ForegroundTaskOptions(
-            eventAction: ForegroundTaskEventAction.nothing(),
-            allowWakeLock: true,
-            allowAutoRestart: true,
-            stopWithTask: directSync ? false : null,
-          ),
-        );
+      if (!PlatformInfos.isMobile) return true;
 
-        final alreadyRunning = await FlutterForegroundTask.isRunningService;
-        if (alreadyRunning && (!directSync || _runningAsDirectSync)) {
-          Logs().d('[PushHelper] Foreground service already running');
-          return;
-        }
-        if (alreadyRunning && directSync && !_runningAsDirectSync) {
-          await FlutterForegroundTask.stopService();
-        }
-
-        final result = await FlutterForegroundTask.startService(
-          serviceTypes: [
-            directSync
-                ? ForegroundServiceTypes.remoteMessaging
-                : ForegroundServiceTypes.shortService,
-          ],
-          notificationTitle: 'FluffyChat Test',
-          notificationText: directSync
-              ? 'Listening for new Matrix messages'
+      final directSync = name == directSyncServiceName;
+      final l10n = await L10n.delegate.load(PlatformDispatcher.instance.locale);
+      FlutterForegroundTask.init(
+        androidNotificationOptions: AndroidNotificationOptions(
+          channelId: 'fluffychat_sync',
+          channelName: directSync
+              ? 'FluffyChat background sync'
               : l10n.loadingMessages,
-          notificationIcon: NotificationIcon(metaDataName: 'ic_launcher'),
-        );
-        final started = result is ServiceRequestSuccess;
-        if (started) {
-          _runningAsDirectSync = directSync;
-        }
-        Logs().d('[PushHelper] Foreground service start: $started ($result)');
-      } else if (kIsWeb) {
-        // TODO: Implement window.onBeforeUnload overwrite
+          channelDescription: directSync
+              ? 'Keeps Matrix connected for message notifications'
+              : l10n.loadingMessages,
+          onlyAlertOnce: true,
+          playSound: false,
+          enableVibration: false,
+          priority: NotificationPriority.LOW,
+        ),
+        iosNotificationOptions: const IOSNotificationOptions(
+          showNotification: false,
+          playSound: false,
+        ),
+        foregroundTaskOptions: ForegroundTaskOptions(
+          eventAction: ForegroundTaskEventAction.nothing(),
+          allowWakeLock: true,
+          allowAutoRestart: true,
+          stopWithTask: directSync ? false : null,
+        ),
+      );
+
+      final alreadyRunning = await FlutterForegroundTask.isRunningService;
+      if (alreadyRunning && (!directSync || _runningAsDirectSync)) {
+        Logs().d('[PushHelper] Foreground service already running');
+        return true;
       }
-      return;
+      if (alreadyRunning && directSync && !_runningAsDirectSync) {
+        await FlutterForegroundTask.stopService();
+      }
+
+      final result = await FlutterForegroundTask.startService(
+        serviceTypes: [
+          directSync
+              ? ForegroundServiceTypes.remoteMessaging
+              : ForegroundServiceTypes.shortService,
+        ],
+        notificationTitle: 'FluffyChat Test',
+        notificationText: directSync
+            ? 'Listening for new Matrix messages'
+            : l10n.loadingMessages,
+        notificationIcon: NotificationIcon(metaDataName: 'ic_launcher'),
+      );
+      final started = result is ServiceRequestSuccess;
+      if (started) {
+        _runningAsDirectSync = directSync;
+      } else {
+        runningServices.remove(name);
+      }
+      Logs().d('[PushHelper] Foreground service start: $started ($result)');
+      return started;
     } catch (e, s) {
+      runningServices.remove(name);
       Logs().w('[PushHelper] Unable to start foreground service', e, s);
-      return;
+      return false;
     }
   }
 }

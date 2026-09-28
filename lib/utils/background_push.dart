@@ -268,9 +268,17 @@ class BackgroundPush {
   static bool _wentToRoomOnStartup = false;
 
   Future<void> setupPush(BuildContext context) async {
-    if (firebaseEnabled) {
+    if (PlatformInfos.isAndroid) {
+      final hasLoggedInClient = clients.any(
+        (client) => client.onLoginStateChanged.value == LoginState.loggedIn,
+      );
+      if (hasLoggedInClient && matrix != null) {
+        Logs().i('[Push] Starting direct Android Matrix notifications');
+        await matrix!.enableAndroidDirectNotifications();
+      }
+    } else if (firebaseEnabled) {
       for (final client in clients) {
-        Logs().d('SetupPush for Client ${client.clientName}');
+        Logs().d('SetupPush for client');
         if (client.onLoginStateChanged.value != LoginState.loggedIn ||
             !PlatformInfos.isMobile ||
             matrix == null) {
@@ -278,25 +286,12 @@ class BackgroundPush {
         }
         await setupFirebase(client);
       }
-    } else if (PlatformInfos.isAndroid &&
-        (await UnifiedPush.getDistributors()).isNotEmpty &&
-        context.mounted) {
-      await UnifiedPushUi(
-        context: context,
-        instances: ['default'],
-        unifiedPushFunctions: UPFunctions(),
-        showNoDistribDialog: false,
-        onNoDistribDialogDismissed: () {}, // TODO: Implement me
-      ).registerAppWithDialog();
     } else {
       for (final client in clients) {
-        Logs().d('SetupPush for Client ${client.clientName}');
+        Logs().d('SetupPush for client');
         if (client.onLoginStateChanged.value != LoginState.loggedIn ||
             !PlatformInfos.isMobile ||
             matrix == null) {
-          return;
-        }
-        if (upAction) {
           return;
         }
         await setupFirebase(client);
