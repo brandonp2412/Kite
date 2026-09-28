@@ -113,7 +113,7 @@ class ChatListSearchBar extends StatelessWidget {
                             maxLines: 2,
                           ),
                         )
-                : SizedBox(width: 0, child: ClientChooserButton(controller)),
+                : const SizedBox(width: 48, child: ClientChooserButton()),
           ),
         );
       },

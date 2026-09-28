@@ -31,9 +31,7 @@ import '../widgets/matrix.dart';
 import 'platform_infos.dart';
 
 class BackgroundPush {
-  static const _personalFcmChannel = MethodChannel(
-    'chat.fluffy.fluffychat.test/fcm',
-  );
+  static const _personalFcmChannel = MethodChannel('app.kite/fcm');
   static BackgroundPush? _instance;
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();

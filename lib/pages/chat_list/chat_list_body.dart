@@ -168,6 +168,12 @@ class ChatListViewBody extends StatelessWidget {
                   },
                 ),
               ),
+            if (!FluffyThemes.isColumnMode(context))
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: MediaQuery.paddingOf(context).bottom + 88,
+                ),
+              ),
           ],
         );
       },

@@ -89,7 +89,7 @@ abstract class ForegroundServices {
               ? ForegroundServiceTypes.remoteMessaging
               : ForegroundServiceTypes.shortService,
         ],
-        notificationTitle: 'FluffyChat Test',
+        notificationTitle: 'Kite',
         notificationText: directSync
             ? 'Listening for new Matrix messages'
             : l10n.loadingMessages,

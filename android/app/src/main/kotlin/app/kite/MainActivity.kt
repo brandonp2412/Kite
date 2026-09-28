@@ -1,4 +1,4 @@
-package chat.fluffy.fluffychat
+package app.kite
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -25,7 +25,7 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     companion object {
-        private const val FCM_CHANNEL = "chat.fluffy.fluffychat.test/fcm"
+        private const val FCM_CHANNEL = "app.kite/fcm"
         private var fcmChannelConfigured = false
 
         var engine: FlutterEngine? = null

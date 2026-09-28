@@ -32,6 +32,8 @@ class ChatListView extends StatelessWidget {
           statusBarBrightness: theme.brightness,
           systemStatusBarContrastEnforced: false,
         );
+    final columnMode = FluffyThemes.isColumnMode(context);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: statusBarStyle,
@@ -49,15 +51,28 @@ class ChatListView extends StatelessWidget {
             padding: EdgeInsets.only(
               top: MediaQuery.paddingOf(context).top + 8,
             ),
-            child: ChatListViewBody(controller),
+            child: Stack(
+              children: [
+                Positioned.fill(child: ChatListViewBody(controller)),
+                if (!columnMode)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: bottomInset + 16,
+                    child: Material(
+                      elevation: 8,
+                      shadowColor: theme.colorScheme.shadow.withValues(
+                        alpha: 0.24,
+                      ),
+                      color: theme.colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(99),
+                      clipBehavior: Clip.antiAlias,
+                      child: ChatListSearchBar(controller: controller),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          bottomNavigationBar: !FluffyThemes.isColumnMode(context)
-              ? SafeArea(
-                  top: false,
-                  minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: ChatListSearchBar(controller: controller),
-                )
-              : null,
         ),
       ),
     );
