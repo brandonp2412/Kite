@@ -33,6 +33,35 @@ bool _vodozemacInitialized = false;
 
 bool isIntegrationTest = false;
 
+const _performanceHomeserver = String.fromEnvironment('KITE_PERF_HOMESERVER');
+const _performanceUser = String.fromEnvironment('KITE_PERF_USER');
+const _performancePassword = String.fromEnvironment('KITE_PERF_PASSWORD');
+
+Future<void> _bootstrapPerformanceLogin(List<Client> clients) async {
+  if (_performanceHomeserver.isEmpty ||
+      _performanceUser.isEmpty ||
+      _performancePassword.isEmpty) {
+    return;
+  }
+
+  final client = clients.firstOrNull;
+  if (client == null || client.isLogged()) {
+    return;
+  }
+
+  final homeserver = Uri.parse(_performanceHomeserver);
+  await client.checkHomeserver(homeserver, fetchAuthMetadata: false);
+  await client.login(
+    LoginType.mLoginPassword,
+    identifier: AuthenticationUserIdentifier(user: _performanceUser),
+    // Keep compatibility with older Synapse versions used by the fixture.
+    // ignore: deprecated_member_use
+    user: _performanceUser,
+    password: _performancePassword,
+    initialDeviceDisplayName: 'Kite performance fixture',
+  );
+}
+
 void main(List<String> args) => runZonedGuarded(() async {
   // Forward Flutter errors to global error reporter
   FlutterError.onError = (details) => Zone.current.handleUncaughtError(
@@ -105,6 +134,7 @@ void main(List<String> args) => runZonedGuarded(() async {
   }
 
   final clients = await ClientManager.getClients(store: store);
+  await _bootstrapPerformanceLogin(clients);
 
   // Started in foreground mode.
   Logs().i(
