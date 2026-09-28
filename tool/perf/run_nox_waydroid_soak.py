@@ -539,6 +539,7 @@ def run_iteration(
         flutter,
         "drive",
         "--no-pub",
+        "--no-dds",
         "--profile",
         "--driver=test_driver/performance_driver.dart",
         "--target=integration_test/performance_test.dart",
