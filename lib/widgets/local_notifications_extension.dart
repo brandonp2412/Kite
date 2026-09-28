@@ -8,6 +8,7 @@ import 'package:fluffychat/config/setting_keys.dart';
 import 'package:fluffychat/l10n/l10n.dart';
 import 'package:fluffychat/utils/client_download_content_extension.dart';
 import 'package:fluffychat/utils/matrix_sdk_extensions/matrix_locals.dart';
+import 'package:fluffychat/utils/notification_avatar_extension.dart';
 import 'package:fluffychat/utils/notification_background_handler.dart';
 import 'package:fluffychat/utils/push_helper.dart';
 import 'package:fluffychat/widgets/fluffy_chat_app.dart';
@@ -102,6 +103,12 @@ extension LocalNotificationsExtension on MatrixState {
       return;
     }
 
+    final senderAvatar =
+        event.senderFromMemoryOrFallback.avatarUrl ?? event.room.avatar;
+    final senderAvatarFile = await client.tryDownloadNotificationAvatar(
+      senderAvatar,
+    );
+
     FlutterLocalNotificationsPlugin().show(
       id: event.room.id.hashCode,
       title: title,
@@ -114,6 +121,9 @@ extension LocalNotificationsExtension on MatrixState {
           importance: Importance.high,
           priority: Priority.high,
           category: AndroidNotificationCategory.message,
+          largeIcon: senderAvatarFile == null
+              ? null
+              : ByteArrayAndroidBitmap(senderAvatarFile),
           groupKey: event.room.client.clientName,
         ),
         linux: LinuxNotificationDetails(
