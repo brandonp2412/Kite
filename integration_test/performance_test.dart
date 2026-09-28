@@ -15,6 +15,10 @@ const _runId = String.fromEnvironment(
   'KITE_PERF_RUN_ID',
   defaultValue: 'manual',
 );
+const _dependencyLockSha = String.fromEnvironment(
+  'KITE_PERF_DEPENDENCY_LOCK_SHA',
+  defaultValue: 'manual',
+);
 
 Future<void> _stressScroll(
   WidgetTester tester,
@@ -63,6 +67,7 @@ void main() {
       'runId': _runId,
       'fixture': 'real_chat_shape_v1',
       'surface': 'nox_waydroid',
+      'dependencyLockSha256': _dependencyLockSha,
     };
 
     await binding.watchPerformance(

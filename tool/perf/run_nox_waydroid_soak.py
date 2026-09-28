@@ -35,6 +35,7 @@ WAYDROID_IP = "192.168.240.2"
 WAYDROID_HOST_IP = "192.168.240.1"
 PERF_PACKAGE = "app.kite.perf"
 ANDROID_SDK = "/opt/android-sdk"
+PUBSPEC_LOCK = ROOT / "pubspec.lock"
 
 
 def run(
@@ -414,6 +415,35 @@ def capture_failure(serial: str, result_dir: Path, run_id: str) -> None:
         (result_dir / f"{run_id}-failure.png").write_bytes(screenshot.stdout)
 
 
+def prepare_flutter_dependencies(
+    flutter: str,
+    result_dir: Path,
+) -> tuple[bytes, str]:
+    original_lock = PUBSPEC_LOCK.read_bytes()
+    env = os.environ.copy()
+    env.update(
+        {
+            "ANDROID_HOME": ANDROID_SDK,
+            "ANDROID_SDK_ROOT": ANDROID_SDK,
+        }
+    )
+    try:
+        run([flutter, "pub", "get"], cwd=ROOT, env=env, timeout=600)
+        resolved_lock = PUBSPEC_LOCK.read_bytes()
+        lock_sha = hashlib.sha256(resolved_lock).hexdigest()
+        (result_dir / f"resolved-pubspec-{lock_sha[:12]}.lock").write_bytes(
+            resolved_lock,
+        )
+        return original_lock, lock_sha
+    except BaseException:
+        PUBSPEC_LOCK.write_bytes(original_lock)
+        raise
+
+
+def restore_pubspec_lock(original_lock: bytes) -> None:
+    PUBSPEC_LOCK.write_bytes(original_lock)
+
+
 def append_summary(
     result_dir: Path,
     *,
@@ -421,6 +451,7 @@ def append_summary(
     returncode: int,
     elapsed_seconds: float,
     result_file: Path,
+    dependency_lock_sha: str,
 ) -> None:
     record: dict[str, object] = {
         "runId": run_id,
@@ -429,6 +460,7 @@ def append_summary(
         "resultFile": str(result_file),
         "hostLoad": list(os.getloadavg()),
         "unixTime": int(time.time()),
+        "dependencyLockSha256": dependency_lock_sha,
     }
     if result_file.exists():
         try:
@@ -445,6 +477,7 @@ def run_iteration(
     serial: str,
     result_dir: Path,
     iteration: int,
+    dependency_lock_sha: str,
 ) -> int:
     run_id = time.strftime("%Y%m%d-%H%M%S") + f"-{iteration:04d}"
     result_file = result_dir / f"kite-perf-{run_id}.json"
@@ -463,6 +496,7 @@ def run_iteration(
     command = [
         flutter,
         "drive",
+        "--no-pub",
         "--profile",
         "--driver=test_driver/performance_driver.dart",
         "--target=integration_test/performance_test.dart",
@@ -472,6 +506,7 @@ def run_iteration(
         f"--dart-define=USER1_NAME={ADMIN_USER}",
         f"--dart-define=USER1_PW={PASSWORD}",
         f"--dart-define=KITE_PERF_RUN_ID={run_id}",
+        f"--dart-define=KITE_PERF_DEPENDENCY_LOCK_SHA={dependency_lock_sha}",
     ]
 
     start = time.monotonic()
@@ -494,6 +529,7 @@ def run_iteration(
         returncode=process.returncode,
         elapsed_seconds=elapsed,
         result_file=result_file,
+        dependency_lock_sha=dependency_lock_sha,
     )
     return process.returncode
 
@@ -556,37 +592,45 @@ def main() -> int:
             if reset_state or args.reset_app_data:
                 clear_perf_app_data(serial)
 
-            deadline = time.monotonic() + max(0.0, args.hours) * 3600
-            iteration = 0
-            failures = 0
-            while True:
-                if args.iterations > 0 and iteration >= args.iterations:
-                    break
-                if args.iterations == 0 and time.monotonic() >= deadline:
-                    break
+            original_lock, dependency_lock_sha = prepare_flutter_dependencies(
+                args.flutter,
+                args.result_dir,
+            )
+            try:
+                deadline = time.monotonic() + max(0.0, args.hours) * 3600
+                iteration = 0
+                failures = 0
+                while True:
+                    if args.iterations > 0 and iteration >= args.iterations:
+                        break
+                    if args.iterations == 0 and time.monotonic() >= deadline:
+                        break
 
-                iteration += 1
-                print(f"[kite-perf] iteration {iteration} on {serial}")
-                returncode = run_iteration(
-                    flutter=args.flutter,
-                    serial=serial,
-                    result_dir=args.result_dir,
-                    iteration=iteration,
-                )
-                if returncode != 0:
-                    failures += 1
-                    print(f"[kite-perf] iteration {iteration} failed with {returncode}")
-                    if args.fail_fast:
-                        return returncode
-                else:
-                    print(f"[kite-perf] iteration {iteration} passed")
+                    iteration += 1
+                    print(f"[kite-perf] iteration {iteration} on {serial}")
+                    returncode = run_iteration(
+                        flutter=args.flutter,
+                        serial=serial,
+                        result_dir=args.result_dir,
+                        iteration=iteration,
+                        dependency_lock_sha=dependency_lock_sha,
+                    )
+                    if returncode != 0:
+                        failures += 1
+                        print(f"[kite-perf] iteration {iteration} failed with {returncode}")
+                        if args.fail_fast:
+                            return returncode
+                    else:
+                        print(f"[kite-perf] iteration {iteration} passed")
 
-                if args.iterations == 0 and time.monotonic() >= deadline:
-                    break
-                time.sleep(max(0.0, args.sleep_seconds))
+                    if args.iterations == 0 and time.monotonic() >= deadline:
+                        break
+                    time.sleep(max(0.0, args.sleep_seconds))
 
-            print(f"[kite-perf] completed {iteration} iterations with {failures} failures")
-            return 0 if failures == 0 else 1
+                print(f"[kite-perf] completed {iteration} iterations with {failures} failures")
+                return 0 if failures == 0 else 1
+            finally:
+                restore_pubspec_lock(original_lock)
     finally:
         stop_process(synapse_process)
         # Intentionally leave Waydroid running. Nox shares it with other device
