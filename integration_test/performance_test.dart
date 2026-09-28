@@ -124,8 +124,7 @@ void main() {
       const Key('chat_list_scroll'),
       timeout: const Duration(seconds: 30),
     );
-    await kite.tapOn(const Key('accounts_and_settings_buttons'));
-    await kite.tapOn('Settings');
+    await kite.tapOn(const Key('account_settings_button'));
     await kite.waitFor(
       const Key('SettingsListViewContent'),
       timeout: const Duration(seconds: 30),
