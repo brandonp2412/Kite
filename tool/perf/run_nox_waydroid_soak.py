@@ -34,6 +34,7 @@ PASSWORD = "kite-perf-local-only"
 WAYDROID_IP = "192.168.240.2"
 WAYDROID_HOST_IP = "192.168.240.1"
 PERF_PACKAGE = "app.kite.perf"
+ANDROID_SDK = "/opt/android-sdk"
 
 
 def run(
@@ -452,6 +453,8 @@ def run_iteration(
     env = os.environ.copy()
     env.update(
         {
+            "ANDROID_HOME": ANDROID_SDK,
+            "ANDROID_SDK_ROOT": ANDROID_SDK,
             "ORG_GRADLE_PROJECT_kitePerfBuild": "true",
             "KITE_PERF_RESULT_DIR": str(result_dir),
             "KITE_PERF_RUN_ID": run_id,
