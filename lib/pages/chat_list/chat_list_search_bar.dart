@@ -6,7 +6,6 @@
 import 'package:fluffychat/l10n/l10n.dart';
 import 'package:fluffychat/pages/chat_list/chat_list.dart';
 import 'package:fluffychat/pages/chat_list/client_chooser_button.dart';
-import 'package:fluffychat/utils/sync_status_localization.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 
@@ -51,9 +50,7 @@ class ChatListSearchBar extends StatelessWidget {
               borderSide: BorderSide.none,
               borderRadius: BorderRadius.circular(99),
             ),
-            hintText: hide
-                ? L10n.of(context).searchChatsRooms
-                : status.calcLocalizedString(context),
+            hintText: 'Search...',
             hintStyle: TextStyle(
               color: theme.colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.normal,
@@ -66,13 +63,9 @@ class ChatListSearchBar extends StatelessWidget {
                           onPressed: controller.cancelSearch,
                           color: theme.colorScheme.onPrimaryContainer,
                         )
-                      : IconButton(
-                          tooltip: L10n.of(context).search,
-                          onPressed: controller.startSearch,
-                          icon: Icon(
-                            Icons.search_outlined,
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
+                      : Icon(
+                          Icons.search_outlined,
+                          color: theme.colorScheme.onPrimaryContainer,
                         )
                 : SizedBox(
                     width: 8,

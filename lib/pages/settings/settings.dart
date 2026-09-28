@@ -34,6 +34,21 @@ class Settings extends StatefulWidget {
 class SettingsController extends State<Settings> {
   Future<Profile>? profileFuture;
   bool profileUpdated = false;
+  final settingsSearchController = TextEditingController();
+  String settingsSearch = '';
+
+  void setSettingsSearch(String value) => setState(() {
+    settingsSearch = value.trim().toLowerCase();
+  });
+
+  void clearSettingsSearch() {
+    settingsSearchController.clear();
+    setState(() => settingsSearch = '');
+  }
+
+  bool settingsMatches(Iterable<String> values) =>
+      settingsSearch.isEmpty ||
+      values.any((value) => value.toLowerCase().contains(settingsSearch));
 
   void updateProfile() => setState(() {
     profileUpdated = true;
@@ -263,6 +278,12 @@ class SettingsController extends State<Settings> {
     }
     await context.push('/backup');
     checkBootstrap();
+  }
+
+  @override
+  void dispose() {
+    settingsSearchController.dispose();
+    super.dispose();
   }
 
   @override

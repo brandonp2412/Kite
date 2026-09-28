@@ -35,17 +35,17 @@ abstract class AppConfig {
 
   static const String sourceCodeUrl = 'https://github.com/brandonp2412/Kite';
   static const String supportUrl =
-      'https://github.com/krille-chan/fluffychat/issues';
-  static const String changelogUrl = 'https://fluffychat.im/changelog/';
-  static const String helpUrl =
-      'https://ko-fi.com/post/How-can-I-support-FluffyChat-J2G325WE6I';
+      'https://brandonp2412.github.io/Kite/support/';
+  static const String changelogUrl =
+      'https://github.com/brandonp2412/Kite/releases';
+  static const String helpUrl = 'https://brandonp2412.github.io/Kite/support/';
 
   static const Set<String> defaultReactions = {'👍', '❤️', '😂', '😮', '😢'};
 
   static final Uri newIssueUrl = Uri(
     scheme: 'https',
     host: 'github.com',
-    path: '/krille-chan/fluffychat/issues/new',
+    path: '/brandonp2412/Kite/issues/new',
   );
 
   static final Uri homeserverList = Uri(

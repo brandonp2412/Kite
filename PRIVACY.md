@@ -5,4 +5,4 @@ SPDX-FileCopyrightText: 2019-Present Contributors to FluffyChat
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-Has been moved to https://fluffychat.im/privacy
+Kite's privacy policy is published at https://brandonp2412.github.io/Kite/privacy/

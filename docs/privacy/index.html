@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#003197">
+  <title>Privacy Policy · Kite</title>
+  <link rel="icon" href="/Kite/assets/kite-icon.png">
+  <link rel="stylesheet" href="/Kite/assets/style.css">
+</head>
+<body>
+<main>
+  <header>
+    <img src="/Kite/assets/kite-icon.png" alt="Kite app icon">
+    <div>
+      <h1>Privacy Policy</h1>
+      <nav>
+        <a href="/Kite/">Kite</a>
+        <a href="/Kite/privacy/">Privacy</a>
+        <a href="/Kite/terms/">Terms</a>
+        <a href="/Kite/support/">Support</a>
+        <a href="https://github.com/brandonp2412/Kite">Source</a>
+      </nav>
+    </div>
+  </header>
+  
+<p><small>Last updated: 28 September 2026</small></p>
+<p>Kite is a client for the Matrix protocol. It does not operate a central Kite messaging service. Your Matrix account, rooms, messages, media, and related metadata are handled primarily by the Matrix homeserver and services you choose to use.</p>
+
+<h2>Matrix data</h2>
+<p>Kite connects directly to your configured Matrix homeserver. The homeserver receives the data required to provide Matrix service, including account and room metadata. In end-to-end encrypted rooms, message contents are encrypted for participating devices, although homeservers may still process routing and other metadata.</p>
+
+<h2>Data stored on your device</h2>
+<p>Kite stores app settings, Matrix session information, local caches, encryption material, and downloaded or generated media as needed for the app to function. Android secure-storage facilities are used where supported for sensitive credentials.</p>
+
+<h2>Notifications</h2>
+<p>The current Kite Android build uses a foreground Matrix sync service to receive events and creates notifications locally on the device. This avoids routing Android message contents through a Kite-operated push gateway. Your Matrix homeserver still participates in the normal Matrix sync flow.</p>
+
+<h2>Permissions and media</h2>
+<p>If you choose features such as file sharing, photos, video, or location sharing, Kite accesses the corresponding device data or permission only to perform that action. Content you send is uploaded through your Matrix homeserver or the Matrix services configured for your account.</p>
+
+<h2>Analytics and advertising</h2>
+<p>Kite does not add a Kite-operated advertising or analytics service. Platform services, your homeserver, identity provider, linked websites, or other services you deliberately use may have their own privacy practices.</p>
+
+<h2>Authentication and external services</h2>
+<p>If your homeserver uses browser-based or OIDC authentication, your identity provider receives information needed to authenticate you. Opening external links leaves Kite and is subject to the destination service's policies.</p>
+
+<h2>Deleting data</h2>
+<p>You can remove Kite's local app data using Android's app-data controls or by uninstalling the app. Logging out removes the local Matrix session. Deleting data held by a Matrix homeserver must be done through that homeserver or account provider and is subject to Matrix federation and retention behavior.</p>
+
+<h2>This website</h2>
+<p>This policy site is hosted using GitHub Pages. GitHub may process standard web-request information according to GitHub's own privacy practices.</p>
+
+<h2>Contact</h2>
+<p>For Kite privacy questions or issues, use the <a href="https://github.com/brandonp2412/Kite/issues">Kite issue tracker</a>.</p>
+
+</main>
+</body>
+</html>
