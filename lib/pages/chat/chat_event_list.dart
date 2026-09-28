@@ -9,7 +9,6 @@ import 'package:fluffychat/config/setting_keys.dart';
 import 'package:fluffychat/config/themes.dart';
 import 'package:fluffychat/l10n/l10n.dart';
 import 'package:fluffychat/pages/chat/chat.dart';
-import 'package:fluffychat/pages/chat/encryption_info.dart';
 import 'package:fluffychat/pages/chat/events/message.dart';
 import 'package:fluffychat/pages/chat/seen_by_row.dart';
 import 'package:fluffychat/pages/chat/typing_indicators.dart';
@@ -97,7 +96,6 @@ class ChatEventList extends StatelessWidget {
                   children: [
                     if (events.isNotEmpty) SeenByRow(event: events.first),
                     TypingIndicators(controller),
-                    EncryptionInfo(room: controller.room),
                   ],
                 );
               }
@@ -217,9 +215,6 @@ class ChatEventList extends StatelessWidget {
                           event.eventId,
                       onEdit: controller.editSelectedEventAction,
                       timeline: timeline,
-                      displayReadMarker:
-                          i > 0 &&
-                          controller.readMarkerEventId == event.eventId,
                       nextEvent: nextEvent,
                       previousEvent: previousEvent,
                       wallpaperMode: hasWallpaper,

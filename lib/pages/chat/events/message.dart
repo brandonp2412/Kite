@@ -34,7 +34,6 @@ class Message extends StatelessWidget {
   final Event event;
   final Event? nextEvent;
   final Event? previousEvent;
-  final bool displayReadMarker;
   final void Function(Event) onSelect;
   final void Function(Event) onInfoTab;
   final void Function(String) scrollToEventId;
@@ -59,7 +58,6 @@ class Message extends StatelessWidget {
     this.event, {
     this.nextEvent,
     this.previousEvent,
-    this.displayReadMarker = false,
     this.longPressSelect = false,
     required this.bigEmojis,
     required this.onSelect,
@@ -892,41 +890,6 @@ class Message extends StatelessWidget {
                             ),
                           ),
                         ),
-                ),
-              if (displayReadMarker)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 16.0,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(
-                          AppConfig.borderRadius / 3,
-                        ),
-                        color: theme.colorScheme.surface.withAlpha(128),
-                      ),
-                      child: Text(
-                        L10n.of(context).readUpToHere,
-                        style: TextStyle(fontSize: 11),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                      ),
-                    ),
-                  ],
                 ),
             ],
           ),
