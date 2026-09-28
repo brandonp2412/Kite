@@ -3,13 +3,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/pages/chat_list/chat_list_item.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:kite/pages/chat_list/chat_list_item.dart';
 
 import 'flows/auth_flows.dart';
-import 'utils/fluffy_chat_tester.dart';
+import 'utils/kite_tester.dart';
 
 const _runId = String.fromEnvironment(
   'KITE_PERF_RUN_ID',
@@ -53,7 +53,7 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('Kite Nox Waydroid performance fixture', (tester) async {
-    final kite = await tester.startFluffyChatTest();
+    final kite = await tester.startKiteTest();
     await kite.ensureLoggedIn(initializeCryptoIdentity: false);
 
     await kite.waitFor(
