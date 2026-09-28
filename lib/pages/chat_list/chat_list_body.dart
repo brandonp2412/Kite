@@ -4,13 +4,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:cupertino_ui/cupertino_ui.dart';
-import 'package:fluffychat/config/setting_keys.dart';
 import 'package:fluffychat/l10n/l10n.dart';
 import 'package:fluffychat/pages/chat_list/chat_list.dart';
 import 'package:fluffychat/pages/chat_list/chat_list_item.dart';
 import 'package:fluffychat/pages/chat_list/dummy_chat_list_item.dart';
 import 'package:fluffychat/pages/chat_list/search_title.dart';
-import 'package:fluffychat/pages/chat_list/space_view.dart';
 import 'package:fluffychat/utils/stream_extension.dart';
 import 'package:fluffychat/widgets/adaptive_dialogs/public_room_dialog.dart';
 import 'package:fluffychat/widgets/avatar.dart';
@@ -32,31 +30,8 @@ class ChatListViewBody extends StatelessWidget {
     final theme = Theme.of(context);
 
     final client = Matrix.of(context).client;
-    final activeSpace = controller.activeSpaceId;
-    if (activeSpace != null) {
-      return SpaceView(
-        key: ValueKey(activeSpace),
-        spaceId: activeSpace,
-        onBack: controller.clearActiveSpace,
-        onChatTab: controller.onChatTap,
-        activeChat: controller.activeChat,
-      );
-    }
-    final spaces = client.rooms.where((r) => r.isSpace);
-    final spaceDelegateCandidates = <String, Room>{};
-    for (final space in spaces) {
-      for (final spaceChild in space.spaceChildren) {
-        final roomId = spaceChild.roomId;
-        if (roomId == null) continue;
-        spaceDelegateCandidates[roomId] = space;
-      }
-    }
-
     final publicRooms = controller.roomSearchResult?.chunk
         .where((room) => room.roomType != 'm.space')
-        .toList();
-    final publicSpaces = controller.roomSearchResult?.chunk
-        .where((room) => room.roomType == 'm.space')
         .toList();
     final userSearchResult = controller.userSearchResult;
     const dummyChatCount = 4;
@@ -67,13 +42,7 @@ class ChatListViewBody extends StatelessWidget {
           .where((s) => s.hasRoomUpdate)
           .rateLimit(const Duration(seconds: 1)),
       builder: (context, _) {
-        final rooms = controller.filteredRooms
-            .where(
-              (room) =>
-                  !AppSettings.hideRoomsInSpaces.value ||
-                  spaceDelegateCandidates[room.id] == null,
-            )
-            .toList();
+        final rooms = controller.filteredRooms;
 
         return CustomScrollView(
           controller: controller.scrollController,
@@ -88,11 +57,6 @@ class ChatListViewBody extends StatelessWidget {
                     icon: const Icon(Icons.explore_outlined),
                   ),
                   PublicRoomsHorizontalList(publicRooms: publicRooms),
-                  SearchTitle(
-                    title: L10n.of(context).publicSpaces,
-                    icon: const Icon(Icons.workspaces_outlined),
-                  ),
-                  PublicRoomsHorizontalList(publicRooms: publicSpaces),
                   SearchTitle(
                     title: L10n.of(context).users,
                     icon: const Icon(Icons.group_outlined),
@@ -192,15 +156,13 @@ class ChatListViewBody extends StatelessWidget {
                   itemCount: rooms.length,
                   itemBuilder: (BuildContext context, int i) {
                     final room = rooms[i];
-                    final space = spaceDelegateCandidates[room.id];
                     return ChatListItem(
                       room,
-                      space: space,
                       key: Key('chat_list_item_${room.id}'),
                       filter: filter,
                       onTap: () => controller.onChatTap(room),
                       onLongPress: (context) =>
-                          controller.chatContextAction(room, context, space),
+                          controller.chatContextAction(room, context),
                       activeChat: controller.activeChat == room.id,
                     );
                   },

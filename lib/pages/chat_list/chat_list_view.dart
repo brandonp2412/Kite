@@ -3,12 +3,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
 import 'package:fluffychat/config/themes.dart';
 import 'package:fluffychat/pages/chat_list/chat_list.dart';
 import 'package:fluffychat/pages/chat_list/chat_list_search_bar.dart';
-import 'package:fluffychat/pages/chat_list/navigation_rail.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'chat_list_body.dart';
@@ -20,90 +18,47 @@ class ChatListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final oneColumnSpacesMode =
-        !FluffyThemes.isColumnMode(context) &&
-        AppSettings.displayNavigationRail.value;
-    return PopScope(
-      canPop: !controller.isSearchMode && controller.activeSpaceId == null,
-      onPopInvokedWithResult: (pop, _) {
-        if (pop) return;
-        if (controller.activeSpaceId != null) {
-          controller.clearActiveSpace();
-          return;
-        }
-        if (controller.isSearchMode) {
-          controller.cancelSearch();
-          return;
-        }
-      },
-      child: Row(
-        children: [
-          Material(
-            color: Theme.of(context).colorScheme.surface,
-            child: AnimatedSize(
-              duration: FluffyThemes.animationDuration,
-              curve: FluffyThemes.animationCurve,
-              child:
-                  (FluffyThemes.isColumnMode(context) ||
-                      AppSettings.displayNavigationRail.value)
-                  ? SpacesNavigationRail(
-                      activeSpaceId: controller.activeSpaceId,
-                      onGoToChats: controller.clearActiveSpace,
-                      onGoToSpaceId: controller.setActiveSpace,
-                    )
-                  : SizedBox(
-                      width: 0,
-                      height: MediaQuery.sizeOf(context).height,
-                    ),
-            ),
-          ),
-          if (FluffyThemes.isColumnMode(context) ||
-              AppSettings.displayNavigationRail.value)
-            if (FluffyThemes.isColumnMode(context))
-              Container(width: 1, color: Theme.of(context).dividerColor),
+    final theme = Theme.of(context);
+    final statusBarStyle =
+        theme.appBarTheme.systemOverlayStyle?.copyWith(
+          statusBarColor: Colors.transparent,
+          systemStatusBarContrastEnforced: false,
+        ) ??
+        SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: theme.brightness == Brightness.dark
+              ? Brightness.light
+              : Brightness.dark,
+          statusBarBrightness: theme.brightness,
+          systemStatusBarContrastEnforced: false,
+        );
 
-          Expanded(
-            child: GestureDetector(
-              onTap: FocusManager.instance.primaryFocus?.unfocus,
-              excludeFromSemantics: true,
-              behavior: HitTestBehavior.translucent,
-              child: Scaffold(
-                backgroundColor: oneColumnSpacesMode
-                    ? Theme.of(context).colorScheme.surfaceContainer
-                    : null,
-                body: SafeArea(
-                  top: oneColumnSpacesMode,
-                  bottom: false,
-                  left: false,
-                  right: false,
-                  child: Material(
-                    clipBehavior: oneColumnSpacesMode
-                        ? Clip.hardEdge
-                        : Clip.none,
-                    borderRadius: oneColumnSpacesMode
-                        ? BorderRadius.only(
-                            topLeft: Radius.circular(AppConfig.borderRadius),
-                          )
-                        : null,
-                    color: oneColumnSpacesMode
-                        ? Theme.of(context).colorScheme.surface
-                        : null,
-                    child: ChatListViewBody(controller),
-                  ),
-                ),
-                bottomNavigationBar:
-                    controller.activeSpaceId == null &&
-                        !FluffyThemes.isColumnMode(context)
-                    ? SafeArea(
-                        top: false,
-                        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                        child: ChatListSearchBar(controller: controller),
-                      )
-                    : null,
-              ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: statusBarStyle,
+      child: PopScope(
+        canPop: !controller.isSearchMode,
+        onPopInvokedWithResult: (pop, _) {
+          if (pop) return;
+          if (controller.isSearchMode) {
+            controller.cancelSearch();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: theme.colorScheme.surface,
+          body: Padding(
+            padding: EdgeInsets.only(
+              top: MediaQuery.paddingOf(context).top + 8,
             ),
+            child: ChatListViewBody(controller),
           ),
-        ],
+          bottomNavigationBar: !FluffyThemes.isColumnMode(context)
+              ? SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: ChatListSearchBar(controller: controller),
+                )
+              : null,
+        ),
       ),
     );
   }
