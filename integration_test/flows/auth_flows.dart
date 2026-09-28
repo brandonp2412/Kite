@@ -35,7 +35,8 @@ extension AuthFlows on FluffyChatTester {
     String password = user1Pw,
   }) async {
     await waitFor('Sign in');
-    await tapOn('Sign in');
+    await tapOn('Sign in', pumpAndSettle: false);
+    await waitFor(TextField);
     await enterText(TextField, 'http://$homeserver', index: 0);
     await tapOn(RadioListTile<PublicHomeserverData>, index: 0);
     await tapOn('Continue');
