@@ -32,6 +32,8 @@ configurations.all {
 }
 
 
+val kitePerfBuild = providers.gradleProperty("kitePerfBuild").orNull == "true"
+
 android {
     namespace = "app.kite"
     // Workaround for https://github.com/juliansteenbakker/flutter_secure_storage/issues/1224
@@ -77,6 +79,11 @@ android {
     }
 
     buildTypes {
+        configureEach {
+            if (kitePerfBuild && name != "release") {
+                applicationIdSuffix = ".perf"
+            }
+        }
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true

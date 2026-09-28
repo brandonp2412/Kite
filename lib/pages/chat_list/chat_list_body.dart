@@ -45,6 +45,7 @@ class ChatListViewBody extends StatelessWidget {
         final rooms = controller.filteredRooms;
 
         return CustomScrollView(
+          key: const Key('chat_list_scroll'),
           controller: controller.scrollController,
           slivers: [
             if (FluffyThemes.isColumnMode(context))

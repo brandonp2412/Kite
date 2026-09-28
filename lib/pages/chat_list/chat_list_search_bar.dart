@@ -38,6 +38,7 @@ class ChatListSearchBar extends StatelessWidget {
             client.prevBatch != null;
 
         return TextField(
+          key: const Key('chat_list_search_field'),
           controller: controller.searchController,
           focusNode: controller.searchFocusNode,
           textInputAction: TextInputAction.search,

@@ -61,6 +61,7 @@ class ChatEventList extends StatelessWidget {
           textScaler: TextScaler.linear(AppSettings.fontSizeFactor.value),
         ),
         child: ListView.custom(
+          key: const Key('chat_timeline_scroll'),
           padding: EdgeInsets.only(
             top: 8 + MediaQuery.paddingOf(context).top,
             bottom:
