@@ -37,13 +37,24 @@ extension AuthFlows on FluffyChatTester {
     await waitFor('Sign in');
     await tapOn('Sign in', pumpAndSettle: false);
     await waitFor(TextField);
-    await enterText(TextField, 'http://$homeserver', index: 0);
-    await tapOn(RadioListTile<PublicHomeserverData>, index: 0);
-    await tapOn('Continue');
+    await enterText(
+      TextField,
+      'http://$homeserver',
+      index: 0,
+      pumpAndSettle: false,
+    );
+    await waitFor(RadioListTile<PublicHomeserverData>);
+    await tapOn(
+      RadioListTile<PublicHomeserverData>,
+      index: 0,
+      pumpAndSettle: false,
+    );
+    await waitFor('Continue');
+    await tapOn('Continue', pumpAndSettle: false);
     await waitFor('Log in to http://$homeserver');
-    await enterText(TextField, username, index: 0);
-    await enterText(TextField, password, index: 1);
-    await tapOn('Login');
+    await enterText(TextField, username, index: 0, pumpAndSettle: false);
+    await enterText(TextField, password, index: 1, pumpAndSettle: false);
+    await tapOn('Login', pumpAndSettle: false);
   }
 
   Future<void> logout() async {
