@@ -3,9 +3,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
 import 'package:material_ui/material_ui.dart';
 
 class StartChatFab extends StatelessWidget {

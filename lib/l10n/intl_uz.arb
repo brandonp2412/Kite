@@ -844,7 +844,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} sizni FluffyChat’ga taklif qildi.\n1. fluffychat.im saytiga tashrif buyuring va ilovani oʻrnating.\n2. Roʻyxatdan oʻting yoki tizimga kiring.\n3. Taklif havolasini oching:\n{link}",
+    "inviteText": "{username} sizni Kite’ga taklif qildi.\n1. brandonp2412.github.io/Kite/ saytiga tashrif buyuring va ilovani oʻrnating.\n2. Roʻyxatdan oʻting yoki tizimga kiring.\n3. Taklif havolasini oching:\n{link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -1084,8 +1084,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 FluffyChat yangi xabarlar",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Kite yangi xabarlar",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1116,11 +1116,6 @@
     },
     "noEncryptionForPublicRooms": "Shifrlashni faqat guruh endi hamma uchun ochiq bo'lmay qolgandan keyingina faollashtirishingiz mumkin.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Firebase Cloud Messaging qurilmangizda mavjud emasga o'xshaydi. Push-bildirishnomalarni olishda davom etish uchun ntfy-ni o'rnatishingizni tavsiya qilamiz. NTFY yoki boshqa Unified Push provayderi yordamida siz ma'lumotlar xavfsizligini ta'minlash orqali push-bildirishnomalarni olishingiz mumkin. Siz ntfy-ni PlayStore yoki F-Droid-dan yuklab olishingiz mumkin.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

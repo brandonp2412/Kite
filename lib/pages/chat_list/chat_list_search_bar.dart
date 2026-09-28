@@ -3,9 +3,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat_list/chat_list.dart';
-import 'package:fluffychat/pages/chat_list/client_chooser_button.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat_list/chat_list.dart';
+import 'package:kite/pages/chat_list/client_chooser_button.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

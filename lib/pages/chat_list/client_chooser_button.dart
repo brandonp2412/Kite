@@ -3,10 +3,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/matrix.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

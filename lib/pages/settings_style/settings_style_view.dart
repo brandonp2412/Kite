@@ -6,16 +6,16 @@
 import 'dart:ui';
 
 import 'package:dynamic_color/dynamic_color.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat/events/state_message.dart';
-import 'package:fluffychat/utils/account_config.dart';
-import 'package:fluffychat/utils/color_value.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/layouts/max_width_body.dart';
-import 'package:fluffychat/widgets/matrix.dart';
-import 'package:fluffychat/widgets/mxc_image.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat/events/state_message.dart';
+import 'package:kite/utils/account_config.dart';
+import 'package:kite/utils/color_value.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/layouts/max_width_body.dart';
+import 'package:kite/widgets/matrix.dart';
+import 'package:kite/widgets/mxc_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

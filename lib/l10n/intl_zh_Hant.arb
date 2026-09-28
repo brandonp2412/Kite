@@ -685,7 +685,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} 邀請您使用 FluffyChat\n1. 安裝 FluffyChat：https://fluffychat.im\n2. 登入或註冊\n3. 打開該邀請網址：\n{link}",
+    "inviteText": "{username} 邀請您使用 Kite\n1. 安裝 Kite：https://brandonp2412.github.io/Kite/\n2. 登入或註冊\n3. 打開該邀請網址：\n{link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -832,8 +832,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 來自 FluffyChat 的新訊息",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 來自 Kite 的新訊息",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -864,11 +864,6 @@
     },
     "noEncryptionForPublicRooms": "您只能在這個聊天室不再被允許公開訪問後，才能啟用加密。",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "未能在你的裝置找到 Firebase Cloud Messaging(FCM). 如果想要收到通知消息的推送，我們建議安裝 ntfy。在有 ntfy 或其他 Unified Push 應用，便能在資料安全的情況下收到通知的推送。你可以在 Play store 或 F-Droid 下載並安裝 ntfy。",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

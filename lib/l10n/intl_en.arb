@@ -987,7 +987,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} invited you to FluffyChat.\n1. Visit fluffychat.im and install the app \n2. Sign up or sign in \n3. Open the invite link: \n {link}",
+    "inviteText": "{username} invited you to Kite.\n1. Visit brandonp2412.github.io/Kite/ and install the app \n2. Sign up or sign in \n3. Open the invite link: \n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -1148,8 +1148,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 New message in FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 New message in Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1180,11 +1180,6 @@
     },
     "noEncryptionForPublicRooms": "You can only activate encryption as soon as the room is no longer publicly accessible.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Firebase Cloud Messaging doesn't appear to be available on your device. To still receive push notifications, we recommend installing ntfy. With ntfy or another Unified Push provider you can receive push notifications in a data secure way. You can download ntfy from the PlayStore or from F-Droid.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },
@@ -2538,7 +2533,7 @@
     "advancedConfigurations": "Advanced configurations",
     "signIn": "Sign in",
     "createNewAccount": "Create new account",
-    "signUpGreeting": "FluffyChat is decentralized! Select a server where you want to create your account and let's go!",
+    "signUpGreeting": "Kite is decentralized! Select a server where you want to create your account and let's go!",
     "signInGreeting": "You already have an account in Matrix? Welcome back! Select your homeserver and sign in.",
     "theProcessWasCanceled": "The process was canceled.",
     "join": "Join",
@@ -2558,7 +2553,7 @@
     },
     "createNewChat": "Create new chat",
     "reset": "Reset",
-    "supportFluffyChat": "Support FluffyChat",
+    "supportKite": "Support Kite",
     "support": "Support",
     "setLowPriority": "Set low priority",
     "unsetLowPriority": "Unset low priority",
@@ -2568,7 +2563,7 @@
     "tagName": "Tag name",
     "createNewTag": "Create new tag",
     "hideRoomsInSpaces": "Hide rooms that are in a space",
-    "possibleByYou": "This release was only possible thanks to your support. FluffyChat remains free, open-source, and entirely community-driven.",
+    "possibleByYou": "This release was only possible thanks to your support. Kite remains free, open-source, and entirely community-driven.",
     "showThumbnailsInTimeline": "Show thumbnails of images and videos",
     "appSubtitle": "Secure [matrix] Communication",
     "appDescription": "Communicate encrypted over the decentralized [matrix] network in an easy and accessible way for everyone.",
@@ -2652,7 +2647,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "newPassphraseDescription": "FluffyChat uses end to end encryption. To not lose your messages, please choose a strong passphrase to secure your crypto identity and your encrypted message backup.",
+    "newPassphraseDescription": "Kite uses end to end encryption. To not lose your messages, please choose a strong passphrase to secure your crypto identity and your encrypted message backup.",
     "@newPassphraseDescription": {
         "type": "String",
         "placeholders": {}

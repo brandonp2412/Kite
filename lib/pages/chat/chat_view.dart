@@ -6,22 +6,22 @@
 import 'dart:ui' as ui;
 
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat/chat.dart';
-import 'package:fluffychat/pages/chat/chat_app_bar_list_tile.dart';
-import 'package:fluffychat/pages/chat/chat_app_bar_title.dart';
-import 'package:fluffychat/pages/chat/chat_event_list.dart';
-import 'package:fluffychat/pages/chat/pinned_events.dart';
-import 'package:fluffychat/pages/chat/reply_display.dart';
-import 'package:fluffychat/utils/account_config.dart';
-import 'package:fluffychat/utils/localized_exception_extension.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
-import 'package:fluffychat/widgets/chat_settings_popup_menu.dart';
-import 'package:fluffychat/widgets/future_loading_dialog.dart';
-import 'package:fluffychat/widgets/matrix.dart';
-import 'package:fluffychat/widgets/mxc_image.dart';
-import 'package:fluffychat/widgets/pulsating_widget.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat/chat.dart';
+import 'package:kite/pages/chat/chat_app_bar_list_tile.dart';
+import 'package:kite/pages/chat/chat_app_bar_title.dart';
+import 'package:kite/pages/chat/chat_event_list.dart';
+import 'package:kite/pages/chat/pinned_events.dart';
+import 'package:kite/pages/chat/reply_display.dart';
+import 'package:kite/utils/account_config.dart';
+import 'package:kite/utils/localized_exception_extension.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
+import 'package:kite/widgets/chat_settings_popup_menu.dart';
+import 'package:kite/widgets/future_loading_dialog.dart';
+import 'package:kite/widgets/matrix.dart';
+import 'package:kite/widgets/mxc_image.dart';
+import 'package:kite/widgets/pulsating_widget.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

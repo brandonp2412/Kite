@@ -8,12 +8,12 @@ import 'dart:isolate';
 import 'dart:ui';
 
 import 'package:collection/collection.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/client_manager.dart';
-import 'package:fluffychat/utils/push_helper.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_vodozemac/flutter_vodozemac.dart' as vod;
 import 'package:go_router/go_router.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/client_manager.dart';
+import 'package:kite/utils/push_helper.dart';
 import 'package:matrix/matrix.dart';
 
 import '../config/app_config.dart';
@@ -82,7 +82,7 @@ Future<void> notificationTapBackground(
   }
   final store = await AppSettings.init();
 
-  final payload = FluffyChatPushPayload.fromString(
+  final payload = KitePushPayload.fromString(
     notificationResponse.payload ?? '',
   );
   final clientName = payload.clientName;
@@ -118,7 +118,7 @@ Future<void> notificationTap(
     'Notification action handler started',
     notificationResponse.notificationResponseType.name,
   );
-  final payload = FluffyChatPushPayload.fromString(
+  final payload = KitePushPayload.fromString(
     notificationResponse.payload ?? '',
   );
   final client =
@@ -156,7 +156,7 @@ Future<void> notificationTap(
             : '/rooms/$roomId?client=${client.clientName}',
       );
     case NotificationResponseType.selectedNotificationAction:
-      final actionType = FluffyChatNotificationActions.values.singleWhereOrNull(
+      final actionType = KiteNotificationActions.values.singleWhereOrNull(
         (action) => action.name == notificationResponse.actionId,
       );
       if (actionType == null) {
@@ -176,13 +176,13 @@ Future<void> notificationTap(
         );
       }
       switch (actionType) {
-        case FluffyChatNotificationActions.markAsRead:
+        case KiteNotificationActions.markAsRead:
           await room.setReadMarker(
             payload.eventId ?? room.lastEvent!.eventId,
             mRead: payload.eventId ?? room.lastEvent!.eventId,
             public: AppSettings.sendPublicReadReceipts.value,
           );
-        case FluffyChatNotificationActions.reply:
+        case KiteNotificationActions.reply:
           final input = notificationResponse.input;
           if (input == null || input.isEmpty) {
             throw Exception(
@@ -195,15 +195,15 @@ Future<void> notificationTap(
             parseCommands: false,
             displayPendingEvent: false,
           );
-        case FluffyChatNotificationActions.mute:
+        case KiteNotificationActions.mute:
           await room.setPushRuleState(PushRuleState.mentionsOnly);
-        case FluffyChatNotificationActions.open:
+        case KiteNotificationActions.open:
           router?.go(
             client.getRoomById(roomId)?.membership == Membership.invite
                 ? '/rooms?client=${client.clientName}'
                 : '/rooms/$roomId?client=${client.clientName}',
           );
-        case FluffyChatNotificationActions.enterCall:
+        case KiteNotificationActions.enterCall:
           router?.go('/rooms/$roomId?client=${client.clientName}&action=call');
       }
     case NotificationResponseType.notificationDismissed:
@@ -211,4 +211,4 @@ Future<void> notificationTap(
   }
 }
 
-enum FluffyChatNotificationActions { markAsRead, reply, mute, open, enterCall }
+enum KiteNotificationActions { markAsRead, reply, mute, open, enterCall }

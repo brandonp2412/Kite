@@ -3,12 +3,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat_permissions_settings/chat_permissions_settings.dart';
-import 'package:fluffychat/pages/chat_permissions_settings/permission_list_tile.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
-import 'package:fluffychat/widgets/layouts/max_width_body.dart';
-import 'package:fluffychat/widgets/matrix.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat_permissions_settings/chat_permissions_settings.dart';
+import 'package:kite/pages/chat_permissions_settings/permission_list_tile.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
+import 'package:kite/widgets/layouts/max_width_body.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

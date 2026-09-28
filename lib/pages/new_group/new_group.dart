@@ -6,11 +6,11 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:fluffychat/pages/new_group/new_group_view.dart';
-import 'package:fluffychat/utils/file_selector.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
-import 'package:fluffychat/widgets/matrix.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kite/pages/new_group/new_group_view.dart';
+import 'package:kite/utils/file_selector.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call_member.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart' as sdk;
 

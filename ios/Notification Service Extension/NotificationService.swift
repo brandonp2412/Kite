@@ -27,14 +27,14 @@ class NotificationService: UNNotificationServiceExtension {
         guard let bestAttemptContent = bestAttemptContent else { return }
 
         // Uncomment to read the push message payload:
-        // os_log("[FluffyChatPushHelper] New message received: %{public}@", log: .default, type: .error, bestAttemptContent.userInfo)
-        os_log("[FluffyChatPushHelper] New message received")
+        // os_log("[KitePushHelper] New message received: %{public}@", log: .default, type: .error, bestAttemptContent.userInfo)
+        os_log("[KitePushHelper] New message received")
 
         // Check if notification contains room ID and event ID:
         guard let roomId = bestAttemptContent.userInfo["room_id"] as? String,
             let eventId = bestAttemptContent.userInfo["event_id"] as? String
         else {
-            os_log("[FluffyChatPushHelper] Room ID or Event ID is missing!")
+            os_log("[KitePushHelper] Room ID or Event ID is missing!")
             let emptyContent = UNMutableNotificationContent()
             contentHandler(emptyContent)
             return
@@ -75,7 +75,7 @@ class NotificationService: UNNotificationServiceExtension {
             let clientName = devices.first?.data.client_name
         else {
             os_log(
-                "[FluffyChatPushHelper] No client_name found in Push Notification!"
+                "[KitePushHelper] No client_name found in Push Notification!"
             )
             contentHandler(bestAttemptContent)
             return
@@ -85,21 +85,21 @@ class NotificationService: UNNotificationServiceExtension {
 
         // Open database:
         guard let key = getDatabaseKey() else {
-            os_log("[FluffyChatPushHelper] Unable to get database key!")
+            os_log("[KitePushHelper] Unable to get database key!")
             contentHandler(bestAttemptContent)
             return
         }
         guard let containerPath = FileManager.default.containerURL(
                 forSecurityApplicationGroupIdentifier: "group.im.fluffychat.app"
             ) else {
-                os_log("[FluffyChatPushHelper] Unable to get container path!")
+                os_log("[KitePushHelper] Unable to get container path!")
                 contentHandler(bestAttemptContent)
                 return
         }
         let databasePath = containerPath.appendingPathComponent("\(clientName).sqlite").path
         guard let database = getDatabase(key: key, path: databasePath) else {
             // getDatabase already logged the concrete SQLite error
-            os_log("[FluffyChatPushHelper] Unable to open database!")
+            os_log("[KitePushHelper] Unable to open database!")
             contentHandler(bestAttemptContent)
             return
         }
@@ -122,7 +122,7 @@ class NotificationService: UNNotificationServiceExtension {
                         roomName
                         ?? heroes.map { hero in
                             hero.content.displayname
-                                ?? String(localized: "FluffyChat User")
+                                ?? String(localized: "Kite User")
                         }.joined(separator: ", ")
                     roomAvatarUrl = roomAvatarUrl ?? heroes.first?.content.avatar_url
                 } else {
@@ -142,7 +142,7 @@ class NotificationService: UNNotificationServiceExtension {
                 let attachment = try downloadAttachment(url: roomAvatarUrl, containerPath: containerPath)
                 bestAttemptContent.attachments = [attachment]
             } catch {
-                os_log("[FluffyChatPushHelper] Unable to download avatar!")
+                os_log("[KitePushHelper] Unable to download avatar!")
             }
         }
 
@@ -189,7 +189,7 @@ class NotificationService: UNNotificationServiceExtension {
         // Open Database in read only mode:
         guard database.open(withFlags: 0x0000_0001) else {
             os_log(
-                "[FluffyChatPushHelper] sqlite open failed: %{public}@",
+                "[KitePushHelper] sqlite open failed: %{public}@",
                 database.lastErrorMessage()
             )
             return nil
@@ -199,7 +199,7 @@ class NotificationService: UNNotificationServiceExtension {
         let escapedKey = key.replacingOccurrences(of: "'", with: "''")
         guard database.executeStatements("PRAGMA key = '\(escapedKey)';") else {
             os_log(
-                "[FluffyChatPushHelper] PRAGMA key failed: %{public}@",
+                "[KitePushHelper] PRAGMA key failed: %{public}@",
                 database.lastErrorMessage()
             )
             database.close()
@@ -208,7 +208,7 @@ class NotificationService: UNNotificationServiceExtension {
 
         guard database.goodConnection else {
             os_log(
-                "[FluffyChatPushHelper] bad connection after key: %{public}@",
+                "[KitePushHelper] bad connection after key: %{public}@",
                 database.lastErrorMessage()
             )
             database.close()
@@ -240,7 +240,7 @@ class NotificationService: UNNotificationServiceExtension {
             }
         } catch {
             os_log(
-                "[FluffyChatPushHelper] DB query failed: %{public}@",
+                "[KitePushHelper] DB query failed: %{public}@",
                 log: .default,
                 type: .error,
                 error.localizedDescription
@@ -274,7 +274,7 @@ class NotificationService: UNNotificationServiceExtension {
             }
         } catch {
             os_log(
-                "[FluffyChatPushHelper] DB query failed: %{public}@",
+                "[KitePushHelper] DB query failed: %{public}@",
                 log: .default,
                 type: .error,
                 error.localizedDescription
@@ -308,7 +308,7 @@ class NotificationService: UNNotificationServiceExtension {
             }
         } catch {
             os_log(
-                "[FluffyChatPushHelper] DB query failed: %{public}@",
+                "[KitePushHelper] DB query failed: %{public}@",
                 log: .default,
                 type: .error,
                 error.localizedDescription
@@ -347,7 +347,7 @@ class NotificationService: UNNotificationServiceExtension {
             return []
         } catch {
             os_log(
-                "[FluffyChatPushHelper] DB query failed: %{public}@",
+                "[KitePushHelper] DB query failed: %{public}@",
                 log: .default,
                 type: .error,
                 error.localizedDescription
@@ -357,7 +357,7 @@ class NotificationService: UNNotificationServiceExtension {
     }
     
     func downloadAttachment(url: String, containerPath: URL) throws -> UNNotificationAttachment {
-        let downloadDirectory = containerPath.appendingPathComponent("fluffychat_download_cache")
+        let downloadDirectory = containerPath.appendingPathComponent("kite_download_cache")
         
         let mxcComponents = url.replacingOccurrences(of: "mxc://", with: "").split(separator: "/")
         guard mxcComponents.count == 2 else {

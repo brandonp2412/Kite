@@ -3,9 +3,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
 import 'package:flutter/services.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/setting_keys.dart';
 import 'package:material_ui/material_ui.dart';
 
 abstract class FluffyThemes {

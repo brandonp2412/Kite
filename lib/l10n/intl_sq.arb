@@ -858,7 +858,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "@newMessageInFluffyChat": {
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1643,10 +1643,6 @@
         "placeholders": {}
     },
     "@waitingPartnerNumbers": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

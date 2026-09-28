@@ -4,14 +4,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:cupertino_ui/cupertino_ui.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat_list/chat_list.dart';
-import 'package:fluffychat/pages/chat_list/chat_list_item.dart';
-import 'package:fluffychat/pages/chat_list/dummy_chat_list_item.dart';
-import 'package:fluffychat/pages/chat_list/search_title.dart';
-import 'package:fluffychat/utils/stream_extension.dart';
-import 'package:fluffychat/widgets/adaptive_dialogs/public_room_dialog.dart';
-import 'package:fluffychat/widgets/avatar.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat_list/chat_list.dart';
+import 'package:kite/pages/chat_list/chat_list_item.dart';
+import 'package:kite/pages/chat_list/dummy_chat_list_item.dart';
+import 'package:kite/pages/chat_list/search_title.dart';
+import 'package:kite/utils/stream_extension.dart';
+import 'package:kite/widgets/adaptive_dialogs/public_room_dialog.dart';
+import 'package:kite/widgets/avatar.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

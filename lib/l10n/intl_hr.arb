@@ -800,7 +800,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} te je pozvao/la u FluffyChat. \n1. Posjeti strnicu fluffychat.im i instaliraj aplikaciju \n2. Registriraj ili prijavi se \n3. Otvori poveznicu poziva: \n {link}",
+    "inviteText": "{username} te je pozvao/la u Kite. \n1. Posjeti strnicu brandonp2412.github.io/Kite/ i instaliraj aplikaciju \n2. Registriraj ili prijavi se \n3. Otvori poveznicu poziva: \n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -947,8 +947,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Nova poruka u FluffyChatu",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Nova poruka u Kiteu",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -2107,11 +2107,6 @@
         }
     },
     "roomUpgradeDescription": "Chat će se tada ponovo stvoriti s novom verzijom sobe. Svi sudionici će biti obaviješteni da se moraju prebaciti na novi chat. Više o verzijama soba možeš saznati na https://spec.matrix.org/latest/rooms/",
-    "noGoogleServicesWarning": "Čini se da Firebase Cloud Messaging nije dostupan na tvom uređaju. Za daljnje primanje push obavijesti, preporučujemo da instaliraš ntfy. S ntfy ili drugim pružateljem Unified Push usluge možeš primati push obavijesti na podatkovno siguran način. Ntfy možeš preuzeti s PlayStorea ili s F-Droida.",
-    "@noGoogleServicesWarning": {
-        "type": "String",
-        "placeholders": {}
-    },
     "verifyOtherDeviceDescription": "Kada potvrdiš jedan drugi uređaj, ti uređaji mogu razmjenjivati ključeve, povećavajući tvoju ukupnu sigurnost. 💪 Kada pokreneš provjeru, pojavit će se skočni prozor u aplikaciji na oba uređaja. Tamo ćeš tada vidjeti niz emojija ili brojeve koje moraš međusobno usporediti. Najbolje je imati oba uređaja pri ruci prije nego što započneš provjeru. 🤳",
     "verifyOtherUserDescription": "Ako potvrdiš jednog drugog korisnika, možeš biti siguran/na da znaš kome zapravo pišeš. 💪\n\nKada pokreneš provjeru, vi i drugi korisnik vidjet ćete skočni prozor u aplikaciji. Tamo ćeš tada vidjeti niz emojija ili brojeve koje morate međusobno usporediti.\n\nNajbolji način za to je da se nađete zajedno ili započnete videopoziv. 👭",
     "makeAdminDescription": "Nakon postavljanja ovog korisnika kao administratora, to možda nećeš moći poništiti jer će on tada imati iste dozvole kao i ti.",

@@ -5,11 +5,11 @@
 
 import 'dart:convert';
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/adaptive_bottom_sheet.dart';
-import 'package:fluffychat/utils/date_time_extension.dart';
-import 'package:fluffychat/widgets/avatar.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/adaptive_bottom_sheet.dart';
+import 'package:kite/utils/date_time_extension.dart';
+import 'package:kite/widgets/avatar.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

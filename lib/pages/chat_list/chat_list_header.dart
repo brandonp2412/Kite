@@ -3,9 +3,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/pages/chat_list/chat_list.dart';
-import 'package:fluffychat/pages/chat_list/chat_list_search_bar.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/pages/chat_list/chat_list.dart';
+import 'package:kite/pages/chat_list/chat_list_search_bar.dart';
 import 'package:material_ui/material_ui.dart';
 
 class ChatListHeader extends StatelessWidget implements PreferredSizeWidget {

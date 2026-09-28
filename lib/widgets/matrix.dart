@@ -7,20 +7,20 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:collection/collection.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/client_manager.dart';
-import 'package:fluffychat/utils/init_with_restore.dart';
-import 'package:fluffychat/utils/matrix_sdk_extensions/matrix_file_extension.dart';
-import 'package:fluffychat/utils/notification_background_handler.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/utils/uia_request_manager.dart';
-import 'package:fluffychat/widgets/adaptive_dialogs/show_ok_cancel_alert_dialog.dart';
-import 'package:fluffychat/widgets/fluffy_chat_app.dart';
-import 'package:fluffychat/widgets/future_loading_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/client_manager.dart';
+import 'package:kite/utils/init_with_restore.dart';
+import 'package:kite/utils/matrix_sdk_extensions/matrix_file_extension.dart';
+import 'package:kite/utils/notification_background_handler.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/utils/uia_request_manager.dart';
+import 'package:kite/widgets/adaptive_dialogs/show_ok_cancel_alert_dialog.dart';
+import 'package:kite/widgets/future_loading_dialog.dart';
+import 'package:kite/widgets/kite_app.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
@@ -166,7 +166,7 @@ class MatrixState extends State<Matrix> {
                 _registerSubs(_loginClientCandidate!.clientName);
                 setActiveClient(_loginClientCandidate);
                 _loginClientCandidate = null;
-                FluffyChatApp.router.go('/backup');
+                KiteApp.router.go('/backup');
               });
     if (widget.clients.isEmpty) widget.clients.add(candidate);
     return candidate;
@@ -202,7 +202,7 @@ class MatrixState extends State<Matrix> {
   }
 
   String? get activeRoomId {
-    final route = FluffyChatApp.router.routeInformationProvider.value.uri.path;
+    final route = KiteApp.router.routeInformationProvider.value.uri.path;
     if (!route.startsWith('/rooms/')) return null;
     return route.split('/')[2];
   }
@@ -247,14 +247,14 @@ class MatrixState extends State<Matrix> {
                   KeyVerificationState.done,
                   KeyVerificationState.error,
                 }.contains(request.state)) {
-              FluffyChatApp.router.pop('dialog');
+              KiteApp.router.pop('dialog');
             }
             hidPopup = true;
           };
           request.onUpdate = null;
           hidPopup = true;
           await KeyVerificationDialog(request: request).show(
-            FluffyChatApp.router.routerDelegate.navigatorKey.currentContext ??
+            KiteApp.router.routerDelegate.navigatorKey.currentContext ??
                 context,
           );
         });
@@ -273,11 +273,7 @@ class MatrixState extends State<Matrix> {
 
           if (loggedInWithMultipleClients) {
             final snackbarContext =
-                FluffyChatApp
-                    .router
-                    .routerDelegate
-                    .navigatorKey
-                    .currentContext ??
+                KiteApp.router.routerDelegate.navigatorKey.currentContext ??
                 context;
 
             if (!snackbarContext.mounted) return;
@@ -287,7 +283,7 @@ class MatrixState extends State<Matrix> {
             ).showSnackBar(SnackBar(content: Text(l10n.oneClientLoggedOut)));
             return;
           }
-          FluffyChatApp.router.go('/');
+          KiteApp.router.go('/');
         });
     onUiaRequest[name] ??= c.onUiaRequest.stream.listen(uiaRequestHandler);
     if (_androidDirectNotificationsEnabled && PlatformInfos.isAndroid) {
@@ -297,13 +293,13 @@ class MatrixState extends State<Matrix> {
       FlutterLocalNotificationsPlugin().initialize(
         settings: InitializationSettings(
           linux: LinuxInitializationSettings(
-            defaultActionName: FluffyChatNotificationActions.open.name,
+            defaultActionName: KiteNotificationActions.open.name,
           ),
         ),
         onDidReceiveNotificationResponse: (response) => notificationTap(
           response,
           clients: widget.clients,
-          router: FluffyChatApp.router,
+          router: KiteApp.router,
           l10n: null,
         ),
       );
@@ -343,7 +339,7 @@ class MatrixState extends State<Matrix> {
       onDidReceiveNotificationResponse: (response) => notificationTap(
         response,
         clients: widget.clients,
-        router: FluffyChatApp.router,
+        router: KiteApp.router,
         l10n: null,
       ),
     );
@@ -417,7 +413,7 @@ class MatrixState extends State<Matrix> {
         this,
         onFcmError: (errorMsg, {Uri? link}) async {
           final context =
-              FluffyChatApp.router.routerDelegate.navigatorKey.currentContext ??
+              KiteApp.router.routerDelegate.navigatorKey.currentContext ??
               this.context;
           if (!context.mounted) return;
           final result = await showOkCancelAlertDialog(
@@ -531,7 +527,7 @@ class MatrixState extends State<Matrix> {
     final exportBytes = Uint8List.fromList(const Utf8Codec().encode(export));
 
     final exportFileName =
-        'fluffychat-export-${DateFormat(DateFormat.YEAR_MONTH_DAY).format(DateTime.now())}.fluffybackup';
+        'kite-export-${DateFormat(DateFormat.YEAR_MONTH_DAY).format(DateTime.now())}.fluffybackup';
 
     final file = MatrixFile(bytes: exportBytes, name: exportFileName);
     if (!context.mounted) return;

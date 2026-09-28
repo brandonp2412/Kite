@@ -5,8 +5,8 @@
 
 import 'dart:math';
 
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

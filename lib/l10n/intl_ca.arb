@@ -625,7 +625,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} t'ha convidat a FluffyChat.\n1. Visita fluffychat.im i instaŀla l'app\n2. Registra't o inicia sessió\n3. Obre l'enllaç d'invitació:\n{link}",
+    "inviteText": "{username} t'ha convidat a Kite.\n1. Visita brandonp2412.github.io/Kite/ i instaŀla l'app\n2. Registra't o inicia sessió\n3. Obre l'enllaç d'invitació:\n{link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -772,8 +772,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Missatge nou al FluffyChat",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Missatge nou al Kite",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -794,11 +794,6 @@
     },
     "noEmotesFound": "No s’ha trobat cap emoticona. 😕",
     "@noEmotesFound": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Sembla que no teniu els Serveis de Google al telèfon. Això és una bona decisió respecte a la vostra privadesa! Per a rebre notificacions automàtiques del FluffyChat, us recomanem instaŀlar ntfy. Amb ntfy o qualsevol altre proveïdor de Unified Push, pots rebre notificacions de forma segura i lliure. Pots instaŀlar ntfy des de la PlayStore o des de F-Droid.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },
@@ -2476,7 +2471,7 @@
     "advancedConfigurations": "Configuracions avançades",
     "signIn": "Obre sessió",
     "createNewAccount": "Crea un compte nou",
-    "signUpGreeting": "El FluffyChat és descentralitzat! Tria un servidor on vulguis crear-t'hi un compte, i som-hi!",
+    "signUpGreeting": "El Kite és descentralitzat! Tria un servidor on vulguis crear-t'hi un compte, i som-hi!",
     "signInGreeting": "Si ja tens un compte a Matrix, benvingudi! Tria el teu servidor i inicia-hi sessió.",
     "theProcessWasCanceled": "S'ha canceŀlat el procés.",
     "join": "Entra",
@@ -2496,7 +2491,7 @@
     },
     "createNewChat": "Crea un nou xat",
     "reset": "Reseteja",
-    "supportFluffyChat": "Dona suport a FluffyChat",
+    "supportKite": "Dona suport a Kite",
     "support": "Aporta",
     "setLowPriority": "Estableix una prioritat baixa",
     "unsetLowPriority": "Restableix la prioritat",

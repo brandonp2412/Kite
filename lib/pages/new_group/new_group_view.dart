@@ -3,12 +3,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/new_group/new_group.dart';
-import 'package:fluffychat/utils/localized_exception_extension.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/layouts/max_width_body.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/new_group/new_group.dart';
+import 'package:kite/utils/localized_exception_extension.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/layouts/max_width_body.dart';
 import 'package:material_ui/material_ui.dart';
 
 class NewGroupView extends StatelessWidget {

@@ -5,6 +5,10 @@ SPDX-FileCopyrightText: 2019-Present Contributors to FluffyChat
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
+# Kite changelog
+
+Kite-specific changes are published with this repository's releases. The older entries below are retained from the FluffyChat codebase to preserve upstream release history and attribution.
+
 ## v2.9.5
 Disable android auto for Play Store builds
 

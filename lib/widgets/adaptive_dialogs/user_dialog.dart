@@ -3,17 +3,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/date_time_extension.dart';
-import 'package:fluffychat/utils/fluffy_share.dart';
-import 'package:fluffychat/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
-import 'package:fluffychat/widgets/adaptive_dialogs/show_text_input_dialog.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/presence_builder.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/date_time_extension.dart';
+import 'package:kite/utils/kite_share.dart';
+import 'package:kite/widgets/adaptive_dialogs/adaptive_dialog_action.dart';
+import 'package:kite/widgets/adaptive_dialogs/show_text_input_dialog.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/presence_builder.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

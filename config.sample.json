@@ -1,9 +1,11 @@
 {
-  "applicationName": "FluffyChat",
+  "applicationName": "Kite",
   "defaultHomeserver": "matrix.org",
   "presetHomeserver": "",
   "welcomeText": "",
-  "privacyUrl": "https://github.com/krille-chan/fluffychat/blob/main/PRIVACY.md",
+  "website": "https://brandonp2412.github.io/Kite/",
+  "privacyPolicy": "https://brandonp2412.github.io/Kite/privacy/",
+  "tos": "https://brandonp2412.github.io/Kite/terms/",
   "audioRecordingNumChannels": 1,
   "audioRecordingAutoGain": true,
   "audioRecordingEchoCancel": false,

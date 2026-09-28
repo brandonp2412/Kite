@@ -3,10 +3,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat/chat_input_row.dart';
-import 'package:fluffychat/pages/chat/recording_view_model.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat/chat_input_row.dart';
+import 'package:kite/pages/chat/recording_view_model.dart';
 import 'package:material_ui/material_ui.dart';
 
 class RecordingInputRow extends StatelessWidget {

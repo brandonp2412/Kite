@@ -569,7 +569,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} meghívta a FluffyChat-be.\n1. Keresse fel a fluffychat.im oldalt, és telepítse az alkalmazást \n2. Regisztráljon vagy jelentkezzen be \n3. Nyissa meg a meghívó linket: \n {link}",
+    "inviteText": "{username} meghívta a Kite-be.\n1. Keresse fel a brandonp2412.github.io/Kite/ oldalt, és telepítse az alkalmazást \n2. Regisztráljon vagy jelentkezzen be \n3. Nyissa meg a meghívó linket: \n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -706,8 +706,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Új FluffyChat üzenet",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Új Kite üzenet",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -723,11 +723,6 @@
     },
     "noEmotesFound": "Nem találhatóak hangulatjelek. 😕",
     "@noEmotesFound": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Úgy tűnik a Firebase Cloud Messaging nem elérhető a készülékén. Ha mégis push értesítéseket kíván kapni, javasoljuk a ntfy telepítését. A ntfy vagy más egyéb Egyesített Push szolgáltató esetében úgy kaphat értesítést, hogy adatai biztonságban maradnak. Letöltheti a ntfy-t a PlayStore-ból, vagy F-Droid-ról is.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },

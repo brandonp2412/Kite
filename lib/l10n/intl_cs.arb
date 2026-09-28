@@ -814,7 +814,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "inviteText": "{username} vás pozval/a na FluffyChat.\n1. Navštivte fluffychat.im a nainstalujte si aplikaci.\n2. Zaregistrujte se nebo se přihlaste.\n3. Otevřte pozvánku: \n {link}",
+    "inviteText": "{username} vás pozval/a na Kite.\n1. Navštivte brandonp2412.github.io/Kite/ a nainstalujte si aplikaci.\n2. Zaregistrujte se nebo se přihlaste.\n3. Otevřte pozvánku: \n {link}",
     "@inviteText": {
         "type": "String",
         "placeholders": {
@@ -971,8 +971,8 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInFluffyChat": "💬 Nová zpráva ve FluffyChatu",
-    "@newMessageInFluffyChat": {
+    "newMessageInKite": "💬 Nová zpráva ve Kiteu",
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1003,11 +1003,6 @@
     },
     "noEncryptionForPublicRooms": "Můžete aktivovat šifrování jakmile místnost přestane být veřejně dostupná.",
     "@noEncryptionForPublicRooms": {
-        "type": "String",
-        "placeholders": {}
-    },
-    "noGoogleServicesWarning": "Zdá se, že služba Firebase Cloud Messaging není ve vašem zařízení k dispozici. Chcete-li i nadále přijímat push oznámení, doporučujeme nainstalovat ntfy. Pomocí ntfy nebo jiného poskytovatele Unified Push můžete přijímat oznámení push zabezpečeným způsobem přenosu dat. Aplikaci ntfy si můžete stáhnout z obchodu PlayStore nebo z webu F-Droid.",
-    "@noGoogleServicesWarning": {
         "type": "String",
         "placeholders": {}
     },
@@ -2327,7 +2322,7 @@
     "advancedConfigs": "Pokročilá nastavení",
     "signIn": "Přihlásit se",
     "createNewAccount": "Vytvořit nový účet",
-    "signUpGreeting": "FluffyChat je decentralizovaný! Vyberte server, kde si chcete vytvořit účet, a jdeme na věc!",
+    "signUpGreeting": "Kite je decentralizovaný! Vyberte server, kde si chcete vytvořit účet, a jdeme na věc!",
     "signInGreeting": "Již máte účet na Matrixu? Vítejte zpět! Vyberte svůj domácí server a přihlaste se.",
     "theProcessWasCanceled": "Proces byl zrušen.",
     "sendImages": "Poslat {count} obrazků",

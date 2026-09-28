@@ -5,7 +5,7 @@
 
 import 'dart:async';
 
-import 'package:fluffychat/config/themes.dart';
+import 'package:kite/config/themes.dart';
 import 'package:material_ui/material_ui.dart';
 
 class TypingAnimation extends StatefulWidget {

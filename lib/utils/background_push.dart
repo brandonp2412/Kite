@@ -12,14 +12,14 @@ import 'dart:isolate';
 import 'dart:ui';
 
 import 'package:fcm_shared_isolate/fcm_shared_isolate.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/main.dart';
-import 'package:fluffychat/utils/notification_background_handler.dart';
-import 'package:fluffychat/utils/push_helper.dart';
-import 'package:fluffychat/widgets/fluffy_chat_app.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/main.dart';
+import 'package:kite/utils/notification_background_handler.dart';
+import 'package:kite/utils/push_helper.dart';
+import 'package:kite/widgets/kite_app.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 import 'package:unifiedpush/unifiedpush.dart';
@@ -72,7 +72,7 @@ class BackgroundPush {
           await notificationTap(
             NotificationResponseJson.fromJsonString(message),
             clients: clients,
-            router: FluffyChatApp.router,
+            router: KiteApp.router,
             l10n: l10n,
           );
         } catch (e, s) {
@@ -91,7 +91,7 @@ class BackgroundPush {
             await notificationTap(
               NotificationResponseJson.fromJsonString(message),
               clients: clients,
-              router: FluffyChatApp.router,
+              router: KiteApp.router,
               l10n: l10n,
             );
           } catch (e, s) {
@@ -107,7 +107,7 @@ class BackgroundPush {
         onDidReceiveNotificationResponse: (response) => notificationTap(
           response,
           clients: clients,
-          router: FluffyChatApp.router,
+          router: KiteApp.router,
           l10n: l10n,
         ),
         onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
@@ -311,7 +311,7 @@ class BackgroundPush {
         notificationTap(
           response,
           clients: clients,
-          router: FluffyChatApp.router,
+          router: KiteApp.router,
           l10n: l10n,
         );
       }
@@ -329,7 +329,7 @@ class BackgroundPush {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (PlatformInfos.isAndroid) {
         onFcmError?.call(
-          l10n!.noGoogleServicesWarning,
+          l10n!.oopsPushError,
           link: Uri.parse(AppConfig.enablePushTutorial),
         );
         return;

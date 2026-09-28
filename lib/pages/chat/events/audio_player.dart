@@ -7,22 +7,22 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:async/async.dart';
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/utils/error_reporter.dart';
-import 'package:fluffychat/utils/file_description.dart';
-import 'package:fluffychat/utils/localized_exception_extension.dart';
-import 'package:fluffychat/utils/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/utils/error_reporter.dart';
+import 'package:kite/utils/file_description.dart';
+import 'package:kite/utils/localized_exception_extension.dart';
+import 'package:kite/utils/url_launcher.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 import 'package:ogg_caf_converter/ogg_caf_converter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../utils/matrix_sdk_extensions/event_extension.dart';
-import '../../../widgets/fluffy_chat_app.dart';
+import '../../../widgets/kite_app.dart';
 import '../../../widgets/matrix.dart';
 
 class AudioPlayerWidget extends StatefulWidget {
@@ -89,7 +89,7 @@ class AudioPlayerState extends State<AudioPlayerWidget> {
               content: StreamBuilder(
                 stream: audioPlayer.positionStream.asBroadcastStream(),
                 builder: (context, _) => GestureDetector(
-                  onTap: () => FluffyChatApp.router.go(
+                  onTap: () => KiteApp.router.go(
                     '/rooms/${widget.event.room.id}?event=${widget.event.eventId}',
                   ),
                   child: Text(

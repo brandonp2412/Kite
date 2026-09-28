@@ -4,13 +4,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:emoji_picker_flutter/locales/default_emoji_set_locale.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/chat/recording_view_model.dart';
-import 'package:fluffychat/utils/other_party_can_receive.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/matrix.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/chat/recording_view_model.dart';
+import 'package:kite/utils/other_party_can_receive.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 

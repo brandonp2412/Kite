@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "chat.fluffy" "\0"
-            VALUE "FileDescription", "fluffychat" "\0"
+            VALUE "CompanyName", "Kite" "\0"
+            VALUE "FileDescription", "Kite" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "fluffychat" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2022 chat.fluffy. All rights reserved." "\0"
-            VALUE "OriginalFilename", "fluffychat.exe" "\0"
-            VALUE "ProductName", "fluffychat" "\0"
+            VALUE "InternalName", "kite" "\0"
+            VALUE "LegalCopyright", "Kite and FluffyChat contributors, AGPL-3.0-or-later" "\0"
+            VALUE "OriginalFilename", "kite.exe" "\0"
+            VALUE "ProductName", "Kite" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

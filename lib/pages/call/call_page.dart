@@ -6,20 +6,20 @@
 import 'dart:math';
 
 import 'package:collection/collection.dart';
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/pages/call/call_tile.dart';
-import 'package:fluffychat/pages/call/call_view_model.dart';
-import 'package:fluffychat/pages/call/start_time.dart';
-import 'package:fluffychat/pages/call/utils/get_call_tiles.dart';
-import 'package:fluffychat/utils/localized_exception_extension.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/widgets/avatar.dart';
-import 'package:fluffychat/widgets/future_loading_dialog.dart';
-import 'package:fluffychat/widgets/matrix.dart';
-import 'package:fluffychat/widgets/view_model_builder.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/pages/call/call_tile.dart';
+import 'package:kite/pages/call/call_view_model.dart';
+import 'package:kite/pages/call/start_time.dart';
+import 'package:kite/pages/call/utils/get_call_tiles.dart';
+import 'package:kite/utils/localized_exception_extension.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/widgets/avatar.dart';
+import 'package:kite/widgets/future_loading_dialog.dart';
+import 'package:kite/widgets/matrix.dart';
+import 'package:kite/widgets/view_model_builder.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:material_ui/material_ui.dart';
 

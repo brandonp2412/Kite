@@ -835,7 +835,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "@newMessageInFluffyChat": {
+    "@newMessageInKite": {
         "type": "String",
         "placeholders": {}
     },
@@ -1837,10 +1837,6 @@
                 "type": "String"
             }
         }
-    },
-    "@noGoogleServicesWarning": {
-        "type": "String",
-        "placeholders": {}
     },
     "@areGuestsAllowedToJoin": {
         "type": "String",

@@ -5,12 +5,12 @@
 
 import 'dart:convert';
 
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/themes.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/localized_exception_extension.dart';
-import 'package:fluffychat/widgets/layouts/max_width_body.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/themes.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/localized_exception_extension.dart';
+import 'package:kite/widgets/layouts/max_width_body.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 import 'package:url_launcher/url_launcher_string.dart';

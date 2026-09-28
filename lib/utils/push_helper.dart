@@ -9,23 +9,23 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:collection/collection.dart';
-import 'package:fluffychat/config/app_config.dart';
-import 'package:fluffychat/config/setting_keys.dart';
-import 'package:fluffychat/l10n/l10n.dart';
-import 'package:fluffychat/utils/call_kit_params.dart';
-import 'package:fluffychat/utils/client_manager.dart';
-import 'package:fluffychat/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
-import 'package:fluffychat/utils/matrix_sdk_extensions/matrix_locals.dart';
-import 'package:fluffychat/utils/notification_avatar_extension.dart';
-import 'package:fluffychat/utils/notification_background_handler.dart';
-import 'package:fluffychat/utils/platform_infos.dart';
-import 'package:fluffychat/utils/start_push_foreground_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_new_badger/flutter_new_badger.dart';
 import 'package:flutter_shortcuts_new/flutter_shortcuts_new.dart';
 import 'package:http/http.dart' as http;
+import 'package:kite/config/app_config.dart';
+import 'package:kite/config/setting_keys.dart';
+import 'package:kite/l10n/l10n.dart';
+import 'package:kite/utils/call_kit_params.dart';
+import 'package:kite/utils/client_manager.dart';
+import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
+import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
+import 'package:kite/utils/notification_avatar_extension.dart';
+import 'package:kite/utils/notification_background_handler.dart';
+import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/utils/start_push_foreground_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart' hide Result;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -65,7 +65,7 @@ Future<void> pushHelper(
     if (notification.roomId != null) {
       await flutterLocalNotificationsPlugin.show(
         id: notification.notificationId,
-        title: l10n.newMessageInFluffyChat,
+        title: l10n.newMessageInKite,
         body: l10n.openAppToReadMessages,
         notificationDetails: NotificationDetails(
           iOS: DarwinNotificationDetails(
@@ -199,7 +199,7 @@ Future<void> _tryPushHelper(
 
   // Calculate the body
   final body = event.type == EventTypes.Encrypted
-      ? l10n.newMessageInFluffyChat
+      ? l10n.newMessageInKite
       : await event.calcLocalizedBody(
           matrixLocals,
           plaintextBody: true,
@@ -313,26 +313,26 @@ Future<void> _tryPushHelper(
       EventTypes.Encrypted ||
       EventTypes.Sticker => <AndroidNotificationAction>[
         AndroidNotificationAction(
-          FluffyChatNotificationActions.reply.name,
+          KiteNotificationActions.reply.name,
           l10n.reply,
           inputs: [AndroidNotificationActionInput(label: l10n.writeAMessage)],
           allowGeneratedReplies: true,
           semanticAction: SemanticAction.reply,
         ),
         AndroidNotificationAction(
-          FluffyChatNotificationActions.markAsRead.name,
+          KiteNotificationActions.markAsRead.name,
           l10n.markAsRead,
           semanticAction: SemanticAction.markAsRead,
         ),
         AndroidNotificationAction(
-          FluffyChatNotificationActions.mute.name,
+          KiteNotificationActions.mute.name,
           l10n.mute,
           semanticAction: SemanticAction.mute,
         ),
       ],
       RtcNotificationContent.eventType => [
         AndroidNotificationAction(
-          FluffyChatNotificationActions.enterCall.name,
+          KiteNotificationActions.enterCall.name,
           l10n.enterCall,
           semanticAction: SemanticAction.call,
         ),
@@ -372,7 +372,7 @@ Future<void> _tryPushHelper(
     title: needsTitleAndBody ? title : null,
     body: needsTitleAndBody ? body : null,
     notificationDetails: platformChannelSpecifics,
-    payload: FluffyChatPushPayload(
+    payload: KitePushPayload(
       client.clientName,
       event.room.id,
       event.eventId,
@@ -440,17 +440,17 @@ Future<void> updateSummaryNotification({
   );
 }
 
-class FluffyChatPushPayload {
+class KitePushPayload {
   final String? clientName, roomId, eventId;
 
-  FluffyChatPushPayload(this.clientName, this.roomId, this.eventId);
+  KitePushPayload(this.clientName, this.roomId, this.eventId);
 
-  factory FluffyChatPushPayload.fromString(String payload) {
+  factory KitePushPayload.fromString(String payload) {
     final parts = payload.split('|');
     if (parts.length != 3) {
-      return FluffyChatPushPayload(null, null, null);
+      return KitePushPayload(null, null, null);
     }
-    return FluffyChatPushPayload(parts.first, parts[1], parts[2]);
+    return KitePushPayload(parts.first, parts[1], parts[2]);
   }
 
   @override
@@ -514,7 +514,7 @@ Future<void> _showIncomingCall(Event event, L10n l10n) async {
   final timeout =
       event.tryParseRtcNotificationContent()?.lifetime ??
       RtcNotificationContent.defaultLifetime;
-  final params = await buildFluffyChatCallKitParams(
+  final params = await buildKiteCallKitParams(
     event.room,
     l10n: l10n,
     intent: intent,

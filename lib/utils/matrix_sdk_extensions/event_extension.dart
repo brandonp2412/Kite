@@ -4,9 +4,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:async/async.dart' as async;
-import 'package:fluffychat/utils/size_string.dart';
-import 'package:fluffychat/widgets/future_loading_dialog.dart';
 import 'package:flutter/foundation.dart';
+import 'package:kite/utils/size_string.dart';
+import 'package:kite/widgets/future_loading_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 
