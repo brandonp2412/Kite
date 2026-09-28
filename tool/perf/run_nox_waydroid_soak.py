@@ -28,6 +28,7 @@ DEFAULT_RESULT_DIR = Path.home() / ".local/state/kite-perf/results"
 SYNAPSE_PYTHON = Path("/opt/matrix/synapse-venv/bin/python")
 REGISTER_USER = Path("/opt/matrix/synapse-venv/bin/register_new_matrix_user")
 SERVER_NAME = "kite-perf.test"
+SYNAPSE_PORT = 18008
 ADMIN_USER = "perf"
 PASSWORD = "kite-perf-local-only"
 WAYDROID_IP = "192.168.240.2"
@@ -78,6 +79,12 @@ def patch_synapse_config(config: Path) -> None:
     text = text.replace(
         "  - bind_addresses:\n    - ::1\n    - 127.0.0.1\n",
         "  - bind_addresses:\n    - 0.0.0.0\n",
+    )
+    text = re.sub(
+        r"(?m)^    port: 8008$",
+        f"    port: {SYNAPSE_PORT}",
+        text,
+        count=1,
     )
     text = re.sub(
         r"trusted_key_servers:\n(?:  - .*\n(?:    .*\n)*)?",
@@ -151,7 +158,11 @@ def start_synapse(state_dir: Path) -> tuple[subprocess.Popen[str], Path]:
         start_new_session=True,
     )
     try:
-        wait_http("http://127.0.0.1:8008/_matrix/client/versions", timeout=90)
+        wait_http(f"http://127.0.0.1:{SYNAPSE_PORT}/_matrix/client/versions", timeout=90)
+        if process.poll() is not None:
+            raise RuntimeError(
+                f"disposable Synapse exited early with code {process.returncode}"
+            )
     except Exception:
         process.terminate()
         process.wait(timeout=10)
@@ -169,7 +180,7 @@ def ensure_admin(config: Path) -> None:
         }
     ).encode("utf-8")
     request = urllib.request.Request(
-        "http://127.0.0.1:8008/_matrix/client/v3/login",
+        f"http://127.0.0.1:{SYNAPSE_PORT}/_matrix/client/v3/login",
         method="POST",
         data=login_body,
         headers={"Content-Type": "application/json"},
@@ -191,7 +202,7 @@ def ensure_admin(config: Path) -> None:
             "-p",
             PASSWORD,
             "-a",
-            "http://127.0.0.1:8008",
+            f"http://127.0.0.1:{SYNAPSE_PORT}",
         ],
         check=False,
         capture=True,
@@ -213,7 +224,7 @@ def ensure_seeded(state_dir: Path) -> None:
             "--marker",
             str(seed_marker(state_dir)),
             "--base-url",
-            "http://127.0.0.1:8008",
+            f"http://127.0.0.1:{SYNAPSE_PORT}",
             "--server-name",
             SERVER_NAME,
             "--admin-user",
@@ -411,7 +422,7 @@ def run_iteration(
         "--target=integration_test/performance_test.dart",
         "-d",
         serial,
-        f"--dart-define=HOMESERVER={WAYDROID_HOST_IP}:8008",
+        f"--dart-define=HOMESERVER={WAYDROID_HOST_IP}:{SYNAPSE_PORT}",
         f"--dart-define=USER1_NAME={ADMIN_USER}",
         f"--dart-define=USER1_PW={PASSWORD}",
         f"--dart-define=KITE_PERF_RUN_ID={run_id}",
