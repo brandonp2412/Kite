@@ -49,6 +49,28 @@ Future<void> _waitForVisibleRooms(
   }
 }
 
+Future<void> _openHitTestableRoom(
+  WidgetTester tester, {
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  final chatList = find.byKey(const Key('chat_list_scroll'));
+
+  while (DateTime.now().isBefore(deadline)) {
+    final visibleRooms = find.byType(ChatListItem).hitTestable();
+    if (visibleRooms.evaluate().isNotEmpty) {
+      await tester.tap(visibleRooms.first);
+      await tester.pumpAndSettle();
+      return;
+    }
+
+    await tester.drag(chatList, const Offset(0, -300));
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+
+  throw TestFailure('Timed out waiting for a tappable seeded room');
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -79,13 +101,7 @@ void main() {
       reportKey: 'chat_list_warm_scroll',
     );
 
-    await tester.dragUntilVisible(
-      find.byType(ChatListItem).first,
-      find.byKey(const Key('chat_list_scroll')),
-      const Offset(0, 500),
-    );
-    await tester.tap(find.byType(ChatListItem).first);
-    await tester.pumpAndSettle();
+    await _openHitTestableRoom(tester);
     await kite.waitFor(
       const Key('chat_timeline_scroll'),
       timeout: const Duration(seconds: 60),
