@@ -20,6 +20,15 @@ This repository is the active Kite app. It is based on FluffyChat and keeps the 
 - Ongoing performance work aimed at eliminating scroll and timeline jitter.
 - Independent releases and issue tracking under brandonp2412/Kite.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/chat-list.png" alt="Kite chat list with floating bottom search" width="45%">
+  <img src="docs/screenshots/chat-settings.png" alt="Kite chat settings" width="45%">
+</p>
+
+The chat-list screenshot uses demo names, messages, and avatars; no personal conversation data is included.
+
 ## Links
 
 - Source and issues: https://github.com/brandonp2412/Kite
