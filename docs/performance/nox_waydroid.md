@@ -20,7 +20,7 @@ The anonymizer fails closed if source identifiers, server names, or private text
 
 Nox already provides Synapse under `/opt/matrix/synapse-venv`. The runner creates a dedicated persistent server under `~/.local/state/kite-perf/synapse`, seeds the anonymized fixture once, and reuses it.
 
-The test account is local-only and the Android performance build uses the isolated application ID `app.kite.perf`. Production Kite app data and production Matrix credentials are not touched. Push/notification setup is disabled in the performance harness so Android permission prompts cannot contaminate frame timings. The runner also disables Flutter DDS because Waydroid's forwarded VM Service needs a direct connection for timeline tracing.
+The test account is local-only and the Android performance build uses the isolated application ID `app.kite.perf`. Production Kite app data and production Matrix credentials are not touched. Push/notification setup is disabled in the performance harness so Android permission prompts cannot contaminate frame timings. The runner also disables Flutter DDS because Waydroid's forwarded VM Service needs a direct connection for timeline tracing. Flutter and Gradle temporary files are redirected to `/var/tmp/kite-perf-<uid>` so Nox's quota-limited `/tmp` tmpfs cannot interrupt profile builds.
 
 If the committed fixture changes, the runner automatically rebuilds the dedicated Synapse state and clears `app.kite.perf` so stale access tokens cannot survive.
 

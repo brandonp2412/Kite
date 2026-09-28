@@ -524,8 +524,12 @@ def run_iteration(
     run_id = time.strftime("%Y%m%d-%H%M%S") + f"-{iteration:04d}"
     result_file = result_dir / f"kite-perf-{run_id}.json"
     log_file = result_dir / f"{run_id}.log"
+    temp_dir = Path("/var/tmp") / f"kite-perf-{os.getuid()}"
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
+    java_tool_options = env.get("JAVA_TOOL_OPTIONS", "").strip()
+    java_tmp_option = f"-Djava.io.tmpdir={temp_dir}"
     env.update(
         {
             "ANDROID_HOME": ANDROID_SDK,
@@ -533,6 +537,10 @@ def run_iteration(
             "ORG_GRADLE_PROJECT_kitePerfBuild": "true",
             "KITE_PERF_RESULT_DIR": str(result_dir),
             "KITE_PERF_RUN_ID": run_id,
+            "TMPDIR": str(temp_dir),
+            "TMP": str(temp_dir),
+            "TEMP": str(temp_dir),
+            "JAVA_TOOL_OPTIONS": f"{java_tool_options} {java_tmp_option}".strip(),
         }
     )
     command = [
