@@ -479,7 +479,7 @@ def seed(
                             "m.relates_to": {
                                 "rel_type": "m.annotation",
                                 "event_id": target,
-                                "key": "👍",
+                                "key": f"👍{fixture_event_id[-6:]}",
                             }
                         },
                     )
