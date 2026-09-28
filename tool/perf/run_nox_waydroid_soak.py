@@ -506,6 +506,7 @@ def run_iteration(
         f"--dart-define=USER1_NAME={ADMIN_USER}",
         f"--dart-define=USER1_PW={PASSWORD}",
         f"--dart-define=KITE_PERF_RUN_ID={run_id}",
+        f"--dart-define=KITE_PERF_HOMESERVER=http://{WAYDROID_HOST_IP}:{SYNAPSE_PORT}",
         f"--dart-define=KITE_PERF_DEPENDENCY_LOCK_SHA={dependency_lock_sha}",
     ]
 

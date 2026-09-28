@@ -14,6 +14,8 @@ import 'package:fluffychat/widgets/matrix.dart';
 import 'package:flutter/widgets.dart';
 import 'package:matrix/matrix_api_lite/utils/logs.dart';
 
+const _performanceHomeserver = String.fromEnvironment('KITE_PERF_HOMESERVER');
+
 class SignInViewModel extends ValueNotifier<SignInState> {
   final MatrixState matrixService;
   final bool signUp;
@@ -57,6 +59,19 @@ class SignInViewModel extends ValueNotifier<SignInState> {
   Future<void> refreshPublicHomeservers() async {
     notifyListeners();
     value.publicHomeservers = AsyncSnapshot.waiting();
+
+    if (_performanceHomeserver.isNotEmpty) {
+      final performanceHomeserverData = PublicHomeserverData(
+        name: _performanceHomeserver,
+      );
+      value.selectedHomeserver = performanceHomeserverData;
+      value.publicHomeservers = AsyncSnapshot.withData(ConnectionState.done, [
+        performanceHomeserverData,
+      ]);
+      _filterHomeservers();
+      return;
+    }
+
     final defaultHomeserverData = PublicHomeserverData(
       name: AppSettings.defaultHomeserver.value,
     );
