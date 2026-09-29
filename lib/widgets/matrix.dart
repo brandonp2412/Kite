@@ -351,7 +351,7 @@ class MatrixState extends State<Matrix> {
       final notifications = FlutterLocalNotificationsPlugin();
       await notifications.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('ic_launcher_monochrome'),
+          android: AndroidInitializationSettings('ic_notification'),
         ),
         onDidReceiveNotificationResponse: (response) => notificationTap(
           response,

@@ -42,7 +42,7 @@
             android:value="true" />
         <meta-data
             android:name="kite_notification_icon"
-            android:resource="@drawable/ic_launcher_monochrome" />
+            android:resource="@drawable/ic_notification" />
 
         <activity
             android:name=".MainActivity"

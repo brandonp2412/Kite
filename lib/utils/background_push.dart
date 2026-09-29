@@ -101,7 +101,7 @@ class BackgroundPush {
       }
       await _flutterLocalNotificationsPlugin.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('ic_launcher_monochrome'),
+          android: AndroidInitializationSettings('ic_notification'),
           iOS: DarwinInitializationSettings(),
         ),
         onDidReceiveNotificationResponse: (response) => notificationTap(

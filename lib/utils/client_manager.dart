@@ -165,7 +165,7 @@ abstract class ClientManager {
 
     await flutterLocalNotificationsPlugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('ic_launcher_monochrome'),
+        android: AndroidInitializationSettings('ic_notification'),
         iOS: DarwinInitializationSettings(),
       ),
     );
