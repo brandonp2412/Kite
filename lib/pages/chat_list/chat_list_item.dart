@@ -9,6 +9,7 @@ import 'package:kite/pages/chat_list/active_call_indicator.dart';
 import 'package:kite/pages/chat_list/unread_bubble.dart';
 import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
 import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
+import 'package:kite/utils/room_list_sorting.dart';
 import 'package:kite/utils/room_status_extension.dart';
 import 'package:kite/widgets/adaptive_dialogs/show_ok_cancel_alert_dialog.dart';
 import 'package:kite/widgets/future_loading_dialog.dart';
@@ -48,6 +49,7 @@ class ChatListItem extends StatelessWidget {
     final isMuted = room.pushRuleState != PushRuleState.notify;
     final typingText = room.getLocalizedTypingText(context);
     final lastEvent = room.lastEvent;
+    final activityTime = roomListActivityTime(room);
     final ownMessage = lastEvent?.senderId == room.client.userID;
     final directChatMatrixId = room.directChatMatrixID;
     final isDirectChat = directChatMatrixId != null;
@@ -220,13 +222,13 @@ class ChatListItem extends StatelessWidget {
                         color: theme.colorScheme.primary,
                       ),
                     ),
-                  if (!room.isSpace && room.membership != Membership.invite)
+                  if (!room.isSpace &&
+                      room.membership != Membership.invite &&
+                      activityTime != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 4.0),
                       child: Text(
-                        room.latestEventReceivedTime.localizedTimeShort(
-                          context,
-                        ),
+                        activityTime.localizedTimeShort(context),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: room.hasNewMessages

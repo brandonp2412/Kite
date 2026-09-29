@@ -18,6 +18,7 @@ import 'package:kite/pages/chat_list/chat_list_view.dart';
 import 'package:kite/utils/error_reporter.dart';
 import 'package:kite/utils/localized_exception_extension.dart';
 import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/utils/room_list_sorting.dart';
 import 'package:kite/utils/show_scaffold_dialog.dart';
 import 'package:kite/utils/show_update_snackbar.dart';
 import 'package:kite/widgets/adaptive_dialogs/show_modal_action_popup.dart';
@@ -141,10 +142,12 @@ class ChatListController extends State<ChatList>
     }
   }
 
-  List<Room> get filteredRooms => Matrix.of(context).client.rooms
-      .where((room) => !room.isSpace)
-      .where(getRoomFilterByActiveFilter(activeFilter))
-      .toList();
+  List<Room> get filteredRooms =>
+      Matrix.of(context).client.rooms
+          .where((room) => !room.isSpace)
+          .where(getRoomFilterByActiveFilter(activeFilter))
+          .toList()
+        ..sort(compareRoomsForChatList);
 
   bool isSearchMode = false;
   Future<QueryPublicRoomsResponse>? publicRoomsResponse;
