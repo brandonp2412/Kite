@@ -776,7 +776,7 @@
         "type": "String",
         "placeholders": {}
     },
-    "newMessageInKite": "💬 Uusi viesti FluffyChätissä",
+    "newMessageInKite": "💬 Uusi viesti Kite-sovelluksessa",
     "@newMessageInKite": {
         "type": "String",
         "placeholders": {}

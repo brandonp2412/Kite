@@ -1325,10 +1325,6 @@
         "type": "String",
         "placeholders": {}
     },
-    "@fluffychat": {
-        "type": "String",
-        "placeholders": {}
-    },
     "@sentCallInformations": {
         "type": "String",
         "placeholders": {

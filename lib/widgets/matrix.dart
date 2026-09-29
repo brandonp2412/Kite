@@ -180,10 +180,12 @@ class MatrixState extends State<Matrix> {
   final onRoomKeyRequestSub = <String, StreamSubscription>{};
   final onKeyVerificationRequestSub = <String, StreamSubscription>{};
   final onNotification = <String, StreamSubscription>{};
+  final onLoginSub = <String, StreamSubscription<LoginState>>{};
   final onLogoutSub = <String, StreamSubscription<LoginState>>{};
   final onUiaRequest = <String, StreamSubscription<UiaRequest>>{};
 
   bool _androidDirectNotificationsEnabled = false;
+  bool _androidDirectNotificationsStarting = false;
 
   bool get androidDirectNotificationsEnabled =>
       _androidDirectNotificationsEnabled;
@@ -260,6 +262,13 @@ class MatrixState extends State<Matrix> {
                 context,
           );
         });
+    onLoginSub[name] ??= c.onLoginStateChanged.stream
+        .where((state) => state == LoginState.loggedIn)
+        .listen((_) {
+          if (PlatformInfos.isAndroid) {
+            unawaited(enableAndroidDirectNotifications());
+          }
+        });
     onLogoutSub[name] ??= c.onLoginStateChanged.stream
         .where((state) => state == LoginState.loggedOut)
         .listen((_) {
@@ -280,9 +289,8 @@ class MatrixState extends State<Matrix> {
 
             if (!snackbarContext.mounted) return;
             final l10n = L10n.of(snackbarContext);
-            ScaffoldMessenger.of(
-              snackbarContext,
-            ).showSnackBar(SnackBar(content: Text(l10n.oneClientLoggedOut)));
+            ScaffoldMessenger.of(snackbarContext)
+                .showSnackBar(SnackBar(content: Text(l10n.oneClientLoggedOut)));
             return;
           }
           KiteApp.router.go('/');
@@ -333,52 +341,62 @@ class MatrixState extends State<Matrix> {
   Future<void> enableAndroidDirectNotifications() async {
     if (_performanceHarnessEnabled ||
         !PlatformInfos.isAndroid ||
-        _androidDirectNotificationsEnabled) {
+        _androidDirectNotificationsEnabled ||
+        _androidDirectNotificationsStarting) {
       return;
     }
 
-    final notifications = FlutterLocalNotificationsPlugin();
-    await notifications.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('notifications_icon'),
-      ),
-      onDidReceiveNotificationResponse: (response) => notificationTap(
-        response,
-        clients: widget.clients,
-        router: KiteApp.router,
-        l10n: null,
-      ),
-    );
-    await notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
+    _androidDirectNotificationsStarting = true;
+    try {
+      final notifications = FlutterLocalNotificationsPlugin();
+      await notifications.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('ic_launcher_monochrome'),
+        ),
+        onDidReceiveNotificationResponse: (response) => notificationTap(
+          response,
+          clients: widget.clients,
+          router: KiteApp.router,
+          l10n: null,
+        ),
+      );
+      await notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
 
-    final serviceStarted = await ForegroundServices.startService(
-      ForegroundServices.directSyncServiceName,
-    );
-    if (!serviceStarted) {
-      Logs().e('[Push] Direct foreground notification service failed to start');
-      return;
+      final serviceStarted = await ForegroundServices.startService(
+        ForegroundServices.directSyncServiceName,
+      );
+      if (!serviceStarted) {
+        Logs().e(
+          '[Push] Direct foreground notification service failed to start',
+        );
+        return;
+      }
+
+      if (mounted) {
+        setState(() => _androidDirectNotificationsEnabled = true);
+      } else {
+        _androidDirectNotificationsEnabled = true;
+      }
+
+      for (final client in widget.clients) {
+        client.backgroundSync = true;
+        client.syncPresence =
+            WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed
+            ? null
+            : PresenceType.unavailable;
+        _registerAndroidDirectNotification(client);
+      }
+
+      Logs().i('[Push] Direct foreground Matrix notifications active');
+    } catch (e, s) {
+      Logs().e('[Push] Unable to enable direct Matrix notifications', e, s);
+    } finally {
+      _androidDirectNotificationsStarting = false;
     }
-
-    if (mounted) {
-      setState(() => _androidDirectNotificationsEnabled = true);
-    } else {
-      _androidDirectNotificationsEnabled = true;
-    }
-
-    for (final client in widget.clients) {
-      client.backgroundSync = true;
-      client.syncPresence =
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed
-          ? null
-          : PresenceType.unavailable;
-      _registerAndroidDirectNotification(client);
-    }
-
-    Logs().i('[Push] Direct foreground Matrix notifications active');
   }
 
   Future<void> disableAndroidDirectNotifications() async {
@@ -407,6 +425,8 @@ class MatrixState extends State<Matrix> {
     onLogoutSub.remove(name);
     onNotification[name]?.cancel();
     onNotification.remove(name);
+    onLoginSub[name]?.cancel();
+    onLoginSub.remove(name);
   }
 
   void initMatrix() {
@@ -533,7 +553,7 @@ class MatrixState extends State<Matrix> {
     final exportBytes = Uint8List.fromList(const Utf8Codec().encode(export));
 
     final exportFileName =
-        'kite-export-${DateFormat(DateFormat.YEAR_MONTH_DAY).format(DateTime.now())}.fluffybackup';
+        'kite-export-${DateFormat(DateFormat.YEAR_MONTH_DAY).format(DateTime.now())}.kitebackup';
 
     final file = MatrixFile(bytes: exportBytes, name: exportFileName);
     if (!context.mounted) return;

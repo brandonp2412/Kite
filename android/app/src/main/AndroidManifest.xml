@@ -40,6 +40,9 @@
         <meta-data
             android:name="firebase_messaging_installation_id_enabled"
             android:value="true" />
+        <meta-data
+            android:name="kite_notification_icon"
+            android:resource="@drawable/ic_launcher_monochrome" />
 
         <activity
             android:name=".MainActivity"

@@ -68,6 +68,7 @@ abstract class ForegroundServices {
         ),
         foregroundTaskOptions: ForegroundTaskOptions(
           eventAction: ForegroundTaskEventAction.nothing(),
+          autoRunOnMyPackageReplaced: directSync,
           allowWakeLock: true,
           allowAutoRestart: true,
           stopWithTask: directSync ? false : null,
@@ -93,7 +94,9 @@ abstract class ForegroundServices {
         notificationText: directSync
             ? 'Listening for new Matrix messages'
             : l10n.loadingMessages,
-        notificationIcon: NotificationIcon(metaDataName: 'ic_launcher'),
+        notificationIcon: NotificationIcon(
+          metaDataName: 'kite_notification_icon',
+        ),
       );
       final started = result is ServiceRequestSuccess;
       if (started) {

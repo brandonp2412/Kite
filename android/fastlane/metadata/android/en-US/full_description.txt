@@ -2,7 +2,7 @@ Kite is an open-source Matrix client focused on straightforward messaging and a 
 
 Use your existing Matrix account or sign in to another compatible homeserver. Kite supports encrypted conversations, rooms, spaces, media, calls, reactions, replies, notifications, and multi-device Matrix accounts.
 
-Kite customizes the FluffyChat codebase with a simpler chat list, a reduced composer, Kite-specific settings and branding, Firebase push support, and ongoing performance work.
+Kite is an open-source Matrix client with a simpler chat list, a reduced composer, Kite-specific settings and branding, Firebase push support, and ongoing performance work.
 
 Matrix is an open protocol, so Kite is designed to interoperate with other Matrix clients and homeservers.
 
