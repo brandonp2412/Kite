@@ -9,6 +9,27 @@ typedef ChatListPreviewDecryptor = Future<Event> Function(Event event);
 
 final Map<String, Future<Event>> _previewResolutions = {};
 
+Future<void> preloadChatListPreviewEvents(
+  Iterable<Room> rooms, {
+  ChatListPreviewDecryptor? decryptEvent,
+}) async {
+  const batchSize = 8;
+  final pending = [
+    for (final room in rooms)
+      if (room.lastEvent case final event? when _isUndecryptable(event))
+        (room, event),
+  ];
+
+  for (var offset = 0; offset < pending.length; offset += batchSize) {
+    final end = (offset + batchSize).clamp(0, pending.length);
+    await Future.wait([
+      for (final (room, event) in pending.sublist(offset, end))
+        resolveChatListPreviewEvent(room, event, decryptEvent: decryptEvent),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
 Future<Event> resolveChatListPreviewEvent(
   Room room,
   Event lastEvent, {

@@ -85,7 +85,7 @@ class ChatListViewBody extends StatelessWidget {
                           ),
                   ),
                 ],
-                if (client.prevBatch != null &&
+                if (controller.waitForFirstSync &&
                     rooms.isEmpty &&
                     !controller.isSearchMode) ...[
                   Column(
@@ -126,7 +126,7 @@ class ChatListViewBody extends StatelessWidget {
                 ],
               ]),
             ),
-            if (client.prevBatch == null)
+            if (!controller.waitForFirstSync)
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, i) => DummyChatListItem(
@@ -136,7 +136,7 @@ class ChatListViewBody extends StatelessWidget {
                   childCount: dummyChatCount,
                 ),
               ),
-            if (client.prevBatch != null)
+            if (controller.waitForFirstSync)
               SliverSafeArea(
                 top: false,
                 sliver: SliverList.builder(

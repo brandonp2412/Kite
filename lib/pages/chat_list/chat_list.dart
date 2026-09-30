@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kite/config/app_config.dart';
 import 'package:kite/l10n/l10n.dart';
 import 'package:kite/pages/chat_list/chat_list_view.dart';
+import 'package:kite/utils/chat_list_preview_event.dart';
 import 'package:kite/utils/error_reporter.dart';
 import 'package:kite/utils/localized_exception_extension.dart';
 import 'package:kite/utils/platform_infos.dart';
@@ -789,13 +790,11 @@ class ChatListController extends State<ChatList>
       await client.onSyncStatus.stream.firstWhere(
         (status) => status.status == SyncStatus.finished,
       );
-
-      if (!mounted) return;
-      setState(() {
-        waitForFirstSync = true;
-      });
     }
-    if (!mounted) return;
+
+    await preloadChatListPreviewEvents(client.rooms);
+
+    if (!mounted || Matrix.of(context).client != client) return;
     setState(() {
       waitForFirstSync = true;
     });
@@ -817,10 +816,12 @@ class ChatListController extends State<ChatList>
   void setActiveClient(Client client) {
     context.go('/rooms');
     setState(() {
+      waitForFirstSync = false;
       activeFilter = ActiveFilter.allChats;
       Matrix.of(context).setActiveClient(client);
     });
     _clientStream.add(client);
+    _waitForFirstSync();
   }
 
   void setActiveBundle(String bundle) {
