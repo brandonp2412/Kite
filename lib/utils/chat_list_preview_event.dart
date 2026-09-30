@@ -7,6 +7,8 @@ import 'package:matrix/matrix.dart';
 
 typedef ChatListPreviewDecryptor = Future<Event> Function(Event event);
 
+final Map<String, Future<Event>> _previewResolutions = {};
+
 Future<Event> resolveChatListPreviewEvent(
   Room room,
   Event lastEvent, {
@@ -16,15 +18,50 @@ Future<Event> resolveChatListPreviewEvent(
     return lastEvent;
   }
 
-  final cachedEvent = await room.client.database.getEventById(
+  final cacheKey = [
+    identityHashCode(room.client),
+    room.id,
     lastEvent.eventId,
-    room,
+  ].join(':');
+  final inFlight = _previewResolutions[cacheKey];
+  if (inFlight != null) {
+    return inFlight;
+  }
+
+  final resolution = Future<Event>(
+    () => _resolveChatListPreviewEvent(
+      room,
+      lastEvent,
+      decryptEvent: decryptEvent,
+    ),
   );
-  var previewEvent = cachedEvent;
-  if (previewEvent == null || _isUndecryptable(previewEvent)) {
-    previewEvent = decryptEvent == null
-        ? await _decryptPreviewEvent(room, lastEvent)
-        : await decryptEvent(lastEvent);
+  _previewResolutions[cacheKey] = resolution;
+  try {
+    return await resolution;
+  } finally {
+    if (identical(_previewResolutions[cacheKey], resolution)) {
+      _previewResolutions.remove(cacheKey);
+    }
+  }
+}
+
+Future<Event> _resolveChatListPreviewEvent(
+  Room room,
+  Event lastEvent, {
+  ChatListPreviewDecryptor? decryptEvent,
+}) async {
+  var previewEvent = decryptEvent == null
+      ? await _decryptPreviewEvent(room, lastEvent)
+      : await decryptEvent(lastEvent);
+
+  if (_isUndecryptable(previewEvent)) {
+    final cachedEvent = await room.client.database.getEventById(
+      lastEvent.eventId,
+      room,
+    );
+    if (cachedEvent != null && !_isUndecryptable(cachedEvent)) {
+      previewEvent = cachedEvent;
+    }
   }
 
   if (_isUndecryptable(previewEvent)) {
@@ -47,13 +84,9 @@ Future<Event> _decryptPreviewEvent(Room room, Event event) async {
     return event;
   }
 
-  late Event decryptedEvent;
-  await room.client.database.transaction(() async {
-    decryptedEvent = await encryption.decryptRoomEvent(
-      event,
-      store: true,
-      updateType: EventUpdateType.history,
-    );
-  });
-  return decryptedEvent;
+  var previewEvent = encryption.decryptRoomEventSync(event);
+  if (_isUndecryptable(previewEvent)) {
+    previewEvent = await encryption.decryptRoomEvent(event);
+  }
+  return previewEvent;
 }

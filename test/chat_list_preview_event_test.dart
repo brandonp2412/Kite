@@ -3,6 +3,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/utils/chat_list_preview_event.dart';
 import 'package:matrix/matrix.dart';
@@ -105,6 +107,60 @@ void main() {
       expect(room.lastEvent?.content['body'], 'Decrypted now');
     },
   );
+
+  test('deduplicates in-flight preview decryption', () async {
+    final client = await prepareTestClient();
+    final room = Room(id: '!room:test', client: client);
+    final encryptedLastEvent = Event(
+      content: const {
+        'msgtype': MessageTypes.BadEncrypted,
+        'body': 'Unable to decrypt',
+      },
+      type: EventTypes.Encrypted,
+      eventId: r'$dedupe',
+      senderId: '@alice:test',
+      originServerTs: DateTime.utc(2026, 10, 1),
+      room: room,
+    );
+    final decryptedEvent = Event(
+      content: const {'msgtype': MessageTypes.Text, 'body': 'Resolved once'},
+      type: EventTypes.Message,
+      eventId: r'$dedupe',
+      senderId: '@alice:test',
+      originServerTs: DateTime.utc(2026, 10, 1),
+      room: room,
+    );
+    room.lastEvent = encryptedLastEvent;
+
+    final completer = Completer<Event>();
+    var decryptCalls = 0;
+    Future<Event> decrypt(Event event) {
+      decryptCalls++;
+      return completer.future;
+    }
+
+    final first = resolveChatListPreviewEvent(
+      room,
+      encryptedLastEvent,
+      decryptEvent: decrypt,
+    );
+    final second = resolveChatListPreviewEvent(
+      room,
+      encryptedLastEvent,
+      decryptEvent: decrypt,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    expect(decryptCalls, 1);
+    completer.complete(decryptedEvent);
+
+    final results = await Future.wait([first, second]);
+    expect(
+      results.every((event) => event.content['body'] == 'Resolved once'),
+      isTrue,
+    );
+    expect(decryptCalls, 1);
+  });
 
   test(
     'keeps the encrypted event when no decrypted cache entry exists',
