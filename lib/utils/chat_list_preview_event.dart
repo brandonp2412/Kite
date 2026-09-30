@@ -5,9 +5,14 @@
 
 import 'package:matrix/matrix.dart';
 
-Future<Event> resolveChatListPreviewEvent(Room room, Event lastEvent) async {
-  if (lastEvent.type != EventTypes.Encrypted &&
-      lastEvent.messageType != MessageTypes.BadEncrypted) {
+typedef ChatListPreviewDecryptor = Future<Event> Function(Event event);
+
+Future<Event> resolveChatListPreviewEvent(
+  Room room,
+  Event lastEvent, {
+  ChatListPreviewDecryptor? decryptEvent,
+}) async {
+  if (!_isUndecryptable(lastEvent)) {
     return lastEvent;
   }
 
@@ -15,14 +20,40 @@ Future<Event> resolveChatListPreviewEvent(Room room, Event lastEvent) async {
     lastEvent.eventId,
     room,
   );
-  if (cachedEvent == null ||
-      cachedEvent.type == EventTypes.Encrypted ||
-      cachedEvent.messageType == MessageTypes.BadEncrypted) {
+  var previewEvent = cachedEvent;
+  if (previewEvent == null || _isUndecryptable(previewEvent)) {
+    previewEvent = decryptEvent == null
+        ? await _decryptPreviewEvent(room, lastEvent)
+        : await decryptEvent(lastEvent);
+  }
+
+  if (_isUndecryptable(previewEvent)) {
     return lastEvent;
   }
 
   if (room.lastEvent?.eventId == lastEvent.eventId) {
-    room.lastEvent = cachedEvent;
+    room.lastEvent = previewEvent;
   }
-  return cachedEvent;
+  return previewEvent;
+}
+
+bool _isUndecryptable(Event event) =>
+    event.type == EventTypes.Encrypted ||
+    event.messageType == MessageTypes.BadEncrypted;
+
+Future<Event> _decryptPreviewEvent(Room room, Event event) async {
+  final encryption = room.client.encryption;
+  if (encryption == null || !room.client.encryptionEnabled) {
+    return event;
+  }
+
+  late Event decryptedEvent;
+  await room.client.database.transaction(() async {
+    decryptedEvent = await encryption.decryptRoomEvent(
+      event,
+      store: true,
+      updateType: EventUpdateType.history,
+    );
+  });
+  return decryptedEvent;
 }
