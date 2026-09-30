@@ -7,6 +7,7 @@ import 'package:kite/config/app_config.dart';
 import 'package:kite/l10n/l10n.dart';
 import 'package:kite/pages/chat_list/active_call_indicator.dart';
 import 'package:kite/pages/chat_list/unread_bubble.dart';
+import 'package:kite/utils/chat_list_preview_event.dart';
 import 'package:kite/utils/matrix_live_kit_calls/matrix_live_kit_call.dart';
 import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
 import 'package:kite/utils/room_list_sorting.dart';
@@ -41,6 +42,39 @@ class ChatListItem extends StatelessWidget {
     this.space,
     super.key,
   });
+
+  Future<String> _loadLastEventBody({
+    required Event lastEvent,
+    required MatrixLocals matrixLocals,
+    required bool needLastEventSender,
+    required bool withSenderNamePrefix,
+    required String encryptedFallback,
+  }) async {
+    final previewEvent = await resolveChatListPreviewEvent(room, lastEvent);
+    if (previewEvent.type == EventTypes.Encrypted ||
+        previewEvent.messageType == MessageTypes.BadEncrypted) {
+      return encryptedFallback;
+    }
+
+    if (needLastEventSender) {
+      return previewEvent.calcLocalizedBody(
+        matrixLocals,
+        hideReply: true,
+        hideEdit: true,
+        plaintextBody: true,
+        removeMarkdown: true,
+        withSenderNamePrefix: withSenderNamePrefix,
+      );
+    }
+    return previewEvent.calcLocalizedBodyFallback(
+      matrixLocals,
+      hideReply: true,
+      hideEdit: true,
+      plaintextBody: true,
+      removeMarkdown: true,
+      withSenderNamePrefix: withSenderNamePrefix,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -321,30 +355,45 @@ class ChatListItem extends StatelessWidget {
                             key: ValueKey(
                               '${lastEvent?.eventId}_${lastEvent?.type}_${lastEvent?.redacted}',
                             ),
-                            future: needLastEventSender
-                                ? lastEvent.calcLocalizedBody(
+                            future:
+                                lastEvent != null &&
+                                    (needLastEventSender ||
+                                        lastEvent.type ==
+                                            EventTypes.Encrypted ||
+                                        lastEvent.messageType ==
+                                            MessageTypes.BadEncrypted)
+                                ? _loadLastEventBody(
+                                    lastEvent: lastEvent,
+                                    matrixLocals: MatrixLocals(
+                                      L10n.of(context),
+                                    ),
+                                    needLastEventSender: needLastEventSender,
+                                    withSenderNamePrefix:
+                                        !isDirectChat ||
+                                        directChatMatrixId !=
+                                            lastEvent.senderId,
+                                    encryptedFallback: L10n.of(
+                                      context,
+                                    ).encrypted,
+                                  )
+                                : null,
+                            initialData: lastEvent == null
+                                ? null
+                                : lastEvent.type == EventTypes.Encrypted ||
+                                      lastEvent.messageType ==
+                                          MessageTypes.BadEncrypted
+                                ? L10n.of(context).encrypted
+                                : lastEvent.calcLocalizedBodyFallback(
                                     MatrixLocals(L10n.of(context)),
                                     hideReply: true,
                                     hideEdit: true,
                                     plaintextBody: true,
                                     removeMarkdown: true,
                                     withSenderNamePrefix:
-                                        (!isDirectChat ||
+                                        !isDirectChat ||
                                         directChatMatrixId !=
-                                            room.lastEvent?.senderId),
-                                  )
-                                : null,
-                            initialData: lastEvent?.calcLocalizedBodyFallback(
-                              MatrixLocals(L10n.of(context)),
-                              hideReply: true,
-                              hideEdit: true,
-                              plaintextBody: true,
-                              removeMarkdown: true,
-                              withSenderNamePrefix:
-                                  (!isDirectChat ||
-                                  directChatMatrixId !=
-                                      room.lastEvent?.senderId),
-                            ),
+                                            lastEvent.senderId,
+                                  ),
                             builder: (context, snapshot) => Text(
                               room.membership == Membership.invite
                                   ? room
