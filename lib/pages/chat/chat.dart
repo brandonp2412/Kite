@@ -608,6 +608,7 @@ class ChatController extends State<ChatPageWithRoom>
 
     final setOnLatestEvent = eventId == null;
     eventId ??= timeline.events.firstWhereOrNull((event) {
+      if (event.eventId == room.lastEvent?.eventId) return true;
       if (room.client.pushruleEvaluator.match(event).notify) {
         return true;
       }
