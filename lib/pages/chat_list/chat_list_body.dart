@@ -3,8 +3,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:math' as math;
-
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:kite/l10n/l10n.dart';
 import 'package:kite/pages/chat_list/chat_list.dart';
@@ -21,15 +19,6 @@ import '../../config/themes.dart';
 import '../../widgets/adaptive_dialogs/user_dialog.dart';
 import '../../widgets/matrix.dart';
 import 'chat_list_header.dart';
-
-double pinnedChatsShelfHeight(BuildContext context, int roomCount) {
-  if (roomCount == 0) return 0;
-  const estimatedChatRowHeight = 80.0;
-  return math.min(
-    roomCount * estimatedChatRowHeight,
-    MediaQuery.sizeOf(context).height * 0.4,
-  );
-}
 
 class ChatListViewBody extends StatelessWidget {
   final ChatListController controller;
@@ -53,13 +42,7 @@ class ChatListViewBody extends StatelessWidget {
           .where((s) => s.hasRoomUpdate)
           .rateLimit(const Duration(seconds: 1)),
       builder: (context, _) {
-        final allRooms = controller.filteredRooms;
-        final pinnedRooms = controller.isSearchMode
-            ? const <Room>[]
-            : allRooms.where((room) => room.isFavourite).toList();
-        final rooms = controller.isSearchMode
-            ? allRooms
-            : allRooms.where((room) => !room.isFavourite).toList();
+        final rooms = controller.filteredRooms;
 
         return CustomScrollView(
           key: const Key('chat_list_scroll'),
@@ -117,7 +100,7 @@ class ChatListViewBody extends StatelessWidget {
                     icon: const Icon(Icons.forum_outlined),
                   ),
                 if (client.prevBatch != null &&
-                    allRooms.isEmpty &&
+                    rooms.isEmpty &&
                     !controller.isSearchMode) ...[
                   Column(
                     mainAxisAlignment: .center,
@@ -186,15 +169,12 @@ class ChatListViewBody extends StatelessWidget {
                   },
                 ),
               ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height:
-                    pinnedChatsShelfHeight(context, pinnedRooms.length) +
-                    (FluffyThemes.isColumnMode(context)
-                        ? 0
-                        : MediaQuery.paddingOf(context).bottom + 88),
+            if (!FluffyThemes.isColumnMode(context))
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: MediaQuery.paddingOf(context).bottom + 88,
+                ),
               ),
-            ),
           ],
         );
       },
