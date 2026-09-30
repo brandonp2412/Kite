@@ -22,7 +22,7 @@ int compareRoomsForChatList(Room a, Room b) {
   }
 
   if (a.isFavourite != b.isFavourite) {
-    return a.isFavourite ? 1 : -1;
+    return a.isFavourite ? -1 : 1;
   }
 
   if (a.isLowPriority != b.isLowPriority) {

@@ -54,7 +54,7 @@ void main() {
       expect(roomListActivityTime(refreshingRoom), isNull);
     },
   );
-  test('pinned rooms sort to the bottom', () async {
+  test('pinned rooms retain favourite sort priority', () async {
     final client = await prepareTestClient();
     final invite = Room(id: '!invite:test', client: client)
       ..membership = Membership.invite;
@@ -109,9 +109,9 @@ void main() {
 
     expect(rooms.map((room) => room.id), [
       '!invite:test',
+      '!pinned:test',
       '!recent:test',
       '!low:test',
-      '!pinned:test',
     ]);
   });
 }

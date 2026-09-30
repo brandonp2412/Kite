@@ -7,7 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:kite/config/themes.dart';
 import 'package:kite/pages/chat_list/chat_list.dart';
 import 'package:kite/pages/chat_list/chat_list_search_bar.dart';
+import 'package:kite/pages/chat_list/chat_list_item.dart';
+import 'package:kite/utils/stream_extension.dart';
+import 'package:kite/widgets/matrix.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:matrix/matrix.dart';
 
 import 'chat_list_body.dart';
 
@@ -54,6 +58,10 @@ class ChatListView extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned.fill(child: ChatListViewBody(controller)),
+                _PinnedChatsShelf(
+                  controller: controller,
+                  bottom: columnMode ? 0 : bottomInset + 88,
+                ),
                 if (!columnMode)
                   Positioned(
                     left: 16,
@@ -75,6 +83,62 @@ class ChatListView extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PinnedChatsShelf extends StatelessWidget {
+  final ChatListController controller;
+  final double bottom;
+
+  const _PinnedChatsShelf({required this.controller, required this.bottom});
+
+  @override
+  Widget build(BuildContext context) {
+    final client = Matrix.of(context).client;
+
+    return StreamBuilder(
+      stream: client.onSync.stream
+          .where((sync) => sync.hasRoomUpdate)
+          .rateLimit(const Duration(seconds: 1)),
+      builder: (context, _) {
+        if (controller.isSearchMode) return const SizedBox.shrink();
+
+        final rooms = controller.filteredRooms
+            .where((room) => room.isFavourite)
+            .toList();
+        if (rooms.isEmpty) return const SizedBox.shrink();
+
+        final height = pinnedChatsShelfHeight(context, rooms.length);
+        final theme = Theme.of(context);
+
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: bottom,
+          height: height,
+          child: Material(
+            color: theme.colorScheme.surface,
+            elevation: 8,
+            shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.18),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: rooms.length,
+              itemBuilder: (context, index) {
+                final room = rooms[index];
+                return ChatListItem(
+                  room,
+                  key: Key('pinned_chat_list_item_${room.id}'),
+                  onTap: () => controller.onChatTap(room),
+                  onLongPress: (context) =>
+                      controller.chatContextAction(room, context),
+                  activeChat: controller.activeChat == room.id,
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }
