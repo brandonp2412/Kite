@@ -8,7 +8,6 @@ import 'package:kite/l10n/l10n.dart';
 import 'package:kite/pages/chat_list/chat_list.dart';
 import 'package:kite/pages/chat_list/chat_list_item.dart';
 import 'package:kite/pages/chat_list/dummy_chat_list_item.dart';
-import 'package:kite/pages/chat_list/search_title.dart';
 import 'package:kite/utils/stream_extension.dart';
 import 'package:kite/widgets/adaptive_dialogs/public_room_dialog.dart';
 import 'package:kite/widgets/avatar.dart';
@@ -53,15 +52,7 @@ class ChatListViewBody extends StatelessWidget {
             SliverList(
               delegate: SliverChildListDelegate([
                 if (controller.isSearchMode) ...[
-                  SearchTitle(
-                    title: L10n.of(context).publicRooms,
-                    icon: const Icon(Icons.explore_outlined),
-                  ),
                   PublicRoomsHorizontalList(publicRooms: publicRooms),
-                  SearchTitle(
-                    title: L10n.of(context).users,
-                    icon: const Icon(Icons.group_outlined),
-                  ),
                   AnimatedContainer(
                     clipBehavior: Clip.hardEdge,
                     decoration: const BoxDecoration(),
@@ -94,11 +85,6 @@ class ChatListViewBody extends StatelessWidget {
                           ),
                   ),
                 ],
-                if (controller.isSearchMode)
-                  SearchTitle(
-                    title: L10n.of(context).chats,
-                    icon: const Icon(Icons.forum_outlined),
-                  ),
                 if (client.prevBatch != null &&
                     rooms.isEmpty &&
                     !controller.isSearchMode) ...[

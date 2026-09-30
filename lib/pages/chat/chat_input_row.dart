@@ -50,6 +50,37 @@ class ChatInputRow extends StatelessWidget {
       foregroundColor: theme.colorScheme.onTertiaryContainer,
     );
 
+    PopupMenuItem<AddPopupMenuActions> addMenuItem(
+      AddPopupMenuActions action,
+      IconData icon,
+      String label,
+    ) {
+      return PopupMenuItem<AddPopupMenuActions>(
+        value: action,
+        height: 52,
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(child: Text(label)),
+          ],
+        ),
+      );
+    }
+
     return RecordingViewModel(
       builder: (context, _) {
         return Row(
@@ -140,93 +171,37 @@ class ChatInputRow extends StatelessWidget {
                       onSelected: controller.onAddPopupMenuButtonSelected,
                       itemBuilder: (BuildContext context) => [
                         if (PlatformInfos.isMobile)
-                          PopupMenuItem(
-                            value: AddPopupMenuActions.location,
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor:
-                                    theme.colorScheme.onPrimaryContainer,
-                                foregroundColor:
-                                    theme.colorScheme.primaryContainer,
-                                child: const Icon(Icons.gps_fixed_outlined),
-                              ),
-                              title: Text(L10n.of(context).shareLocation),
-                              contentPadding: const EdgeInsets.all(0),
-                            ),
+                          addMenuItem(
+                            AddPopupMenuActions.location,
+                            Icons.gps_fixed_outlined,
+                            L10n.of(context).shareLocation,
                           ),
-                        PopupMenuItem(
-                          value: AddPopupMenuActions.poll,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  theme.colorScheme.onPrimaryContainer,
-                              foregroundColor:
-                                  theme.colorScheme.primaryContainer,
-                              child: const Icon(Icons.poll_outlined),
-                            ),
-                            title: Text(L10n.of(context).startPoll),
-                            contentPadding: const EdgeInsets.all(0),
-                          ),
+                        addMenuItem(
+                          AddPopupMenuActions.poll,
+                          Icons.poll_outlined,
+                          L10n.of(context).startPoll,
                         ),
-                        PopupMenuDivider(),
                         if (PlatformInfos.isMobile) ...[
-                          PopupMenuItem(
-                            value: AddPopupMenuActions.videoCamera,
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor:
-                                    theme.colorScheme.onPrimaryContainer,
-                                foregroundColor:
-                                    theme.colorScheme.primaryContainer,
-                                child: const Icon(Icons.videocam_outlined),
-                              ),
-                              title: Text(L10n.of(context).recordAVideo),
-                              contentPadding: const EdgeInsets.all(0),
-                            ),
+                          addMenuItem(
+                            AddPopupMenuActions.videoCamera,
+                            Icons.videocam_outlined,
+                            L10n.of(context).recordAVideo,
                           ),
-                          PopupMenuItem(
-                            value: AddPopupMenuActions.photoCamera,
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor:
-                                    theme.colorScheme.onPrimaryContainer,
-                                foregroundColor:
-                                    theme.colorScheme.primaryContainer,
-                                child: const Icon(Icons.camera_alt_outlined),
-                              ),
-                              title: Text(L10n.of(context).takeAPhoto),
-                              contentPadding: const EdgeInsets.all(0),
-                            ),
+                          addMenuItem(
+                            AddPopupMenuActions.photoCamera,
+                            Icons.camera_alt_outlined,
+                            L10n.of(context).takeAPhoto,
                           ),
-                          PopupMenuDivider(),
                         ],
-                        PopupMenuItem(
-                          value: AddPopupMenuActions.media,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  theme.colorScheme.onPrimaryContainer,
-                              foregroundColor:
-                                  theme.colorScheme.primaryContainer,
-                              child: const Icon(Icons.image_outlined),
-                            ),
-                            title: Text(L10n.of(context).openGallery),
-                            contentPadding: const EdgeInsets.all(0),
-                          ),
+                        addMenuItem(
+                          AddPopupMenuActions.media,
+                          Icons.image_outlined,
+                          L10n.of(context).openGallery,
                         ),
-                        PopupMenuItem(
-                          value: AddPopupMenuActions.file,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  theme.colorScheme.onPrimaryContainer,
-                              foregroundColor:
-                                  theme.colorScheme.primaryContainer,
-                              child: const Icon(Icons.attachment_outlined),
-                            ),
-                            title: Text(L10n.of(context).sendFile),
-                            contentPadding: const EdgeInsets.all(0),
-                          ),
+                        addMenuItem(
+                          AddPopupMenuActions.file,
+                          Icons.attachment_outlined,
+                          L10n.of(context).sendFile,
                         ),
                       ],
                     ),
@@ -318,9 +293,8 @@ class _ChatAccountPicker extends StatelessWidget {
   const _ChatAccountPicker(this.controller);
 
   void _popupMenuButtonSelected(String mxid, BuildContext context) {
-    final client = Matrix.of(
-      context,
-    ).currentBundle!.firstWhere((cl) => cl!.userID == mxid, orElse: () => null);
+    final client = Matrix.of(context).currentBundle!
+        .firstWhere((cl) => cl!.userID == mxid, orElse: () => null);
     if (client == null) {
       Logs().w('Attempted to switch to a non-existing client $mxid');
       return;

@@ -32,6 +32,7 @@ import 'package:kite/utils/matrix_sdk_extensions/filtered_timeline_extension.dar
 import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
 import 'package:kite/utils/other_party_can_receive.dart';
 import 'package:kite/utils/platform_infos.dart';
+import 'package:kite/utils/push_helper.dart';
 import 'package:kite/utils/show_scaffold_dialog.dart';
 import 'package:kite/widgets/adaptive_dialogs/show_ok_cancel_alert_dialog.dart';
 import 'package:kite/widgets/adaptive_dialogs/show_text_input_dialog.dart';
@@ -125,8 +126,6 @@ class ChatController extends State<ChatPageWithRoom>
   String? activeThreadId;
 
   late final Set<String> bigEmojis;
-
-  late final String readMarkerEventId;
 
   String get roomId => widget.room.id;
 
@@ -282,6 +281,16 @@ class ChatController extends State<ChatPageWithRoom>
     }
   }
 
+  void _scrollToBottomAfterLayout({bool force = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) return;
+      if (!force && _scrolledUp) return;
+      if (scrollController.position.pixels != 0) {
+        scrollController.jumpTo(0);
+      }
+    });
+  }
+
   void _loadDraft() {
     final prefs = Matrix.of(context).store;
     final draft = prefs.getString('draft_$roomId');
@@ -404,6 +413,13 @@ class ChatController extends State<ChatPageWithRoom>
       if (widget.action == 'call') {
         Matrix.of(context).activeCallRoomId.value = room.id;
       }
+      unawaited(
+        dismissRoomNotifications(
+          client: room.client,
+          roomId: room.id,
+          l10n: L10n.of(context),
+        ),
+      );
     });
     web.window.addEventListener('paste', _handleClipboardFilePasteWeb);
 
@@ -421,13 +437,6 @@ class ChatController extends State<ChatPageWithRoom>
     );
 
     sendingClient = Matrix.of(context).client;
-    final lastEventThreadId =
-        room.lastEvent?.relationshipType == RelationshipTypes.thread
-        ? room.lastEvent?.relationshipEventId
-        : null;
-    readMarkerEventId = room.hasNewMessages
-        ? lastEventThreadId ?? room.fullyRead
-        : '';
     WidgetsBinding.instance.addObserver(this);
     _tryLoadTimeline();
   }
@@ -469,45 +478,17 @@ class ChatController extends State<ChatPageWithRoom>
     loadTimelineFuture = _getTimeline();
     try {
       await loadTimelineFuture;
-      // We launched the chat with a given initial event ID:
-      if (initialEventId != null) {
-        scrollToEventId(initialEventId);
-        return;
-      }
-
-      var readMarkerEventIndex = readMarkerEventId.isEmpty
-          ? -1
-          : timeline!.events
-                .filterByVisibleInGui(
-                  exceptionEventId: readMarkerEventId,
-                  threadId: activeThreadId,
-                )
-                .indexWhere((e) => e.eventId == readMarkerEventId);
-
-      // Read marker is existing but not found in first events. Try a single
-      // requestHistory call before opening timeline on event context:
-      if (readMarkerEventId.isNotEmpty && readMarkerEventIndex == -1) {
-        await timeline?.requestHistory(historyCount: _loadHistoryCount);
-        readMarkerEventIndex = timeline!.events
-            .filterByVisibleInGui(
-              exceptionEventId: readMarkerEventId,
-              threadId: activeThreadId,
-            )
-            .indexWhere((e) => e.eventId == readMarkerEventId);
-      }
-
-      if (readMarkerEventIndex > 1) {
-        Logs().v('Scroll up to visible event', readMarkerEventId);
-        scrollToEventId(readMarkerEventId, highlightEvent: false);
-        return;
-      } else if (readMarkerEventId.isNotEmpty && readMarkerEventIndex == -1) {
-        _showScrollUpMaterialBanner(readMarkerEventId);
-      }
-
-      // Mark room as read on first visit if requirements are fulfilled
-      setReadMarker();
-
       if (!mounted) return;
+
+      // Preserve explicit deep links to an event, but normal room opens should
+      // always land on the newest message.
+      if (initialEventId != null) {
+        await scrollToEventId(initialEventId);
+        return;
+      }
+
+      setReadMarker();
+      _scrollToBottomAfterLayout(force: true);
     } catch (e, s) {
       ErrorReporter(context, 'Unable to load timeline').onErrorCallback(e, s);
       rethrow;
@@ -1502,6 +1483,7 @@ class ChatController extends State<ChatPageWithRoom>
       setState(() {
         inputBarHeight = height;
       });
+      _scrollToBottomAfterLayout();
     }
   }
 

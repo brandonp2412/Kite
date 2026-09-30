@@ -32,6 +32,35 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 final Map<String, DateTime> lastReceivedPushNotification = {};
 
+Future<void> dismissRoomNotifications({
+  required Client client,
+  required String roomId,
+  required L10n l10n,
+}) async {
+  if (kIsWeb) return;
+
+  final notifications = FlutterLocalNotificationsPlugin();
+  final notificationIds = <int>{
+    roomId.hashCode,
+    '${client.clientName}_$roomId'.hashCode,
+  };
+
+  try {
+    for (final id in notificationIds) {
+      await notifications.cancel(id: id);
+    }
+    if (PlatformInfos.isAndroid) {
+      await updateSummaryNotification(
+        clientName: client.clientName,
+        l10n: l10n,
+        flutterLocalNotificationsPlugin: notifications,
+      );
+    }
+  } catch (e, s) {
+    Logs().w('Unable to dismiss notifications for room $roomId', e, s);
+  }
+}
+
 Future<void> pushHelper(
   PushNotification notification, {
   List<Client>? clients,

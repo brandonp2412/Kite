@@ -323,26 +323,6 @@ class Message extends StatelessWidget {
                               child: Row(
                                 mainAxisAlignment: ownMessage ? .end : .start,
                                 children: [
-                                  if (sender.powerLevel.role !=
-                                          PowerLevelRole.user &&
-                                      !nextEventSameSender &&
-                                      !ownMessage &&
-                                      !event.room.isDirectChat)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        right: 2.0,
-                                      ),
-                                      child: Icon(
-                                        sender.powerLevel.role ==
-                                                PowerLevelRole.moderator
-                                            ? Icons.add_moderator_outlined
-                                            : Icons.admin_panel_settings,
-                                        size: 14,
-                                        color: theme
-                                            .colorScheme
-                                            .onPrimaryContainer,
-                                      ),
-                                    ),
                                   if ((!nextEventSameSender) && !ownMessage)
                                     FutureBuilder<User?>(
                                       future: event.fetchSenderUser(),
@@ -653,190 +633,200 @@ class Message extends StatelessWidget {
                                     ? Padding(
                                         padding: const EdgeInsets.all(4.0),
                                         child: Material(
-                                          elevation: 4,
-                                          borderRadius: BorderRadius.circular(
-                                            AppConfig.borderRadius,
+                                          color: theme
+                                              .colorScheme
+                                              .surfaceContainerHigh,
+                                          shape: StadiumBorder(
+                                            side: BorderSide(
+                                              color: theme
+                                                  .colorScheme
+                                                  .outlineVariant,
+                                            ),
                                           ),
-                                          shadowColor: theme.colorScheme.surface
-                                              .withAlpha(128),
+                                          clipBehavior: Clip.antiAlias,
                                           child: SingleChildScrollView(
                                             scrollDirection: Axis.horizontal,
                                             child: Row(
                                               mainAxisSize: .min,
                                               children: [
                                                 ...AppConfig.defaultReactions.map(
-                                                  (emoji) => IconButton(
-                                                    padding: EdgeInsets.zero,
-                                                    icon: Center(
-                                                      child: Opacity(
-                                                        opacity:
+                                                  (emoji) => Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(2),
+                                                    child: IconButton(
+                                                      visualDensity:
+                                                          VisualDensity.compact,
+                                                      style: IconButton.styleFrom(
+                                                        backgroundColor:
                                                             sentReactions
                                                                 .contains(emoji)
-                                                            ? 0.33
-                                                            : 1,
-                                                        child: Text(
-                                                          emoji,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 20,
-                                                              ),
-                                                          textAlign:
-                                                              TextAlign.center,
+                                                            ? theme
+                                                                  .colorScheme
+                                                                  .primaryContainer
+                                                            : Colors
+                                                                  .transparent,
+                                                        minimumSize: const Size(
+                                                          38,
+                                                          38,
                                                         ),
                                                       ),
+                                                      icon: Text(
+                                                        emoji,
+                                                        style: const TextStyle(
+                                                          fontSize: 20,
+                                                        ),
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                      ),
+                                                      onPressed:
+                                                          sentReactions
+                                                              .contains(emoji)
+                                                          ? null
+                                                          : () {
+                                                              onSelect(event);
+                                                              event.room
+                                                                  .sendReaction(
+                                                                    event
+                                                                        .eventId,
+                                                                    emoji,
+                                                                  );
+                                                            },
                                                     ),
-                                                    onPressed:
-                                                        sentReactions.contains(
-                                                          emoji,
-                                                        )
-                                                        ? null
-                                                        : () {
-                                                            onSelect(event);
-                                                            event.room
-                                                                .sendReaction(
-                                                                  event.eventId,
-                                                                  emoji,
-                                                                );
-                                                          },
                                                   ),
                                                 ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.add_reaction_outlined,
+                                                Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    2,
                                                   ),
-                                                  tooltip: L10n.of(
-                                                    context,
-                                                  ).customReaction,
-                                                  onPressed: () async {
-                                                    final emoji = await showAdaptiveBottomSheet<String>(
-                                                      context: context,
-                                                      builder: (context) => Scaffold(
-                                                        appBar: AppBar(
-                                                          title: Text(
-                                                            L10n.of(
-                                                              context,
-                                                            ).customReaction,
+                                                  child: IconButton(
+                                                    visualDensity:
+                                                        VisualDensity.compact,
+                                                    style: IconButton.styleFrom(
+                                                      backgroundColor: theme
+                                                          .colorScheme
+                                                          .surfaceContainerHighest,
+                                                      minimumSize: const Size(
+                                                        38,
+                                                        38,
+                                                      ),
+                                                    ),
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .add_reaction_outlined,
+                                                      size: 20,
+                                                    ),
+                                                    tooltip: L10n.of(context)
+                                                        .customReaction,
+                                                    onPressed: () async {
+                                                      final emoji = await showAdaptiveBottomSheet<String>(
+                                                        context: context,
+                                                        builder: (context) => Scaffold(
+                                                          appBar: AppBar(
+                                                            title: Text(
+                                                              L10n.of(
+                                                                context,
+                                                              ).customReaction,
+                                                            ),
+                                                            leading: CloseButton(
+                                                              onPressed: () =>
+                                                                  Navigator.of(
+                                                                    context,
+                                                                  ).pop(null),
+                                                            ),
                                                           ),
-                                                          leading: CloseButton(
-                                                            onPressed: () =>
-                                                                Navigator.of(
-                                                                  context,
-                                                                ).pop(null),
-                                                          ),
-                                                        ),
-                                                        body: SizedBox(
-                                                          height:
-                                                              double.infinity,
-                                                          child: DefaultTabController(
-                                                            length: 2,
-                                                            child: Column(
-                                                              children: [
-                                                                TabBar(
-                                                                  tabs: [
-                                                                    Tab(
-                                                                      text: L10n.of(
-                                                                        context,
-                                                                      ).emojis,
-                                                                    ),
-                                                                    Tab(
-                                                                      text: L10n.of(
-                                                                        context,
-                                                                      ).stickers,
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                                Expanded(
-                                                                  child: TabBarView(
-                                                                    children: [
-                                                                      EmojiPicker(
-                                                                        onEmojiSelected:
-                                                                            (
-                                                                              _,
-                                                                              emoji,
-                                                                            ) =>
-                                                                                Navigator.of(
-                                                                                  context,
-                                                                                ).pop(
-                                                                                  emoji.emoji,
-                                                                                ),
-                                                                        config: Config(
-                                                                          locale: Localizations.localeOf(
-                                                                            context,
-                                                                          ),
-                                                                          emojiViewConfig: const EmojiViewConfig(
-                                                                            backgroundColor:
-                                                                                Colors.transparent,
-                                                                          ),
-                                                                          bottomActionBarConfig: const BottomActionBarConfig(
-                                                                            enabled:
-                                                                                false,
-                                                                          ),
-                                                                          categoryViewConfig: CategoryViewConfig(
-                                                                            initCategory:
-                                                                                Category.SMILEYS,
-                                                                            backspaceColor:
-                                                                                theme.colorScheme.primary,
-                                                                            iconColor: theme.colorScheme.primary.withAlpha(
-                                                                              128,
-                                                                            ),
-                                                                            iconColorSelected:
-                                                                                theme.colorScheme.primary,
-                                                                            indicatorColor:
-                                                                                theme.colorScheme.primary,
-                                                                            backgroundColor:
-                                                                                theme.colorScheme.surface,
-                                                                          ),
-                                                                          skinToneConfig: SkinToneConfig(
-                                                                            dialogBackgroundColor: Color.lerp(
-                                                                              theme.colorScheme.surface,
-                                                                              theme.colorScheme.primaryContainer,
-                                                                              0.75,
-                                                                            )!,
-                                                                            indicatorColor:
-                                                                                theme.colorScheme.onSurface,
-                                                                          ),
-                                                                        ),
+                                                          body: SizedBox(
+                                                            height:
+                                                                double.infinity,
+                                                            child: DefaultTabController(
+                                                              length: 2,
+                                                              child: Column(
+                                                                children: [
+                                                                  TabBar(
+                                                                    tabs: [
+                                                                      Tab(
+                                                                        text: L10n.of(
+                                                                          context,
+                                                                        ).emojis,
                                                                       ),
-                                                                      StickerPickerDialog(
-                                                                        room: event
-                                                                            .room,
-                                                                        usage: ImagePackUsage
-                                                                            .emoticon,
-                                                                        onSelected:
-                                                                            (
-                                                                              sticker,
-                                                                            ) =>
-                                                                                Navigator.of(
-                                                                                  context,
-                                                                                ).pop(
-                                                                                  sticker.url.toString(),
-                                                                                ),
+                                                                      Tab(
+                                                                        text: L10n.of(
+                                                                          context,
+                                                                        ).stickers,
                                                                       ),
                                                                     ],
                                                                   ),
-                                                                ),
-                                                              ],
+                                                                  Expanded(
+                                                                    child: TabBarView(
+                                                                      children: [
+                                                                        EmojiPicker(
+                                                                          onEmojiSelected: (
+                                                                            _,
+                                                                            emoji,
+                                                                          ) => Navigator.of(context).pop(emoji.emoji),
+                                                                          config: Config(
+                                                                            locale: Localizations.localeOf(
+                                                                              context,
+                                                                            ),
+                                                                            emojiViewConfig: const EmojiViewConfig(
+                                                                              backgroundColor: Colors.transparent,
+                                                                            ),
+                                                                            bottomActionBarConfig: const BottomActionBarConfig(
+                                                                              enabled: false,
+                                                                            ),
+                                                                            categoryViewConfig: CategoryViewConfig(
+                                                                              initCategory: Category.SMILEYS,
+                                                                              backspaceColor: theme.colorScheme.primary,
+                                                                              iconColor: theme.colorScheme.primary.withAlpha(
+                                                                                128,
+                                                                              ),
+                                                                              iconColorSelected: theme.colorScheme.primary,
+                                                                              indicatorColor: theme.colorScheme.primary,
+                                                                              backgroundColor: theme.colorScheme.surface,
+                                                                            ),
+                                                                            skinToneConfig: SkinToneConfig(
+                                                                              dialogBackgroundColor: Color.lerp(
+                                                                                theme.colorScheme.surface,
+                                                                                theme.colorScheme.primaryContainer,
+                                                                                0.75,
+                                                                              )!,
+                                                                              indicatorColor: theme.colorScheme.onSurface,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                        StickerPickerDialog(
+                                                                          room:
+                                                                              event.room,
+                                                                          usage:
+                                                                              ImagePackUsage.emoticon,
+                                                                          onSelected: (sticker) => Navigator.of(
+                                                                            context,
+                                                                          ).pop(sticker.url.toString()),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
                                                             ),
                                                           ),
                                                         ),
-                                                      ),
-                                                    );
-                                                    if (emoji == null) {
-                                                      return;
-                                                    }
-                                                    if (sentReactions.contains(
-                                                      emoji,
-                                                    )) {
-                                                      return;
-                                                    }
-                                                    onSelect(event);
+                                                      );
+                                                      if (emoji == null) {
+                                                        return;
+                                                      }
+                                                      if (sentReactions
+                                                          .contains(emoji)) {
+                                                        return;
+                                                      }
+                                                      onSelect(event);
 
-                                                    await event.room
-                                                        .sendReaction(
-                                                          event.eventId,
-                                                          emoji,
-                                                        );
-                                                  },
+                                                      await event.room
+                                                          .sendReaction(
+                                                            event.eventId,
+                                                            emoji,
+                                                          );
+                                                    },
+                                                  ),
                                                 ),
                                               ],
                                             ),

@@ -4,7 +4,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:collection/collection.dart' show IterableExtension;
-import 'package:kite/config/app_config.dart';
 import 'package:kite/widgets/avatar.dart';
 import 'package:kite/widgets/future_loading_dialog.dart';
 import 'package:kite/widgets/matrix.dart';
@@ -105,13 +104,20 @@ class _Reaction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final selected = reacted == true;
+    final foregroundColor = selected
+        ? theme.colorScheme.onPrimaryContainer
+        : theme.colorScheme.onSurfaceVariant;
+    final backgroundColor = selected
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.surfaceContainerHighest;
 
     Widget content;
     if (reactionKey.startsWith('mxc://')) {
       content = MxcImage(
         uri: Uri.parse(reactionKey),
-        width: 20,
-        height: 20,
+        width: 18,
+        height: 18,
         animated: false,
         isThumbnail: false,
       );
@@ -120,32 +126,46 @@ class _Reaction extends StatelessWidget {
       if (renderKey.length > 10) {
         renderKey = renderKey.getRange(0, 9) + Characters('…');
       }
-      content = Text(renderKey.toString(), style: TextStyle(fontSize: 14));
+      content = Text(
+        renderKey.toString(),
+        style: const TextStyle(fontSize: 16),
+      );
     }
-    return Badge(
-      isLabelVisible: count > 1,
-      label: Text(count.toString()),
-      textStyle: TextStyle(fontSize: 10),
-      textColor: theme.colorScheme.onPrimary,
-      backgroundColor: theme.colorScheme.primary.withAlpha(200),
+
+    return Material(
+      color: backgroundColor,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected
+              ? theme.colorScheme.primary.withAlpha(160)
+              : theme.colorScheme.outlineVariant.withAlpha(96),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => onTap != null ? onTap!() : null,
-        onLongPress: () => onLongPress != null ? onLongPress!() : null,
-        borderRadius: BorderRadius.circular(AppConfig.borderRadius / 2),
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondaryContainer,
-            border: Border.all(
-              color: reacted == true
-                  ? theme.colorScheme.secondary
-                  : theme.colorScheme.secondaryContainer,
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(AppConfig.borderRadius / 2),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: count > 1 ? 8 : 7,
+            vertical: 3,
           ),
-          height: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: content,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              content,
+              if (count > 1) ...[
+                const SizedBox(width: 4),
+                Text(
+                  count.toString(),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: foregroundColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
