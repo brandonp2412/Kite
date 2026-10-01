@@ -26,19 +26,37 @@ class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         private const val FCM_CHANNEL = "app.kite/fcm"
-        private var fcmChannelConfigured = false
+        private var fcmChannelEngine: FlutterEngine? = null
 
         var engine: FlutterEngine? = null
 
         fun provideEngine(context: Context): FlutterEngine {
-            val eng = engine ?: FlutterEngine(context, emptyArray(), true, false)
+            engine?.let {
+                configureFcmChannel(it)
+                return it
+            }
+
+            val eng = FlutterEngine(context.applicationContext, emptyArray(), true, false)
+            eng.addEngineLifecycleListener(object : FlutterEngine.EngineLifecycleListener {
+                override fun onPreEngineRestart() = Unit
+
+                override fun onEngineWillDestroy() {
+                    if (engine === eng) {
+                        engine = null
+                    }
+                    if (fcmChannelEngine === eng) {
+                        fcmChannelEngine = null
+                    }
+                }
+            })
+
             engine = eng
             configureFcmChannel(eng)
             return eng
         }
 
         private fun configureFcmChannel(engine: FlutterEngine) {
-            if (fcmChannelConfigured) return
+            if (fcmChannelEngine === engine) return
 
             MethodChannel(engine.dartExecutor.binaryMessenger, FCM_CHANNEL)
                 .setMethodCallHandler { call, result ->
@@ -72,7 +90,7 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                 }
 
-            fcmChannelConfigured = true
+            fcmChannelEngine = engine
         }
     }
 }
