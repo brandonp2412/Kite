@@ -11,6 +11,7 @@ import 'flows/basic_messaging.dart';
 import 'flows/chat_flows.dart';
 import 'flows/login_and_chat_backup.dart';
 import 'flows/multi_account.dart';
+import 'flows/unread_receipt.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +19,7 @@ void main() {
   group('Kite Integration Tests', () {
     testWidgets('Login and logout flow', loginAndChatBackup);
     testWidgets('Basic Messaging', basicMessaging);
+    testWidgets('Opening a room clears unread state', unreadClearsOnOpen);
     testWidgets('Multi-Account', multiAccount);
     testWidgets('Archive chats', archiveChats);
     testWidgets('Final logout', finalLogout);

@@ -33,6 +33,7 @@ import 'package:kite/utils/matrix_sdk_extensions/matrix_locals.dart';
 import 'package:kite/utils/other_party_can_receive.dart';
 import 'package:kite/utils/platform_infos.dart';
 import 'package:kite/utils/push_helper.dart';
+import 'package:kite/utils/read_marker_queue.dart';
 import 'package:kite/utils/show_scaffold_dialog.dart';
 import 'package:kite/widgets/adaptive_dialogs/show_ok_cancel_alert_dialog.dart';
 import 'package:kite/widgets/adaptive_dialogs/show_text_input_dialog.dart';
@@ -438,6 +439,11 @@ class ChatController extends State<ChatPageWithRoom>
 
     sendingClient = Matrix.of(context).client;
     WidgetsBinding.instance.addObserver(this);
+    _readMarkerQueue = ReadMarkerQueue(
+      send: _sendReadMarker,
+      onError: (error, stackTrace) =>
+          Logs().w('Unable to set read marker', error, stackTrace),
+    );
     _tryLoadTimeline();
   }
 
@@ -487,8 +493,11 @@ class ChatController extends State<ChatPageWithRoom>
         return;
       }
 
-      setReadMarker();
       _scrollToBottomAfterLayout(force: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setReadMarker();
+      });
     } catch (e, s) {
       ErrorReporter(context, 'Unable to load timeline').onErrorCallback(e, s);
       rethrow;
@@ -566,24 +575,27 @@ class ChatController extends State<ChatPageWithRoom>
     setReadMarker();
   }
 
-  Future<void>? _setReadMarkerFuture;
+  late final ReadMarkerQueue _readMarkerQueue;
 
   void setReadMarker({String? eventId}) {
-    // Do not send read markers when app is not in foreground
+    _readMarkerQueue.request(eventId);
+  }
+
+  Future<void> _sendReadMarker(String? eventId) async {
+    if (!mounted) return;
+
+    // Do not send read markers when app is not in foreground.
     if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
       return;
     }
 
-    // We are already setting a read marker
-    if (_setReadMarkerFuture != null) return;
-
-    // We only set read marker if we are at the bottom
+    // We only set read marker if we are at the bottom.
     if (_scrolledUp) return;
 
-    // We do not set read marker if we offer user the scroll up banner
+    // We do not set read marker if we offer user the scroll up banner.
     if (scrollUpBannerEventId != null) return;
 
-    // We do not set read marker if timeline is empty
+    // We do not set read marker if timeline is empty.
     final timeline = this.timeline;
     if (timeline == null || timeline.events.isEmpty) return;
 
@@ -606,13 +618,13 @@ class ChatController extends State<ChatPageWithRoom>
           room.lastEvent?.eventId ?? timeline.events.firstOrNull?.eventId;
     }
 
-    // There is no event we could place a read marker
+    // There is no event we could place a read marker.
     if (eventId == null) return;
 
-    // This is a sending event, we do not set a readmarker yet
+    // This is a sending event, we do not set a readmarker yet.
     if (eventId.isValidMatrixIdStrict() == false) return;
 
-    // Already set a read marker on this event
+    // Already set a read marker on this event.
     if (room.fullyRead == eventId && !setOnLatestEvent) return;
 
     // Set a readmarker on a specific event, not latest, but room is not unread
@@ -624,15 +636,10 @@ class ChatController extends State<ChatPageWithRoom>
     }
 
     Logs().d('Set read marker...', eventId);
-    // ignore: unawaited_futures
-    _setReadMarkerFuture = timeline
-        .setReadMarker(
-          eventId: eventId,
-          public: AppSettings.sendPublicReadReceipts.value,
-        )
-        .then((_) {
-          _setReadMarkerFuture = null;
-        });
+    await timeline.setReadMarker(
+      eventId: eventId,
+      public: AppSettings.sendPublicReadReceipts.value,
+    );
   }
 
   @override
