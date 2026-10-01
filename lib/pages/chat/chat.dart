@@ -640,6 +640,12 @@ class ChatController extends State<ChatPageWithRoom>
       eventId: eventId,
       public: AppSettings.sendPublicReadReceipts.value,
     );
+
+    // Synapse can occasionally keep returning a stale notification_count even
+    // after a successful read marker. Clear the local counters immediately;
+    // a genuinely newer event will restore them on the next sync.
+    room.notificationCount = 0;
+    room.highlightCount = 0;
   }
 
   @override
