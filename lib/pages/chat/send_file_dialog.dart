@@ -50,7 +50,7 @@ class SendFileDialog extends StatefulWidget {
 class SendFileDialogState extends State<SendFileDialog> {
   bool compress = true;
 
-  /// Images smaller than 20kb don't need compression.
+  /// Videos smaller than 20kb don't need compression.
   static const int minSizeToCompress = 20 * 1000;
 
   final TextEditingController _labelTextController = TextEditingController();
@@ -158,7 +158,7 @@ class SendFileDialogState extends State<SendFileDialog> {
           await widget.room.sendFileEvent(
             file,
             thumbnail: thumbnail,
-            shrinkImageMaxDimension: compress ? 1600 : null,
+            shrinkImageMaxDimension: null,
             extraContent: label.isEmpty ? null : {'body': label},
             threadRootEventId: widget.threadRootEventId,
             threadLastEventId: widget.threadLastEventId,
@@ -177,7 +177,7 @@ class SendFileDialogState extends State<SendFileDialog> {
           await widget.room.sendFileEvent(
             file,
             thumbnail: thumbnail,
-            shrinkImageMaxDimension: compress ? 1600 : null,
+            shrinkImageMaxDimension: null,
             extraContent: label.isEmpty ? null : {'body': label},
           );
         }
@@ -404,7 +404,7 @@ class SendFileDialogState extends State<SendFileDialog> {
                       ),
                     ),
                   // Workaround for SwitchListTile.adaptive crashes in CupertinoDialog
-                  if ({'image', 'video'}.contains(uniqueFileType))
+                  if (uniqueFileType == 'video')
                     Row(
                       crossAxisAlignment: .center,
                       children: [
