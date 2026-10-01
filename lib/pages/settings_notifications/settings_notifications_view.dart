@@ -8,12 +8,15 @@ import 'package:kite/config/setting_keys.dart';
 import 'package:kite/config/themes.dart';
 import 'package:kite/l10n/l10n.dart';
 import 'package:kite/pages/settings_notifications/push_rule_extensions.dart';
+import 'package:kite/utils/background_push.dart';
 import 'package:kite/utils/platform_infos.dart';
 import 'package:kite/utils/push_helper.dart';
 import 'package:kite/widgets/layouts/max_width_body.dart';
 import 'package:kite/widgets/settings_switch_list_tile.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
+import 'package:unifiedpush/unifiedpush.dart';
+import 'package:unifiedpush_ui/unifiedpush_ui.dart';
 
 import '../../utils/localized_exception_extension.dart';
 import '../../widgets/matrix.dart';
@@ -56,9 +59,9 @@ class SettingsNotificationsView extends StatelessWidget {
           builder: (BuildContext context, _) {
             final theme = Theme.of(context);
             final lastReceivedPush =
-                lastReceivedPushNotification[Matrix.of(
-                  context,
-                ).client.clientName];
+                lastReceivedPushNotification[Matrix.of(context)
+                    .client
+                    .clientName];
             return SelectionArea(
               child: Column(
                 children: [
@@ -120,9 +123,9 @@ class SettingsNotificationsView extends StatelessWidget {
                             onChanged: controller.isLoading
                                 ? null
                                 : rule.ruleId != '.m.rule.master' &&
-                                      Matrix.of(
-                                        context,
-                                      ).client.allPushNotificationsMuted
+                                      Matrix.of(context)
+                                          .client
+                                          .allPushNotificationsMuted
                                 ? null
                                 : (_) => controller.togglePushRule(
                                     category.kind,
@@ -136,24 +139,64 @@ class SettingsNotificationsView extends StatelessWidget {
                   if (PlatformInfos.isAndroid)
                     ListTile(
                       title: Text(
-                        Matrix.of(context).androidDirectNotificationsEnabled
+                        pushService?.unifiedPushConfigured == true
+                            ? 'UnifiedPush notifications active'
+                            : Matrix.of(context)
+                                  .androidDirectNotificationsEnabled
                             ? 'Direct Matrix notifications active'
                             : 'Direct Matrix notification service is not running',
                       ),
                       subtitle: Text(
-                        Matrix.of(context).androidDirectNotificationsEnabled
-                            ? 'Foreground sync is keeping Matrix connected for notifications.'
-                            : 'Reopen the app to restart the foreground notification service.',
+                        pushService?.unifiedPushConfigured == true
+                            ? 'Push is handled by a UnifiedPush distributor so Kite can sleep between messages.'
+                            : Matrix.of(context)
+                                  .androidDirectNotificationsEnabled
+                            ? 'Foreground Matrix sync is active without a permanent CPU wake lock.'
+                            : 'Reopen the app to restart notification delivery.',
                       ),
                       leading: Icon(
-                        Matrix.of(context).androidDirectNotificationsEnabled
+                        pushService?.unifiedPushConfigured == true ||
+                                Matrix.of(context)
+                                    .androidDirectNotificationsEnabled
                             ? Icons.check_circle_outline
                             : Icons.error_outline,
                         color:
-                            Matrix.of(context).androidDirectNotificationsEnabled
+                            pushService?.unifiedPushConfigured == true ||
+                                Matrix.of(context)
+                                    .androidDirectNotificationsEnabled
                             ? null
                             : theme.colorScheme.error,
                       ),
+                    ),
+                  if (PlatformInfos.isAndroid)
+                    FutureBuilder<List<String>>(
+                      future: UnifiedPush.getDistributors(),
+                      builder: (context, snapshot) {
+                        final distributors = snapshot.data;
+                        if (distributors == null || distributors.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return ListTile(
+                          title: Text(L10n.of(context).unifiedPushDistributors),
+                          subtitle: SelectableText(distributors.join(', ')),
+                          leading: const Icon(Icons.eco_outlined),
+                          trailing: IconButton(
+                            tooltip: 'Use UnifiedPush',
+                            onPressed: () async {
+                              await UnifiedPushUi(
+                                context: context,
+                                instances: const ['default'],
+                                unifiedPushFunctions: UPFunctions(),
+                                showNoDistribDialog: false,
+                                onNoDistribDialogDismissed: () {},
+                              ).registerAppWithDialog();
+                              if (!context.mounted) return;
+                              await pushService?.setupPush(context);
+                            },
+                            icon: const Icon(Icons.settings_outlined),
+                          ),
+                        );
+                      },
                     ),
                   if (!PlatformInfos.isAndroid &&
                       pushService?.firebaseEnabled != true)
@@ -174,9 +217,9 @@ class SettingsNotificationsView extends StatelessWidget {
                     ),
                   ),
                   FutureBuilder<List<Pusher>?>(
-                    future: controller.pusherFuture ??= Matrix.of(
-                      context,
-                    ).client.getPushers(),
+                    future: controller.pusherFuture ??= Matrix.of(context)
+                        .client
+                        .getPushers(),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
                         Center(

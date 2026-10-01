@@ -186,6 +186,8 @@ class MatrixState extends State<Matrix> {
 
   bool _androidDirectNotificationsEnabled = false;
   bool _androidDirectNotificationsStarting = false;
+  static const _backgroundSyncErrorBackoffSeconds = 15;
+  final _directSyncOriginalErrorBackoff = <String, int>{};
 
   bool get androidDirectNotificationsEnabled =>
       _androidDirectNotificationsEnabled;
@@ -265,8 +267,14 @@ class MatrixState extends State<Matrix> {
     onLoginSub[name] ??= c.onLoginStateChanged.stream
         .where((state) => state == LoginState.loggedIn)
         .listen((_) {
+          if (!mounted) return;
           if (PlatformInfos.isAndroid) {
-            unawaited(enableAndroidDirectNotifications());
+            final push = backgroundPush;
+            if (push != null) {
+              unawaited(push.setupPush(context));
+            } else {
+              unawaited(enableAndroidDirectNotifications());
+            }
           }
         });
     onLogoutSub[name] ??= c.onLoginStateChanged.stream
@@ -275,6 +283,7 @@ class MatrixState extends State<Matrix> {
           final loggedInWithMultipleClients = widget.clients.length > 1;
 
           _cancelSubs(c.clientName);
+          _restoreDirectSyncErrorBackoff(c);
           widget.clients.remove(c);
           ClientManager.removeClientNameFromStore(c.clientName, store);
           InitWithRestoreExtension.deleteSessionBackup(name);
@@ -289,8 +298,9 @@ class MatrixState extends State<Matrix> {
 
             if (!snackbarContext.mounted) return;
             final l10n = L10n.of(snackbarContext);
-            ScaffoldMessenger.of(snackbarContext)
-                .showSnackBar(SnackBar(content: Text(l10n.oneClientLoggedOut)));
+            ScaffoldMessenger.of(
+              snackbarContext,
+            ).showSnackBar(SnackBar(content: Text(l10n.oneClientLoggedOut)));
             return;
           }
           KiteApp.router.go('/');
@@ -319,6 +329,24 @@ class MatrixState extends State<Matrix> {
           showLocalNotification,
         );
       });
+    }
+  }
+
+  void _setDirectSyncErrorBackoff(Client client, {required bool background}) {
+    final original = _directSyncOriginalErrorBackoff.putIfAbsent(
+      client.clientName,
+      () => client.syncErrorTimeoutSec,
+    );
+    client.syncErrorTimeoutSec =
+        background && original < _backgroundSyncErrorBackoffSeconds
+        ? _backgroundSyncErrorBackoffSeconds
+        : original;
+  }
+
+  void _restoreDirectSyncErrorBackoff(Client client) {
+    final original = _directSyncOriginalErrorBackoff.remove(client.clientName);
+    if (original != null) {
+      client.syncErrorTimeoutSec = original;
     }
   }
 
@@ -382,12 +410,12 @@ class MatrixState extends State<Matrix> {
         _androidDirectNotificationsEnabled = true;
       }
 
+      final background =
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed;
       for (final client in widget.clients) {
         client.backgroundSync = true;
-        client.syncPresence =
-            WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed
-            ? null
-            : PresenceType.unavailable;
+        client.syncPresence = background ? PresenceType.unavailable : null;
+        _setDirectSyncErrorBackoff(client, background: background);
         _registerAndroidDirectNotification(client);
       }
 
@@ -409,6 +437,7 @@ class MatrixState extends State<Matrix> {
     }
     for (final client in widget.clients) {
       await onNotification.remove(client.clientName)?.cancel();
+      _restoreDirectSyncErrorBackoff(client);
     }
     await ForegroundServices.stopService(
       ForegroundServices.directSyncServiceName,
@@ -470,7 +499,12 @@ class MatrixState extends State<Matrix> {
             (client) => client.onLoginStateChanged.value == LoginState.loggedIn,
           );
           if (hasLoggedInClient) {
-            unawaited(enableAndroidDirectNotifications());
+            final push = backgroundPush;
+            if (push != null) {
+              unawaited(push.setupPush(context));
+            } else {
+              unawaited(enableAndroidDirectNotifications());
+            }
           }
         });
       }
@@ -491,6 +525,14 @@ class MatrixState extends State<Matrix> {
             (PlatformInfos.isAndroid && _androidDirectNotificationsEnabled);
         client.backgroundSync = backgroundSync;
         client.requestHistoryOnLimitedTimeline = !backgroundSync;
+        if (PlatformInfos.isAndroid && _androidDirectNotificationsEnabled) {
+          _setDirectSyncErrorBackoff(
+            client,
+            background: state != AppLifecycleState.resumed,
+          );
+        } else if (PlatformInfos.isAndroid) {
+          _restoreDirectSyncErrorBackoff(client);
+        }
         Logs().v('Set background sync to', backgroundSync);
       }
     }

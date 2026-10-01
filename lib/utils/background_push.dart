@@ -130,6 +130,7 @@ class BackgroundPush {
           onRegistrationFailed: (_, i) => _upUnregistered(i),
           onUnregistered: _upUnregistered,
           onMessage: _onUpMessage,
+          onTempUnavailable: _onUpTempUnavailable,
         );
       }
     } catch (e, s) {
@@ -265,14 +266,56 @@ class BackgroundPush {
 
   static bool _wentToRoomOnStartup = false;
 
+  bool get unifiedPushConfigured =>
+      PlatformInfos.isAndroid &&
+      AppSettings.unifiedPushRegistered.value &&
+      AppSettings.unifiedPushEndpoint.value.isNotEmpty;
+
+  Future<bool> _resumeUnifiedPushIfConfigured() async {
+    if (!unifiedPushConfigured) return false;
+
+    try {
+      final distributor = await UnifiedPush.getDistributor();
+      if (distributor == null) {
+        Logs().w(
+          '[Push] Stored UnifiedPush registration has no distributor; '
+          'falling back to direct Matrix sync',
+        );
+        await AppSettings.unifiedPushEndpoint.setItem(
+          AppSettings.unifiedPushEndpoint.defaultValue,
+        );
+        await AppSettings.unifiedPushRegistered.setItem(false);
+        return false;
+      }
+
+      // UnifiedPush requires re-registering with the saved distributor on every
+      // app startup. The Matrix pusher remains valid unless the endpoint
+      // callback supplies a replacement.
+      await UnifiedPush.register();
+      await matrix?.disableAndroidDirectNotifications();
+      Logs().i('[Push] Using UnifiedPush distributor $distributor');
+      return true;
+    } catch (e, s) {
+      Logs().w(
+        '[Push] Unable to resume UnifiedPush; falling back to direct Matrix sync',
+        e,
+        s,
+      );
+      return false;
+    }
+  }
+
   Future<void> setupPush(BuildContext context) async {
     if (PlatformInfos.isAndroid) {
       final hasLoggedInClient = clients.any(
         (client) => client.onLoginStateChanged.value == LoginState.loggedIn,
       );
       if (hasLoggedInClient && matrix != null) {
-        Logs().i('[Push] Starting direct Android Matrix notifications');
-        await matrix!.enableAndroidDirectNotifications();
+        final usingUnifiedPush = await _resumeUnifiedPushIfConfigured();
+        if (!usingUnifiedPush) {
+          Logs().i('[Push] Starting direct Android Matrix notifications');
+          await matrix!.enableAndroidDirectNotifications();
+        }
       }
     } else if (firebaseEnabled) {
       for (final client in clients) {
@@ -438,6 +481,8 @@ class BackgroundPush {
     }
     await AppSettings.unifiedPushEndpoint.setItem(newEndpoint);
     await AppSettings.unifiedPushRegistered.setItem(true);
+    await matrix?.disableAndroidDirectNotifications();
+    Logs().i('[Push] UnifiedPush active; direct Matrix sync stopped');
   }
 
   Future<void> _upUnregistered(String i) async {
@@ -447,9 +492,34 @@ class BackgroundPush {
       AppSettings.unifiedPushEndpoint.defaultValue,
     );
     await AppSettings.unifiedPushRegistered.setItem(false);
+
+    final matrixState = matrix;
+    final hasLoggedInClient = clients.any(
+      (client) => client.onLoginStateChanged.value == LoginState.loggedIn,
+    );
+    if (PlatformInfos.isAndroid && matrixState != null && hasLoggedInClient) {
+      Logs().i(
+        '[Push] UnifiedPush unavailable; starting direct Matrix sync fallback',
+      );
+      await matrixState.enableAndroidDirectNotifications();
+    }
+  }
+
+  Future<void> _onUpTempUnavailable(String i) async {
+    final matrixState = matrix;
+    final hasLoggedInClient = clients.any(
+      (client) => client.onLoginStateChanged.value == LoginState.loggedIn,
+    );
+    if (PlatformInfos.isAndroid && matrixState != null && hasLoggedInClient) {
+      Logs().w(
+        '[Push] UnifiedPush temporarily unavailable; using direct Matrix sync',
+      );
+      await matrixState.enableAndroidDirectNotifications();
+    }
   }
 
   Future<void> _onUpMessage(PushMessage pushMessage, String i) async {
+    await matrix?.disableAndroidDirectNotifications();
     final message = pushMessage.content;
     upAction = true;
     final data = Map<String, dynamic>.from(

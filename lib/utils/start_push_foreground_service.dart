@@ -69,7 +69,10 @@ abstract class ForegroundServices {
         foregroundTaskOptions: ForegroundTaskOptions(
           eventAction: ForegroundTaskEventAction.nothing(),
           autoRunOnMyPackageReplaced: directSync,
-          allowWakeLock: true,
+          // Direct Matrix sync should let Android suspend the CPU between
+          // long-poll responses. The short-lived background push path may
+          // still need a wake lock while it processes a notification.
+          allowWakeLock: !directSync,
           allowAutoRestart: true,
           stopWithTask: directSync ? false : null,
         ),
