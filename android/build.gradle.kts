@@ -14,6 +14,15 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    if (name != "app") {
+        afterEvaluate {
+            extensions.findByName("android")?.let { androidExtension ->
+                if (androidExtension is com.android.build.gradle.BaseExtension) {
+                    androidExtension.compileSdkVersion(36)
+                }
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

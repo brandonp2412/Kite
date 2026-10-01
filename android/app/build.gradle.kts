@@ -36,8 +36,7 @@ val kitePerfBuild = providers.gradleProperty("kitePerfBuild").orNull == "true"
 
 android {
     namespace = "app.kite"
-    // Workaround for https://github.com/juliansteenbakker/flutter_secure_storage/issues/1224
-    compileSdk = 37 //flutter.compileSdkVersion
+    compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -88,7 +87,7 @@ android {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
