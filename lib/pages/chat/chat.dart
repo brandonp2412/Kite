@@ -44,6 +44,7 @@ import 'package:kite/widgets/share_scaffold_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 import 'package:mime/mime.dart';
+import 'package:ogg_caf_converter/ogg_caf_converter.dart';
 import 'package:pasteboard/pasteboard.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:universal_html/universal_html.dart' as web;
@@ -918,11 +919,15 @@ class ChatController extends State<ChatPageWithRoom>
     final proceed = await showTrustUserInRoomDialog(context, room);
     if (!mounted || !proceed) return;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final audioFile = XFile(path);
 
     final bytesResult = await showFutureLoadingDialog(
       context: context,
-      future: audioFile.readAsBytes,
+      future: () {
+        if (PlatformInfos.isCupertinoStyle && fileName.endsWith('.ogg')) {
+          return OggCafConverter().convertCafToOggInMemory(input: path);
+        }
+        return XFile(path).readAsBytes();
+      },
     );
     final bytes = bytesResult.result;
     if (bytes == null) return;
