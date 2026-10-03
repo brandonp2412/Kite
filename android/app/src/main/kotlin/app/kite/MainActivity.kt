@@ -1,7 +1,9 @@
 package app.kite
 
+import io.flutter.embedding.android.FlutterFragment
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor.DartEntrypoint
 import io.flutter.plugin.common.MethodChannel
 
 import android.content.Context
@@ -38,12 +40,19 @@ class MainActivity : FlutterFragmentActivity() {
 
 
     override fun provideFlutterEngine(context: Context): FlutterEngine? {
-        return provideEngine(this)
+        return provideEngine(context.applicationContext)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         // do nothing, because the engine was been configured in provideEngine
     }
+
+    // Keep the shared engine alive when the activity is closed so push handling
+    // can reuse the same isolate instead of starting a second Flutter engine.
+    override fun createFlutterFragment(): FlutterFragment =
+        super.createFlutterFragment().apply {
+            arguments?.putBoolean("destroy_engine_with_fragment", false)
+        }
 
     companion object {
         private const val FCM_CHANNEL = "app.kite/fcm"
@@ -76,6 +85,20 @@ class MainActivity : FlutterFragmentActivity() {
 
             engine = eng
             configureFcmChannel(eng)
+            return eng
+        }
+
+        fun provideRunningEngine(context: Context): FlutterEngine {
+            var eng = engine
+            if (eng == null) {
+                eng = provideEngine(context.applicationContext)
+                eng.localizationPlugin.sendLocalesToFlutter(
+                    context.resources.configuration,
+                )
+                eng.dartExecutor.executeDartEntrypoint(
+                    DartEntrypoint.createDefault(),
+                )
+            }
             return eng
         }
 
