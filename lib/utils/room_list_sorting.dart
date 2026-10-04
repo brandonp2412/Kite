@@ -36,3 +36,35 @@ int compareRoomsForChatList(Room a, Room b) {
 
   return a.id.compareTo(b.id);
 }
+
+/// Sorts a snapshot of rooms while reading each room's mutable sort fields once.
+/// Syncs can rebuild the chat list often, and the comparator may otherwise
+/// query the same room properties thousands of times during an O(n log n) sort.
+void sortRoomsForChatList(List<Room> rooms) {
+  final keys =
+      <
+        String,
+        ({bool invite, bool favourite, bool lowPriority, int timestamp})
+      >{
+        for (final room in rooms)
+          room.id: (
+            invite: room.membership == Membership.invite,
+            favourite: room.isFavourite,
+            lowPriority: room.isLowPriority,
+            timestamp: room.lastEvent?.type == EventTypes.refreshingLastEvent
+                ? 0
+                : room.latestEventReceivedTime.millisecondsSinceEpoch,
+          ),
+      };
+  rooms.sort((a, b) {
+    final aKey = keys[a.id]!;
+    final bKey = keys[b.id]!;
+    if (aKey.invite != bKey.invite) return aKey.invite ? -1 : 1;
+    if (aKey.favourite != bKey.favourite) return aKey.favourite ? -1 : 1;
+    if (aKey.lowPriority != bKey.lowPriority) {
+      return aKey.lowPriority ? 1 : -1;
+    }
+    final byActivity = bKey.timestamp.compareTo(aKey.timestamp);
+    return byActivity != 0 ? byActivity : a.id.compareTo(b.id);
+  });
+}

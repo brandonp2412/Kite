@@ -60,6 +60,10 @@ class _ChatListItemState extends State<ChatListItem> {
 
   Future<void>? _heroUsers;
   Object? _heroUsersKey;
+  Object? _displayNameKey;
+  String? _displayName;
+  ScrollPosition? _scrollPosition;
+  bool _heroRefreshPending = false;
   Object? _lastEventBodyKey;
   Future<String>? _lastEventBody;
 
@@ -75,6 +79,24 @@ class _ChatListItemState extends State<ChatListItem> {
     _updateHeroUsers(roomChanged: oldWidget.room != room);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final position = Scrollable.maybeOf(context)?.position;
+    if (identical(position, _scrollPosition)) return;
+    _scrollPosition?.isScrollingNotifier.removeListener(_onScrollChanged);
+    _scrollPosition = position;
+    _scrollPosition?.isScrollingNotifier.addListener(_onScrollChanged);
+  }
+
+  void _onScrollChanged() {
+    if (_heroRefreshPending &&
+        !(_scrollPosition?.isScrollingNotifier.value ?? false)) {
+      _heroRefreshPending = false;
+      if (mounted) setState(() {});
+    }
+  }
+
   void _updateHeroUsers({bool roomChanged = false}) {
     final key = room.name.isEmpty
         ? (
@@ -86,7 +108,53 @@ class _ChatListItemState extends State<ChatListItem> {
     if (roomChanged || key != _heroUsersKey) {
       _heroUsers = key != null ? room.loadHeroUsers() : null;
       _heroUsersKey = key;
+      _heroUsers?.then((_) {
+        if (!mounted) return;
+        if (_scrollPosition?.isScrollingNotifier.value ?? false) {
+          _heroRefreshPending = true;
+        } else {
+          setState(() {});
+        }
+      });
     }
+  }
+
+  String _getDisplayName(BuildContext context) {
+    final locals = MatrixLocals(L10n.of(context));
+    final directChatId = room.directChatMatrixID;
+    final heroes =
+        room.summary.mHeroes ??
+        (directChatId == null ? const <String>[] : [directChatId]);
+    final heroStateKey = heroes
+        .map((hero) {
+          final member = room.getState(EventTypes.RoomMember, hero);
+          return '$hero\u0001${member?.content['displayname']}\u0001'
+              '${member?.content['membership']}';
+        })
+        .join('\u0000');
+    final ownMember = room.membership == Membership.invite
+        ? room.getState(EventTypes.RoomMember, room.client.userID!)
+        : null;
+    final inviter = ownMember == null
+        ? null
+        : room.getState(EventTypes.RoomMember, ownMember.senderId);
+    final key = (
+      room.name,
+      room.canonicalAlias,
+      room.membership,
+      directChatId,
+      room.summary.mJoinedMemberCount,
+      room.summary.mInvitedMemberCount,
+      heroStateKey,
+      ownMember?.senderId,
+      inviter?.content['displayname'],
+      locals.l10n.localeName,
+    );
+    if (key != _displayNameKey) {
+      _displayNameKey = key;
+      _displayName = room.getLocalizedDisplayname(locals);
+    }
+    return _displayName!;
   }
 
   Future<String> _loadLastEventBody({
@@ -117,10 +185,13 @@ class _ChatListItemState extends State<ChatListItem> {
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder(
-    future: _heroUsers,
-    builder: (context, _) => _buildItem(context),
-  );
+  Widget build(BuildContext context) => _buildItem(context);
+
+  @override
+  void dispose() {
+    _scrollPosition?.isScrollingNotifier.removeListener(_onScrollChanged);
+    super.dispose();
+  }
 
   Widget _buildItem(BuildContext context) {
     final theme = Theme.of(context);
@@ -136,9 +207,7 @@ class _ChatListItemState extends State<ChatListItem> {
     final backgroundColor = activeChat
         ? theme.colorScheme.secondaryContainer
         : null;
-    final displayname = room.getLocalizedDisplayname(
-      MatrixLocals(L10n.of(context)),
-    );
+    final displayname = _getDisplayName(context);
     final filter = this.filter;
     if (filter != null && !displayname.toLowerCase().contains(filter)) {
       return const SizedBox.shrink();
@@ -201,6 +270,9 @@ class _ChatListItemState extends State<ChatListItem> {
                               AppConfig.spaceBorderRadius * 0.75,
                             ),
                             mxContent: space.avatar,
+                            deferImageLoading:
+                                _scrollPosition?.isScrollingNotifier.value ??
+                                false,
                             size: Avatar.defaultSize * 0.75,
                             name: space.getLocalizedDisplayname(),
                             onTap: () => onLongPress?.call(context),
@@ -239,6 +311,9 @@ class _ChatListItemState extends State<ChatListItem> {
                                 )
                               : null,
                           mxContent: room.avatar,
+                          deferImageLoading:
+                              _scrollPosition?.isScrollingNotifier.value ??
+                              false,
                           size: space != null
                               ? Avatar.defaultSize * 0.75
                               : Avatar.defaultSize,

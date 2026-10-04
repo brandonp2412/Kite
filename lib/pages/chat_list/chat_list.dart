@@ -143,12 +143,15 @@ class ChatListController extends State<ChatList>
     }
   }
 
-  List<Room> get filteredRooms =>
-      Matrix.of(context).client.rooms
-          .where((room) => !room.isSpace)
-          .where(getRoomFilterByActiveFilter(activeFilter))
-          .toList()
-        ..sort(compareRoomsForChatList);
+  List<Room> get filteredRooms {
+    final roomFilter = getRoomFilterByActiveFilter(activeFilter);
+    final rooms = <Room>[];
+    for (final room in Matrix.of(context).client.rooms) {
+      if (!room.isSpace && roomFilter(room)) rooms.add(room);
+    }
+    sortRoomsForChatList(rooms);
+    return rooms;
+  }
 
   bool isSearchMode = false;
   Future<QueryPublicRoomsResponse>? publicRoomsResponse;
@@ -286,6 +289,14 @@ class ChatListController extends State<ChatList>
 
   final ScrollController scrollController = ScrollController();
   final ValueNotifier<bool> scrolledToTop = ValueNotifier(true);
+
+  bool get isListScrolling =>
+      scrollController.hasClients &&
+      scrollController.position.isScrollingNotifier.value;
+
+  void refreshChatListAfterScroll() {
+    if (mounted) setState(() {});
+  }
 
   final StreamController<Client> _clientStream = StreamController.broadcast();
 

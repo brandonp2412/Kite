@@ -23,6 +23,7 @@ class Avatar extends StatelessWidget {
   final ShapeBorder? shapeBorder;
   final Color? backgroundColor;
   final Color? textColor;
+  final bool deferImageLoading;
 
   const Avatar({
     this.mxContent,
@@ -37,6 +38,7 @@ class Avatar extends StatelessWidget {
     this.icon,
     this.backgroundColor,
     this.textColor,
+    this.deferImageLoading = false,
     super.key,
   });
 
@@ -81,6 +83,7 @@ class Avatar extends StatelessWidget {
               // avatar keeps both placeholders and images laid out and painted
               // while the list is already animating.
               animationDuration: Duration.zero,
+              deferLoading: deferImageLoading,
               client: client,
               borderRadius: borderRadius,
               key: ValueKey(mxContent.toString()),
