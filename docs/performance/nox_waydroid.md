@@ -56,6 +56,7 @@ The profile integration test currently records Flutter FrameTiming and GC summar
 
 - `chat_list_cold_scroll`
 - `chat_list_warm_scroll`
+- `chat_list_fling_to_rest` (includes deceleration and deferred image completion)
 - `chat_timeline_cold_scroll`
 - `chat_timeline_warm_scroll`
 - `settings_scroll_control`

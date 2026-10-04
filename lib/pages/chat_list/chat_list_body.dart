@@ -42,6 +42,10 @@ class ChatListViewBody extends StatelessWidget {
           .rateLimit(const Duration(seconds: 1)),
       builder: (context, _) {
         final rooms = controller.filteredRooms;
+        final roomIndices = <Key, int>{
+          for (var i = 0; i < rooms.length; i++)
+            Key('chat_list_item_${rooms[i].id}'): i,
+        };
 
         return CustomScrollView(
           key: const Key('chat_list_scroll'),
@@ -141,6 +145,7 @@ class ChatListViewBody extends StatelessWidget {
                 top: false,
                 sliver: SliverList.builder(
                   itemCount: rooms.length,
+                  findChildIndexCallback: (key) => roomIndices[key],
                   itemBuilder: (BuildContext context, int i) {
                     final room = rooms[i];
                     return ChatListItem(

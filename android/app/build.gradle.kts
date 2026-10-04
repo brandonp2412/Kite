@@ -79,6 +79,9 @@ android {
 
     buildTypes {
         configureEach {
+            if (name == "profile" && providers.gradleProperty("kiteProfileWithReleaseKey").orNull == "true") {
+                signingConfig = signingConfigs.getByName("release")
+            }
             if (kitePerfBuild && name != "release") {
                 applicationIdSuffix = ".perf"
             }

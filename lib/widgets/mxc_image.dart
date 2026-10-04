@@ -157,6 +157,13 @@ class _MxcImageState extends State<MxcImage> {
     final data = _imageData;
     final hasData = data != null && data.isNotEmpty;
     final ungzippedLottieData = data == null ? null : _ungzipLottie(data);
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    int? decodeSize(double? size) =>
+        widget.isThumbnail && size != null && size.isFinite && size > 0
+        ? max(1, (size * pixelRatio).ceil())
+        : null;
+    final decodeWidth = decodeSize(widget.width);
+    final decodeHeight = decodeSize(widget.height);
 
     Widget errorFallback(
       BuildContext context,
@@ -192,8 +199,19 @@ class _MxcImageState extends State<MxcImage> {
                   fit: widget.fit,
                   errorBuilder: errorFallback,
                 )
-              : Image.memory(
-                  data,
+              : Image(
+                  // Servers and local caches may return an original image for
+                  // a thumbnail request. Bound the decoded texture too, so
+                  // deferred images don't allocate full-size textures when a
+                  // fling slows down. Fit preserves the source aspect ratio.
+                  image: decodeWidth == null && decodeHeight == null
+                      ? MemoryImage(data)
+                      : ResizeImage(
+                          MemoryImage(data),
+                          width: decodeWidth,
+                          height: decodeHeight,
+                          policy: ResizeImagePolicy.fit,
+                        ),
                   width: widget.width,
                   height: widget.height,
                   fit: widget.fit,
@@ -203,12 +221,17 @@ class _MxcImageState extends State<MxcImage> {
                   errorBuilder: errorFallback,
                 ));
 
+    final clippedImage = ClipRRect(
+      borderRadius: widget.borderRadius,
+      child: imageChild,
+    );
+    // Avoid building an animation and a second placeholder for static images.
+    // This also avoids duplicate placeholder layout on rows without an avatar.
+    if (widget.animationDuration == Duration.zero) return clippedImage;
+
     return AnimatedCrossFade(
-      duration: FluffyThemes.animationDuration,
-      firstChild: ClipRRect(
-        borderRadius: widget.borderRadius,
-        child: imageChild,
-      ),
+      duration: widget.animationDuration,
+      firstChild: clippedImage,
       secondChild: _MxcImagePlaceholder(
         width: widget.width,
         height: widget.height,

@@ -77,6 +77,10 @@ class Avatar extends StatelessWidget {
                 ),
             clipBehavior: Clip.antiAlias,
             child: MxcImage(
+              // Rows enter the viewport throughout a fling. Cross-fading each
+              // avatar keeps both placeholders and images laid out and painted
+              // while the list is already animating.
+              animationDuration: Duration.zero,
               client: client,
               borderRadius: borderRadius,
               key: ValueKey(mxContent.toString()),

@@ -49,6 +49,24 @@ Future<void> _waitForVisibleRooms(
   }
 }
 
+Future<void> _flingToRest(WidgetTester tester, Finder list) async {
+  final scrollable = tester.state<ScrollableState>(
+    find.descendant(of: list, matching: find.byType(Scrollable)).first,
+  );
+  for (var cycle = 0; cycle < 4; cycle++) {
+    await tester.fling(list, Offset(0, cycle.isEven ? -600 : 600), 2500);
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (scrollable.position.isScrollingNotifier.value) {
+      if (DateTime.now().isAfter(deadline)) {
+        throw TestFailure('Chat list fling did not settle');
+      }
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    // Include image completion work after the ballistic animation ends.
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+}
+
 Future<void> _openHitTestableRoom(
   WidgetTester tester, {
   Duration timeout = const Duration(seconds: 30),
@@ -99,6 +117,10 @@ void main() {
     await binding.watchPerformance(
       () => _stressScroll(tester, find.byKey(const Key('chat_list_scroll'))),
       reportKey: 'chat_list_warm_scroll',
+    );
+    await binding.watchPerformance(
+      () => _flingToRest(tester, find.byKey(const Key('chat_list_scroll'))),
+      reportKey: 'chat_list_fling_to_rest',
     );
 
     await _openHitTestableRoom(tester);
