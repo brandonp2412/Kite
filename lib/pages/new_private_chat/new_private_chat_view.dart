@@ -273,7 +273,11 @@ class NewPrivateChatView extends StatelessWidget {
                                   presenceUserId: contact.userId,
                                 ),
                                 title: Text(displayname),
-                                subtitle: Text(contact.userId),
+                                subtitle: Text(
+                                  contact.userId.localpart == null
+                                      ? contact.userId
+                                      : '@${contact.userId.localpart}',
+                                ),
                                 onTap: () => controller.openUserModal(contact),
                               );
                             },
