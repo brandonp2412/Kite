@@ -59,6 +59,7 @@ abstract class FluffyThemes {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
+      popupMenuTheme: const PopupMenuThemeData(menuPadding: EdgeInsets.zero),
       dividerColor: dividerColor,
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: SegmentedButton.styleFrom(
