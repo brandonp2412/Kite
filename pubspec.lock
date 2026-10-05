@@ -771,10 +771,11 @@ packages:
   flutter_shortcuts_new:
     dependency: "direct main"
     description:
-      name: flutter_shortcuts_new
-      sha256: "16ee1c8a9bc9586b5117ebb774a8ff6b396f856743e97251eb483c4dc5769d7f"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "902a8b04f8e1b2106f7508fc6498099e5a86441a"
+      resolved-ref: "902a8b04f8e1b2106f7508fc6498099e5a86441a"
+      url: "https://github.com/brandonp2412/flutter_shortcuts.git"
+    source: git
     version: "2.0.0"
   flutter_test:
     dependency: "direct dev"
@@ -784,10 +785,11 @@ packages:
   flutter_vodozemac:
     dependency: "direct main"
     description:
-      name: flutter_vodozemac
-      sha256: "209e7661da113a5f889ae55d574c48f245145def64df9a9fcac04d147e6f9d4e"
-      url: "https://pub.dev"
-    source: hosted
+      path: flutter
+      ref: "11345ff1f0e62bfcd54f923b8a9aecaadd8fb586"
+      resolved-ref: "11345ff1f0e62bfcd54f923b8a9aecaadd8fb586"
+      url: "https://github.com/brandonp2412/dart-vodozemac.git"
+    source: git
     version: "0.8.1"
   flutter_web_auth_2:
     dependency: "direct main"
