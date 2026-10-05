@@ -36,19 +36,21 @@ extension AuthFlows on KiteTester {
   }) async {
     await waitFor('Sign in');
     await tapOn('Sign in', pumpAndSettle: false);
-    await waitFor(TextField);
+    final homeserverField = find.byWidgetPredicate(
+      (widget) => widget is TextField && !widget.readOnly,
+    );
+    await waitFor(homeserverField);
     await enterText(
-      TextField,
+      homeserverField,
       'http://$homeserver',
-      index: 0,
       pumpAndSettle: false,
     );
-    await waitFor(RadioListTile<PublicHomeserverData>);
-    await tapOn(
+    final homeserverOption = find.widgetWithText(
       RadioListTile<PublicHomeserverData>,
-      index: 0,
-      pumpAndSettle: false,
+      'http://$homeserver',
     );
+    await waitFor(homeserverOption);
+    await tapOn(homeserverOption);
     await waitFor('Continue');
     await tapOn('Continue', pumpAndSettle: false);
     await waitFor('Log in to http://$homeserver');
@@ -59,8 +61,8 @@ extension AuthFlows on KiteTester {
 
   Future<void> logout() async {
     await ensureLoggedIn();
-    await tapOn(Key('accounts_and_settings_buttons'));
-    await tapOn('Settings');
+    await tapOn(Key('account_settings_button'));
+    await waitFor(Key('SettingsListViewContent'));
     await scrollUntilVisible('Logout');
     await tapOn('Logout');
     await tapOn(Key('ok_cancel_alert_dialog_ok_button'));
