@@ -160,7 +160,7 @@ void main() {
       }
       // A replay is diagnostic: print the verdict without assuming the input
       // must be either smooth or jittery.
-      print(jsonEncode(results));
+      stdout.writeln(jsonEncode(results));
     });
   }
 }
