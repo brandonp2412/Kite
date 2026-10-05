@@ -110,6 +110,7 @@ class _ChatListItemState extends State<ChatListItem> {
       _heroUsersKey = key;
       _heroUsers?.then((_) {
         if (!mounted) return;
+        _displayNameKey = null;
         if (_scrollPosition?.isScrollingNotifier.value ?? false) {
           _heroRefreshPending = true;
         } else {
