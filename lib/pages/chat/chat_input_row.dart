@@ -166,8 +166,20 @@ class ChatInputRow extends StatelessWidget {
                     clipBehavior: Clip.hardEdge,
                     child: PopupMenuButton<AddPopupMenuActions>(
                       useRootNavigator: true,
-                      icon: const Icon(Icons.add_circle_outline),
-                      iconColor: theme.colorScheme.onPrimaryContainer,
+                      icon: const Icon(Icons.add_rounded, size: 22),
+                      style: IconButton.styleFrom(
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
+                        foregroundColor: theme.colorScheme.onSurfaceVariant,
+                        minimumSize: const Size.square(40),
+                        maximumSize: const Size.square(40),
+                      ),
+                      popUpAnimationStyle: const AnimationStyle(
+                        duration: Duration(milliseconds: 120),
+                        reverseDuration: Duration(milliseconds: 90),
+                        curve: Curves.easeOutCubic,
+                        reverseCurve: Curves.easeInCubic,
+                      ),
                       onSelected: controller.onAddPopupMenuButtonSelected,
                       itemBuilder: (BuildContext context) => [
                         if (PlatformInfos.isMobile)

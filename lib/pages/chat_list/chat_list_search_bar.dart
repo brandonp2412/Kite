@@ -92,20 +92,11 @@ class ChatListSearchBar extends StatelessWidget {
                             ),
                           ),
                         )
-                      : TextButton.icon(
+                      : IconButton(
                           onPressed: controller.setServer,
-                          style: TextButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            textStyle: const TextStyle(fontSize: 12),
-                          ),
-                          icon: const Icon(Icons.edit_outlined, size: 16),
-                          label: Text(
-                            controller.searchServer ??
-                                Matrix.of(context).client.homeserver!.host,
-                            maxLines: 2,
-                          ),
+                          tooltip: L10n.of(context).changeTheHomeserver,
+                          icon: const Icon(Icons.public_outlined, size: 20),
+                          color: theme.colorScheme.onPrimaryContainer,
                         )
                 : const SizedBox(width: 48, child: ClientChooserButton()),
           ),
