@@ -50,35 +50,56 @@ class ChatInputRow extends StatelessWidget {
       foregroundColor: theme.colorScheme.onTertiaryContainer,
     );
 
-    PopupMenuItem<AddPopupMenuActions> addMenuItem(
+    Widget attachmentSheetTile(
+      BuildContext sheetContext,
       AddPopupMenuActions action,
       IconData icon,
       String label,
     ) {
-      return PopupMenuItem<AddPopupMenuActions>(
-        value: action,
-        height: 52,
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+      return ListTile(
+        leading: Icon(icon),
+        title: Text(label),
+        onTap: () => Navigator.of(sheetContext).pop(action),
+      );
+    }
+
+    Future<void> showAttachmentSheet() async {
+      final action = await showModalBottomSheet<AddPopupMenuActions>(
+        context: context,
+        useRootNavigator: true,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                attachmentSheetTile(
+                  sheetContext,
+                  AddPopupMenuActions.photoCamera,
+                  Icons.camera_alt_outlined,
+                  L10n.of(context).takeAPhoto,
+                ),
+                attachmentSheetTile(
+                  sheetContext,
+                  AddPopupMenuActions.file,
+                  Icons.upload_file_outlined,
+                  'Upload file',
+                ),
+                attachmentSheetTile(
+                  sheetContext,
+                  AddPopupMenuActions.media,
+                  Icons.photo_library_outlined,
+                  L10n.of(context).openGallery,
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Flexible(child: Text(label)),
-          ],
+          ),
         ),
       );
+      if (action != null) {
+        controller.onAddPopupMenuButtonSelected(action);
+      }
     }
 
     return RecordingViewModel(
@@ -164,58 +185,10 @@ class ChatInputRow extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: const BoxDecoration(),
                     clipBehavior: Clip.hardEdge,
-                    child: PopupMenuButton<AddPopupMenuActions>(
-                      useRootNavigator: true,
-                      icon: const Icon(Icons.add_rounded, size: 22),
-                      style: IconButton.styleFrom(
-                        backgroundColor:
-                            theme.colorScheme.surfaceContainerHighest,
-                        foregroundColor: theme.colorScheme.onSurfaceVariant,
-                        minimumSize: const Size.square(40),
-                        maximumSize: const Size.square(40),
-                      ),
-                      popUpAnimationStyle: const AnimationStyle(
-                        duration: Duration(milliseconds: 120),
-                        reverseDuration: Duration(milliseconds: 90),
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeInCubic,
-                      ),
-                      onSelected: controller.onAddPopupMenuButtonSelected,
-                      itemBuilder: (BuildContext context) => [
-                        if (PlatformInfos.isMobile)
-                          addMenuItem(
-                            AddPopupMenuActions.location,
-                            Icons.gps_fixed_outlined,
-                            L10n.of(context).shareLocation,
-                          ),
-                        addMenuItem(
-                          AddPopupMenuActions.poll,
-                          Icons.poll_outlined,
-                          L10n.of(context).startPoll,
-                        ),
-                        if (PlatformInfos.isMobile) ...[
-                          addMenuItem(
-                            AddPopupMenuActions.videoCamera,
-                            Icons.videocam_outlined,
-                            L10n.of(context).recordAVideo,
-                          ),
-                          addMenuItem(
-                            AddPopupMenuActions.photoCamera,
-                            Icons.camera_alt_outlined,
-                            L10n.of(context).takeAPhoto,
-                          ),
-                        ],
-                        addMenuItem(
-                          AddPopupMenuActions.media,
-                          Icons.image_outlined,
-                          L10n.of(context).openGallery,
-                        ),
-                        addMenuItem(
-                          AddPopupMenuActions.file,
-                          Icons.attachment_outlined,
-                          L10n.of(context).sendFile,
-                        ),
-                      ],
+                    child: IconButton(
+                      onPressed: showAttachmentSheet,
+                      icon: const Icon(Icons.add_rounded, size: 28),
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                   if (Matrix.of(context).isMultiAccount &&
