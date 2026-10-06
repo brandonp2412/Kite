@@ -9,7 +9,7 @@ publish_to: none
 # On version bump please also increase:
 # 1. The build number (for F-Droid)
 # 2. The version in /snap/snapcraft.yaml
-version: 2.9.5+3579
+version: 2.9.5+3580
 
 environment:
   sdk: ">=3.11.1 <4.0.0"
@@ -153,3 +153,13 @@ flutter_launcher_icons:
 # 2. Always link an (upstream?) issue
 # 3. Explain how and when this can be removed (overrides must be temporarily)
 dependency_overrides:
+  # flutter_vodozemac bundles Rust bindings generated from this exact source
+  # revision, while matrix currently resolves hosted vodozemac 0.8.0 with
+  # different flutter_rust_bridge generated bindings. Keep Dart and native
+  # bindings on the same revision until upstream publishes matching packages.
+  # Upstream: https://github.com/famedly/dart-vodozemac
+  vodozemac:
+    git:
+      url: https://github.com/brandonp2412/dart-vodozemac.git
+      ref: 11345ff1f0e62bfcd54f923b8a9aecaadd8fb586
+      path: dart
