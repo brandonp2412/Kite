@@ -180,23 +180,19 @@ class MessageContent extends StatelessWidget {
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: HtmlMessage(
+              child: _CachedHtmlMessage(
                 html: html,
                 textColor: textColor,
+                linkColor: linkColor,
                 room: event.room,
                 fontSize: AppConfig.messageFontSize * (bigEmotes ? 5 : 1),
-                linkStyle: TextStyle(
-                  color: linkColor,
-                  fontSize: AppConfig.messageFontSize,
-                  decoration: TextDecoration.underline,
-                  decorationColor: linkColor,
-                ),
-                onOpen: (url) => UrlLauncher(context, url.url).launchUrl(),
                 eventId: event.eventId,
                 checkboxCheckedEvents: event.aggregatedEvents(
                   timeline,
                   EventCheckboxRoomExtension.relationshipType,
                 ),
+                messagePreviewMaxLines:
+                    AppSettings.messagePreviewMaxLines.value,
               ),
             );
         }
@@ -250,6 +246,118 @@ class MessageContent extends StatelessWidget {
         );
     }
   }
+}
+
+class _CachedHtmlMessage extends StatefulWidget {
+  const _CachedHtmlMessage({
+    required this.html,
+    required this.textColor,
+    required this.linkColor,
+    required this.room,
+    required this.fontSize,
+    required this.eventId,
+    required this.checkboxCheckedEvents,
+    required this.messagePreviewMaxLines,
+  });
+
+  final String html;
+  final Color textColor;
+  final Color linkColor;
+  final Room room;
+  final double fontSize;
+  final String eventId;
+  final Set<Event> checkboxCheckedEvents;
+  final int messagePreviewMaxLines;
+
+  @override
+  State<_CachedHtmlMessage> createState() => _CachedHtmlMessageState();
+}
+
+class _CachedHtmlMessageState extends State<_CachedHtmlMessage> {
+  late Widget _child;
+  late String _html;
+  late Color _textColor;
+  late Color _linkColor;
+  late Room _room;
+  late double _fontSize;
+  late String _eventId;
+  late int _messagePreviewMaxLines;
+  late List<(String, int?, String)> _checkboxSnapshot;
+
+  List<(String, int?, String)> _snapshotCheckboxes() {
+    final snapshot = widget.checkboxCheckedEvents
+        .map(
+          (event) => (event.eventId, event.checkedCheckboxId, event.senderId),
+        )
+        .toList();
+    snapshot.sort((a, b) {
+      final eventIdComparison = a.$1.compareTo(b.$1);
+      if (eventIdComparison != 0) return eventIdComparison;
+      final checkboxComparison = (a.$2 ?? -1).compareTo(b.$2 ?? -1);
+      if (checkboxComparison != 0) return checkboxComparison;
+      return a.$3.compareTo(b.$3);
+    });
+    return snapshot;
+  }
+
+  bool _sameCheckboxSnapshot(List<(String, int?, String)> next) {
+    if (_checkboxSnapshot.length != next.length) return false;
+    for (var index = 0; index < next.length; index++) {
+      if (_checkboxSnapshot[index] != next[index]) return false;
+    }
+    return true;
+  }
+
+  void _refreshChild() {
+    _html = widget.html;
+    _textColor = widget.textColor;
+    _linkColor = widget.linkColor;
+    _room = widget.room;
+    _fontSize = widget.fontSize;
+    _eventId = widget.eventId;
+    _messagePreviewMaxLines = widget.messagePreviewMaxLines;
+    _checkboxSnapshot = _snapshotCheckboxes();
+    _child = HtmlMessage(
+      html: widget.html,
+      textColor: widget.textColor,
+      room: widget.room,
+      fontSize: widget.fontSize,
+      linkStyle: TextStyle(
+        color: widget.linkColor,
+        fontSize: AppConfig.messageFontSize,
+        decoration: TextDecoration.underline,
+        decorationColor: widget.linkColor,
+      ),
+      onOpen: (url) => UrlLauncher(context, url.url).launchUrl(),
+      eventId: widget.eventId,
+      checkboxCheckedEvents: widget.checkboxCheckedEvents,
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshChild();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CachedHtmlMessage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final checkboxSnapshot = _snapshotCheckboxes();
+    if (_html != widget.html ||
+        _textColor != widget.textColor ||
+        _linkColor != widget.linkColor ||
+        !identical(_room, widget.room) ||
+        _fontSize != widget.fontSize ||
+        _eventId != widget.eventId ||
+        _messagePreviewMaxLines != widget.messagePreviewMaxLines ||
+        !_sameCheckboxSnapshot(checkboxSnapshot)) {
+      _refreshChild();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _child;
 }
 
 class RedactionWidget extends StatelessWidget {
