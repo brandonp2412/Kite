@@ -34,7 +34,6 @@ class MxcImage extends StatefulWidget {
   final String? cacheName;
   final Client? client;
   final BorderRadius borderRadius;
-  final bool deferLoading;
 
   static void clearCache(String cacheName) =>
       _MxcImageState._imageDataCaches.remove(cacheName);
@@ -55,7 +54,6 @@ class MxcImage extends StatefulWidget {
     this.cacheKey,
     this.client,
     this.borderRadius = BorderRadius.zero,
-    this.deferLoading = false,
     this.cacheName,
     super.key,
   });
@@ -151,22 +149,12 @@ class _MxcImageState extends State<MxcImage> {
   @override
   void initState() {
     super.initState();
-    if (!widget.deferLoading) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _tryLoad());
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant MxcImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.deferLoading && !widget.deferLoading) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _tryLoad());
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryLoad());
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.deferLoading ? null : _imageData;
+    final data = _imageData;
     final hasData = data != null && data.isNotEmpty;
     final ungzippedLottieData = data == null ? null : _ungzipLottie(data);
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);

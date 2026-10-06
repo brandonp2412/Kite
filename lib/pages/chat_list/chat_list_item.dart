@@ -271,9 +271,6 @@ class _ChatListItemState extends State<ChatListItem> {
                               AppConfig.spaceBorderRadius * 0.75,
                             ),
                             mxContent: space.avatar,
-                            deferImageLoading:
-                                _scrollPosition?.isScrollingNotifier.value ??
-                                false,
                             size: Avatar.defaultSize * 0.75,
                             name: space.getLocalizedDisplayname(),
                             onTap: () => onLongPress?.call(context),
@@ -312,9 +309,6 @@ class _ChatListItemState extends State<ChatListItem> {
                                 )
                               : null,
                           mxContent: room.avatar,
-                          deferImageLoading:
-                              _scrollPosition?.isScrollingNotifier.value ??
-                              false,
                           size: space != null
                               ? Avatar.defaultSize * 0.75
                               : Avatar.defaultSize,
