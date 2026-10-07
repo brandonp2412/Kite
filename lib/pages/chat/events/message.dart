@@ -1107,10 +1107,15 @@ class BubblePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(BubblePainter oldDelegate) {
-    final scrollable = Scrollable.of(context);
-    final oldScrollable = _scrollable;
-    _scrollable = scrollable;
-    return scrollable.position != oldScrollable?.position;
+    if (colors.length != oldDelegate.colors.length) return true;
+    for (var index = 0; index < colors.length; index++) {
+      if (colors[index] != oldDelegate.colors[index]) return true;
+    }
+
+    final scrollable = _scrollable ??= Scrollable.of(context);
+    final oldScrollable =
+        oldDelegate._scrollable ?? Scrollable.of(oldDelegate.context);
+    return scrollable.position != oldScrollable.position;
   }
 }
 
