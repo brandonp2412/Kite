@@ -211,8 +211,6 @@ class Message extends StatelessWidget {
               color: theme.colorScheme.surface,
             ),
           ];
-    final eventStateTextColor = theme.colorScheme.onSurface;
-
     return Center(
       child: Swipeable(
         key: ValueKey(event.transactionId ?? event.eventId),
@@ -544,79 +542,20 @@ class Message extends StatelessWidget {
                                       child: MessageReactions(event, timeline),
                                     ),
                             ),
-                            Row(
-                              mainAxisAlignment: ownMessage ? .end : .start,
-                              children: [
-                                const SizedBox(width: 8),
-                                if (event.status.isSent &&
-                                    (displayTime ||
-                                        !previousEventSameSender ||
-                                        selected))
-                                  Text(
-                                    ' ${selected ? event.originServerTs.localizedDetailedTime(context) : event.originServerTs.localizedTimeOfDay(context)}',
-                                    style: TextStyle(
-                                      color: eventStateTextColor,
-                                      fontSize: 11,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                if (isEdited) ...[
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  Text(
-                                    L10n.of(context).edited,
-                                    style: TextStyle(
-                                      color: eventStateTextColor,
-                                      fontSize: 11,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                ],
-                                if (event.status == EventStatus.error) ...[
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  Text(
-                                    L10n.of(context).couldNotBeSent,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: theme.colorScheme.error,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  Icon(
-                                    Icons.error_outlined,
-                                    size: 14,
-                                    color: theme.colorScheme.error,
-                                    shadows: wallpaperTextShadow,
-                                  ),
-                                ],
-                                if (event.status == EventStatus.sending) ...[
-                                  Text(
-                                    switch (event.fileSendingStatus) {
-                                      null => L10n.of(context).sending,
-                                      FileSendingStatus.generatingThumbnail =>
-                                        L10n.of(context).generatingThumbnail,
-                                      FileSendingStatus.encrypting => L10n.of(
-                                        context,
-                                      ).encrypting,
-                                      FileSendingStatus.uploading => L10n.of(
-                                        context,
-                                      ).uploading,
-                                    },
-                                    style: TextStyle(
-                                      color: eventStateTextColor,
-                                      fontSize: 11,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  SizedBox.square(
-                                    dimension: 11,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1,
-                                    ),
-                                  ),
-                                ],
-                              ],
+                            _MessageStatusMetadata(
+                              event: event,
+                              ownMessage: ownMessage,
+                              showTime:
+                                  displayTime ||
+                                  !previousEventSameSender ||
+                                  selected,
+                              detailedTime: selected,
+                              isEdited: isEdited,
+                              textColor: theme.colorScheme.onSurface,
+                              errorColor: theme.colorScheme.error,
+                              shadowColor: wallpaperMode
+                                  ? theme.colorScheme.surface
+                                  : null,
                             ),
                             Align(
                               alignment: ownMessage
@@ -849,6 +788,158 @@ class Message extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MessageStatusMetadata extends StatefulWidget {
+  final Event event;
+  final bool ownMessage;
+  final bool showTime;
+  final bool detailedTime;
+  final bool isEdited;
+  final Color textColor;
+  final Color errorColor;
+  final Color? shadowColor;
+
+  const _MessageStatusMetadata({
+    required this.event,
+    required this.ownMessage,
+    required this.showTime,
+    required this.detailedTime,
+    required this.isEdited,
+    required this.textColor,
+    required this.errorColor,
+    required this.shadowColor,
+  });
+
+  @override
+  State<_MessageStatusMetadata> createState() => _MessageStatusMetadataState();
+}
+
+class _MessageStatusMetadataState extends State<_MessageStatusMetadata> {
+  MainAxisAlignment? _alignment;
+  String? _timeLabel;
+  String? _editedLabel;
+  EventStatus? _status;
+  String? _statusLabel;
+  Color? _textColor;
+  Color? _errorColor;
+  Color? _shadowColor;
+  Widget? _child;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = widget.event.status;
+    final alignment = widget.ownMessage
+        ? MainAxisAlignment.end
+        : MainAxisAlignment.start;
+    final l10n = L10n.of(context);
+    final timeLabel = status.isSent && widget.showTime
+        ? ' ${widget.detailedTime ? widget.event.originServerTs.localizedDetailedTime(context) : widget.event.originServerTs.localizedTimeOfDay(context)}'
+        : null;
+    final editedLabel = widget.isEdited ? l10n.edited : null;
+    final statusLabel = switch (status) {
+      EventStatus.error => l10n.couldNotBeSent,
+      EventStatus.sending => switch (widget.event.fileSendingStatus) {
+        null => l10n.sending,
+        FileSendingStatus.generatingThumbnail => l10n.generatingThumbnail,
+        FileSendingStatus.encrypting => l10n.encrypting,
+        FileSendingStatus.uploading => l10n.uploading,
+      },
+      _ => null,
+    };
+    final child = _child;
+
+    if (child != null &&
+        alignment == _alignment &&
+        timeLabel == _timeLabel &&
+        editedLabel == _editedLabel &&
+        status == _status &&
+        statusLabel == _statusLabel &&
+        widget.textColor == _textColor &&
+        widget.errorColor == _errorColor &&
+        widget.shadowColor == _shadowColor) {
+      return child;
+    }
+
+    _alignment = alignment;
+    _timeLabel = timeLabel;
+    _editedLabel = editedLabel;
+    _status = status;
+    _statusLabel = statusLabel;
+    _textColor = widget.textColor;
+    _errorColor = widget.errorColor;
+    _shadowColor = widget.shadowColor;
+
+    final shadows = widget.shadowColor == null
+        ? null
+        : [
+            Shadow(
+              offset: const Offset(0.0, 0.0),
+              blurRadius: 2,
+              color: widget.shadowColor!,
+            ),
+          ];
+
+    return _child = Row(
+      mainAxisAlignment: alignment,
+      children: [
+        const SizedBox(width: 8),
+        if (timeLabel != null)
+          Text(
+            timeLabel,
+            style: TextStyle(
+              color: widget.textColor,
+              fontSize: 11,
+              shadows: shadows,
+            ),
+          ),
+        if (editedLabel != null) ...[
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          Text(
+            editedLabel,
+            style: TextStyle(
+              color: widget.textColor,
+              fontSize: 11,
+              shadows: shadows,
+            ),
+          ),
+        ],
+        if (status == EventStatus.error && statusLabel != null) ...[
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          Text(
+            statusLabel,
+            style: TextStyle(
+              fontSize: 11,
+              color: widget.errorColor,
+              shadows: shadows,
+            ),
+          ),
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          Icon(
+            Icons.error_outlined,
+            size: 14,
+            color: widget.errorColor,
+            shadows: shadows,
+          ),
+        ],
+        if (status == EventStatus.sending && statusLabel != null) ...[
+          Text(
+            statusLabel,
+            style: TextStyle(
+              color: widget.textColor,
+              fontSize: 11,
+              shadows: shadows,
+            ),
+          ),
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          const SizedBox.square(
+            dimension: 11,
+            child: CircularProgressIndicator(strokeWidth: 1),
+          ),
+        ],
+      ],
     );
   }
 }
