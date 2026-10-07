@@ -191,10 +191,6 @@ class Message extends StatelessWidget {
       RelationshipTypes.reaction,
     );
 
-    final threadChildren = event.aggregatedEvents(
-      timeline,
-      RelationshipTypes.thread,
-    );
     final isEdited = event.hasAggregatedEvents(
       timeline,
       RelationshipTypes.edit,
@@ -844,44 +840,111 @@ class Message extends StatelessWidget {
                 ],
               ),
               if (enterThread != null)
-                AnimatedSize(
-                  duration: FluffyThemes.animationDuration,
-                  curve: FluffyThemes.animationCurve,
-                  alignment: Alignment.bottomCenter,
-                  child: threadChildren.isEmpty
-                      ? const SizedBox.shrink()
-                      : Padding(
-                          padding: const EdgeInsets.only(
-                            top: 2.0,
-                            bottom: 8.0,
-                            left: avatarSize + 8,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: FluffyThemes.columnWidth * 1.5,
-                            ),
-                            child: TextButton.icon(
-                              style: TextButton.styleFrom(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                foregroundColor:
-                                    theme.colorScheme.onSecondaryContainer,
-                                backgroundColor:
-                                    theme.colorScheme.secondaryContainer,
-                              ),
-                              onPressed: () => enterThread(event.eventId),
-                              icon: const Icon(Icons.message),
-                              label: Text(
-                                '${L10n.of(context).countReplies(threadChildren.length)} | ${threadChildren.first.calcLocalizedBodyFallback(MatrixLocals(L10n.of(context)), withSenderNamePrefix: true)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
+                _MessageThreadPreview(
+                  event: event,
+                  timeline: timeline,
+                  enterThread: enterThread,
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageThreadPreview extends StatefulWidget {
+  final Event event;
+  final Timeline timeline;
+  final void Function(String eventId) enterThread;
+
+  const _MessageThreadPreview({
+    required this.event,
+    required this.timeline,
+    required this.enterThread,
+  });
+
+  @override
+  State<_MessageThreadPreview> createState() => _MessageThreadPreviewState();
+}
+
+class _MessageThreadPreviewState extends State<_MessageThreadPreview> {
+  bool? _empty;
+  String? _label;
+  Color? _foregroundColor;
+  Color? _backgroundColor;
+  Widget? _child;
+
+  @override
+  Widget build(BuildContext context) {
+    final threadChildren = widget.event.aggregatedEvents(
+      widget.timeline,
+      RelationshipTypes.thread,
+    );
+    final child = _child;
+
+    if (threadChildren.isEmpty) {
+      if (child != null && _empty == true) {
+        return child;
+      }
+      _empty = true;
+      _label = null;
+      _foregroundColor = null;
+      _backgroundColor = null;
+      return _child = AnimatedSize(
+        duration: FluffyThemes.animationDuration,
+        curve: FluffyThemes.animationCurve,
+        alignment: Alignment.bottomCenter,
+        child: const SizedBox.shrink(),
+      );
+    }
+
+    final l10n = L10n.of(context);
+    final label =
+        '${l10n.countReplies(threadChildren.length)} | '
+        '${threadChildren.first.calcLocalizedBodyFallback(MatrixLocals(l10n), withSenderNamePrefix: true)}';
+    final colorScheme = Theme.of(context).colorScheme;
+    final foregroundColor = colorScheme.onSecondaryContainer;
+    final backgroundColor = colorScheme.secondaryContainer;
+
+    if (child != null &&
+        _empty == false &&
+        label == _label &&
+        foregroundColor == _foregroundColor &&
+        backgroundColor == _backgroundColor) {
+      return child;
+    }
+
+    _empty = false;
+    _label = label;
+    _foregroundColor = foregroundColor;
+    _backgroundColor = backgroundColor;
+
+    return _child = AnimatedSize(
+      duration: FluffyThemes.animationDuration,
+      curve: FluffyThemes.animationCurve,
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          top: 2.0,
+          bottom: 8.0,
+          left: Avatar.defaultSize + 8,
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: FluffyThemes.columnWidth * 1.5,
+          ),
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+              foregroundColor: foregroundColor,
+              backgroundColor: backgroundColor,
+            ),
+            onPressed: () => widget.enterThread(widget.event.eventId),
+            icon: const Icon(Icons.message),
+            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ),
       ),
