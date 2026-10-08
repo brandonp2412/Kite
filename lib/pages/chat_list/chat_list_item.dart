@@ -318,15 +318,12 @@ class _ChatListItemState extends State<ChatListItem> {
                           onTap: () => onLongPress?.call(context),
                         ),
                       ),
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: () => onLongPress?.call(context),
-                          child: AnimatedScale(
-                            duration: FluffyThemes.animationDuration,
-                            curve: FluffyThemes.animationCurve,
-                            scale: listTileHovered ? 1.0 : 0.0,
+                      if (listTileHovered)
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () => onLongPress?.call(context),
                             child: Material(
                               color: backgroundColor,
                               borderRadius: BorderRadius.circular(16),
@@ -337,7 +334,6 @@ class _ChatListItemState extends State<ChatListItem> {
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),

@@ -191,10 +191,6 @@ class Message extends StatelessWidget {
       RelationshipTypes.reaction,
     );
 
-    final threadChildren = event.aggregatedEvents(
-      timeline,
-      RelationshipTypes.thread,
-    );
     final isEdited = event.hasAggregatedEvents(
       timeline,
       RelationshipTypes.edit,
@@ -215,8 +211,6 @@ class Message extends StatelessWidget {
               color: theme.colorScheme.surface,
             ),
           ];
-    final eventStateTextColor = theme.colorScheme.onSurface;
-
     return Center(
       child: Swipeable(
         key: ValueKey(event.transactionId ?? event.eventId),
@@ -563,79 +557,20 @@ class Message extends StatelessWidget {
                                       child: MessageReactions(event, timeline),
                                     ),
                             ),
-                            Row(
-                              mainAxisAlignment: ownMessage ? .end : .start,
-                              children: [
-                                const SizedBox(width: 8),
-                                if (event.status.isSent &&
-                                    (displayTime ||
-                                        !previousEventSameSender ||
-                                        selected))
-                                  Text(
-                                    ' ${selected ? event.originServerTs.localizedDetailedTime(context) : event.originServerTs.localizedTimeOfDay(context)}',
-                                    style: TextStyle(
-                                      color: eventStateTextColor,
-                                      fontSize: 11,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                if (isEdited) ...[
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  Text(
-                                    L10n.of(context).edited,
-                                    style: TextStyle(
-                                      color: eventStateTextColor,
-                                      fontSize: 11,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                ],
-                                if (event.status == EventStatus.error) ...[
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  Text(
-                                    L10n.of(context).couldNotBeSent,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: theme.colorScheme.error,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  Icon(
-                                    Icons.error_outlined,
-                                    size: 14,
-                                    color: theme.colorScheme.error,
-                                    shadows: wallpaperTextShadow,
-                                  ),
-                                ],
-                                if (event.status == EventStatus.sending) ...[
-                                  Text(
-                                    switch (event.fileSendingStatus) {
-                                      null => L10n.of(context).sending,
-                                      FileSendingStatus.generatingThumbnail =>
-                                        L10n.of(context).generatingThumbnail,
-                                      FileSendingStatus.encrypting => L10n.of(
-                                        context,
-                                      ).encrypting,
-                                      FileSendingStatus.uploading => L10n.of(
-                                        context,
-                                      ).uploading,
-                                    },
-                                    style: TextStyle(
-                                      color: eventStateTextColor,
-                                      fontSize: 11,
-                                      shadows: wallpaperTextShadow,
-                                    ),
-                                  ),
-                                  Text(' ', style: TextStyle(fontSize: 11)),
-                                  SizedBox.square(
-                                    dimension: 11,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1,
-                                    ),
-                                  ),
-                                ],
-                              ],
+                            _MessageStatusMetadata(
+                              event: event,
+                              ownMessage: ownMessage,
+                              showTime:
+                                  displayTime ||
+                                  !previousEventSameSender ||
+                                  selected,
+                              detailedTime: selected,
+                              isEdited: isEdited,
+                              textColor: theme.colorScheme.onSurface,
+                              errorColor: theme.colorScheme.error,
+                              shadowColor: wallpaperMode
+                                  ? theme.colorScheme.surface
+                                  : null,
                             ),
                             Align(
                               alignment: ownMessage
@@ -859,44 +794,263 @@ class Message extends StatelessWidget {
                 ],
               ),
               if (enterThread != null)
-                AnimatedSize(
-                  duration: FluffyThemes.animationDuration,
-                  curve: FluffyThemes.animationCurve,
-                  alignment: Alignment.bottomCenter,
-                  child: threadChildren.isEmpty
-                      ? const SizedBox.shrink()
-                      : Padding(
-                          padding: const EdgeInsets.only(
-                            top: 2.0,
-                            bottom: 8.0,
-                            left: avatarSize + 8,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: FluffyThemes.columnWidth * 1.5,
-                            ),
-                            child: TextButton.icon(
-                              style: TextButton.styleFrom(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                foregroundColor:
-                                    theme.colorScheme.onSecondaryContainer,
-                                backgroundColor:
-                                    theme.colorScheme.secondaryContainer,
-                              ),
-                              onPressed: () => enterThread(event.eventId),
-                              icon: const Icon(Icons.message),
-                              label: Text(
-                                '${L10n.of(context).countReplies(threadChildren.length)} | ${threadChildren.first.calcLocalizedBodyFallback(MatrixLocals(L10n.of(context)), withSenderNamePrefix: true)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
+                _MessageThreadPreview(
+                  event: event,
+                  timeline: timeline,
+                  enterThread: enterThread,
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageStatusMetadata extends StatefulWidget {
+  final Event event;
+  final bool ownMessage;
+  final bool showTime;
+  final bool detailedTime;
+  final bool isEdited;
+  final Color textColor;
+  final Color errorColor;
+  final Color? shadowColor;
+
+  const _MessageStatusMetadata({
+    required this.event,
+    required this.ownMessage,
+    required this.showTime,
+    required this.detailedTime,
+    required this.isEdited,
+    required this.textColor,
+    required this.errorColor,
+    required this.shadowColor,
+  });
+
+  @override
+  State<_MessageStatusMetadata> createState() => _MessageStatusMetadataState();
+}
+
+class _MessageStatusMetadataState extends State<_MessageStatusMetadata> {
+  MainAxisAlignment? _alignment;
+  String? _timeLabel;
+  String? _editedLabel;
+  EventStatus? _status;
+  String? _statusLabel;
+  Color? _textColor;
+  Color? _errorColor;
+  Color? _shadowColor;
+  Widget? _child;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = widget.event.status;
+    final alignment = widget.ownMessage
+        ? MainAxisAlignment.end
+        : MainAxisAlignment.start;
+    final l10n = L10n.of(context);
+    final timeLabel = status.isSent && widget.showTime
+        ? ' ${widget.detailedTime ? widget.event.originServerTs.localizedDetailedTime(context) : widget.event.originServerTs.localizedTimeOfDay(context)}'
+        : null;
+    final editedLabel = widget.isEdited ? l10n.edited : null;
+    final statusLabel = switch (status) {
+      EventStatus.error => l10n.couldNotBeSent,
+      EventStatus.sending => switch (widget.event.fileSendingStatus) {
+        null => l10n.sending,
+        FileSendingStatus.generatingThumbnail => l10n.generatingThumbnail,
+        FileSendingStatus.encrypting => l10n.encrypting,
+        FileSendingStatus.uploading => l10n.uploading,
+      },
+      _ => null,
+    };
+    final child = _child;
+
+    if (child != null &&
+        alignment == _alignment &&
+        timeLabel == _timeLabel &&
+        editedLabel == _editedLabel &&
+        status == _status &&
+        statusLabel == _statusLabel &&
+        widget.textColor == _textColor &&
+        widget.errorColor == _errorColor &&
+        widget.shadowColor == _shadowColor) {
+      return child;
+    }
+
+    _alignment = alignment;
+    _timeLabel = timeLabel;
+    _editedLabel = editedLabel;
+    _status = status;
+    _statusLabel = statusLabel;
+    _textColor = widget.textColor;
+    _errorColor = widget.errorColor;
+    _shadowColor = widget.shadowColor;
+
+    final shadows = widget.shadowColor == null
+        ? null
+        : [
+            Shadow(
+              offset: const Offset(0.0, 0.0),
+              blurRadius: 2,
+              color: widget.shadowColor!,
+            ),
+          ];
+
+    return _child = Row(
+      mainAxisAlignment: alignment,
+      children: [
+        const SizedBox(width: 8),
+        if (timeLabel != null)
+          Text(
+            timeLabel,
+            style: TextStyle(
+              color: widget.textColor,
+              fontSize: 11,
+              shadows: shadows,
+            ),
+          ),
+        if (editedLabel != null) ...[
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          Text(
+            editedLabel,
+            style: TextStyle(
+              color: widget.textColor,
+              fontSize: 11,
+              shadows: shadows,
+            ),
+          ),
+        ],
+        if (status == EventStatus.error && statusLabel != null) ...[
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          Text(
+            statusLabel,
+            style: TextStyle(
+              fontSize: 11,
+              color: widget.errorColor,
+              shadows: shadows,
+            ),
+          ),
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          Icon(
+            Icons.error_outlined,
+            size: 14,
+            color: widget.errorColor,
+            shadows: shadows,
+          ),
+        ],
+        if (status == EventStatus.sending && statusLabel != null) ...[
+          Text(
+            statusLabel,
+            style: TextStyle(
+              color: widget.textColor,
+              fontSize: 11,
+              shadows: shadows,
+            ),
+          ),
+          const Text(' ', style: TextStyle(fontSize: 11)),
+          const SizedBox.square(
+            dimension: 11,
+            child: CircularProgressIndicator(strokeWidth: 1),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MessageThreadPreview extends StatefulWidget {
+  final Event event;
+  final Timeline timeline;
+  final void Function(String eventId) enterThread;
+
+  const _MessageThreadPreview({
+    required this.event,
+    required this.timeline,
+    required this.enterThread,
+  });
+
+  @override
+  State<_MessageThreadPreview> createState() => _MessageThreadPreviewState();
+}
+
+class _MessageThreadPreviewState extends State<_MessageThreadPreview> {
+  bool? _empty;
+  String? _label;
+  Color? _foregroundColor;
+  Color? _backgroundColor;
+  Widget? _child;
+
+  @override
+  Widget build(BuildContext context) {
+    final threadChildren = widget.event.aggregatedEvents(
+      widget.timeline,
+      RelationshipTypes.thread,
+    );
+    final child = _child;
+
+    if (threadChildren.isEmpty) {
+      if (child != null && _empty == true) {
+        return child;
+      }
+      _empty = true;
+      _label = null;
+      _foregroundColor = null;
+      _backgroundColor = null;
+      return _child = AnimatedSize(
+        duration: FluffyThemes.animationDuration,
+        curve: FluffyThemes.animationCurve,
+        alignment: Alignment.bottomCenter,
+        child: const SizedBox.shrink(),
+      );
+    }
+
+    final l10n = L10n.of(context);
+    final label =
+        '${l10n.countReplies(threadChildren.length)} | '
+        '${threadChildren.first.calcLocalizedBodyFallback(MatrixLocals(l10n), withSenderNamePrefix: true)}';
+    final colorScheme = Theme.of(context).colorScheme;
+    final foregroundColor = colorScheme.onSecondaryContainer;
+    final backgroundColor = colorScheme.secondaryContainer;
+
+    if (child != null &&
+        _empty == false &&
+        label == _label &&
+        foregroundColor == _foregroundColor &&
+        backgroundColor == _backgroundColor) {
+      return child;
+    }
+
+    _empty = false;
+    _label = label;
+    _foregroundColor = foregroundColor;
+    _backgroundColor = backgroundColor;
+
+    return _child = AnimatedSize(
+      duration: FluffyThemes.animationDuration,
+      curve: FluffyThemes.animationCurve,
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          top: 2.0,
+          bottom: 8.0,
+          left: Avatar.defaultSize + 8,
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: FluffyThemes.columnWidth * 1.5,
+          ),
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+              foregroundColor: foregroundColor,
+              backgroundColor: backgroundColor,
+            ),
+            onPressed: () => widget.enterThread(widget.event.eventId),
+            icon: const Icon(Icons.message),
+            label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ),
       ),
@@ -968,10 +1122,15 @@ class BubblePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(BubblePainter oldDelegate) {
-    final scrollable = Scrollable.of(context);
-    final oldScrollable = _scrollable;
-    _scrollable = scrollable;
-    return scrollable.position != oldScrollable?.position;
+    if (colors.length != oldDelegate.colors.length) return true;
+    for (var index = 0; index < colors.length; index++) {
+      if (colors[index] != oldDelegate.colors[index]) return true;
+    }
+
+    final scrollable = _scrollable ??= Scrollable.of(context);
+    final oldScrollable =
+        oldDelegate._scrollable ?? Scrollable.of(oldDelegate.context);
+    return scrollable.position != oldScrollable.position;
   }
 }
 

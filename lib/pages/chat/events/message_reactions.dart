@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:collection/collection.dart' show IterableExtension;
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:kite/widgets/avatar.dart';
 import 'package:kite/widgets/future_loading_dialog.dart';
 import 'package:kite/widgets/matrix.dart';
@@ -11,20 +12,48 @@ import 'package:kite/widgets/mxc_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:matrix/matrix.dart';
 
-class MessageReactions extends StatelessWidget {
+class MessageReactions extends StatefulWidget {
   final Event event;
   final Timeline timeline;
 
   const MessageReactions(this.event, this.timeline, {super.key});
 
   @override
+  State<MessageReactions> createState() => _MessageReactionsState();
+}
+
+class _MessageReactionsState extends State<MessageReactions> {
+  Set<Event> _reactionEvents = const <Event>{};
+  Event? _event;
+  Timeline? _timeline;
+  Client? _client;
+  Widget? _child;
+
+  @override
   Widget build(BuildContext context) {
+    final event = widget.event;
+    final timeline = widget.timeline;
     final allReactionEvents = event.aggregatedEvents(
       timeline,
       RelationshipTypes.reaction,
     );
-    final reactionMap = <String, _ReactionEntry>{};
     final client = Matrix.of(context).client;
+
+    final child = _child;
+    if (child != null &&
+        identical(event, _event) &&
+        identical(timeline, _timeline) &&
+        identical(client, _client) &&
+        setEquals(allReactionEvents, _reactionEvents)) {
+      return child;
+    }
+
+    _event = event;
+    _timeline = timeline;
+    _client = client;
+    _reactionEvents = Set<Event>.of(allReactionEvents);
+
+    final reactionMap = <String, _ReactionEntry>{};
 
     for (final e in allReactionEvents) {
       final key = e.content
@@ -48,7 +77,7 @@ class MessageReactions extends StatelessWidget {
     final reactionList = reactionMap.values.toList();
     reactionList.sort((a, b) => b.count - a.count > 0 ? 1 : -1);
     final ownMessage = event.senderId == event.room.client.userID;
-    return Wrap(
+    return _child = Wrap(
       spacing: 4.0,
       runSpacing: 4.0,
       alignment: ownMessage ? WrapAlignment.end : WrapAlignment.start,
@@ -75,10 +104,31 @@ class MessageReactions extends StatelessWidget {
                 event.room.sendReaction(event.eventId, r.key);
               }
             },
-            onLongPress: () async => await _AdaptableReactorsDialog(
-              client: client,
-              reactionEntry: r,
-            ).show(context),
+            onLongPress: () async {
+              final currentReactionEvents = event.aggregatedEvents(
+                timeline,
+                RelationshipTypes.reaction,
+              );
+              final reactors = currentReactionEvents
+                  .where(
+                    (e) => e.content.tryGetMap('m.relates_to')?['key'] == r.key,
+                  )
+                  .map((e) => e.senderFromMemoryOrFallback)
+                  .toList();
+              await _AdaptableReactorsDialog(
+                client: Matrix.of(context).client,
+                reactionEntry: _ReactionEntry(
+                  key: r.key,
+                  count: reactors.length,
+                  reacted: currentReactionEvents.any(
+                    (e) =>
+                        e.senderId == e.room.client.userID &&
+                        e.content.tryGetMap('m.relates_to')?['key'] == r.key,
+                  ),
+                  reactors: reactors,
+                ),
+              ).show(context);
+            },
           ),
         ),
       ],
