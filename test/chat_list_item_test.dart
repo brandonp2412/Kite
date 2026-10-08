@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kite/l10n/l10n.dart';
@@ -75,5 +76,51 @@ void main() {
     await pumpRow();
     expect(room.heroLoads, 2);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dropdown affordance exists only while the row is hovered', (
+    tester,
+  ) async {
+    final client = (await tester.runAsync(prepareTestClient))!;
+    final room = _TestRoom(client: client);
+    var longPressCalls = 0;
+
+    await tester.pumpWidget(
+      Provider<MatrixState>.value(
+        value: _TestMatrixState(client),
+        child: MaterialApp(
+          localizationsDelegates: L10n.localizationsDelegates,
+          supportedLocales: L10n.supportedLocales,
+          home: Scaffold(
+            body: ChatListItem(
+              room,
+              onTap: () {},
+              onLongPress: (_) => longPressCalls++,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byIcon(Icons.arrow_drop_down_circle_outlined),
+      findsNothing,
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(900, 900));
+    await mouse.moveTo(tester.getCenter(find.byType(ChatListItem)));
+    await tester.pump();
+
+    final dropdown = find.byIcon(Icons.arrow_drop_down_circle_outlined);
+    expect(dropdown, findsOneWidget);
+    await tester.tap(dropdown);
+    expect(longPressCalls, 1);
+
+    await mouse.moveTo(const Offset(900, 900));
+    await tester.pump();
+    expect(dropdown, findsNothing);
+    await mouse.removePointer();
   });
 }
