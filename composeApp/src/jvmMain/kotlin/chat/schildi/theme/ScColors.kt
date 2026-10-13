@@ -2,6 +2,12 @@ package chat.schildi.theme
 
 import androidx.compose.ui.graphics.Color
 
+// Retain upstream semantic colors separately from Kite branding.
+internal object KiteBrandColors {
+    val primary = Color(0xff5625ba)
+    val primaryDark = Color(0xffad98ff)
+}
+
 internal object ScColors {
     val colorAccentGreen = Color(0xff8bc34a)
     val colorAccentGreenAlpha_21 = Color(0x218bc34a)
@@ -72,13 +78,13 @@ val ScPowerLevelColors = PowerLevelColors(
 object ScBrandingColors {
     val onboardingGradientLight = listOf(
         //Color(0xffE3F2FD), Color(0xff90CAF9)
-        Color(0xffffffff), Color(0xffe2f0d2)
+        Color(0xffffffff), Color(0xffefecff)
     )
     val onboardingGradientDark = listOf(
-        Color(0xff0a5c7c), Color(0xff001a2a)
+        Color(0xff5625ba), Color(0xff003197)
     )
     val onboardingIconBgColors = listOf(
-        Color(0xff0a5c7c), Color(0xff001a2a)
+        Color(0xff5625ba), Color(0xff003197)
         //Color(0xff0D47A1), Color(0xff06234f)
     )
     val onboardingLogoOutlineDark = ScColors.colorWhiteAlpha_b3

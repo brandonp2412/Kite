@@ -58,7 +58,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "chat.schildi.revenge"
+        applicationId = "app.kite.revenge"
         minSdk = 26
         targetSdk = 37
         versionCode = androidVersionCode

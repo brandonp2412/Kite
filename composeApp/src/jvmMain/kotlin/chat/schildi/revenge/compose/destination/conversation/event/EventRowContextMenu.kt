@@ -135,6 +135,21 @@ fun EventTimelineItem.contextMenu(
             Action.Event.ComposeEdit,
             keyboardShortcut = Key.E,
         ).takeIf { messageContent != null && isOwn && (permissions?.canSendMessages ?: true) },
+        // Kite's frequent reactions are available directly without opening the full picker.
+        // Native ToggleReactionKey is asynchronous and preserves Revenge's timeline rendering.
+        ContextMenuSubmenuEntry(
+            "Quick reactions".toStringHolder(),
+            rememberVectorPainter(Icons.Default.AddReaction),
+            rememberFocusId(),
+            listOf("❤️", "👍", "😂", "😮", "😢").map { reaction ->
+                ContextMenuActionEntry(
+                    "React $reaction".toStringHolder(),
+                    action = Action.Event.ToggleReactionKey,
+                    actionArgs = persistentListOf(reaction),
+                    dismissParentsOnAutoClose = true,
+                )
+            }.toPersistentList(),
+        ).takeIf { messageContent != null && permissions?.canSendReactions ?: false },
         ContextMenuActionEntry(
             Res.string.action_react.toStringHolder(),
             rememberVectorPainter(Icons.Default.AddReaction),

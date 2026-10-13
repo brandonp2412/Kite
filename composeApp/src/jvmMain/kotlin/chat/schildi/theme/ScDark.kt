@@ -16,7 +16,7 @@ val scd_bgFloating = ScColors.colorGray_42
 val scd_bgDarker = ScColors.colorGray_21
 val scd_bgBlack = ScColors.colorBlack
 val scd_divider = ScColors.colorWhiteAlpha_1f
-val scd_accent = ScColors.colorAccentGreen
+val scd_accent = KiteBrandColors.primaryDark
 const val scd_icon_alpha = 0.5f
 
 internal val scdMaterialColorScheme = darkColorScheme(
@@ -66,33 +66,33 @@ internal val scdExposures = ScThemeExposures(
     bubbleBgIncoming = scd_bgFloating,
     bubbleBgOutgoing = scd_bg,
     mentionBadgeColor = Color(0xffd51928),
-    notificationBadgeColor = ScColors.colorAccentGreen,
+    notificationBadgeColor = KiteBrandColors.primaryDark,
     unreadBadgeColor = scd_bgFloating,
     unreadBadgeOnToolbarColor = ScColors.colorGray_61,
     appBarBg = scd_bg,
-    bubbleRadius = 10.dp,
-    commonLayoutRadius = 10.dp,
+    bubbleRadius = 18.dp,
+    commonLayoutRadius = 18.dp,
     timestampRadius = 6.dp,
     timestampOverlayBg = ScColors.colorBlackAlpha_80,
     timestampOverlayFgOnBg = scd_fgSecondary,
-    unreadIndicatorLine = ScColors.colorAccentGreen,
+    unreadIndicatorLine = KiteBrandColors.primaryDark,
     unreadIndicatorThickness = 2.dp,
     mentionFg = ScColors.colorWhite,
-    mentionBg = ScColors.colorAccentGreenAlpha_80,
+    mentionBg = KiteBrandColors.primaryDark.copy(alpha = 0.50f),
     mentionFgHighlight = ScColors.colorWhite,
     mentionBgHighlight = ScColors.colorAccentRed,
-    greenFg = ScColors.colorAccentGreen,
-    greenBg = ScColors.colorAccentGreenAlpha_30,
-    messageHighlightBg = ScColors.colorAccentGreenAlpha_80,
+    greenFg = KiteBrandColors.primaryDark,
+    greenBg = KiteBrandColors.primaryDark.copy(alpha = 0.19f),
+    messageHighlightBg = KiteBrandColors.primaryDark.copy(alpha = 0.50f),
     composerBlockBg = scd_bgFloating,
     composerBlockFg = scd_fgPrimary,
     spaceBarBg = scd_bg,
     searchHint = ScColors.colorAccentBlueLight,
     commandHint = ScColors.colorAccentOrange,
-    reactHint = ScColors.colorAccentGreen,
+    reactHint = KiteBrandColors.primaryDark,
     customEventHint = ScColors.colorAccentLime,
     draftTheme = DraftTheme(
-        mentionSpanColor = ScColors.colorAccentGreen,
+        mentionSpanColor = KiteBrandColors.primaryDark,
         customEmoteSpanColor = ScColors.colorAccentLime,
     ),
 )
