@@ -2,8 +2,12 @@ package chat.schildi.revenge.compose.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -13,6 +17,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuItemColors
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -34,9 +40,14 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.ActionContext
@@ -81,7 +92,21 @@ data class ContextMenuActionEntry(
     override val enabled: Boolean = true,
     override val autoCloseMenu: Boolean = decoration == null,
     override val dismissParentsOnAutoClose: Boolean = false,
+    val compactLabel: String? = null,
 ) : ContextMenuEntry
+
+data class ContextMenuActionRowEntry(
+    override val title: ComposableStringHolder,
+    val actions: ImmutableList<ContextMenuActionEntry>,
+    override val icon: Painter? = null,
+    override val decoration: ContextMenuDecoration? = null,
+    override val keyboardShortcut: Key? = null,
+    override val critical: Boolean = false,
+    override val enabled: Boolean = true,
+) : ContextMenuEntry {
+    override val autoCloseMenu = false
+    override val dismissParentsOnAutoClose = false
+}
 
 data class ContextMenuCallbackEntry(
     override val title: ComposableStringHolder,
@@ -235,25 +260,100 @@ private fun ContextMenuDropdownMenuItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (entry is ContextMenuSubmenuEntry) {
-        WithContextMenu(
-            focusId = focusId,
-            menuId = entry.submenuId,
-            parentMenuId = menuId,
-            entries = entry.submenu,
-            modifier = modifier,
-        ) {
+    when (entry) {
+        is ContextMenuActionRowEntry -> {
+            val keyHandler = LocalKeyboardActionHandler.current
+            ContextMenuActionRowContent(
+                entry = entry,
+                onActionClick = { action ->
+                    keyHandler.handleContextMenuEntry(focusId, menuId, action)
+                },
+                modifier = modifier,
+            )
+        }
+        is ContextMenuSubmenuEntry -> {
+            WithContextMenu(
+                focusId = focusId,
+                menuId = entry.submenuId,
+                parentMenuId = menuId,
+                entries = entry.submenu,
+                modifier = modifier,
+            ) {
+                ContextMenuDropdownMenuItemContent(
+                    entry = entry,
+                    onClick = onClick,
+                )
+            }
+        }
+        else -> {
             ContextMenuDropdownMenuItemContent(
                 entry = entry,
                 onClick = onClick,
+                modifier = modifier,
             )
         }
+    }
+}
+
+@Composable
+private fun ContextMenuActionRowContent(
+    entry: ContextMenuActionRowEntry,
+    onActionClick: (ContextMenuActionEntry) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val labelColor = if (entry.enabled) {
+        MaterialTheme.colorScheme.onSurfaceVariant
     } else {
-        ContextMenuDropdownMenuItemContent(
-            entry = entry,
-            onClick = onClick,
-            modifier = modifier,
+        MaterialTheme.colorScheme.tertiary
+    }
+    Column(
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = entry.title.render(),
+            color = labelColor,
+            style = MaterialTheme.typography.labelMedium,
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            entry.actions.forEach { action ->
+                val actionTitle = action.title.render()
+                val selected = when (val decoration = action.decoration) {
+                    is ContextMenuDecoration.Toggle -> decoration.checked
+                    is ContextMenuDecoration.CheckMark -> true
+                    else -> false
+                }
+                Surface(
+                    onClick = { onActionClick(action) },
+                    enabled = entry.enabled && action.enabled,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .semantics {
+                            contentDescription = actionTitle
+                            this.selected = selected
+                        },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                    },
+                    contentColor = if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = action.compactLabel ?: actionTitle,
+                            modifier = Modifier.clearAndSetSemantics { },
+                            fontSize = 22.sp,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -45,6 +45,7 @@ import chat.schildi.revenge.GlobalActionsScope
 import chat.schildi.revenge.LocalDestinationState
 import chat.schildi.revenge.NavigationPreference
 import chat.schildi.revenge.compose.components.ContextMenuActionEntry
+import chat.schildi.revenge.compose.components.ContextMenuActionRowEntry
 import chat.schildi.revenge.compose.components.ContextMenuCallbackEntry
 import chat.schildi.revenge.compose.components.ContextMenuEntry
 import chat.schildi.revenge.compose.components.ContextMenuSubmenuEntry
@@ -1009,6 +1010,7 @@ class KeyboardActionHandler(
             is ContextMenuActionEntry -> {
                 handleAction(focusId, entry.action, entry.actionArgs)
             }
+            is ContextMenuActionRowEntry -> Unit
             is ContextMenuCallbackEntry -> {
                 handleContextCallbackAction(focusId, entry.action)
             }

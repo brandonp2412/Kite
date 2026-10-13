@@ -29,13 +29,23 @@ The user reports that SchildiChat Revenge has essentially zero perceptible UI la
 6. Installed that isolated debug APK on the Samsung S25 (SM-S931B) and verified both app.kite and app.kite.revenge.debug remained installed side by side. MainActivity launched successfully (am start -W, process alive) and the collected app error log contained no fatal exception. The phone was locked when UI hierarchy was sampled, so this run does **not** claim visual onboarding or double-tap functional verification. No account was imported, no Matrix login/state was changed, and the debug app was force-stopped after the smoke test.
 7. No 120 Hz/JankStats benchmark or logged-in large-room comparison yet. Haptic/reaction-burst polish, designed reaction glyphs, rich quick-reaction popup and full reaction picker remain pending.
 
+## Changes so far — third implementation session, 2026-10-14
+
+1. Re-read the original Kite message_more_menu_test.dart, reaction_glyph_test.dart, and message_reaction_gesture_test.dart before changing the native action surface.
+2. Replaced the extra **Quick reactions** submenu with a native compact action row directly in the first message context menu. The five current Kite reactions (❤️ 👍 😂 😮 😢) are now one tap away after long-press instead of requiring a second submenu.
+3. Added a reusable ContextMenuActionRowEntry rather than hard-coding reaction UI into the menu renderer. Each compact action still dispatches through KeyboardActionHandler.handleContextMenuEntry and Action.Event.ToggleReactionKey, so reaction add/remove behavior stays on Revenge's existing Matrix path.
+4. The row marks a reaction as selected when the current Matrix session is already among that reaction's senders. Tapping a selected reaction invokes the same toggle action, so it removes the reaction rather than creating a parallel state path.
+5. Compact buttons use 44dp native Surface targets, selected/unselected Material container colors, and explicit accessibility labels/selected semantics. No new preference/state collectors, animations, or per-frame gesture work were added.
+6. Validation on Glass with JDK25: git diff --check PASS; :composeApp:compileAndroidMain PASS after the initial implementation and again after the accessibility fix; full :androidApp:assembleDebug PASS. The isolated debug APK remains androidApp/build/outputs/apk/debug/androidApp-debug.apk. This run did not reinstall or alter the production app.kite package.
+7. Still pending for reaction-surface parity: Kite's custom rounded heart/thumb glyphs, painted face glyphs, burst polish, arbitrary emoji/sticker selection for the configured double-tap reaction, and logged-in on-device interaction/performance verification.
+
 ## Feature parity inventory (Flutter reference)
 
 Use `git show 4c517c66b` in old Kite, and inspect `lib/pages/chat/events/message.dart`, `message_reactions.dart`, `chat_event_list.dart`, `chat_input_row.dart`, `chat_view.dart`, `chat_list_view.dart`, `chat_list_search_bar.dart`, `chat_app_bar_title.dart`, and `lib/widgets/chat_settings_popup_menu.dart`. Tests: `test/message_reaction_gesture_test.dart`, `test/message_more_menu_test.dart`, `test/reaction_glyph_test.dart`. The port must preserve behavior, not copy Dart UI code:
 
 - [ ] **Fast double-tap to configured reaction**, without delaying the first single tap; tap/long-press and swipe-to-reply remain independent. Native passive implementation is compiled and installed; logged-in on-device gesture verification plus arbitrary reaction selection are still pending.
 - [x] Initial native quick reaction action menu (❤️ 👍 😂 😮 😢), not yet equivalent to the rich popup.
-- [ ] Native horizontal quick-reaction strip, visual glyphs (rounded Material heart / yellow thumbs up / custom painted laughing, surprised, sad faces; emoji fallback), optional burst, active/reverse reaction state and full emoji/sticker reaction picker. Preserve Matrix reaction equality and permissions.
+- [ ] Native horizontal quick-reaction strip is implemented in the long-press action surface with active/toggle-off state and Matrix permissions; visual glyphs (rounded Material heart / yellow thumbs up / custom painted laughing, surprised, sad faces; emoji fallback), optional burst and the full emoji/sticker picker remain pending.
 - [ ] Selection-mode behavior: single tap selects only when selection is active, otherwise instant ripple; long press opens action surface with More, Select, Copy, Edit, Reply, reactions, etc. `test/message_more_menu_test.dart` validates details.
 - [ ] Swipe-to-reply and responsive message interactions, composer/input toolbar & attachment picker parity.
 - [ ] Chat-list, search, room headers, message bubbles, spacing, settings, account switching, dark mode and edge-to-edge layout matching Kite without Revenge's default power-user complexity.

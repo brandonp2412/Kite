@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalInputModeManager
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.components.ContextMenuActionEntry
+import chat.schildi.revenge.compose.components.ContextMenuActionRowEntry
 import chat.schildi.revenge.compose.components.ContextMenuDecoration
 import chat.schildi.revenge.compose.components.ContextMenuEntry
 import chat.schildi.revenge.compose.components.LocalSessionId
@@ -135,18 +136,24 @@ fun EventTimelineItem.contextMenu(
             Action.Event.ComposeEdit,
             keyboardShortcut = Key.E,
         ).takeIf { messageContent != null && isOwn && (permissions?.canSendMessages ?: true) },
-        // Kite's frequent reactions are available directly without opening the full picker.
-        // Native ToggleReactionKey is asynchronous and preserves Revenge's timeline rendering.
-        ContextMenuSubmenuEntry(
-            "Quick reactions".toStringHolder(),
-            rememberVectorPainter(Icons.Default.AddReaction),
-            rememberFocusId(),
-            listOf("❤️", "👍", "😂", "😮", "😢").map { reaction ->
+        // Kite keeps the frequent reactions directly on the first action surface.
+        // The selected state mirrors whether the current session already sent that reaction;
+        // activating it again follows ToggleReactionKey and therefore removes it.
+        ContextMenuActionRowEntry(
+            title = "Quick reactions".toStringHolder(),
+            actions = listOf("❤️", "👍", "😂", "😮", "😢").map { reaction ->
+                val selected = reactions.any { eventReaction ->
+                    eventReaction.key == reaction &&
+                            eventReaction.senders.any { it.senderId == LocalSessionId.current }
+                }
                 ContextMenuActionEntry(
-                    "React $reaction".toStringHolder(),
+                    title = "React $reaction".toStringHolder(),
                     action = Action.Event.ToggleReactionKey,
                     actionArgs = persistentListOf(reaction),
+                    decoration = ContextMenuDecoration.Toggle(selected),
+                    autoCloseMenu = true,
                     dismissParentsOnAutoClose = true,
+                    compactLabel = reaction,
                 )
             }.toPersistentList(),
         ).takeIf { messageContent != null && permissions?.canSendReactions ?: false },
