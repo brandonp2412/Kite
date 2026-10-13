@@ -20,6 +20,7 @@ import chat.schildi.theme.LocalMessageStyle
 fun MessageLayout(
     isOwn: Boolean,
     modifier: Modifier = Modifier,
+    messageContentModifier: Modifier = Modifier,
     senderAvatar: @Composable () -> Unit,
     senderName: @Composable () -> Unit,
     messageContent: @Composable () -> Unit,
@@ -29,6 +30,7 @@ fun MessageLayout(
             MessageLayoutNormal(
                 isOwn = isOwn,
                 modifier = modifier,
+                messageContentModifier = messageContentModifier,
                 senderAvatar = senderAvatar,
                 senderName = senderName,
                 messageContent = messageContent,
@@ -39,6 +41,7 @@ fun MessageLayout(
                 senderName = senderName,
                 messageContent = messageContent,
                 modifier = modifier,
+                messageContentModifier = messageContentModifier,
             )
         }
     }
@@ -48,6 +51,7 @@ fun MessageLayout(
 fun MessageLayoutNormal(
     isOwn: Boolean,
     modifier: Modifier = Modifier,
+    messageContentModifier: Modifier = Modifier,
     senderAvatar: @Composable () -> Unit,
     senderName: @Composable () -> Unit,
     messageContent: @Composable () -> Unit,
@@ -89,7 +93,7 @@ fun MessageLayoutNormal(
                             senderName()
                         }
                     }
-                    BoxWithDirection(mainLayoutDirection) {
+                    BoxWithDirection(mainLayoutDirection, messageContentModifier) {
                         messageContent()
                     }
                 }
@@ -103,6 +107,7 @@ fun MessageLayoutInReplyTo(
     senderName: @Composable () -> Unit,
     messageContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    messageContentModifier: Modifier = Modifier,
 ) {
     Column(modifier) {
         Box(
@@ -115,7 +120,7 @@ fun MessageLayoutInReplyTo(
         ) {
             senderName()
         }
-        Box {
+        Box(messageContentModifier) {
             messageContent()
         }
     }

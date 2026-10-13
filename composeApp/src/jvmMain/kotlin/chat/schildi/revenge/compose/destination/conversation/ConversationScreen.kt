@@ -423,6 +423,11 @@ fun ConversationScreen(
                         }
                     }
 
+                    // Read Kite interaction preferences once for the conversation, not once per
+                    // visible timeline row. This keeps preference-flow collection off the hot row path.
+                    val doubleTapToReact = ScPrefs.DOUBLE_TAP_TO_REACT.value()
+                    val doubleTapReaction = ScPrefs.DOUBLE_TAP_REACTION.value()
+
                     LazyColumn(
                         Modifier.fillMaxSize(),
                         reverseLayout = true,
@@ -475,6 +480,8 @@ fun ConversationScreen(
                                 roomMembersById = roomMembersById.value,
                                 highlight = highlight,
                                 timestampSettings = timestampSettings,
+                                doubleTapToReact = doubleTapToReact,
+                                doubleTapReaction = doubleTapReaction,
                                 showBackwardPagingIndicator = showBackwardPagingIndicator,
                                 showForwardPagingIndicator = showForwardPagingIndicator,
                                 debugSeparatorLines = currentDebugLines.toPersistentList(),

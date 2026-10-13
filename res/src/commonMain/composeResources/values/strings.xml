@@ -540,6 +540,9 @@
     <string name="pref_debug_notifications_summary">Post unresolved pushes as notifications</string>
     <string name="pref_open_at_unread_title">Open at unread</string>
     <string name="pref_open_at_unread_summary">Open conversations at the last fully read message. Can slow down room open</string>
+    <string name="pref_double_tap_to_react_title">Double-tap to react</string>
+    <string name="pref_double_tap_to_react_summary">Double-tap a message to toggle your chosen reaction without delaying normal taps.</string>
+    <string name="pref_double_tap_reaction_title">Double-tap reaction</string>
     <string name="pref_message_swipe_action_left_title">Left message swipe action</string>
     <string name="pref_message_swipe_action_right_title">Right message swipe action</string>
 

@@ -47,6 +47,8 @@ fun ConversationItemRow(
     previousEvent: MatrixTimelineItem.Event?,
     highlight: EventHighlight,
     timestampSettings: TimestampSettings,
+    doubleTapToReact: Boolean,
+    doubleTapReaction: String,
     showBackwardPagingIndicator: Boolean,
     showForwardPagingIndicator: Boolean,
     modifier: Modifier = Modifier,
@@ -118,6 +120,8 @@ fun ConversationItemRow(
                     roomMembersById = roomMembersById,
                     highlight = highlight,
                     timestampSettings = timestampSettings,
+                    doubleTapToReact = doubleTapToReact,
+                    doubleTapReaction = doubleTapReaction,
                     modifier = debugSeparatorLines.firstOrNull { it.position == DebugLinePosition.Start }?.let {
                         Modifier.drawTimelineItemDebugLineBehind(it)
                     } ?: Modifier,

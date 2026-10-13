@@ -57,6 +57,9 @@ import shire.res.generated.resources.pref_dark_theme_title
 import shire.res.generated.resources.pref_debug_avatar_render_states_title
 import shire.res.generated.resources.pref_disable_typing_notice_in_public_rooms_summary
 import shire.res.generated.resources.pref_disable_typing_notice_in_public_rooms_title
+import shire.res.generated.resources.pref_double_tap_reaction_title
+import shire.res.generated.resources.pref_double_tap_to_react_summary
+import shire.res.generated.resources.pref_double_tap_to_react_title
 import shire.res.generated.resources.pref_focus_follows_mouse_summary
 import shire.res.generated.resources.pref_focus_follows_mouse_title
 import shire.res.generated.resources.pref_font_scale
@@ -390,6 +393,27 @@ object ScPrefs {
     val FLOATING_DATE = ScBoolPref("FLOATING_DATE", true, Res.string.pref_floating_date_title, Res.string.pref_floating_date_summary)
     val OPEN_AT_UNREAD = ScBoolPref("OPEN_AT_UNREAD", false, Res.string.pref_open_at_unread_title, Res.string.pref_open_at_unread_summary)
 
+    private val kiteQuickReactionEntries = persistentListOf(
+        ScListPrefEntry("❤️", "❤️".toStringHolder()),
+        ScListPrefEntry("👍", "👍".toStringHolder()),
+        ScListPrefEntry("😂", "😂".toStringHolder()),
+        ScListPrefEntry("😮", "😮".toStringHolder()),
+        ScListPrefEntry("😢", "😢".toStringHolder()),
+    )
+    val DOUBLE_TAP_TO_REACT = ScBoolPref(
+        "KITE_DOUBLE_TAP_TO_REACT",
+        scPrefPlatformSupport.preferTouch,
+        Res.string.pref_double_tap_to_react_title,
+        Res.string.pref_double_tap_to_react_summary,
+    )
+    val DOUBLE_TAP_REACTION = ScStringListPref(
+        "KITE_DOUBLE_TAP_REACTION",
+        "❤️",
+        kiteQuickReactionEntries,
+        Res.string.pref_double_tap_reaction_title,
+        dependencies = DOUBLE_TAP_TO_REACT.asDependencies(),
+    )
+
     enum class MessageSwipeAction {
         NONE,
         REPLY,
@@ -564,6 +588,8 @@ object ScPrefs {
             THREAD_REPLIES_IN_MAIN_TIMELINE,
             FLOATING_DATE,
             ScPrefCategory("MESSAGE_ACTIONS", Res.string.pref_category_message_actions, null, listOf(
+                DOUBLE_TAP_TO_REACT,
+                DOUBLE_TAP_REACTION,
                 MESSAGE_SWIPE_ACTION_LEFT,
                 MESSAGE_SWIPE_ACTION_RIGHT,
             )),

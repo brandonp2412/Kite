@@ -61,6 +61,8 @@ fun EventRow(
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     highlight: EventHighlight,
     timestampSettings: TimestampSettings,
+    doubleTapToReact: Boolean,
+    doubleTapReaction: String,
     modifier: Modifier = Modifier
 ) {
     val backgroundHighlightColor = animateColorAsState(
@@ -75,6 +77,9 @@ fun EventRow(
         rememberMatrixFormatInteractionState(it)
     }
     val roomPermissions = viewModel.roomPermissions.collectAsState().value
+    val canDoubleTapReact = doubleTapToReact &&
+            event.content is MessageContent &&
+            (roomPermissions?.canSendReactions ?: false)
     WithContextMenu(
         focusId,
         event.contextMenu(
@@ -125,6 +130,11 @@ fun EventRow(
                     roomMembersById = roomMembersById,
                     timelineItemDebugInfoProvider = event.timelineItemDebugInfoProvider,
                     modifier = modifier,
+                    messageContentModifier = Modifier.passiveDoubleTapReaction(
+                        focusId = focusId,
+                        enabled = canDoubleTapReact,
+                        reaction = doubleTapReaction,
+                    ),
                 )
             }
             ReactionsRow(

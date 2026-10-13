@@ -90,6 +90,7 @@ fun EventContentLayout(
     threadInfo: EventThreadInfo?,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     modifier: Modifier = Modifier,
+    messageContentModifier: Modifier = Modifier,
     formatInteractionState: MatrixFormatInteractionState? = null,
     timelineItemDebugInfoProvider: TimelineItemDebugInfoProvider? = null,
 ) {
@@ -97,6 +98,7 @@ fun EventContentLayout(
     fun EventMessageLayout(messageContent: @Composable () -> Unit) {
         MessageLayout(
             modifier = modifier,
+            messageContentModifier = messageContentModifier,
             isOwn = isOwn,
             senderAvatar = {
                 if (!isSameAsPreviousSender) {
