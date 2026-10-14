@@ -963,3 +963,20 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - When the Samsung is naturally awake and Kite can be foregrounded without disrupting the user, visually compare this exact installed build against the installed Google Messages app for invite/preview, verification, dark theme, long names/MXIDs, insets and transient notices; fix concrete mismatches in the same run.
 - Continue the adjacent Google-Messages-style conversation interaction surfaces: composer attachment treatment, long-press/selection state, reactions/action sheets and remaining dialogs/transient states, preserving Kite's Matrix-specific controls.
 - Capture controlled 120 Hz frame evidence on Inbox/Conversation scrolling and navigation before making a measurable performance-parity claim.
+
+
+## 2026-10-15 — Inbox ordering and streamlined composer/message actions
+
+### Implemented
+- Removed the floating "Start chat" CTA from the native inbox while keeping Kite's preferred bottom search field fixed in place, and removed the unused top-navigation start-chat affordance. The start-chat destination itself is retained for other entry paths.
+- Removed "Show more" from the message long-press context menu; previously nested actions are now available directly in the menu rather than being dropped, retaining Matrix-specific capabilities and contextual permissions.
+- Applied equal 4 dp outer button padding to the composer leading attachment-plus and trailing gallery shortcuts for balanced icon-to-edge spacing while retaining 48 dp minimum click targets.
+- Removed the room-list comparator's unconditional "invites first" rule, which could promote years-old room invites over current conversations. Existing opt-in favourite, low-priority and unread grouping settings remain unchanged, then newest `latestEventTimestamp` wins.
+- Kept unrelated existing hide-chat work-in-progress edits in `InboxViewModel.kt`, `AppStateStore.kt` and strings untouched and excluded from this commit.
+
+### Validation
+- `:composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --quiet --no-daemon --max-workers=1` passed on Glass (return code 0).
+- `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --quiet --no-daemon --max-workers=1` passed on Glass (return code 0).
+- APK: `/home/brandon/kite-revenge/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk`; SHA-256 `4b25500f9e5214aaae16e44f07f9c89b601c80c3aa9bc81abaa51a78157eaf3c`, package `app.kite.revenge.debug`, signed with pre-existing debug signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
+- `adb install -r` on Samsung SM-S931B succeeded; `lastUpdateTime` 2026-10-15 07:15:24. First install remains 2026-10-14 11:55:12 and data directory remains `/data/user/0/app.kite.revenge.debug`. Production `app.kite` was not modified.
+- No message send, no production account changes, no forced UI launch, and no visual/120 Hz benchmark claims. Runtime screen-level visual parity and actual multi-year-invite list ordering require an observational device check when convenient.

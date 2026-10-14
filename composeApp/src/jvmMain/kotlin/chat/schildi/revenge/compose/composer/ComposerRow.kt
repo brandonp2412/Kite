@@ -245,6 +245,7 @@ fun ComposerRow(
                         WithTooltip(stringResource(Res.string.action_add_attachment)) {
                             ScIconButton(
                                 onClick = { showAttachmentPicker = true },
+                                modifier = Modifier.padding(start = 4.dp),
                                 enabled = !isSendInProgress,
                                 minWidth = Dimens.Conversation.Composer.buttonWidth,
                                 minHeight = Dimens.Conversation.Composer.buttonHeight,
@@ -405,6 +406,7 @@ fun ComposerRow(
                     WithTooltip(stringResource(Res.string.action_add_attachment)) {
                         ScIconButton(
                             onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
+                            modifier = Modifier.padding(end = 4.dp),
                             enabled = true,
                             minWidth = Dimens.Conversation.Composer.buttonWidth,
                             minHeight = Dimens.Conversation.Composer.buttonHeight,

@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.EmojiPeople
 import androidx.compose.material.icons.filled.Gesture
 import androidx.compose.material.icons.filled.HowToVote
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.Person
@@ -83,7 +82,6 @@ import shire.res.generated.resources.action_pin
 import shire.res.generated.resources.action_react
 import shire.res.generated.resources.action_redact
 import shire.res.generated.resources.action_reply
-import shire.res.generated.resources.action_show_more
 import shire.res.generated.resources.action_thread
 import shire.res.generated.resources.action_unpin
 import shire.res.generated.resources.action_view_event_source
@@ -353,13 +351,7 @@ fun EventTimelineItem.contextMenu(
             Action.Event.DownloadFile,
             keyboardShortcut = Key.L,
         ).takeIf { messageContent?.type is MessageTypeWithAttachment },
-        ContextMenuSubmenuEntry(
-            Res.string.action_show_more.toStringHolder(),
-            rememberVectorPainter(Icons.Default.MoreHoriz),
-            rememberFocusId(),
-            overflowEntries,
-        ),
-    ).toPersistentList()
+    ).plus(overflowEntries).toPersistentList()
 }
 
 @Composable

@@ -1,6 +1,5 @@
 package io.element.android.libraries.matrix.api.roomlist
 
-import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import kotlin.math.sign
 
 data class ScSdkInboxSettings(
@@ -18,8 +17,8 @@ data class ScSdkRoomSortOrder(
     fun <T>toComparator(map: (T) -> RoomSummary) = Comparator<T> { ua, ub ->
         val a = map(ua)
         val b = map(ub)
-        // Invites on top
-        selectFor(a, b) { it.info.currentUserMembership == CurrentUserMembership.INVITED }?.let { return@Comparator it }
+        // Do not elevate old invitations above active chats. Without explicit sorting
+        // preferences, the inbox should follow the latest Matrix event timestamp.
         if (pinFavourites) {
             selectFor(a, b) { it.info.isFavorite }?.let { return@Comparator it }
         }
