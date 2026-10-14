@@ -114,10 +114,16 @@ fun ConversationItemRow(
                 }
 
                 val directPreviousEvent = (previous?.item as? MatrixTimelineItem.Event)?.event
+                val directNextEvent = (next?.item as? MatrixTimelineItem.Event)?.event
                 val previousSender = directPreviousEvent?.sender?.takeIf { !showUnreadLine }
                 val isSameAsPreviousSender = previousSender == item.item.event.sender &&
                         directPreviousEvent.content is MessageContent &&
+                        item.item.event.content is MessageContent &&
                         directPreviousEvent.content.perMessageProfile() == item.item.event.content.perMessageProfile()
+                val isSameAsNextSender = directNextEvent?.sender == item.item.event.sender &&
+                        directNextEvent.content is MessageContent &&
+                        item.item.event.content is MessageContent &&
+                        directNextEvent.content.perMessageProfile() == item.item.event.content.perMessageProfile()
                 val padding = when (previousSender) {
                     null -> 0.dp
                     item.item.event.sender -> Dimens.Conversation.messageSameSenderPadding
@@ -131,6 +137,7 @@ fun ConversationItemRow(
                     roomPermissions = roomPermissions,
                     currentThreadId = currentThreadId,
                     isSameAsPreviousSender = isSameAsPreviousSender,
+                    isSameAsNextSender = isSameAsNextSender,
                     showSenderDetails = showSenderDetails,
                     roomMembersById = roomMembersById,
                     highlight = highlight,

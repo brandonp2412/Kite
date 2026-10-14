@@ -79,6 +79,7 @@ fun ReplyContent(
                         roomMembersById = persistentMapOf(),
                         timestamp = null,
                         isSameAsPreviousSender = false,
+                        isSameAsNextSender = false,
                     )
                 }
             }

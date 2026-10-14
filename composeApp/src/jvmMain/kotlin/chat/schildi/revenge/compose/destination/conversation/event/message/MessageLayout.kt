@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -20,6 +21,8 @@ import chat.schildi.theme.LocalMessageStyle
 fun MessageLayout(
     isOwn: Boolean,
     showSenderDetails: Boolean,
+    joinsPreviousBubble: Boolean,
+    joinsNextBubble: Boolean,
     modifier: Modifier = Modifier,
     messageContentModifier: Modifier = Modifier,
     senderAvatar: @Composable () -> Unit,
@@ -31,6 +34,8 @@ fun MessageLayout(
             MessageLayoutNormal(
                 isOwn = isOwn,
                 showSenderDetails = showSenderDetails,
+                joinsPreviousBubble = joinsPreviousBubble,
+                joinsNextBubble = joinsNextBubble,
                 modifier = modifier,
                 messageContentModifier = messageContentModifier,
                 senderAvatar = senderAvatar,
@@ -53,6 +58,8 @@ fun MessageLayout(
 fun MessageLayoutNormal(
     isOwn: Boolean,
     showSenderDetails: Boolean,
+    joinsPreviousBubble: Boolean,
+    joinsNextBubble: Boolean,
     modifier: Modifier = Modifier,
     messageContentModifier: Modifier = Modifier,
     senderAvatar: @Composable () -> Unit,
@@ -68,8 +75,16 @@ fun MessageLayoutNormal(
     } else {
         mainLayoutDirection
     }
+    val bubbleShape = remember(isOwn, joinsPreviousBubble, joinsNextBubble) {
+        Dimens.Conversation.messageBubbleShape(
+            isOwn = isOwn,
+            joinsPrevious = joinsPreviousBubble,
+            joinsNext = joinsNextBubble,
+        )
+    }
     CompositionLocalProvider(
         LocalLayoutDirection provides thisLayoutDirection,
+        LocalMessageBubbleShape provides bubbleShape,
     ) {
         Row(
             modifier.fillMaxWidth()
@@ -87,7 +102,13 @@ fun MessageLayoutNormal(
             }
             Column(
                 Modifier
-                    .padding(end = messageStyle.otherSideMargin)
+                    .padding(
+                        end = if (isOwn || !showSenderDetails) {
+                            messageStyle.otherSideMarginOutgoing
+                        } else {
+                            messageStyle.otherSideMargin
+                        },
+                    )
                     .widthIn(max = messageStyle.maxWidth),
             ) {
                 Column(Modifier.fillMaxWidth()) {

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -21,9 +20,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -56,6 +57,10 @@ import shire.res.generated.resources.send_error_sending_from_unverified_device
 import shire.res.generated.resources.send_error_unknown
 import shire.res.generated.resources.send_error_verified_user_changed_identity
 import shire.res.generated.resources.send_error_verified_user_has_unsigned_device
+
+internal val LocalMessageBubbleShape = staticCompositionLocalOf<Shape> {
+    Dimens.Conversation.messageBubbleShape
+}
 
 data class TimestampOverlayContent(
     val timestamp: String,
@@ -106,6 +111,7 @@ fun MessageBubble(
             MaterialTheme.scExposures.bubbleBgOutgoing
         else
             MaterialTheme.scExposures.bubbleBgIncoming
+        val bubbleShape = LocalMessageBubbleShape.current
         Box(
             modifier
                 .then(
@@ -113,12 +119,12 @@ fun MessageBubble(
                         Modifier.border(
                             width = 1.dp,
                             color = color,
-                            shape = Dimens.Conversation.messageBubbleShape,
+                            shape = bubbleShape,
                         )
                     } else {
                         Modifier.background(
                             color = color,
-                            shape = Dimens.Conversation.messageBubbleShape,
+                            shape = bubbleShape,
                         )
                     }
                 )
@@ -159,10 +165,7 @@ private fun TimestampContent(
         modifier.thenIf(withBackground) {
             background(
                 overlayBgColor,
-                RoundedCornerShape(
-                    topStart = Dimens.Conversation.messageBubbleCornerRadius,
-                    bottomEnd = Dimens.Conversation.messageBubbleCornerRadius,
-                )
+                Dimens.Conversation.timestampOverlayShape,
             ).padding(Dimens.Conversation.timestampPaddingWithOverlayBg)
         },
         horizontalArrangement = Dimens.horizontalArrangementSmall,

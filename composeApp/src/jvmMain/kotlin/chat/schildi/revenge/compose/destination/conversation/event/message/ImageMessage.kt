@@ -98,17 +98,21 @@ fun ImageMessage(
                 Modifier.padding(Dimens.Conversation.messageBubbleInnerPadding),
             )
         }
-        val topRadius = if (inReplyTo == null) Dimens.Conversation.messageBubbleCornerRadius else 0.dp
-        val bottomRadius = if (messageMetadata?.preFormattedContent == null)
-            Dimens.Conversation.messageBubbleCornerRadius
-        else
-            0.dp
-        val shape = RoundedCornerShape(
-            topStart = topRadius,
-            topEnd = topRadius,
-            bottomStart = bottomRadius,
-            bottomEnd = bottomRadius,
-        )
+        val shape = if (inReplyTo == null && messageMetadata?.preFormattedContent == null) {
+            LocalMessageBubbleShape.current
+        } else {
+            val topRadius = if (inReplyTo == null) Dimens.Conversation.messageBubbleCornerRadius else 0.dp
+            val bottomRadius = if (messageMetadata?.preFormattedContent == null)
+                Dimens.Conversation.messageBubbleCornerRadius
+            else
+                0.dp
+            RoundedCornerShape(
+                topStart = topRadius,
+                topEnd = topRadius,
+                bottomStart = bottomRadius,
+                bottomEnd = bottomRadius,
+            )
+        }
         ImageMessageContent(
             model = MediaRequestData(source, MediaRequestData.Kind.Content),
             blurhash = blurhash,

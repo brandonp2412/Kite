@@ -64,6 +64,7 @@ fun EventRow(
     roomPermissions: ConversationPermissions?,
     currentThreadId: ThreadId?,
     isSameAsPreviousSender: Boolean,
+    isSameAsNextSender: Boolean,
     showSenderDetails: Boolean,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     highlight: EventHighlight,
@@ -172,6 +173,7 @@ fun EventRow(
                                 event.timestampOverlayContent(timestampSettings)
                             },
                             isSameAsPreviousSender = isSameAsPreviousSender,
+                            isSameAsNextSender = isSameAsNextSender,
                             inReplyTo = event.inReplyTo(),
                             threadInfo = threadInfo,
                             roomMembersById = roomMembersById,

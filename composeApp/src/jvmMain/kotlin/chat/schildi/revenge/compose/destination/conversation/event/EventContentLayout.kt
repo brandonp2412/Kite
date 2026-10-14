@@ -87,6 +87,7 @@ fun EventContentLayout(
     showSenderDetails: Boolean,
     timestamp: TimestampOverlayContent?,
     isSameAsPreviousSender: Boolean,
+    isSameAsNextSender: Boolean,
     inReplyTo: InReplyTo?,
     threadInfo: EventThreadInfo?,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
@@ -102,6 +103,8 @@ fun EventContentLayout(
             messageContentModifier = messageContentModifier,
             isOwn = isOwn,
             showSenderDetails = showSenderDetails,
+            joinsPreviousBubble = isSameAsPreviousSender,
+            joinsNextBubble = isSameAsNextSender,
             senderAvatar = {
                 if (!isSameAsPreviousSender) {
                     SenderAvatar(

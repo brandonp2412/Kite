@@ -76,7 +76,7 @@ fun BoxScope.FloatingDateHeader(
             renderedTimestamp,
             Modifier
                 .background(
-                    MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
+                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
                     Dimens.Conversation.FloatingDate.shape,
                 )
                 .padding(Dimens.Conversation.FloatingDate.contentPadding),

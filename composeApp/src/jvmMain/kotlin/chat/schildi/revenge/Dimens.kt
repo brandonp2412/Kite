@@ -64,7 +64,27 @@ object Dimens {
         val unreadLinePadding = 8.dp
         val dayHeaderPadding = 12.dp
         val messageBubbleCornerRadius = 20.dp
+        val messageBubbleGroupedCornerRadius = 6.dp
         val messageBubbleShape = RoundedCornerShape(messageBubbleCornerRadius)
+        fun messageBubbleShape(
+            isOwn: Boolean,
+            joinsPrevious: Boolean,
+            joinsNext: Boolean,
+        ) = if (isOwn) {
+            RoundedCornerShape(
+                topStart = messageBubbleCornerRadius,
+                topEnd = if (joinsPrevious) messageBubbleGroupedCornerRadius else messageBubbleCornerRadius,
+                bottomStart = messageBubbleCornerRadius,
+                bottomEnd = if (joinsNext) messageBubbleGroupedCornerRadius else messageBubbleCornerRadius,
+            )
+        } else {
+            RoundedCornerShape(
+                topStart = if (joinsPrevious) messageBubbleGroupedCornerRadius else messageBubbleCornerRadius,
+                topEnd = messageBubbleCornerRadius,
+                bottomStart = if (joinsNext) messageBubbleGroupedCornerRadius else messageBubbleCornerRadius,
+                bottomEnd = messageBubbleCornerRadius,
+            )
+        }
         val replyContentShape = RoundedCornerShape(12.dp)
         val replyItemPadding = 8.dp
         val messageBubbleInnerPadding = 8.dp
@@ -75,10 +95,11 @@ object Dimens {
         val messageSameSenderPadding = 3.dp
         val messageOtherSenderPadding = 10.dp
         val captionPadding = 8.dp
-        val timestampPaddingWithOverlayBg = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        val timestampHorizontalPaddingToText = 8.dp
-        val timestampVerticalMarginToText = 4.dp
-        val timestampDecorationIcon = 16.dp
+        val timestampPaddingWithOverlayBg = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+        val timestampHorizontalPaddingToText = 6.dp
+        val timestampVerticalMarginToText = 2.dp
+        val timestampDecorationIcon = 14.dp
+        val timestampOverlayShape = RoundedCornerShape(12.dp)
         val bottomListItemPadding = PaddingValues(
             start = windowPadding,
             end = windowPadding,
@@ -97,7 +118,7 @@ object Dimens {
             @Composable get() = MaterialTheme.typography.headlineLarge.copy(textDirection = TextDirection.Content)
                 .merge(fontFamily = rememberEmojiFontFamily())
         val messageTimestampStyle
-            @Composable get() = MaterialTheme.typography.bodySmall
+            @Composable get() = MaterialTheme.typography.labelSmall
 
         val imageMinWidth = 48.dp
         val imageMinHeight = 48.dp
@@ -128,8 +149,8 @@ object Dimens {
 
         object FloatingDate {
             val topMargin = 8.dp
-            val contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-            val shape = RoundedCornerShape(6.dp)
+            val contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+            val shape = RoundedCornerShape(16.dp)
         }
 
         object Composer {
