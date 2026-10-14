@@ -70,6 +70,9 @@ android {
             ndk.abiFilters += selectedAndroidAbis ?: listOf("arm64-v8a")
         }
         release {
+            // Keep optimized builds on the existing native Kite identity.
+            // app.kite.revenge is NOT a separate installable production package.
+            applicationIdSuffix = ".debug"
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -90,6 +93,10 @@ android {
             isDebuggable = false
         }
     }
+    check(
+        defaultConfig.applicationId == "app.kite.revenge" &&
+            listOf("debug", "release", "PerfDebug").all { buildTypes.getByName(it).applicationIdSuffix == ".debug" }
+    ) { "Kite Android build types must all use app.kite.revenge.debug; do not recreate app.kite.revenge." }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
