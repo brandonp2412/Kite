@@ -113,9 +113,14 @@ fun EventSwipeable(
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
-    val swipeActionLeft = swipeConfig.left.swipeActionSpec(focusId, isOwn)
-    val swipeActionRight = swipeConfig.right.swipeActionSpec(focusId, isOwn)
-    val hasSwipeAction = enabled && (swipeActionLeft != null || swipeActionRight != null)
+    val swipeActionLeft = if (enabled) swipeConfig.left.swipeActionSpec(focusId, isOwn) else null
+    val swipeActionRight = if (enabled) swipeConfig.right.swipeActionSpec(focusId, isOwn) else null
+    val hasSwipeAction = swipeActionLeft != null || swipeActionRight != null
+    if (!hasSwipeAction) {
+        content(modifier)
+        return
+    }
+
     val maxSwipe = LocalDensity.current.run { Dimens.Conversation.MessageSwipe.maxOffset.toPx() }
     val threshold = LocalDensity.current.run { Dimens.Conversation.MessageSwipe.threshold.toPx() }
     var offset by remember { mutableFloatStateOf(0f) }

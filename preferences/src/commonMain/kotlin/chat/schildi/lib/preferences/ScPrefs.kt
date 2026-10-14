@@ -432,13 +432,13 @@ object ScPrefs {
     )
     val MESSAGE_SWIPE_ACTION_LEFT = ScStringListPref(
         "MESSAGE_SWIPE_ACTION_LEFT",
-        MessageSwipeAction.NONE.name,
+        if (scPrefPlatformSupport.preferTouch) MessageSwipeAction.REPLY.name else MessageSwipeAction.NONE.name,
         messageSwipeActionEntries,
         Res.string.pref_message_swipe_action_left_title,
     )
     val MESSAGE_SWIPE_ACTION_RIGHT = ScStringListPref(
         "MESSAGE_SWIPE_ACTION_RIGHT",
-        if (scPrefPlatformSupport.preferTouch) MessageSwipeAction.REPLY.name else MessageSwipeAction.NONE.name,
+        MessageSwipeAction.NONE.name,
         messageSwipeActionEntries,
         Res.string.pref_message_swipe_action_right_title,
     )
