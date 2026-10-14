@@ -38,7 +38,6 @@ import chat.schildi.revenge.compose.components.TopNavigationTitle
 import chat.schildi.revenge.compose.components.WithContextMenu
 import chat.schildi.revenge.compose.focus.LocalFocusParent
 import chat.schildi.revenge.compose.search.LocalSearchProvider
-import chat.schildi.revenge.compose.search.SearchBar
 import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.config.keybindings.Action
@@ -77,6 +76,8 @@ fun ConversationTopNavigation(
     compact: Boolean,
     selectionCount: Int = 0,
     onClearSelection: (() -> Unit)? = null,
+    selectionActions: MessageSelectionActions? = null,
+    isSearchVisible: Boolean = false,
 ) {
     val roomInfo = viewModel.roomInfo.collectAsState(null).value
     val title = if ((viewModel as? ConversationViewModel)?.threadId?.collectAsState()?.value != null) {
@@ -97,21 +98,20 @@ fun ConversationTopNavigation(
         ?.let { hero -> Destination.UserDetails(viewModel.sessionId, hero.userId, viewModel.roomId) }
         ?: Destination.RoomDetails(viewModel.sessionId, viewModel.roomId)
     val searchProvider = LocalSearchProvider.current
-    val isSearchVisible = searchProvider?.let { provider ->
-        keyHandler.needsKeyboardSearchBar(provider).collectAsState().value
-    } ?: false
     TopNavigation(forceVisible = compact) {
         if (selectionCount > 0 && onClearSelection != null) {
-            TopNavigationTitle(stringResource(Res.string.selection_messages_count, selectionCount))
             TopNavigationIcon(
                 Icons.Default.Close,
                 stringResource(Res.string.action_close),
                 onClick = onClearSelection,
             )
+            TopNavigationTitle(stringResource(Res.string.selection_messages_count, selectionCount))
+            selectionActions?.let { MessageSelectionActions(it) }
             return@TopNavigation
         }
-        // Search owns the entire header: never squeeze its field beside room metadata.
-        // This also prevents the title/search crossfade from measuring two layouts at once.
+        // Current Messages treats in-chat search as its own mode instead of squeezing
+        // an editable field beside the avatar/title. The actual query control lives
+        // at the bottom of ConversationScreen.
         if (isSearchVisible && searchProvider != null) {
             TopNavigationIcon(
                 Icons.AutoMirrored.Filled.ArrowBack,
@@ -120,13 +120,7 @@ fun ConversationTopNavigation(
                 keyHandler.clearSearch()
                 focusManager.clearFocus()
             }
-            SearchBar(
-                searchProvider = searchProvider,
-                searchFocusContainer = null,
-                modifier = Modifier.weight(1f).padding(end = 12.dp),
-                showClearButton = true,
-                topNavigationStyle = true,
-            )
+            TopNavigationTitle(stringResource(Res.string.hint_search))
             return@TopNavigation
         }
         if (compact) {

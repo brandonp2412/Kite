@@ -1,12 +1,6 @@
 package chat.schildi.revenge.compose.destination.conversation
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Box
@@ -54,7 +48,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.lib.preferences.ScPrefs
-import chat.schildi.revenge.Anim
 import chat.schildi.revenge.model.conversation.ConversationViewModel
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
@@ -87,6 +80,7 @@ import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
 import chat.schildi.revenge.compose.focus.FocusContainer
 import chat.schildi.revenge.compose.focus.shouldAutoRequestFocus
 import chat.schildi.revenge.compose.search.LocalSearchProvider
+import chat.schildi.revenge.compose.search.SearchBar
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.DestinationEnum
 import chat.schildi.revenge.matrixBodyDrawStyle
@@ -152,6 +146,13 @@ fun ConversationScreen(
 
     publishTitle(viewModel)
 
+    // Collect the search-mode flag once for the whole conversation. Both the app bar and
+    // bottom search dock consume this plain value instead of creating separate flow collectors.
+    val conversationSearchVisible = keyHandler
+        .needsKeyboardSearchBar(viewModel)
+        .collectAsState()
+        .value
+
     DisposableEffect(Unit) {
         onDispose {
             viewModel.onUiDispose()
@@ -163,7 +164,7 @@ fun ConversationScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .let {
-            if (viewModel.modeSupportsComposer) {
+            if (viewModel.modeSupportsComposer || conversationSearchVisible) {
                 it.windowInsetsPadding(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                 ).imePadding()
@@ -430,6 +431,117 @@ fun ConversationScreen(
         ) {
             val roomMembersById = viewModel.roomMembersById.collectAsState()
             val roomPermissions = viewModel.roomPermissions.collectAsState().value
+
+            val selectionActionScope = rememberCoroutineScope()
+            val selectedSingle = selectedMessages.values.singleOrNull()
+            val selectedSingleEvent = (selectedSingle?.item as? MatrixTimelineItem.Event)?.event
+            val selectedEvents = remember(selectedMessages) {
+                selectedMessages.values.mapNotNull { selected ->
+                    (selected.item as? MatrixTimelineItem.Event)?.event
+                }
+            }
+            val canDeleteSelection = selectedEvents.isNotEmpty() && selectedEvents.all { event ->
+                if (event.isOwn) {
+                    roomPermissions?.canRedactOwn ?: true
+                } else {
+                    roomPermissions?.canRedactOther ?: false
+                }
+            }
+            val executeSelectedAction: (ScTimelineItem, Action.Event) -> ActionResult = { selected, action ->
+                val event = (selected.item as MatrixTimelineItem.Event).event
+                viewModel.getKeyboardActionProviderForEvent(
+                    event = event,
+                    messageMetadata = selected.messageMetadata,
+                    formatInteractionState = null,
+                ).handleAction(actionContext, action, emptyList())
+            }
+            val clearSelection = clearMessageSelection
+            val canForwardSelection = selectedEvents.isNotEmpty() && selectedEvents.all { it.eventId != null }
+            val canEditSingle = selectedSingleEvent?.isEditable == true &&
+                    (roomPermissions?.canSendMessages ?: true)
+            val canOpenThread = selectedSingleEvent?.eventId != null &&
+                    destination.timelineParams !is CreateTimelineParams.Threaded &&
+                    (roomPermissions?.canSendMessages ?: false)
+            val isPinned = selectedSingleEvent?.eventId?.let { it in (roomInfo?.pinnedEventIds ?: emptyList()) } == true
+            val canDownload = ((selectedSingleEvent?.content as? MessageContent)?.type is MessageTypeWithAttachment)
+            val selectionActions = if (selectionActive) {
+                MessageSelectionActions(
+                    selectedCount = selectedMessages.size,
+                    canReply = selectedSingleEvent?.eventId != null &&
+                            (roomPermissions?.canSendMessages ?: false),
+                    canRetry = selectedSingleEvent?.localSendState is LocalEventSendState.Failed,
+                    canForward = canForwardSelection,
+                    canDelete = canDeleteSelection,
+                    onReply = {
+                        selectedSingle?.let {
+                            if (executeSelectedAction(it, Action.Event.ComposeReply) is ActionResult.Success) {
+                                clearSelection()
+                            }
+                        }
+                    },
+                    onRetry = {
+                        selectedSingle?.let {
+                            if (executeSelectedAction(it, Action.Event.RetrySend) is ActionResult.Success) {
+                                clearSelection()
+                            }
+                        }
+                    },
+                    onCopy = {
+                        val snapshot = selectedMessages.values.toList()
+                        selectionActionScope.launch {
+                            val result = if (
+                                snapshot.size == 1 &&
+                                ((snapshot.single().item as? MatrixTimelineItem.Event)?.event?.content is MessageContent)
+                            ) {
+                                executeSelectedAction(snapshot.single(), Action.Event.CopyContent)
+                            } else {
+                                val eventsWithMetadata = snapshot
+                                    .mapNotNull { selected ->
+                                        val event = (selected.item as? MatrixTimelineItem.Event)?.event
+                                            ?: return@mapNotNull null
+                                        event to selected.messageMetadata
+                                    }
+                                    .sortedBy { (event, _) -> event.timestamp }
+                                val text = buildList {
+                                    for ((event, messageMetadata) in eventsWithMetadata) {
+                                        add(
+                                            EventTextFormat.eventToTextSuspend(
+                                                content = event.content,
+                                                messageMetadata = messageMetadata,
+                                                senderProfile = event.senderProfile,
+                                                senderId = event.sender,
+                                                stripNewlines = false,
+                                            )
+                                        )
+                                    }
+                                }.joinToString("\n\n")
+                                if (text.isEmpty()) {
+                                    ActionResult.Inapplicable
+                                } else {
+                                    actionContext.copyToClipboard(text)
+                                }
+                            }
+                            if (result is ActionResult.Success) {
+                                clearSelection()
+                            }
+                        }
+                    },
+                    onForward = {
+                        forwardEvents(selectedEvents)
+                    },
+                    onDelete = {
+                        viewModel.redactEventsWithConfirmation(
+                            context = actionContext,
+                            events = selectedEvents,
+                            onConfirmed = clearSelection,
+                        )
+                    },
+                    onMore = { selectionMoreOpen = true },
+                )
+            } else {
+                null
+            }
+
             val pinnedEventIds = remember(roomInfo?.pinnedEventIds) {
                 roomInfo?.pinnedEventIds?.toSet() ?: emptySet()
             }
@@ -460,6 +572,8 @@ fun ConversationScreen(
                     compact = this@BoxWithConstraints.maxWidth < Dimens.compactActionBarThreshold,
                     selectionCount = selectedMessages.size,
                     onClearSelection = clearMessageSelection,
+                    selectionActions = selectionActions,
+                    isSearchVisible = conversationSearchVisible,
                 )
 
                 ConversationTopDebugHeader(viewModel, Modifier.fillMaxWidth())
@@ -671,115 +785,7 @@ fun ConversationScreen(
                     }
                 }
 
-                val shouldShowComposer = viewModel.shouldShowComposer.collectAsState().value
                 if (selectionActive) {
-                    val actionScope = rememberCoroutineScope()
-                    val selectedSingle = selectedMessages.values.singleOrNull()
-                    val selectedSingleEvent = (selectedSingle?.item as? MatrixTimelineItem.Event)?.event
-                    val selectedEvents = remember(selectedMessages) {
-                        selectedMessages.values.mapNotNull { selected ->
-                            (selected.item as? MatrixTimelineItem.Event)?.event
-                        }
-                    }
-                    val canDeleteSelection = selectedEvents.isNotEmpty() && selectedEvents.all { event ->
-                        if (event.isOwn) {
-                            roomPermissions?.canRedactOwn ?: true
-                        } else {
-                            roomPermissions?.canRedactOther ?: false
-                        }
-                    }
-                    val executeSelectedAction: (ScTimelineItem, Action.Event) -> ActionResult = { selected, action ->
-                        val event = (selected.item as MatrixTimelineItem.Event).event
-                        viewModel.getKeyboardActionProviderForEvent(
-                            event = event,
-                            messageMetadata = selected.messageMetadata,
-                            formatInteractionState = null,
-                        ).handleAction(actionContext, action, emptyList())
-                    }
-                    val clearSelection = clearMessageSelection
-                    val canForwardSelection = selectedEvents.isNotEmpty() && selectedEvents.all { it.eventId != null }
-                    val canEditSingle = selectedSingleEvent?.isEditable == true &&
-                            (roomPermissions?.canSendMessages ?: true)
-                    val canOpenThread = selectedSingleEvent?.eventId != null &&
-                            destination.timelineParams !is CreateTimelineParams.Threaded &&
-                            (roomPermissions?.canSendMessages ?: false)
-                    val isPinned = selectedSingleEvent?.eventId?.let { it in (roomInfo?.pinnedEventIds ?: emptyList()) } == true
-                    val canDownload = ((selectedSingleEvent?.content as? MessageContent)?.type is MessageTypeWithAttachment)
-
-                    MessageSelectionBar(
-                        selectedCount = selectedMessages.size,
-                        modifier = Modifier.padding(bottom = composerBottomPadding),
-                        canReply = selectedSingleEvent?.eventId != null &&
-                                (roomPermissions?.canSendMessages ?: false),
-                        canRetry = selectedSingleEvent?.localSendState is LocalEventSendState.Failed,
-                        canForward = canForwardSelection,
-                        canDelete = canDeleteSelection,
-                        onReply = {
-                            selectedSingle?.let {
-                                if (executeSelectedAction(it, Action.Event.ComposeReply) is ActionResult.Success) {
-                                    clearSelection()
-                                }
-                            }
-                        },
-                        onRetry = {
-                            selectedSingle?.let {
-                                if (executeSelectedAction(it, Action.Event.RetrySend) is ActionResult.Success) {
-                                    clearSelection()
-                                }
-                            }
-                        },
-                        onCopy = {
-                            val snapshot = selectedMessages.values.toList()
-                            actionScope.launch {
-                                val result = if (
-                                    snapshot.size == 1 &&
-                                    ((snapshot.single().item as? MatrixTimelineItem.Event)?.event?.content is MessageContent)
-                                ) {
-                                    executeSelectedAction(snapshot.single(), Action.Event.CopyContent)
-                                } else {
-                                    val selectedEvents = snapshot
-                                        .mapNotNull { selected ->
-                                            val event = (selected.item as? MatrixTimelineItem.Event)?.event
-                                                ?: return@mapNotNull null
-                                            event to selected.messageMetadata
-                                        }
-                                        .sortedBy { (event, _) -> event.timestamp }
-                                    val text = buildList {
-                                        for ((event, messageMetadata) in selectedEvents) {
-                                            add(
-                                                EventTextFormat.eventToTextSuspend(
-                                                    content = event.content,
-                                                    messageMetadata = messageMetadata,
-                                                    senderProfile = event.senderProfile,
-                                                    senderId = event.sender,
-                                                    stripNewlines = false,
-                                                )
-                                            )
-                                        }
-                                    }.joinToString("\n\n")
-                                    if (text.isEmpty()) {
-                                        ActionResult.Inapplicable
-                                    } else {
-                                        actionContext.copyToClipboard(text)
-                                    }
-                                }
-                                if (result is ActionResult.Success) {
-                                    clearSelection()
-                                }
-                            }
-                        },
-                        onForward = {
-                            forwardEvents(selectedEvents)
-                        },
-                        onDelete = {
-                            viewModel.redactEventsWithConfirmation(
-                                context = actionContext,
-                                events = selectedEvents,
-                                onConfirmed = clearSelection,
-                            )
-                        },
-                        onMore = { selectionMoreOpen = true },
-                    )
                     if (selectionMoreOpen && selectedSingle != null && selectedSingleEvent != null) {
                         MessageSelectionMoreSheet(
                             canEdit = canEditSingle,
@@ -853,21 +859,40 @@ fun ConversationScreen(
                         )
                     }
                 } else {
+                    val shouldShowComposer = viewModel.shouldShowComposer.collectAsState().value
                     val shouldAutoFocusComposer = FocusRole.MESSAGE_COMPOSER.shouldAutoRequestFocus()
-                    LaunchedEffect(shouldShowComposer) {
-                        if (shouldShowComposer && shouldAutoFocusComposer) {
+                    LaunchedEffect(shouldShowComposer, conversationSearchVisible) {
+                        if (
+                            shouldShowComposer &&
+                            !conversationSearchVisible &&
+                            shouldAutoFocusComposer
+                        ) {
                             keyHandler.focusByRole(FocusRole.MESSAGE_COMPOSER)
                         }
                     }
-                    AnimatedVisibility(
-                        visible = shouldShowComposer,
-                        modifier = Modifier.padding(bottom = composerBottomPadding),
-                        enter = slideInVertically(tween(Anim.DURATION)) { it } +
-                                expandVertically(tween(Anim.DURATION), expandFrom = Alignment.Bottom),
-                        exit = slideOutVertically(tween(Anim.DURATION)) { it } +
-                                shrinkVertically(tween(Anim.DURATION), shrinkTowards = Alignment.Bottom),
-                    ) {
-                        ComposerRow(viewModel)
+                    if (conversationSearchVisible) {
+                        SearchBar(
+                            searchProvider = viewModel,
+                            searchFocusContainer = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = Dimens.windowPadding,
+                                    end = Dimens.windowPadding,
+                                    top = 8.dp,
+                                    bottom = composerBottomPadding,
+                                ),
+                            showClearButton = true,
+                            topNavigationStyle = true,
+                        )
+                    } else if (shouldShowComposer) {
+                        // Keep the bottom control stable. A slide+shrink exit used to remeasure
+                        // the timeline during mode/close transitions and produced a visible
+                        // end-of-close jolt on compact Android.
+                        ComposerRow(
+                            viewModel,
+                            modifier = Modifier.padding(bottom = composerBottomPadding),
+                        )
                     }
                 }
                 messageInfoEvent?.let { infoEvent ->
