@@ -25,6 +25,7 @@ import chat.schildi.revenge.actions.InteractionAction
 import chat.schildi.revenge.actions.currentActionContext
 import chat.schildi.revenge.actions.actionProvider
 import chat.schildi.revenge.actions.hierarchicalKeyboardActionProvider
+import chat.schildi.revenge.compose.components.ContextMenuPresentation
 import chat.schildi.revenge.compose.components.WithContextMenu
 import chat.schildi.revenge.compose.destination.conversation.event.message.timestampOverlayContent
 import chat.schildi.revenge.compose.destination.conversation.event.reaction.ReactionsRow
@@ -74,7 +75,11 @@ fun EventRow(
     swipeConfig: MessageSwipeConfig,
     selectionActive: Boolean,
     isSelected: Boolean,
+    isPinned: Boolean,
+    canPin: Boolean,
     onToggleSelection: () -> Unit,
+    onForward: () -> Unit,
+    onShowInfo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val backgroundHighlightColor = animateColorAsState(
@@ -104,8 +109,13 @@ fun EventRow(
             messageMetadata,
             currentThreadId,
             isSelected = isSelected,
+            isPinned = isPinned,
+            canPin = canPin,
             onToggleSelection = toggleSelection.takeIf { selectable },
+            onForward = onForward.takeIf { selectable },
+            onShowInfo = onShowInfo.takeIf { selectable },
         ),
+        presentation = ContextMenuPresentation.Message,
     ) { openContextMenu ->
         Column(
             modifier
