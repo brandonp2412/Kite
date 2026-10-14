@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationChannelGroup
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,6 +18,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 import androidx.core.app.Person
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -49,6 +52,7 @@ import io.element.android.libraries.matrix.api.notification.NotificationData
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageLikeMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
+import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.item.event.VideoMessageType
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
 import io.element.android.libraries.matrix.ui.media.animated.allowAnimatedImageDecoding
@@ -62,6 +66,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.getString
 import shire.res.generated.resources.Res
+import shire.res.generated.resources.action_mark_as_read
+import shire.res.generated.resources.action_reply
 import shire.res.generated.resources.notification_channel_app_notices
 import shire.res.generated.resources.notification_channel_group_chat_messages
 import kotlin.time.Duration.Companion.milliseconds
@@ -82,6 +88,12 @@ object AndroidNotifier {
     private const val EXTRA_SESSION_ID = "session_id"
     private const val EXTRA_ROOM_ID = "room_id"
     private const val EXTRA_EVENT_IDS = "event_ids"
+    private const val EXTRA_COPY_CODE = "copy_code"
+    private const val KEY_TEXT_REPLY = "text_reply"
+
+    private const val ACTION_NOTIFICATION_REPLY = "chat.schildi.revenge.notification.REPLY"
+    private const val ACTION_NOTIFICATION_MARK_READ = "chat.schildi.revenge.notification.MARK_READ"
+    private const val ACTION_NOTIFICATION_COPY_CODE = "chat.schildi.revenge.notification.COPY_CODE"
 
     private val log = Logger.withTag("AndroidNotifier")
 
@@ -167,12 +179,30 @@ object AndroidNotifier {
             .setIcon(senderAvatar?.let(IconCompat::createWithBitmap))
             .build()
 
-        val messagingStyle = existingNotification?.let {
+        val previousEventIds =
+            existingNotification?.extras?.getStringArrayList(EXTRA_EVENT_IDS)?.toList()
+                ?: emptyList()
+        val extractedStyle = existingNotification?.let {
             NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(it)
-        } ?: NotificationCompat.MessagingStyle(ownUser)
+        }
+        val historyIsAligned = existingNotification == null ||
+                extractedStyle != null && previousEventIds.size == extractedStyle.messages.size
+        if (!historyIsAligned) {
+            log.w {
+                "Discarding misaligned notification history for $id: " +
+                        "${extractedStyle?.messages?.size ?: 0} messages, ${previousEventIds.size} tracked event IDs"
+            }
+        }
+        val messagingStyle = if (historyIsAligned) {
+            extractedStyle ?: NotificationCompat.MessagingStyle(ownUser)
+        } else {
+            NotificationCompat.MessagingStyle(ownUser)
+        }
         messagingStyle
             .setConversationTitle(data.roomDisplayName)
             .setGroupConversation(!data.isDirect)
+        val previousMessageCount = messagingStyle.messages.size
+        val alignedPreviousEventIds = if (historyIsAligned) previousEventIds else emptyList()
 
         val plainMessageText = NotificationEventTextFormat.notificationToText(
             data,
@@ -267,19 +297,12 @@ object AndroidNotifier {
             else -> messagingStyle.addMessage(textMessage())
         }
 
-        // Track one event ID per added message, so we can look up by index.
-        // Note that one event may cause multiple notifications to be added (e.g. for attachment captions).
-        val previousMessageCount = messagingStyle.messages.size
-        val previousEventIds =
-            existingNotification?.extras?.getStringArrayList(EXTRA_EVENT_IDS)?.toList()
-                ?: emptyList()
-        val eventIds = if (previousEventIds.size == previousMessageCount) {
-            previousEventIds +
-                    List(messagingStyle.messages.size - previousMessageCount) { data.eventId.value }
-        } else {
-            log.e { "Existing notification for $id has $previousMessageCount messages but tracks $previousEventIds event IDs" }
-            previousEventIds + data.eventId.value
-        }
+        // Track one event ID per rendered notification message, including the two
+        // messages produced by media-with-caption events. Keeping these lists aligned
+        // lets later redaction remove every rendered part of the Matrix event.
+        val addedMessageCount = messagingStyle.messages.size - previousMessageCount
+        val eventIds = alignedPreviousEventIds +
+                List(addedMessageCount) { data.eventId.value }
 
         val shortcut = createConversationShortcut(
             sessionId = id.sessionId,
@@ -305,6 +328,48 @@ object AndroidNotifier {
             NotificationCompat.Builder(context, it)
         } ?: NotificationCompat.Builder(context, messageChannelId(id.sessionId))
             .setContentIntent(id.createPendingIntent(context, notificationId))
+
+        builder.clearActions()
+        val supportsRoomActions = data.content is NotificationContent.MessageLike
+        val supportsQuickReply = when (data.content) {
+            is NotificationContent.MessageLike.RoomMessage,
+            NotificationContent.MessageLike.Sticker,
+            is NotificationContent.MessageLike.Poll -> true
+            else -> false
+        }
+        if (supportsQuickReply) {
+            builder.addAction(
+                buildReplyAction(
+                    context = context,
+                    notificationId = notificationId,
+                    sessionId = id.sessionId,
+                    roomId = id.roomId,
+                    label = getString(Res.string.action_reply),
+                )
+            )
+        }
+        if (supportsRoomActions) {
+            builder.addAction(
+                buildMarkReadAction(
+                    context = context,
+                    notificationId = notificationId,
+                    sessionId = id.sessionId,
+                    roomId = id.roomId,
+                    label = getString(Res.string.action_mark_as_read),
+                )
+            )
+        }
+        if (supportsQuickReply) {
+            extractNotificationVerificationCode(plainMessageText)?.let { code ->
+                builder.addAction(
+                    buildCopyCodeAction(
+                        context = context,
+                        notificationId = notificationId,
+                        code = code,
+                    )
+                )
+            }
+        }
 
         val notification = builder
             .setSmallIcon(R.drawable.ic_notification)
@@ -514,6 +579,149 @@ object AndroidNotifier {
         )
     }
 
+    private fun buildReplyAction(
+        context: Context,
+        notificationId: Int,
+        sessionId: SessionId,
+        roomId: RoomId,
+        label: String,
+    ): NotificationCompat.Action {
+        val intent = notificationActionIntent(
+            context = context,
+            action = ACTION_NOTIFICATION_REPLY,
+            sessionId = sessionId,
+            roomId = roomId,
+        )
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationActionRequestCode(notificationId, 1),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+        )
+        val remoteInput = RemoteInput.Builder(KEY_TEXT_REPLY)
+            .setLabel(label)
+            .build()
+        return NotificationCompat.Action.Builder(0, label, pendingIntent)
+            .addRemoteInput(remoteInput)
+            .setAllowGeneratedReplies(true)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .setShowsUserInterface(false)
+            .build()
+    }
+
+    private fun buildMarkReadAction(
+        context: Context,
+        notificationId: Int,
+        sessionId: SessionId,
+        roomId: RoomId,
+        label: String,
+    ): NotificationCompat.Action {
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationActionRequestCode(notificationId, 2),
+            notificationActionIntent(
+                context = context,
+                action = ACTION_NOTIFICATION_MARK_READ,
+                sessionId = sessionId,
+                roomId = roomId,
+            ),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Action.Builder(0, label, pendingIntent)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
+            .setShowsUserInterface(false)
+            .build()
+    }
+
+    private fun buildCopyCodeAction(
+        context: Context,
+        notificationId: Int,
+        code: String,
+    ): NotificationCompat.Action {
+        val intent = Intent(context, NotificationActionReceiver::class.java)
+            .setAction(ACTION_NOTIFICATION_COPY_CODE)
+            .putExtra(EXTRA_COPY_CODE, code)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationActionRequestCode(notificationId, 3),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Action.Builder(
+            0,
+            context.getString(R.string.notification_action_copy_code),
+            pendingIntent,
+        )
+            .setShowsUserInterface(false)
+            .build()
+    }
+
+    private fun notificationActionIntent(
+        context: Context,
+        action: String,
+        sessionId: SessionId,
+        roomId: RoomId,
+    ) = Intent(context, NotificationActionReceiver::class.java)
+        .setAction(action)
+        .putExtra(EXTRA_SESSION_ID, sessionId.value)
+        .putExtra(EXTRA_ROOM_ID, roomId.value)
+
+    private fun notificationActionRequestCode(notificationId: Int, actionIndex: Int): Int =
+        notificationId * 31 + actionIndex
+
+    internal suspend fun handleNotificationAction(context: Context, intent: Intent) {
+        when (intent.action) {
+            ACTION_NOTIFICATION_COPY_CODE -> {
+                val code = intent.getStringExtra(EXTRA_COPY_CODE)?.takeIf(String::isNotBlank) ?: return
+                val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
+                clipboard.setPrimaryClip(ClipData.newPlainText("Verification code", code))
+                return
+            }
+
+            ACTION_NOTIFICATION_REPLY,
+            ACTION_NOTIFICATION_MARK_READ -> Unit
+
+            else -> return
+        }
+
+        val sessionId = intent.getStringExtra(EXTRA_SESSION_ID)?.let(::SessionId) ?: return
+        val roomId = intent.getStringExtra(EXTRA_ROOM_ID)?.let(::RoomId) ?: return
+        val client = RevengeAppGraph.sessionCache.getOrRestore(sessionId)
+            .onFailure { failure -> log.w("Failed to restore $sessionId for notification action", failure) }
+            .getOrNull()
+            ?: return
+        val room = client.getJoinedRoom(roomId) ?: run {
+            log.w { "Cannot handle notification action for non-joined room $roomId" }
+            return
+        }
+        room.use { joinedRoom ->
+            if (intent.action == ACTION_NOTIFICATION_REPLY) {
+                val reply = RemoteInput.getResultsFromIntent(intent)
+                    ?.getCharSequence(KEY_TEXT_REPLY)
+                    ?.toString()
+                    ?.trim()
+                    ?.takeIf(String::isNotEmpty)
+                    ?: return
+                val result = joinedRoom.liveTimeline.sendMessage(
+                    body = reply,
+                    htmlBody = null,
+                    intentionalMentions = emptyList(),
+                    asPlainText = true,
+                )
+                if (result.isFailure) {
+                    log.w("Notification quick reply failed for $roomId", result.exceptionOrNull())
+                    return
+                }
+            }
+
+            joinedRoom.liveTimeline.markAsRead(ReceiptType.READ_PRIVATE)
+                .onFailure { failure -> log.w("Notification mark-read receipt failed for $roomId", failure) }
+            joinedRoom.liveTimeline.markAsRead(ReceiptType.FULLY_READ)
+                .onFailure { failure -> log.w("Notification fully-read marker failed for $roomId", failure) }
+        }
+        dismiss(sessionId.value, roomId.value)
+    }
+
     private suspend fun loadNotificationMediaUri(
         context: Context,
         data: NotificationData,
@@ -697,3 +905,4 @@ object AndroidNotifier {
         }
     }
 }
+
