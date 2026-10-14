@@ -272,6 +272,7 @@ class InboxViewModel(
                 items = rooms,
                 searchTerm = searchTerm,
                 isSpace = { it.summary.info.isSpace },
+                isPinned = { it.summary.info.isFavorite },
                 primaryName = { it.summary.info.name },
                 secondaryName = { it.summary.info.privateRoomName },
                 latestEventTimestamp = { it.summary.latestEventTimestamp },

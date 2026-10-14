@@ -8,20 +8,26 @@ private data class KiteInboxSearchMatch<T>(
 )
 
 /**
- * Keeps Kite's personal inbox space-free and performs cheap local room-name search
- * without changing Revenge's Matrix room-list source or introducing UI-owned state.
+ * Keeps Kite's personal inbox space-free, with pinned rooms first and other rooms
+ * newest-first, independent of Revenge's SDK-level unread grouping. Search matches
+ * still rank by name position, then recency, without introducing UI-owned state.
  */
 internal fun <T> filterKiteInboxItems(
     items: Iterable<T>,
     searchTerm: String?,
     isSpace: (T) -> Boolean,
+    isPinned: (T) -> Boolean,
     primaryName: (T) -> String?,
     secondaryName: (T) -> String?,
     latestEventTimestamp: (T) -> Long?,
     sessionOrder: (T) -> Int,
 ): List<T> {
     if (searchTerm.isNullOrBlank()) {
-        return items.filterNot(isSpace)
+        return items.filterNot(isSpace).sortedWith(
+            compareByDescending<T>(isPinned)
+                .thenByDescending { latestEventTimestamp(it) ?: Long.MIN_VALUE }
+                .thenBy(sessionOrder),
+        )
     }
 
     val query = searchTerm.lowercase()

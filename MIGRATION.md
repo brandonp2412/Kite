@@ -980,3 +980,23 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - APK: `/home/brandon/kite-revenge/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk`; SHA-256 `4b25500f9e5214aaae16e44f07f9c89b601c80c3aa9bc81abaa51a78157eaf3c`, package `app.kite.revenge.debug`, signed with pre-existing debug signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
 - `adb install -r` on Samsung SM-S931B succeeded; `lastUpdateTime` 2026-10-15 07:15:24. First install remains 2026-10-14 11:55:12 and data directory remains `/data/user/0/app.kite.revenge.debug`. Production `app.kite` was not modified.
 - No message send, no production account changes, no forced UI launch, and no visual/120 Hz benchmark claims. Runtime screen-level visual parity and actual multi-year-invite list ordering require an observational device check when convenient.
+
+
+## 2026-10-15 — Chronological inbox with pinned-first ordering
+
+### Report and diagnosis
+- User reported Benny Jekel's old Facebook Messenger conversation appearing at the very top. Matrix history for room `!KGnkBZxsyGDBFXbrSQ:matrix.presley.nz` shows its last indexed message timestamp 1458589914555 (21 Mar 2016 UTC). An SDK-supplied room order was being forwarded unchanged whenever the inbox search field was blank; the earlier invitation comparator fix did not guarantee a correct normal inbox.
+- User also reported pinned chats missing from first position. In native Kite, the existing row Pin action toggles Matrix `RoomInfo.isFavorite`; that field was not considered by the blank-search filter when we first added chronological ordering.
+
+### Changes
+- For blank search, exclude spaces, put `isFavorite`/pinned rooms at the top, and then order within pinned and unpinned groups by descending `RoomSummary.latestEventTimestamp`. Null timestamps are last and the configured session order resolves ties.
+- Preserve search ranking by name-match position and recency. Preserve the existing Matrix room ID set, actions, and the pinned icon; no extra per-row collectors or new storage.
+- Add desktop regression tests including an old Facebook chat passed first by the upstream SDK, null activity, space exclusion, equal timestamp session tie-break, and multiple pinned rooms.
+- `InboxViewModel.kt` already contained ongoing unrelated hide-chat edits. Stage only the new `isPinned` lambda, not those edits.
+
+### Validation
+- Glass `:composeApp:desktopTest :composeApp:compileAndroidMain --no-daemon --max-workers=1 --quiet`: pass.
+- Glass `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --quiet`: pass.
+- ARM64 APK `/home/brandon/kite-revenge/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk`, SHA-256 `6413a353527ad687f79ec0dc8d4093b2d621e25d197c35174ef198ee9a0b4d9f`, confirmed package `app.kite.revenge.debug`, existing signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
+- `adb -s 10.66.66.3:5555 install -r` returned Success; retained isolated debug app package and did not modify production `app.kite` or Matrix account data.
+- Did not launch or interact with private live conversations; device-side direct order/visual proof remains to be collected. Rust's reported `latestEventTimestamp` can differ from indexed message history, so a live timestamp inspection is a follow-up if Benny still appears incorrectly without being pinned.
