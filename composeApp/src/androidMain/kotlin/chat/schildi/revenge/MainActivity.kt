@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
                 darkTheme && blackTheme -> scbMaterialColorScheme
                 darkTheme -> scdMaterialColorScheme
                 else -> sclMaterialColorScheme
-            }).surface.copy(alpha = 0.5f).toArgb()
+            }).surfaceContainerLow.toArgb()
             SideEffect {
                 enableEdgeToEdge(
                     navigationBarStyle = if (darkTheme) {
@@ -114,6 +114,11 @@ class MainActivity : ComponentActivity() {
                         SystemBarStyle.light(navigationBarColor, navigationBarColor)
                     },
                 )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Samsung's three-button navigation can otherwise add a dark contrast
+                    // scrim below the composer. The chosen color already has icon contrast.
+                    window.isNavigationBarContrastEnforced = false
+                }
             }
 
             val scope = rememberCoroutineScope()
