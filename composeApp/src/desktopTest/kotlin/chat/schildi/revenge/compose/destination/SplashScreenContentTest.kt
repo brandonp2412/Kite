@@ -1,9 +1,6 @@
 package chat.schildi.revenge.compose.destination
 
-import chat.schildi.revenge.model.CheckpointLoadState
-import chat.schildi.revenge.model.LoadCheckPoint
-import chat.schildi.revenge.model.LoadStateEntry
-import kotlinx.collections.immutable.persistentListOf
+import chat.schildi.revenge.compose.components.shouldShowTransientLoading
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -11,33 +8,16 @@ import kotlin.test.assertTrue
 class SplashScreenContentTest {
     @Test
     fun shortNavigationDoesNotFlashLoadingIndicator() {
-        assertFalse(shouldShowLoadingIndicator(gracePeriodElapsed = false, loadState = null))
-        assertFalse(
-            shouldShowLoadingIndicator(
-                gracePeriodElapsed = false,
-                loadState = persistentListOf(LoadStateEntry(LoadCheckPoint.Timeline, CheckpointLoadState.PENDING)),
-            )
-        )
+        assertFalse(shouldShowTransientLoading(gracePeriodElapsed = false, forceVisible = false))
     }
 
     @Test
     fun sustainedLoadingIsVisibleAfterGracePeriod() {
-        assertTrue(shouldShowLoadingIndicator(gracePeriodElapsed = true, loadState = null))
-        assertTrue(
-            shouldShowLoadingIndicator(
-                gracePeriodElapsed = true,
-                loadState = persistentListOf(LoadStateEntry(LoadCheckPoint.Timeline, CheckpointLoadState.PENDING)),
-            )
-        )
+        assertTrue(shouldShowTransientLoading(gracePeriodElapsed = true, forceVisible = false))
     }
 
     @Test
-    fun failedLoadingIsVisibleImmediately() {
-        assertTrue(
-            shouldShowLoadingIndicator(
-                gracePeriodElapsed = false,
-                loadState = persistentListOf(LoadStateEntry(LoadCheckPoint.Timeline, CheckpointLoadState.FAILED)),
-            )
-        )
+    fun failedLoadingCanForceImmediateVisibility() {
+        assertTrue(shouldShowTransientLoading(gracePeriodElapsed = false, forceVisible = true))
     }
 }

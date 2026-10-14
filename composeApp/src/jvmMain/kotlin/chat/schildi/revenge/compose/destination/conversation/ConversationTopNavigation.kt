@@ -1,6 +1,9 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -12,12 +15,16 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PestControlRodent
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.resources.toStringHolder
@@ -68,6 +75,42 @@ import shire.res.generated.resources.room_details_title
 import shire.res.generated.resources.selection_messages_count
 import shire.res.generated.resources.thread
 import shire.res.generated.resources.thread_in
+
+
+@Composable
+private fun RowScope.ConversationParticipantHeader(
+    title: String,
+    avatar: MediaSource?,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .heightIn(min = Dimens.topAppBarMinHeight)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (avatar != null) {
+            AvatarImage(
+                source = avatar,
+                size = 36.dp,
+                displayName = title,
+                shape = CircleShape,
+            )
+        }
+        Text(
+            text = title,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = if (avatar != null) 10.dp else 4.dp, end = 4.dp),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
 @Composable
 fun ConversationTopNavigation(
@@ -136,24 +179,11 @@ fun ConversationTopNavigation(
             is CreateTimelineParams.Threaded -> TopNavigationTitle(stringResource(Res.string.thread))
             is CreateTimelineParams.PinnedOnly -> TopNavigationTitle(stringResource(Res.string.pinned_messages))
             else -> {
-                if (avatar != null && !isSearchVisible) {
-                    AvatarImage(
-                        source = avatar,
-                        size = Dimens.topAppBarIconSize,
-                        displayName = title,
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .padding(
-                                start = Dimens.listPadding,
-                                top = Dimens.listPadding,
-                                bottom = Dimens.listPadding,
-                            )
-                            .clickable { destinationState?.navigate(detailsDestination) },
-                    )
-                }
-                TopNavigationTitle(title) {
-                    destinationState?.navigate(detailsDestination)
-                }
+                ConversationParticipantHeader(
+                    title = title,
+                    avatar = avatar,
+                    onClick = { destinationState?.navigate(detailsDestination) },
+                )
                 if (focusParent != null) {
                     // In compact mode, hide what can be reached via room click or room details anyway
                     if (!compact) {

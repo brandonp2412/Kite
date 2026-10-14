@@ -3,8 +3,9 @@ package chat.schildi.revenge.compose.destination.conversation.event.message
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -12,6 +13,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.LocalRoomContextSuggestionsProvider
 import chat.schildi.revenge.compose.components.LocalSessionId
@@ -47,7 +49,16 @@ fun ReplyContent(
             }
             is InReplyTo.Pending,
             is InReplyTo.NotLoaded -> {
-                CircularProgressIndicator()
+                Box(
+                    Modifier
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                        .width(72.dp)
+                        .height(10.dp)
+                        .background(
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f),
+                            RoundedCornerShape(5.dp),
+                        )
+                )
             }
             is InReplyTo.Ready -> {
                 val roomContext = LocalRoomContextSuggestionsProvider.current

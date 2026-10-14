@@ -26,7 +26,6 @@ import chat.schildi.revenge.compose.media.NetworkIconColorRepository
 import chat.schildi.revenge.compose.media.NetworkIconColorState
 import chat.schildi.revenge.compose.media.compositeOver
 import chat.schildi.revenge.compose.media.contrastRatio
-import chat.schildi.theme.ScColors
 import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
 import coil3.compose.SubcomposeAsyncImage
@@ -84,7 +83,7 @@ fun AvatarImage(
                 }
 
                 is AsyncImagePainter.State.Loading -> {
-                    AvatarFallback(displayName, shape, size, isLoading = true)
+                    AvatarFallback(displayName, shape, size)
                 }
             }
         }
@@ -106,19 +105,16 @@ fun AvatarFallback(
     modifier: Modifier = Modifier,
     fallbackColorSource: MediaSource? = null,
     sessionId: SessionId? = LocalSessionId.current,
-    isLoading: Boolean = false,
     isError: Boolean = false,
 ) {
     val stateColor = if (ScPrefs.RENDER_AVATAR_STATES.value()) animateColorAsState(
         if (isError) {
             MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-        } else if (isLoading) {
-            ScColors.colorAccentBlue.copy(alpha = 0.5f)
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         }
     ).value else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-    val networkColor = if (fallbackColorSource == null || isLoading) {
+    val networkColor = if (fallbackColorSource == null) {
         null
     } else {
         val state = NetworkIconColorRepository.colorFor(

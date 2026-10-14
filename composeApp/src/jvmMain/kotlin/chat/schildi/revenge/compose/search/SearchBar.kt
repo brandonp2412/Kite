@@ -2,8 +2,10 @@ package chat.schildi.revenge.compose.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -20,6 +22,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.ImeAction
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.components.PlatformBackHandler
@@ -74,14 +77,18 @@ fun SearchBar(
         }} else null,
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = if (topNavigationStyle) 56.dp else 0.dp)
             .onFocusChanged {
                 isFocused.value = it.isFocused
             }
             .keyFocusable(role = FocusRole.SEARCH_BAR),
         singleLine = true,
-        keyboardActions = KeyboardActions {
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = {
             handler.onSearchEnter(searchProvider, searchFocusContainer)
-        },
+        }, onDone = {
+            handler.onSearchEnter(searchProvider, searchFocusContainer)
+        }),
         shape = if (topNavigationStyle) RoundedCornerShape(28.dp) else TextFieldDefaults.shape,
         colors = if (topNavigationStyle) {
             TextFieldDefaults.colors(

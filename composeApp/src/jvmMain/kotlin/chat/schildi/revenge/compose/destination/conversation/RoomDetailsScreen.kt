@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Lock
@@ -185,8 +186,9 @@ fun RoomDetailsScreen(
                             ) {
                                 AvatarImage(
                                     source = info.avatarUrl?.let { MediaSource(it) },
-                                    size = 128.dp,
+                                    size = 104.dp,
                                     displayName = info.name ?: viewModel.roomId.value,
+                                    shape = CircleShape,
                                     allowAnimated = true,
                                 )
                             }
