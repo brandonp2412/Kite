@@ -1,7 +1,9 @@
 package chat.schildi.revenge.compose.destination.conversation
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,8 +20,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
@@ -29,11 +37,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.revenge.Destination
-import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.LocalListActionProvider
 import chat.schildi.revenge.actions.LocalUserIdSuggestionsProvider
@@ -57,7 +66,6 @@ import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.room.RoomInfo
 import kotlinx.collections.immutable.ImmutableList
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
@@ -91,125 +99,131 @@ fun UserDetailsScreen(
         LocalUserIdSuggestionsProvider provides viewModel,
         LocalListActionProvider provides listAction,
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        ).fillMaxSize(),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            )
+            .fillMaxSize(),
     ) {
         val info = viewModel.globalUserInfo.collectAsState().value
         val roomMemberInfo = viewModel.roomMember.collectAsState().value
         val mutualRoomsInfo = viewModel.mutualRooms.collectAsState(null).value
         val mutualRoomsPreview = viewModel.mutualRoomsPreview.collectAsState().value
         val expandRoomPreviews = remember { mutableStateOf(false) }
-        Column(contentModifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
             ConversationDetailsTopNavigation(info?.displayName ?: viewModel.userId.value)
-            if (info == null && roomMemberInfo == null) {
-                EmptyListScreen(
-                    title = Res.string.empty_screen_placeholder_unexpected.toStringHolder(),
-                    icon = rememberVectorPainter(Icons.Default.Person),
-                    isSearching = false,
-                    isLoading = true,
-                    loadState = viewModel.loadState,
-                    modifier = Modifier.fillMaxWidth().padding(Dimens.windowPadding).weight(1f),
-                )
-            } else {
-                Box(
-                    Modifier.fillMaxWidth().padding(Dimens.windowPadding).weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
+            Surface(
+                modifier = contentModifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+            ) {
+                if (info == null && roomMemberInfo == null) {
+                    EmptyListScreen(
+                        title = Res.string.empty_screen_placeholder_unexpected.toStringHolder(),
+                        icon = rememberVectorPainter(Icons.Default.Person),
+                        isSearching = false,
+                        isLoading = true,
+                        loadState = viewModel.loadState,
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                    )
+                } else {
                     LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
                         state = listState,
-                        verticalArrangement = Dimens.verticalArrangement,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = WindowInsets.navigationBars
                             .only(WindowInsetsSides.Bottom)
                             .asPaddingValues(),
                     ) {
-                        item {
+                        item(key = "profile", contentType = "profile") {
                             val primaryAvatar = roomMemberInfo?.avatarUrl ?: info?.avatarUrl
-                            Box(
-                                Modifier.fillMaxWidth().keyFocusable(
-                                    role = FocusRole.LIST_ITEM,
-                                    actionProvider = actionProvider(
-                                        copyActions = plainTextCopyActionWithMxcUrl(primaryAvatar),
-                                    )
-                                ),
-                                contentAlignment = Alignment.Center,
+                            val displayName = roomMemberInfo?.displayName ?: info?.displayName
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                                shape = RoundedCornerShape(24.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             ) {
-                                AvatarImage(
-                                    source = primaryAvatar?.let { MediaSource(it) },
-                                    size = 104.dp,
-                                    displayName = roomMemberInfo?.displayName ?: info?.displayName ?: viewModel.userId.value,
-                                    shape = CircleShape,
-                                    modifier = Modifier.keyFocusable(
-                                        role = FocusRole.NESTED_AUX_ITEM,
-                                        actionProvider = actionProvider(
-                                            copyActions = plainTextCopyActionWithMxcUrl(primaryAvatar),
-                                        )
-                                    ),
-                                    allowAnimated = true,
-                                )
-                            }
-                        }
-                        val displayName = roomMemberInfo?.displayName ?: info?.displayName
-                        if (displayName != null) {
-                            item {
-                                SelectionContainer {
-                                    Box(
-                                        Modifier.fillMaxWidth().keyFocusable(
-                                            role = FocusRole.LIST_ITEM,
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    AvatarImage(
+                                        source = primaryAvatar?.let { MediaSource(it) },
+                                        size = 96.dp,
+                                        displayName = displayName ?: viewModel.userId.value,
+                                        shape = CircleShape,
+                                        modifier = Modifier.keyFocusable(
+                                            role = FocusRole.NESTED_AUX_ITEM,
                                             actionProvider = actionProvider(
-                                                copyActions = plainTextCopyAction { displayName },
-                                            )
+                                                copyActions = plainTextCopyActionWithMxcUrl(primaryAvatar),
+                                            ),
                                         ),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
+                                        allowAnimated = true,
+                                    )
+                                    if (displayName != null) {
+                                        SelectionContainer {
+                                            Text(
+                                                text = displayName,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                style = MaterialTheme.typography.headlineSmall,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.keyFocusable(
+                                                    role = FocusRole.LIST_ITEM,
+                                                    actionProvider = actionProvider(
+                                                        copyActions = plainTextCopyAction { displayName },
+                                                    ),
+                                                ),
+                                            )
+                                        }
+                                    }
+                                    SelectionContainer {
                                         Text(
-                                            displayName,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            style = MaterialTheme.typography.titleLarge,
+                                            text = viewModel.userId.value,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = MaterialTheme.typography.bodyMedium,
                                             textAlign = TextAlign.Center,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.keyFocusable(
+                                                role = FocusRole.LIST_ITEM,
+                                                actionProvider = actionProvider(
+                                                    copyActions = plainTextCopyActionWithUserId(viewModel.userId) {
+                                                        viewModel.userId.value
+                                                    },
+                                                ),
+                                            ),
                                         )
                                     }
                                 }
                             }
                         }
-                        item {
-                            SelectionContainer {
-                                Box(
-                                    Modifier.fillMaxWidth().keyFocusable(
-                                        role = FocusRole.LIST_ITEM,
-                                        actionProvider = actionProvider(
-                                            copyActions = plainTextCopyActionWithUserId(viewModel.userId) {
-                                                viewModel.userId.value
-                                            },
-                                        )
-                                    ),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        viewModel.userId.value,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        textAlign = TextAlign.Center,
-                                    )
-                                }
-                            }
-                        }
                         if (mutualRoomsInfo != null) {
-                            item {
+                            item(key = "mutual_rooms_header", contentType = "section") {
                                 MutualRoomsExpandHeader(
                                     expandRoomPreviews,
                                     mutualRoomsInfo,
                                     mutualRoomsPreview,
-                                    Modifier.fillMaxSize(),
+                                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 )
                             }
                         }
                         if (expandRoomPreviews.value && mutualRoomsPreview != null) {
-                            items(mutualRoomsPreview, key = { "mutual_room_preview_${it.id}" }) { preview ->
+                            items(
+                                items = mutualRoomsPreview,
+                                key = { "mutual_room_preview_" + it.id },
+                                contentType = { "mutual_room" },
+                            ) { preview ->
                                 MutualRoomsListItem(
                                     viewModel.sessionId,
                                     preview,
-                                    Modifier.fillMaxWidth(),
+                                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 )
                             }
                         }
@@ -227,8 +241,30 @@ fun MutualRoomsExpandHeader(
     mutualRoomsPreview: ImmutableList<RoomInfo>?,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier.keyFocusable(
+    val text = if (mutualRoomsPreview.isNullOrEmpty()) {
+        pluralStringResource(
+            Res.plurals.n_mutual_rooms,
+            mutualRoomsInfo.count.toInt(),
+            mutualRoomsInfo.count,
+        )
+    } else if (expandRoomPreviews.value) {
+        pluralStringResource(
+            Res.plurals.n_mutual_rooms_header,
+            mutualRoomsInfo.count.toInt(),
+            mutualRoomsInfo.count,
+        )
+    } else {
+        pluralStringResource(
+            Res.plurals.n_mutual_rooms_such_as,
+            mutualRoomsInfo.count.toInt(),
+            mutualRoomsInfo.count,
+            mutualRoomsPreview.joinToString(limit = 3) {
+                it.privateRoomName ?: it.name ?: it.id.value
+            },
+        )
+    }
+    Surface(
+        modifier = modifier.keyFocusable(
             role = FocusRole.LIST_ITEM,
             actionProvider = actionProvider(
                 primaryAction = InteractionAction.Invoke {
@@ -237,39 +273,39 @@ fun MutualRoomsExpandHeader(
                 }
             ),
         ),
-        contentAlignment = Alignment.Center,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
-        val text = if (mutualRoomsPreview.isNullOrEmpty()) {
-            pluralStringResource(
-                Res.plurals.n_mutual_rooms,
-                mutualRoomsInfo.count.toInt(),
-                mutualRoomsInfo.count,
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Group,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(10.dp).size(20.dp),
+                )
+            }
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
             )
-        } else if (expandRoomPreviews.value) {
-            pluralStringResource(
-                Res.plurals.n_mutual_rooms_header,
-                mutualRoomsInfo.count.toInt(),
-                mutualRoomsInfo.count,
-            )
-        } else {
-            pluralStringResource(
-                Res.plurals.n_mutual_rooms_such_as,
-                mutualRoomsInfo.count.toInt(),
-                mutualRoomsInfo.count,
-                mutualRoomsPreview.joinToString(limit = 3) {
-                    it.privateRoomName ?: it.name ?: it.id.value
-                },
-            )
+            if (!mutualRoomsPreview.isNullOrEmpty()) {
+                Icon(
+                    imageVector = if (expandRoomPreviews.value) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
-        Text(
-            text,
-            color = if (expandRoomPreviews.value && !mutualRoomsPreview.isNullOrEmpty())
-                MaterialTheme.colorScheme.primary
-            else
-                MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -279,8 +315,9 @@ fun MutualRoomsListItem(
     preview: RoomInfo,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier.keyFocusable(
+    val displayName = preview.privateRoomName ?: preview.name ?: preview.id.value
+    Surface(
+        modifier = modifier.keyFocusable(
             role = FocusRole.LIST_ITEM,
             actionProvider = actionProvider(
                 primaryAction = InteractionAction.OpenWindow(
@@ -306,14 +343,30 @@ fun MutualRoomsListItem(
                 }
             )
         ),
-        contentAlignment = Alignment.Center,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
-        Text(
-            preview.toTitle(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AvatarImage(
+                source = preview.avatarUrl?.let { MediaSource(it) },
+                size = 44.dp,
+                displayName = displayName,
+                sessionId = sessionId,
+                shape = CircleShape,
+            )
+            Text(
+                text = preview.toTitle(),
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 

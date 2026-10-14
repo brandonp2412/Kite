@@ -813,3 +813,32 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - When the Samsung is naturally awake/unlocked, compare this exact installed PerfDebug build side-by-side with Google Messages across Start chat, create-room, Settings and account management in light/dark mode, including long names/MXIDs, switches, login fields, keyboard/insets and back navigation; fix concrete mismatches in the same run.
 - Capture controlled 120 Hz frame evidence for Inbox search/navigation and Start-chat result scrolling before claiming measurable performance parity.
 - Continue remaining profile/account-selection dialogs and transient surfaces, then return to notification quick-reply/actions and controlled message/composer E2E while preserving the bottom Inbox search exception and all Matrix behavior.
+
+
+## 2026-10-15 — Google Messages profile/account-selection and transient-action slice
+
+### Visual reference
+- Used the pinned Google Messages / Material 3 Expressive reference set in docs/design-reference/google-messages because the Samsung was dozing/locked and was not woken for reference gathering.
+- Preserved the intentional Kite exception: inbox search remains at the bottom.
+
+### Implemented
+- Restyled SessionSelectorScreen into the same Messages-style tonal hierarchy used by settings/account management: surfaceContainer chrome, 28 dp rounded surfaceContainerLow content, and 20 dp surfaceContainerHigh account cards.
+- Account-selection rows now use 72 dp minimum touch height, 48 dp avatars, stronger name/MXID hierarchy, trailing navigation affordance, stable lazy-list content type, and a dedicated error-container failure state.
+- Fixed account destination resolution failures so the screen clears its processing state instead of remaining stuck after an error.
+- Restyled UserDetailsScreen with a 28 dp rounded content panel and 24 dp high-tonal profile hero, 96 dp avatar, headline/body identity hierarchy, and stable lazy item content types.
+- Replaced flat mutual-room text with 20 dp tonal disclosure/room cards, a tonal group icon, expand affordance, 44 dp room avatars, and preserved Matrix navigation/copy actions.
+- Restyled MessageSelectionMoreSheet into compact 20 dp tonal action cards with 40 dp icon wells; destructive report/delete actions now use error-container hierarchy.
+- Restyled MessageInfoSheet metadata and event-source surfaces into matching 20 dp high-tonal cards.
+- No new per-row collectors, duplicated Matrix state, or animations were introduced.
+
+### Validation so far
+- git diff --check: PASS.
+- Java 25 :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop: PASS.
+- Java 25 :composeApp:desktopTest: PASS.
+- The initial build attempt used Glass's default Java 17 and failed at dependency configuration because Metro requires Java 21+; rerunning with /usr/lib/jvm/java-25-openjdk passed.
+- Samsung SM-S931B remained dozing/locked during implementation, so no wake/launch or Google Messages state mutation was performed and no device visual/120 Hz parity claim is made yet.
+
+### Next
+- Produce and verify the release-like PerfDebug APK from a clean detached checkout of this checkpoint, confirm package/signature identity, and install only app.kite.revenge.debug if safe.
+- When the Samsung is naturally awake/unlocked, compare account selection/profile/transient actions side-by-side with Google Messages and capture 120 Hz frame evidence.
+- Continue into the adjacent notification quick-reply/action verification and remaining room/profile detail surfaces.

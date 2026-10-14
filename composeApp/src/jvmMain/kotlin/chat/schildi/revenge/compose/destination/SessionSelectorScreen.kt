@@ -1,5 +1,7 @@
 package chat.schildi.revenge.compose.destination
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -16,10 +19,15 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,11 +39,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import chat.schildi.revenge.Destination
-import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.LocalDestinationState
 import chat.schildi.revenge.NavigationPreference
 import chat.schildi.revenge.actions.FocusRole
@@ -91,11 +100,12 @@ fun SessionSelectorScreen(
     suspend fun navigateToSessionDestination(sessionId: SessionId) {
         didNavigate.value = true
         val result = destination.build(sessionId)
-        val destination = result.getOrNull()
-        if (result.isFailure || destination == null) {
+        val resolvedDestination = result.getOrNull()
+        if (result.isFailure || resolvedDestination == null) {
             error.value = result.exceptionOrNull()?.message ?: getString(Res.string.failed_to_resolve_room)
+            didNavigate.value = false
         } else {
-            destinationState?.navigate(destination, NavigationPreference.REPLACE)
+            destinationState?.navigate(resolvedDestination, NavigationPreference.REPLACE)
         }
     }
 
@@ -115,12 +125,14 @@ fun SessionSelectorScreen(
     FocusContainer(
         LocalSearchProvider provides viewModel,
         LocalListActionProvider provides rememberListActions(listState),
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        ),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            ),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
-        Column {
+        Column(Modifier.fillMaxSize()) {
             TopNavigation {
                 TopNavigationSearchOrTitle(stringResource(Res.string.select_account))
                 TopNavigationCloseOrNavigateToInboxIcon()
@@ -132,46 +144,74 @@ fun SessionSelectorScreen(
                     is MatrixToLink.UserMention -> link.userId
                 }
             }
-            Text(
-                description,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.fillMaxWidth().padding(Dimens.windowPadding),
-                textAlign = TextAlign.Center,
-            )
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                val renderedAccounts = filteredAccounts?.accounts
-                if (renderedAccounts.isNullOrEmpty()) {
-                    EmptyListScreen(
-                        title = Res.string.action_processing.toStringHolder(),
-                        icon = rememberVectorPainter(Icons.Default.AccountCircle),
-                        renderedSearchTerm = filteredAccounts?.searchTerm,
-                        isLoading = accounts == null || filteredAccounts == null || didNavigate.value,
-                        modifier = contentModifier.fillMaxSize(),
-                    )
-                } else if (error.value != null) {
+            Surface(
+                modifier = contentModifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+            ) {
+                Column(Modifier.fillMaxSize()) {
                     Text(
-                        error.value ?: "",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = description,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+                        textAlign = TextAlign.Center,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                } else {
-                    LazyColumn(
-                        modifier = contentModifier,
-                        state = listState,
-                        contentPadding = WindowInsets.navigationBars
-                            .only(WindowInsetsSides.Bottom)
-                            .asPaddingValues(),
-                    ) {
-                        items(renderedAccounts, key = { it.sessionId }) { account ->
-                            SessionSelectorRow(
-                                account = account,
-                                onClick = {
-                                    scope.launch {
-                                        navigateToSessionDestination(account.sessionId)
-                                    }
-                                },
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        val renderedAccounts = filteredAccounts?.accounts
+                        when {
+                            error.value != null -> Surface(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(Icons.Default.ErrorOutline, contentDescription = null)
+                                    Text(
+                                        text = error.value.orEmpty(),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
+                            renderedAccounts.isNullOrEmpty() -> EmptyListScreen(
+                                title = Res.string.action_processing.toStringHolder(),
+                                icon = rememberVectorPainter(Icons.Default.AccountCircle),
+                                renderedSearchTerm = filteredAccounts?.searchTerm,
+                                isLoading = accounts == null || filteredAccounts == null || didNavigate.value,
+                                modifier = Modifier.fillMaxSize().padding(16.dp),
                             )
+                            else -> LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                state = listState,
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                contentPadding = WindowInsets.navigationBars
+                                    .only(WindowInsetsSides.Bottom)
+                                    .asPaddingValues(),
+                            ) {
+                                items(
+                                    items = renderedAccounts,
+                                    key = { it.sessionId },
+                                    contentType = { "account" },
+                                ) { account ->
+                                    SessionSelectorRow(
+                                        account = account,
+                                        onClick = {
+                                            scope.launch {
+                                                navigateToSessionDestination(account.sessionId)
+                                            }
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -187,9 +227,10 @@ private fun SessionSelectorRow(
     modifier: Modifier = Modifier,
 ) {
     val displayName = account.user.displayName ?: account.sessionId.value
-    Row(
-        modifier
+    Surface(
+        modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp)
             .keyFocusable(
                 role = FocusRole.LIST_ITEM,
                 actionProvider = actionProvider(
@@ -199,32 +240,48 @@ private fun SessionSelectorRow(
                     },
                     copyActions = plainTextCopyAction { account.sessionId.value },
                 ),
-            )
-            .padding(horizontal = Dimens.windowPadding, vertical = Dimens.listPadding),
-        horizontalArrangement = Dimens.horizontalArrangement,
-        verticalAlignment = Alignment.CenterVertically,
+            ),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
-        AvatarImage(
-            source = account.user.avatarUrl?.let { MediaSource(it) },
-            size = Dimens.Inbox.avatar,
-            sessionId = account.sessionId,
-            shape = Dimens.ownAccountAvatarShape,
-            displayName = displayName,
-            contentDescription = account.sessionId.value,
-        )
-        SelectionContainer(Modifier.weight(1f)) {
-            Column {
-                Text(
-                    displayName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    account.sessionId.value,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 72.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AvatarImage(
+                source = account.user.avatarUrl?.let { MediaSource(it) },
+                size = 48.dp,
+                sessionId = account.sessionId,
+                displayName = displayName,
+                contentDescription = account.sessionId.value,
+            )
+            SelectionContainer(Modifier.weight(1f)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = account.sessionId.value,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
+            Icon(
+                imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

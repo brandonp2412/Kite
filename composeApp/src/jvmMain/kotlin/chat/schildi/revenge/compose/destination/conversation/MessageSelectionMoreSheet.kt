@@ -1,12 +1,17 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.filled.Delete
@@ -23,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.compose.components.KiteModalBottomSheet
 import org.jetbrains.compose.resources.StringResource
@@ -59,67 +63,70 @@ fun MessageSelectionMoreSheet(
     onReport: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    KiteModalBottomSheet(
-        onDismissRequest = onDismiss,
-    ) {
-        if (canEdit) {
-            SelectionMoreAction(Res.string.action_edit, { Icon(Icons.Default.Edit, null) }) {
-                onDismiss()
-                onEdit()
+    KiteModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (canEdit) {
+                SelectionMoreAction(Res.string.action_edit, { Icon(Icons.Default.Edit, null) }) {
+                    onDismiss()
+                    onEdit()
+                }
             }
-        }
-        if (canOpenThread) {
-            SelectionMoreAction(Res.string.action_thread, { Icon(Icons.Default.Gesture, null) }) {
-                onDismiss()
-                onOpenThread()
+            if (canOpenThread) {
+                SelectionMoreAction(Res.string.action_thread, { Icon(Icons.Default.Gesture, null) }) {
+                    onDismiss()
+                    onOpenThread()
+                }
             }
-        }
-        if (canPin) {
-            SelectionMoreAction(
-                if (isPinned) Res.string.action_unpin else Res.string.action_pin,
-                { Icon(Icons.Default.PushPin, null) },
-            ) {
-                onDismiss()
-                onTogglePin()
+            if (canPin) {
+                SelectionMoreAction(
+                    if (isPinned) Res.string.action_unpin else Res.string.action_pin,
+                    { Icon(Icons.Default.PushPin, null) },
+                ) {
+                    onDismiss()
+                    onTogglePin()
+                }
             }
-        }
-        if (canDownload) {
-            SelectionMoreAction(Res.string.action_download, { Icon(Icons.Default.Download, null) }) {
-                onDismiss()
-                onDownload()
+            if (canDownload) {
+                SelectionMoreAction(Res.string.action_download, { Icon(Icons.Default.Download, null) }) {
+                    onDismiss()
+                    onDownload()
+                }
             }
-        }
-        if (canForward) {
-            SelectionMoreAction(Res.string.action_forward, { Icon(Icons.AutoMirrored.Filled.Forward, null) }) {
-                onDismiss()
-                onForward()
+            if (canForward) {
+                SelectionMoreAction(Res.string.action_forward, { Icon(Icons.AutoMirrored.Filled.Forward, null) }) {
+                    onDismiss()
+                    onForward()
+                }
             }
-        }
-        SelectionMoreAction(Res.string.action_message_info, { Icon(Icons.Default.Info, null) }) {
-            onDismiss()
-            onInfo()
-        }
-        if (canReport) {
-            SelectionMoreAction(
-                Res.string.action_report_message,
-                { Icon(Icons.Outlined.Shield, null, tint = MaterialTheme.colorScheme.error) },
-                color = MaterialTheme.colorScheme.error,
-            ) {
+            SelectionMoreAction(Res.string.action_message_info, { Icon(Icons.Default.Info, null) }) {
                 onDismiss()
-                onReport()
+                onInfo()
             }
-        }
-        if (canDelete) {
-            SelectionMoreAction(
-                Res.string.action_redact,
-                { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                color = MaterialTheme.colorScheme.error,
-            ) {
-                onDismiss()
-                onDelete()
+            if (canReport) {
+                SelectionMoreAction(
+                    Res.string.action_report_message,
+                    { Icon(Icons.Outlined.Shield, null) },
+                    destructive = true,
+                ) {
+                    onDismiss()
+                    onReport()
+                }
             }
+            if (canDelete) {
+                SelectionMoreAction(
+                    Res.string.action_redact,
+                    { Icon(Icons.Default.Delete, null) },
+                    destructive = true,
+                ) {
+                    onDismiss()
+                    onDelete()
+                }
+            }
+            Spacer(Modifier.navigationBarsPadding())
         }
-        Spacer(Modifier.navigationBarsPadding())
     }
 }
 
@@ -127,29 +134,57 @@ fun MessageSelectionMoreSheet(
 private fun SelectionMoreAction(
     label: StringResource,
     icon: @Composable () -> Unit,
-    color: Color = MaterialTheme.colorScheme.onSurface,
+    destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val containerColor = if (destructive) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val contentColor = if (destructive) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val iconContainerColor = if (destructive) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val iconContentColor = if (destructive) {
+        MaterialTheme.colorScheme.onError
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
     Surface(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        color = Color.Transparent,
-        contentColor = color,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = containerColor,
+        contentColor = contentColor,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                .heightIn(min = 60.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            icon()
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = iconContainerColor,
+                contentColor = iconContentColor,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    icon()
+                }
+            }
             Text(
                 text = stringResource(label),
-                color = color,
+                color = contentColor,
                 style = MaterialTheme.typography.bodyLarge,
             )
         }
