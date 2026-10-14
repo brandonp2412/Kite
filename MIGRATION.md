@@ -628,3 +628,63 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
   - long-press quick-reaction pill versus the separate action card, action taps, popup dismissal, and second-long-press partial text selection.
 - Capture controlled gfxinfo/frame evidence during long-history scrolling, composer focus/typing, long-press actions, and Inbox <-> Conversation navigation at an actually active 120 Hz mode before making a measurable performance-parity claim.
 - After that observed QA, continue the next broad Google-Messages-style surface: message bubble/timeline metadata and media presentation, then search/settings/account surfaces, while preserving the bottom Inbox search exception and existing Matrix behavior.
+
+## 2026-10-15 03:26 NZDT — Messages bubble grouping, media cards, timeline density, and waveform hot-path cleanup
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages mapping in docs/design-reference/google-messages/README.md and inspected 01-official-conversation.png, 05-material3-chat.webp, and 06-dark-attachment-menu.webp before changing the timeline.
+- The pinned conversation references keep nearby same-sender bubbles as individually rounded pills with compact vertical grouping rather than Revenge-style sharp joined corners; successful messages also remain free of permanent in-bubble timestamps.
+- Preserved Kite identity/colors and Matrix-specific reactions/read receipts rather than copying Google branding or removing Matrix capabilities.
+- Preserved the deliberate product exception unchanged: Inbox search remains at the bottom.
+- The Samsung was still Dozing / non-interactive, so installed Google Messages was not opened or mutated merely for reference gathering and no fresh side-by-side visual-parity claim is made.
+
+### Implemented
+- Reworked conversation bubble grouping and timeline rhythm toward the pinned Messages references:
+  - same-sender runs now keep the full 20 dp bubble radius instead of collapsing joined corners to 6 dp;
+  - compact same-sender spacing is 4 dp and sender-boundary spacing is 12 dp;
+  - date separators use a quieter bodySmall treatment with 16 dp vertical breathing room;
+  - successful messages continue to avoid permanent timestamps, preserving the existing swipe-to-reveal/status behavior.
+- Reworked image/video presentation:
+  - image/video content now reaches the rounded bubble edge instead of carrying the old 2 dp Revenge inset;
+  - captions use the same 14 x 9 dp content inset as text bubbles;
+  - video playback uses a 40 dp tonal Material play affordance with a 24 dp icon instead of the opaque inverse-color 32 dp disk.
+- Reworked file/audio/voice cards into a consistent attachment system:
+  - shared 40 dp tonal attachment icon treatment with 10 dp icon inset;
+  - stable 176 dp file-card and 220 dp audio-card minimum widths;
+  - long filenames are bounded to two lines;
+  - caption spacing no longer doubles the outer Arrangement.spacedBy(...) gap;
+  - cards use the normal Messages-style bubble content padding instead of the old 8 dp Revenge inset.
+- Tightened Matrix-specific metadata surfaces without removing behavior:
+  - reaction rows/chips use denser 4/2 dp row spacing and 9/4 dp inner padding with labelMedium counts;
+  - read-receipt vertical spacing is reduced from 4 dp to 2 dp.
+- Performance hot-path cleanup for voice/audio messages:
+  - removed snapshot-state writes from inside the waveform Canvas draw pass;
+  - waveform width is now captured only by onSizeChanged;
+  - resampling is remembered by the bounded display sample count and uses the actual line-width + line-padding step;
+  - sample count is clamped to the existing 64-segment rendering budget.
+- Added focused regression coverage for full-radius grouped bubbles and waveform sample-count bounds.
+- No new Matrix collector, duplicated timeline state, animation/effect loop, or blocking UI work was introduced.
+
+### Validation
+- Cohesive source checkpoint: 139aae3e5e852b7173ff2ed9ae51c864eaf44c7a (Polish Messages timeline and media bubbles), 9 files, 113 insertions / 85 deletions.
+- git diff --check: pass before checkpoint.
+- Focused MessageBubbleShapeTest + AudioWaveformLayoutTest: pass with JDK 25 (BUILD SUCCESSFUL in 27s).
+- Glass with JDK 25 + /opt/android-sdk: :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass (BUILD SUCCESSFUL in 28s, 91 actionable tasks).
+- Release-like validation reused the clean detached validation worktree /home/brandon/worktrees/kite-revenge-validate-dbd57198, checked out at exact superproject commit 139aae3e5e852b7173ff2ed9ae51c864eaf44c7a; Matrix Rust SDK remained pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain: pass (BUILD SUCCESSFUL in 1m 7s, 279 actionable tasks).
+- Final clean APK: /home/brandon/worktrees/kite-revenge-validate-dbd57198/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,853,803 bytes, SHA-256 01d79a78f9734418b6952adf19caeb3264b50fde0acb70aab0595210d069a950.
+- AAPT verifies package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37, native code arm64-v8a.
+- APK signature verified with the existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung 10.66.66.3:5555 preflight found neither production app.kite nor redundant app.kite.revenge; only app.kite.revenge.debug was targeted. adb install -r returned Success.
+- Existing debug data/login was preserved: dataDir=/data/user/0/app.kite.revenge.debug, firstInstallTime=2026-10-14 11:55:12; post-install lastUpdateTime=2026-10-15 03:24:15.
+- Post-install device state remained mWakefulness=Dozing / mHalInteractiveModeEnabled=false; Kite and Google Messages were not launched and the phone was not woken merely for QA.
+- No 120 Hz frame-time or fresh side-by-side visual-parity claim is made for this slice.
+- The pre-existing hide-room work remains unstaged and byte-for-byte unchanged:
+  - InboxViewModel.kt SHA-256 cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7
+  - AppStateStore.kt SHA-256 7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673
+  - strings.xml SHA-256 dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a
+
+### Next substantial slice
+- When the Samsung is naturally awake/unlocked, compare the exact installed PerfDebug build side-by-side with installed Google Messages across long and short text runs, image/video bubbles, file/audio/voice cards, reactions, read receipts, dates, dark mode, and swipe-to-reveal metadata; capture controlled 120 Hz gfxinfo evidence before claiming measurable parity.
+- Continue the next broad Google-Messages-style surface even if device visual QA is still unavailable: search/results/navigation first, then settings/account rows, dialogs and toggles using the pinned reference set and existing native Revenge state/navigation paths.
+- Keep the Inbox search bar at the bottom and preserve all Matrix-specific behavior while avoiding per-row collectors, parallel state systems, and decorative animation.
