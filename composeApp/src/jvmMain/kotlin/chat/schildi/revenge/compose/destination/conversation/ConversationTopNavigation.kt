@@ -59,6 +59,7 @@ import shire.res.generated.resources.pref_threaded_replies_in_main_timeline_titl
 import shire.res.generated.resources.pref_view_hidden_events_title_short
 import shire.res.generated.resources.pref_view_redactions_title_short
 import shire.res.generated.resources.room_details_title
+import shire.res.generated.resources.selection_messages_count
 import shire.res.generated.resources.thread
 import shire.res.generated.resources.thread_in
 
@@ -67,6 +68,8 @@ fun ConversationTopNavigation(
     viewModel: RoomPreviewViewModel,
     hasTimeline: Boolean,
     compact: Boolean,
+    selectionCount: Int = 0,
+    onClearSelection: (() -> Unit)? = null,
 ) {
     val roomInfo = viewModel.roomInfo.collectAsState(null).value
     val title = if ((viewModel as? ConversationViewModel)?.threadId?.collectAsState()?.value != null) {
@@ -81,6 +84,15 @@ fun ConversationTopNavigation(
     val focusParent = LocalFocusParent.current
     val destinationState = LocalDestinationState.current
     TopNavigation {
+        if (selectionCount > 0 && onClearSelection != null) {
+            TopNavigationTitle(stringResource(Res.string.selection_messages_count, selectionCount))
+            TopNavigationIcon(
+                Icons.Default.Close,
+                stringResource(Res.string.action_close),
+                onClick = onClearSelection,
+            )
+            return@TopNavigation
+        }
         when (viewModel.timelineParams) {
             is CreateTimelineParams.Threaded -> TopNavigationSearchOrTitle(stringResource(Res.string.thread))
             is CreateTimelineParams.PinnedOnly -> TopNavigationSearchOrTitle(stringResource(Res.string.pinned_messages))

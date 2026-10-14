@@ -70,6 +70,7 @@ import chat.schildi.revenge.config.keybindings.DestinationEnum
 import chat.schildi.revenge.model.DraftRepo
 import chat.schildi.revenge.model.InboxViewModel
 import chat.schildi.revenge.model.IncomingShare
+import chat.schildi.revenge.model.MessageForward
 import chat.schildi.revenge.model.spaces.PSEUDO_SPACE_ID_NO_FILTER
 import chat.schildi.revenge.model.spaces.SpaceListDataSource
 import chat.schildi.revenge.model.spaces.filterByVisible
@@ -130,6 +131,7 @@ fun InboxScreen(
     }
 
     val drafts = DraftRepo.roomsWithDrafts.collectAsState(persistentSetOf())
+    val pendingForward = MessageForward.pending.collectAsState(null).value
     FocusContainer(
         LocalSearchProvider provides viewModel,
         LocalKeyboardActionProvider provides viewModel.hierarchicalKeyboardActionProvider(),
@@ -260,9 +262,9 @@ fun InboxScreen(
                         }
                     }
                 } else {
-                    val incomingShareHeight = remember { mutableIntStateOf(0) }
+                    val pendingTransferHeight = remember { mutableIntStateOf(0) }
                     val extraContentPadding = LocalDensity.current.run {
-                        PaddingValues(top = incomingShareHeight.intValue.toDp() )
+                        PaddingValues(top = pendingTransferHeight.intValue.toDp() )
                     }
                     LazyColumn(
                         modifier = contentModifier.fillMaxSize(),
@@ -301,31 +303,40 @@ fun InboxScreen(
                                 hasDraft = room.key in drafts.value,
                                 user = remember(accounts) { accounts?.get(room.sessionId)?.user },
                                 needsAccountDisambiguation = needsDisambiguation,
+                                pendingForward = pendingForward,
                             )
                         }
                     }
 
                     val incomingShare = IncomingShare.share.collectAsState(null).value
-                    if (incomingShare != null) {
+                    if (pendingForward != null || incomingShare != null) {
                         Box(
                             Modifier.fillMaxWidth().align(Alignment.TopCenter),
                             contentAlignment = Alignment.Center,
                         ) {
-                            IncomingShareNoticeCard(
-                                share = incomingShare,
-                                modifier = Modifier
-                                    .onGloballyPositioned {
-                                        incomingShareHeight.intValue = it.size.height
-                                    }
-                                    .padding(
-                                        horizontal = Dimens.windowPadding,
-                                        vertical = Dimens.listPadding,
-                                    ),
-                            )
+                            val noticeModifier = Modifier
+                                .onGloballyPositioned {
+                                    pendingTransferHeight.intValue = it.size.height
+                                }
+                                .padding(
+                                    horizontal = Dimens.windowPadding,
+                                    vertical = Dimens.listPadding,
+                                )
+                            if (pendingForward != null) {
+                                MessageForwardNoticeCard(
+                                    forward = pendingForward,
+                                    modifier = noticeModifier,
+                                )
+                            } else if (incomingShare != null) {
+                                IncomingShareNoticeCard(
+                                    share = incomingShare,
+                                    modifier = noticeModifier,
+                                )
+                            }
                         }
                     } else {
                         SideEffect {
-                            incomingShareHeight.intValue = 0
+                            pendingTransferHeight.intValue = 0
                         }
                     }
                 }

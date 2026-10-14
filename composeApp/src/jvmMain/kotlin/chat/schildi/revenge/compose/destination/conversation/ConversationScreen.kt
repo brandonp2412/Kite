@@ -86,6 +86,7 @@ import chat.schildi.revenge.config.keybindings.DestinationEnum
 import chat.schildi.revenge.matrixBodyDrawStyle
 import chat.schildi.revenge.matrixBodyFormatter
 import chat.schildi.revenge.model.CheckpointLoadState
+import chat.schildi.revenge.model.MessageForward
 import chat.schildi.revenge.model.LoadCheckPoint
 import chat.schildi.revenge.model.conversation.EventJumpTarget
 import chat.schildi.revenge.model.conversation.ScTimelineItem
@@ -97,9 +98,13 @@ import chat.schildi.revenge.viewModelKey
 import co.touchlab.kermit.Logger
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
+import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
+import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
+import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
+import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.mutate
@@ -167,6 +172,19 @@ fun ConversationScreen(
         val selectedMessagesState = remember { mutableStateOf(persistentMapOf<String, ScTimelineItem>()) }
         val selectedMessages = selectedMessagesState.value
         val selectionActive = selectedMessages.isNotEmpty()
+        val clearMessageSelection = remember {
+            { selectedMessagesState.value = persistentMapOf() }
+        }
+        var selectionMoreOpen by remember { mutableStateOf(false) }
+        var selectionInfoOpen by remember { mutableStateOf(false) }
+        var selectionReportOpen by remember { mutableStateOf(false) }
+        LaunchedEffect(selectionActive) {
+            if (!selectionActive) {
+                selectionMoreOpen = false
+                selectionInfoOpen = false
+                selectionReportOpen = false
+            }
+        }
         val toggleMessageSelection: (ScTimelineItem) -> Unit = remember {
             { item ->
                 val event = (item.item as? MatrixTimelineItem.Event)?.event
@@ -185,7 +203,7 @@ fun ConversationScreen(
             }
         }
         PlatformBackHandler(enabled = selectionActive) {
-            selectedMessagesState.value = persistentMapOf()
+            clearMessageSelection()
         }
         val debugLines = if (ScPrefs.SHOW_DEV_INFOS.value()) {
             viewModel.debugLines.collectAsState().value
@@ -403,6 +421,8 @@ fun ConversationScreen(
                     viewModel,
                     hasTimeline = true,
                     compact = this@BoxWithConstraints.maxWidth < Dimens.compactActionBarThreshold,
+                    selectionCount = selectedMessages.size,
+                    onClearSelection = clearMessageSelection,
                 )
 
                 ConversationTopDebugHeader(viewModel, Modifier.fillMaxWidth())
@@ -630,21 +650,33 @@ fun ConversationScreen(
                             formatInteractionState = null,
                         ).handleAction(actionContext, action, emptyList())
                     }
-                    val clearSelection = {
-                        selectedMessagesState.value = persistentMapOf()
-                    }
+                    val clearSelection = clearMessageSelection
+                    val canForwardSelection = selectedEvents.isNotEmpty() && selectedEvents.all { it.eventId != null }
+                    val canEditSingle = selectedSingleEvent?.isEditable == true &&
+                            (roomPermissions?.canSendMessages ?: true)
+                    val canOpenThread = selectedSingleEvent?.eventId != null &&
+                            destination.timelineParams !is CreateTimelineParams.Threaded &&
+                            (roomPermissions?.canSendMessages ?: false)
+                    val isPinned = selectedSingleEvent?.eventId?.let { it in (roomInfo?.pinnedEventIds ?: emptyList()) } == true
+                    val canDownload = ((selectedSingleEvent?.content as? MessageContent)?.type is MessageTypeWithAttachment)
+
                     MessageSelectionBar(
                         selectedCount = selectedMessages.size,
                         canReply = selectedSingleEvent?.eventId != null &&
                                 (roomPermissions?.canSendMessages ?: false),
-                        canEdit = selectedSingleEvent?.isOwn == true &&
-                                selectedSingleEvent.content is MessageContent &&
-                                (roomPermissions?.canSendMessages ?: true),
+                        canRetry = selectedSingleEvent?.localSendState is LocalEventSendState.Failed,
+                        canForward = canForwardSelection,
                         canDelete = canDeleteSelection,
-                        onClear = clearSelection,
                         onReply = {
                             selectedSingle?.let {
                                 if (executeSelectedAction(it, Action.Event.ComposeReply) is ActionResult.Success) {
+                                    clearSelection()
+                                }
+                            }
+                        },
+                        onRetry = {
+                            selectedSingle?.let {
+                                if (executeSelectedAction(it, Action.Event.RetrySend) is ActionResult.Success) {
                                     clearSelection()
                                 }
                             }
@@ -689,11 +721,17 @@ fun ConversationScreen(
                                 }
                             }
                         },
-                        onEdit = {
-                            selectedSingle?.let {
-                                if (executeSelectedAction(it, Action.Event.ComposeEdit) is ActionResult.Success) {
-                                    clearSelection()
-                                }
+                        onForward = {
+                            val holder = actionContext.destinationStateHolder
+                            val forward = MessageForward.prepare(
+                                sessionId = viewModel.sessionId,
+                                sourceRoomId = viewModel.roomId,
+                                events = selectedEvents.sortedBy { it.timestamp },
+                            )
+                            if (holder != null && forward != null) {
+                                MessageForward.set(forward)
+                                clearSelection()
+                                holder.navigate(Destination.Inbox, NavigationPreference.REPLACE)
                             }
                         },
                         onDelete = {
@@ -703,7 +741,86 @@ fun ConversationScreen(
                                 onConfirmed = clearSelection,
                             )
                         },
+                        onMore = { selectionMoreOpen = true },
                     )
+                    if (selectionMoreOpen && selectedSingle != null && selectedSingleEvent != null) {
+                        MessageSelectionMoreSheet(
+                            canEdit = canEditSingle,
+                            canOpenThread = canOpenThread,
+                            canPin = selectedSingleEvent.eventId != null && roomPermissions?.canPinUnpin == true,
+                            isPinned = isPinned,
+                            canDownload = canDownload,
+                            canReport = selectedSingleEvent.eventId != null && !selectedSingleEvent.isOwn,
+                            canDelete = canDeleteSelection,
+                            onDismiss = { selectionMoreOpen = false },
+                            onEdit = {
+                                if (executeSelectedAction(selectedSingle, Action.Event.ComposeEdit) is ActionResult.Success) {
+                                    clearSelection()
+                                }
+                            },
+                            onOpenThread = {
+                                val threadRootId =
+                                    (selectedSingleEvent.threadInfo() as? EventThreadInfo.ThreadResponse)
+                                        ?.threadRootId
+                                        ?.value
+                                        ?: selectedSingleEvent.eventId?.value
+                                if (threadRootId != null) {
+                                    actionContext.destinationStateHolder?.navigate(
+                                        Destination.Conversation(
+                                            sessionId = viewModel.sessionId,
+                                            roomId = viewModel.roomId,
+                                            timelineParams = CreateTimelineParams.Threaded(ThreadId(threadRootId)),
+                                        )
+                                    )
+                                    clearSelection()
+                                }
+                            },
+                            onTogglePin = {
+                                val action = if (isPinned) Action.Event.Unpin else Action.Event.Pin
+                                if (executeSelectedAction(selectedSingle, action) is ActionResult.Success) {
+                                    clearSelection()
+                                }
+                            },
+                            onDownload = {
+                                if (executeSelectedAction(selectedSingle, Action.Event.DownloadFile) is ActionResult.Success) {
+                                    clearSelection()
+                                }
+                            },
+                            onInfo = { selectionInfoOpen = true },
+                            onReport = { selectionReportOpen = true },
+                            onDelete = {
+                                viewModel.redactEventsWithConfirmation(
+                                    context = actionContext,
+                                    events = selectedEvents,
+                                    onConfirmed = clearSelection,
+                                )
+                            },
+                        )
+                    }
+                    if (selectionInfoOpen && selectedSingleEvent != null) {
+                        MessageInfoSheet(
+                            event = selectedSingleEvent,
+                            onDismiss = { selectionInfoOpen = false },
+                        )
+                    }
+                    val reportEvent = selectedSingleEvent
+                    if (selectionReportOpen && reportEvent?.eventId != null && !reportEvent.isOwn) {
+                        ReportMessageSheet(
+                            onDismiss = { selectionReportOpen = false },
+                            onReport = { reason ->
+                                if (
+                                    viewModel.reportEvent(
+                                        context = actionContext,
+                                        event = reportEvent,
+                                        reason = reason,
+                                        onReported = clearSelection,
+                                    ) is ActionResult.Actioned
+                                ) {
+                                    // Selection is cleared only after the async report succeeds.
+                                }
+                            },
+                        )
+                    }
                 } else {
                     val shouldAutoFocusComposer = FocusRole.MESSAGE_COMPOSER.shouldAutoRequestFocus()
                     LaunchedEffect(shouldShowComposer) {

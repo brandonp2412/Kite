@@ -277,6 +277,7 @@ private fun buildScTimelineFilterSettings(lookup: (ScPref<*>) -> Any?) = ScTimel
 data class ConversationPermissions(
     val canSendMessages: Boolean,
     val canSendReactions: Boolean,
+    val canPinUnpin: Boolean,
     val canRedactOwn: Boolean,
     val canRedactOther: Boolean,
     // TODO more
@@ -470,6 +471,7 @@ class ConversationViewModel(
             ConversationPermissions(
                 canSendMessages = it.canOwnUserSendMessage(MessageEventType.RoomMessage),
                 canSendReactions = it.canOwnUserSendMessage(MessageEventType.Reaction),
+                canPinUnpin = it.canOwnUserPinUnpin(),
                 canRedactOwn = it.canOwnUserRedactOwn(),
                 canRedactOther = it.canOwnUserRedactOther(),
             )
@@ -2289,6 +2291,34 @@ class ConversationViewModel(
                 }
                 ActionResult.Success()
             }
+        }
+    }
+
+    fun reportEvent(
+        context: ActionContext,
+        event: EventTimelineItem,
+        reason: String,
+        onReported: () -> Unit = {},
+    ): ActionResult {
+        if (event.isOwn || reason.isBlank()) return ActionResult.Inapplicable
+        val eventId = event.eventId ?: return ActionResult.Inapplicable
+        val room = joinedRoom.value ?: return ActionResult.Failure("Room not ready")
+        return context.launchActionAsync(
+            actionName = "reportMessage",
+            scope = GlobalActionsScope,
+            context = Dispatchers.IO,
+            appMessageId = "reportMessage",
+            notifyProcessing = true,
+        ) {
+            val result = room.reportContent(
+                eventId = eventId,
+                reason = reason,
+                blockUserId = null,
+            ).toActionResult()
+            if (result is ActionResult.Success) {
+                withContext(Dispatchers.Main) { onReported() }
+            }
+            result
         }
     }
 

@@ -67,6 +67,7 @@ import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.model.conversation.ConversationViewModel
 import chat.schildi.revenge.model.InboxViewModel
 import chat.schildi.revenge.model.PendingAction
+import chat.schildi.revenge.model.PendingMessageForward
 import chat.schildi.revenge.model.ScopedRoomKey
 import chat.schildi.theme.scExposures
 import io.element.android.libraries.matrix.api.core.RoomId
@@ -95,6 +96,7 @@ fun InboxRow(
     hasDraft: Boolean,
     user: MatrixUser?,
     needsAccountDisambiguation: Boolean,
+    pendingForward: PendingMessageForward?,
     modifier: Modifier = Modifier,
 ) {
     ComposeSessionScope(room.sessionId) {
@@ -111,20 +113,54 @@ fun InboxRow(
                     .keyFocusable(
                         FocusRole.LIST_ITEM,
                         focusId,
-                        actionProvider = buildNavigationActionProvider(
-                            initialTitle = {
-                                ConversationViewModel.windowTitle(
-                                    roomInfo = room.summary.info,
-                                    accountUserDisplayName = user?.displayName,
-                                    sessionId = room.sessionId,
+                        actionProvider = if (pendingForward != null) {
+                            val validForwardTarget = pendingForward.sessionId == room.sessionId &&
+                                    room.summary.info.currentUserMembership == CurrentUserMembership.JOINED &&
+                                    !room.summary.info.isSpace
+                            actionProvider(
+                                primaryAction = if (validForwardTarget) {
+                                    InteractionAction.Invoke {
+                                        viewModel.forwardPendingMessages(
+                                            actionContext,
+                                            room.sessionId,
+                                            room.summary.roomId,
+                                        ) is ActionResult.Actioned
+                                    }
+                                } else {
+                                    null
+                                },
+                                secondaryAction = openContextMenu,
+                                copyActions = plainTextCopyAction { room.summary.info.name },
+                                keyActions = inboxRowKeyboardActionProvider(
+                                    viewModel,
+                                    room.key,
+                                    isInvite = room.summary.isInvite(),
+                                ),
+                            )
+                        } else {
+                            buildNavigationActionProvider(
+                                initialTitle = {
+                                    ConversationViewModel.windowTitle(
+                                        roomInfo = room.summary.info,
+                                        accountUserDisplayName = user?.displayName,
+                                        sessionId = room.sessionId,
+                                    )
+                                },
+                                keyActions = inboxRowKeyboardActionProvider(
+                                    viewModel,
+                                    room.key,
+                                    isInvite = room.summary.isInvite(),
+                                ),
+                                secondaryAction = openContextMenu,
+                                copyActions = plainTextCopyAction { room.summary.info.name },
+                            ) {
+                                viewModel.consumePendingShareIntoDraft(
+                                    actionContext,
+                                    room.sessionId,
+                                    room.summary.roomId,
                                 )
-                            },
-                            keyActions = inboxRowKeyboardActionProvider(viewModel, room.key, isInvite = room.summary.isInvite()),
-                            secondaryAction = openContextMenu,
-                            copyActions = plainTextCopyAction { room.summary.info.name },
-                        ) {
-                            viewModel.consumePendingShareIntoDraft(actionContext, room.sessionId, room.summary.roomId)
-                            Destination.Conversation(room.sessionId, room.summary.roomId)
+                                Destination.Conversation(room.sessionId, room.summary.roomId)
+                            }
                         },
                     )
                     .padding(

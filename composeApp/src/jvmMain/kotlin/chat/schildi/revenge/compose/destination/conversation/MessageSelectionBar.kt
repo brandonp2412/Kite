@@ -1,87 +1,120 @@
 package chat.schildi.revenge.compose.destination.conversation
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import chat.schildi.revenge.Dimens
-import chat.schildi.revenge.compose.components.WithTooltip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
-import shire.res.generated.resources.action_close
 import shire.res.generated.resources.action_copy_body
-import shire.res.generated.resources.action_edit
+import shire.res.generated.resources.action_forward
 import shire.res.generated.resources.action_redact
 import shire.res.generated.resources.action_reply
-import shire.res.generated.resources.selection_messages_count
+import shire.res.generated.resources.action_retry
+import shire.res.generated.resources.action_show_more
 
 @Composable
 fun MessageSelectionBar(
     selectedCount: Int,
     canReply: Boolean,
-    canEdit: Boolean,
+    canRetry: Boolean,
+    canForward: Boolean,
     canDelete: Boolean,
-    onClear: () -> Unit,
     onReply: () -> Unit,
+    onRetry: () -> Unit,
     onCopy: () -> Unit,
-    onEdit: () -> Unit,
+    onForward: () -> Unit,
     onDelete: () -> Unit,
+    onMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier.fillMaxWidth(), tonalElevation = Dimens.windowPadding) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        tonalElevation = 2.dp,
+        shadowElevation = 1.dp,
+    ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = Dimens.horizontalItemPadding),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            WithTooltip(stringResource(Res.string.action_close)) {
-                IconButton(onClick = onClear) {
-                    Icon(Icons.Default.Close, stringResource(Res.string.action_close))
-                }
-            }
-            Text(
-                text = stringResource(Res.string.selection_messages_count, selectedCount),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-            )
             if (canReply) {
-                WithTooltip(stringResource(Res.string.action_reply)) {
-                    IconButton(onClick = onReply) {
-                        Icon(Icons.AutoMirrored.Default.Reply, stringResource(Res.string.action_reply))
-                    }
-                }
+                SelectionAction(Icons.AutoMirrored.Default.Reply, Res.string.action_reply, onReply)
             }
-            WithTooltip(stringResource(Res.string.action_copy_body)) {
-                IconButton(onClick = onCopy) {
-                    Icon(Icons.Default.ContentCopy, stringResource(Res.string.action_copy_body))
-                }
+            if (canRetry) {
+                SelectionAction(Icons.Default.Refresh, Res.string.action_retry, onRetry)
             }
-            if (canEdit) {
-                WithTooltip(stringResource(Res.string.action_edit)) {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, stringResource(Res.string.action_edit))
-                    }
-                }
+            SelectionAction(Icons.Default.ContentCopy, Res.string.action_copy_body, onCopy)
+            if (canForward) {
+                SelectionAction(Icons.AutoMirrored.Default.Forward, Res.string.action_forward, onForward)
             }
-            if (canDelete) {
-                WithTooltip(stringResource(Res.string.action_redact)) {
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, stringResource(Res.string.action_redact))
-                    }
-                }
+            if (canDelete && (selectedCount > 1 || canRetry)) {
+                SelectionAction(Icons.Default.Delete, Res.string.action_redact, onDelete, destructive = true)
             }
+            if (selectedCount == 1) {
+                SelectionAction(Icons.Default.MoreHoriz, Res.string.action_show_more, onMore)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionAction(
+    icon: ImageVector,
+    label: StringResource,
+    onClick: () -> Unit,
+    destructive: Boolean = false,
+) {
+    val contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .widthIn(min = 68.dp)
+            .heightIn(min = 54.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+            )
+            Text(
+                text = stringResource(label),
+                modifier = Modifier.widthIn(max = 72.dp),
+                color = contentColor,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

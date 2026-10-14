@@ -8,6 +8,7 @@ import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.lib.preferences.safeLookup
 import chat.schildi.revenge.CombinedSessions
 import chat.schildi.revenge.Destination
+import chat.schildi.revenge.NavigationPreference
 import chat.schildi.revenge.GlobalActionsScope
 import chat.schildi.revenge.TitleProvider
 import chat.schildi.revenge.UiState
@@ -23,6 +24,7 @@ import chat.schildi.revenge.compose.destination.inbox.isInvite
 import chat.schildi.revenge.compose.search.SearchProvider
 import chat.schildi.resources.ComposableStringHolder
 import chat.schildi.resources.StringResourceHolder
+import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.KeyTrigger
 import chat.schildi.revenge.flatMerge
@@ -76,7 +78,10 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import shire.res.generated.resources.Res
+import shire.res.generated.resources.action_forward
+import shire.res.generated.resources.forward_confirm
 import shire.res.generated.resources.inbox
 import shire.res.generated.resources.inbox_search
 import kotlin.collections.map
@@ -798,6 +803,59 @@ class InboxViewModel(
             notifyProcessing = true
         ) {
             client.joinRoomTracked(roomId).toActionResult()
+        }
+    }
+
+    /**
+     * Confirm and forward the currently pending structured messages to [roomId].
+     *
+     * Returns null when there is no forward in progress, allowing the normal inbox row
+     * navigation/share behavior to continue unchanged.
+     */
+    fun forwardPendingMessages(context: ActionContext, sessionId: SessionId, roomId: RoomId): ActionResult {
+        val forward = MessageForward.pending.value ?: return ActionResult.Inapplicable
+        if (sessionId != forward.sessionId) return ActionResult.Inapplicable
+        val count = forward.eventIds.size.toString().toStringHolder()
+        return context.withCriticalActionConfirmation(
+            prompt = StringResourceHolder(Res.string.forward_confirm, count),
+            confirmText = StringResourceHolder(Res.string.action_forward),
+        ) {
+            context.launchActionAsync(
+                actionName = "forwardMessages",
+                scope = GlobalActionsScope,
+                context = Dispatchers.IO,
+                appMessageId = "forwardMessages",
+                notifyProcessing = true,
+            ) {
+                val client = UiState.currentClientFor(forward.sessionId)
+                    ?: return@launchActionAsync ActionResult.Failure("Client not ready for " + forward.sessionId)
+                val sourceRoom = client.getJoinedRoom(forward.sourceRoomId)
+                    ?: return@launchActionAsync ActionResult.Failure("Source room is not joined")
+                sourceRoom.use { room ->
+                    for (eventId in forward.eventIds) {
+                        if (!MessageForward.isCurrent(forward)) {
+                            return@launchActionAsync ActionResult.Inapplicable
+                        }
+                        val result = room.liveTimeline.forwardEvent(
+                            eventId = eventId,
+                            roomIds = listOf(roomId),
+                        ).toActionResult()
+                        if (result !is ActionResult.Success) {
+                            return@launchActionAsync result
+                        }
+                        if (!MessageForward.markForwarded(forward, eventId)) {
+                            return@launchActionAsync ActionResult.Inapplicable
+                        }
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    context.destinationStateHolder?.navigate(
+                        Destination.Conversation(forward.sessionId, roomId),
+                        preference = NavigationPreference.REPLACE,
+                    )
+                }
+                ActionResult.Success()
+            }
         }
     }
 
