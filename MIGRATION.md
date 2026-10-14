@@ -565,3 +565,66 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - When the Samsung is naturally awake/unlocked, compare the installed build side-by-side with installed Google Messages across Inbox -> Conversation -> search -> composer focus/keyboard -> long-press selection, verifying that the removed circular loading chrome and app-bar crossfades eliminate the reported flash/jolt.
 - Capture controlled gfxinfo/frame evidence during repeated Inbox <-> Conversation navigation, long-history scrolling, right-swipe reply, and left-swipe timestamp reveal at 120 Hz before making a measurable performance-parity claim.
 - Continue the adjacent Google-Messages-style composer/reply/edit/attachment and reaction/action-sheet dark-theme polish from the observed device state, keeping the bottom inbox search exception and existing Matrix behavior intact.
+
+## 2026-10-15 02:57 NZDT — Messages composer, reply/edit context, attachments, and split action surfaces
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages reference mapping in docs/design-reference/google-messages/README.md before changing this slice, especially 05-material3-chat.webp and 06-dark-attachment-menu.webp.
+- The pinned chat reference uses a rounded composer capsule with a distinct trailing send/action affordance; the dark attachment reference uses compact fixed circular action cells with labels rather than stretched full-width buttons.
+- Cross-checked the current stable Google Messages long-press treatment: the reaction strip is visually separate from the rounded vertical action card. Kite keeps its existing five custom quick reactions plus Add Reaction and Matrix-specific actions rather than cloning Google-only capabilities.
+- Preserved the intentional Kite exception unchanged: Inbox search remains at the bottom.
+- The Samsung stayed Dozing / non-interactive, so installed Google Messages was not opened or mutated and no fresh side-by-side screenshot claim is made.
+
+### Implemented
+- Reworked the normal composer trailing action to match the current Messages structure without changing Matrix sending:
+  - when the draft is sendable, a dedicated 48 dp circular primary Send button appears beside the existing 28 dp composer capsule;
+  - send-in-progress keeps the same trailing geometry but disables the button, avoiding a layout jump;
+  - IME Send and the button both continue through the existing ComposerViewModel.sendMessage(...) path;
+  - no new send state, collector, animation, or parallel Matrix pipeline was introduced.
+- Reworked reply/edit context presentation inside the composer:
+  - reply and edit modes now share a narrow 3 dp accent rail and tighter hierarchy;
+  - composer reply previews use a tonal surfaceContainerHighest treatment instead of nesting a second outlined bubble inside the composer;
+  - ordinary timeline reply rendering remains unchanged because the new reply-preview mode is opt-in.
+- Restyled the Camera / Gallery / File attachment sheet against the pinned dark Messages reference:
+  - fixed 64 dp circular action cells,
+  - 72 dp action columns with 20 dp spacing,
+  - body-medium labels,
+  - existing picker order/capabilities and platform file-picker pathways preserved.
+- Split message long-press visuals into two deliberate surfaces:
+  - the quick-reaction row is now its own surfaceContainerHighest pill;
+  - the ordinary message actions are rendered in a separate surfaceContainerHigh rounded card below it;
+  - unselected reaction cells are transparent inside the pill, selected reactions retain primaryContainer, and compact targets remain 44 dp;
+  - the existing Android non-focusable popup behavior and second-long-press partial-text-selection plumbing remain intact.
+- Performance/hot-path review:
+  - no Matrix collector or duplicate timeline/draft state was added;
+  - no new animation/effect loop was added;
+  - the small reaction/action partition allocations occur only while the message popup is actually composed/open, not for closed rows while scrolling.
+
+### Validation
+- Cohesive source checkpoint: dbd57198c788ee12ee6cb3061e4121d04fef0505 (Polish Messages composer and action surfaces), 4 source files, 197 insertions / 57 deletions.
+- git diff --check: pass before checkpoint.
+- Glass with JDK 25 + Android SDK:
+  - :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 37s;
+  - full :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 7s.
+- Release-like validation used isolated detached worktree /home/brandon/worktrees/kite-revenge-validate-dbd57198 at exact superproject commit dbd57198c788ee12ee6cb3061e4121d04fef0505; Matrix Rust SDK pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- The initial clean :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain outlived the connector foreground window. A replay created one duplicate Gradle writer; only the newer duplicate was terminated, the original completed and produced the APK, and an exact-command cached verification then reported BUILD SUCCESSFUL in 3s with 275 actionable tasks.
+- Final clean APK: /home/brandon/worktrees/kite-revenge-validate-dbd57198/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,853,803 bytes, SHA-256 14f007bd4eb6fddc87d2d4078f106bf1a0076581118bcd8f7ce2fe7dc40f42b4.
+- AAPT: package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37, native code arm64-v8a.
+- APK signature verified with existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung 10.66.66.3:5555 preflight/postflight found only app.kite.revenge.debug among app.kite* packages. The exact verified APK was installed with adb install -r and returned Success; no app.kite.revenge release package was created or installed.
+- Debug data/login was preserved: dataDir=/data/user/0/app.kite.revenge.debug, firstInstallTime=2026-10-14 11:55:12, post-install lastUpdateTime=2026-10-15 02:56:53.
+- Post-install device state remained mWakefulness=Dozing / mHalInteractiveModeEnabled=false; Kite and Google Messages were not launched and the phone was not woken merely for QA.
+- No 120 Hz frame-time or side-by-side visual-parity claim is made for this slice.
+- The pre-existing hide-room work remains unstaged and byte-for-byte unchanged:
+  - InboxViewModel.kt SHA-256 cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7
+  - AppStateStore.kt SHA-256 7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673
+  - strings.xml SHA-256 dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a
+
+### Next substantial slice
+- When the Samsung is naturally awake/unlocked, compare the exact installed PerfDebug build side-by-side with installed Google Messages:
+  - empty/focused/typed composer geometry, dedicated send button and keyboard/insets;
+  - reply/edit context rail and long reply previews;
+  - dark attachment sheet spacing and Camera / Gallery / File action cells;
+  - long-press quick-reaction pill versus the separate action card, action taps, popup dismissal, and second-long-press partial text selection.
+- Capture controlled gfxinfo/frame evidence during long-history scrolling, composer focus/typing, long-press actions, and Inbox <-> Conversation navigation at an actually active 120 Hz mode before making a measurable performance-parity claim.
+- After that observed QA, continue the next broad Google-Messages-style surface: message bubble/timeline metadata and media presentation, then search/settings/account surfaces, while preserving the bottom Inbox search exception and existing Matrix behavior.
