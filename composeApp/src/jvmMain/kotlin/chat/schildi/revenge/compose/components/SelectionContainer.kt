@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerType
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
+
+val LocalTouchTextSelectionEnabled = staticCompositionLocalOf { false }
 
 @Composable
 fun SelectionContainerUnlessTouch(
@@ -14,7 +17,7 @@ fun SelectionContainerUnlessTouch(
     content: @Composable () -> Unit,
 ) {
     val isTouch = LocalKeyboardActionHandler.current.lastPointerType.collectAsState().value == PointerType.Touch
-    if (isTouch) {
+    if (isTouch && !LocalTouchTextSelectionEnabled.current) {
         Box(modifier) {
             content()
         }

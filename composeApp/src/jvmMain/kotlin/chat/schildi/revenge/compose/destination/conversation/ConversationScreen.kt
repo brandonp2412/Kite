@@ -70,10 +70,10 @@ import chat.schildi.revenge.compose.components.PlatformBackHandler
 import chat.schildi.revenge.compose.destination.imeAwareBottomPadding
 import chat.schildi.revenge.compose.destination.SplashScreenContent
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
-import chat.schildi.revenge.compose.destination.conversation.event.MessageSwipeConfig
+import chat.schildi.revenge.compose.destination.conversation.event.MessageTimestampRevealState
 import chat.schildi.revenge.compose.destination.conversation.event.isKiteSelectableMessage
 import chat.schildi.revenge.compose.destination.conversation.event.kiteSelectionKey
-import chat.schildi.revenge.compose.destination.conversation.event.parseMessageSwipeAction
+import chat.schildi.revenge.compose.destination.conversation.event.resolveMessageSwipeConfig
 import chat.schildi.revenge.compose.destination.conversation.event.message.LocalUrlPreviewStateProvider
 import chat.schildi.revenge.compose.destination.conversation.virtual.PagingIndicator
 import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
@@ -652,11 +652,9 @@ fun ConversationScreen(
                     val swipeActionLeftRaw = ScPrefs.MESSAGE_SWIPE_ACTION_LEFT.value()
                     val swipeActionRightRaw = ScPrefs.MESSAGE_SWIPE_ACTION_RIGHT.value()
                     val messageSwipeConfig = remember(swipeActionLeftRaw, swipeActionRightRaw) {
-                        MessageSwipeConfig(
-                            left = parseMessageSwipeAction(swipeActionLeftRaw),
-                            right = parseMessageSwipeAction(swipeActionRightRaw),
-                        )
+                        resolveMessageSwipeConfig(swipeActionLeftRaw, swipeActionRightRaw)
                     }
+                    val timestampRevealState = remember { MessageTimestampRevealState() }
 
                     LazyColumn(
                         Modifier.fillMaxSize(),
@@ -719,6 +717,7 @@ fun ConversationScreen(
                                 doubleTapToReact = doubleTapToReact,
                                 doubleTapReaction = doubleTapReaction,
                                 swipeConfig = messageSwipeConfig,
+                                timestampRevealState = timestampRevealState,
                                 selectionActive = selectionActive,
                                 isSelected = rowSelected,
                                 isPinned = rowEvent?.eventId?.let { it in pinnedEventIds } == true,

@@ -16,6 +16,7 @@ import shire.res.generated.resources.hint_composer_format_html
 import shire.res.generated.resources.hint_composer_format_markdown
 import shire.res.generated.resources.hint_composer_format_plain
 import shire.res.generated.resources.hint_settings
+import shire.res.generated.resources.message_info_time
 import shire.res.generated.resources.pref_allow_empty_message_send_summary
 import shire.res.generated.resources.pref_allow_empty_message_send_title
 import shire.res.generated.resources.pref_allow_live_timeline_merge_summary
@@ -413,6 +414,7 @@ object ScPrefs {
 
     enum class MessageSwipeAction {
         NONE,
+        TIMESTAMPS,
         REPLY,
         REACT,
         MARK_READ,
@@ -421,6 +423,7 @@ object ScPrefs {
     }
     private val messageSwipeActionEntries = persistentListOf(
         ScListPrefEntry(MessageSwipeAction.NONE.name, Res.string.action_none.toStringHolder()),
+        ScListPrefEntry(MessageSwipeAction.TIMESTAMPS.name, Res.string.message_info_time.toStringHolder()),
         ScListPrefEntry(MessageSwipeAction.REPLY.name, Res.string.action_reply.toStringHolder()),
         ScListPrefEntry(MessageSwipeAction.REACT.name, Res.string.action_react.toStringHolder()),
         ScListPrefEntry(MessageSwipeAction.MARK_READ.name, Res.string.action_mark_as_read.toStringHolder()),
@@ -429,13 +432,13 @@ object ScPrefs {
     )
     val MESSAGE_SWIPE_ACTION_LEFT = ScStringListPref(
         "MESSAGE_SWIPE_ACTION_LEFT",
-        if (scPrefPlatformSupport.preferTouch) MessageSwipeAction.REPLY.name else MessageSwipeAction.NONE.name,
+        if (scPrefPlatformSupport.preferTouch) MessageSwipeAction.TIMESTAMPS.name else MessageSwipeAction.NONE.name,
         messageSwipeActionEntries,
         Res.string.pref_message_swipe_action_left_title,
     )
     val MESSAGE_SWIPE_ACTION_RIGHT = ScStringListPref(
         "MESSAGE_SWIPE_ACTION_RIGHT",
-        MessageSwipeAction.NONE.name,
+        if (scPrefPlatformSupport.preferTouch) MessageSwipeAction.REPLY.name else MessageSwipeAction.NONE.name,
         messageSwipeActionEntries,
         Res.string.pref_message_swipe_action_right_title,
     )

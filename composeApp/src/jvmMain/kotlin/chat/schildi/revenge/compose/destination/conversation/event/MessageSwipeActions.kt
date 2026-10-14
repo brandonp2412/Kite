@@ -17,12 +17,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.AddReaction
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,6 +68,37 @@ data class MessageSwipeConfig(
     val right: ScPrefs.MessageSwipeAction?,
 )
 
+@Stable
+class MessageTimestampRevealState {
+    internal val progress = mutableFloatStateOf(0f)
+
+    internal fun update(offset: Float, maxSwipe: Float) {
+        progress.floatValue = if (maxSwipe <= 0f) 0f else (-offset / maxSwipe).coerceIn(0f, 1f)
+    }
+
+    internal fun reset() {
+        progress.floatValue = 0f
+    }
+}
+
+fun resolveMessageSwipeConfig(leftRaw: String, rightRaw: String): MessageSwipeConfig {
+    val left = parseMessageSwipeAction(leftRaw)
+    val right = parseMessageSwipeAction(rightRaw)
+    return if (
+        left == ScPrefs.MessageSwipeAction.REPLY &&
+        right == ScPrefs.MessageSwipeAction.NONE
+    ) {
+        // Legacy touch default. Preserve explicit custom pairs, but move the historical
+        // left-to-reply default onto the current Google Messages gesture mapping.
+        MessageSwipeConfig(
+            left = ScPrefs.MessageSwipeAction.TIMESTAMPS,
+            right = ScPrefs.MessageSwipeAction.REPLY,
+        )
+    } else {
+        MessageSwipeConfig(left = left, right = right)
+    }
+}
+
 fun parseMessageSwipeAction(rawValue: String): ScPrefs.MessageSwipeAction? =
     try {
         ScPrefs.MessageSwipeAction.valueOf(rawValue)
@@ -82,6 +115,7 @@ private fun ScPrefs.MessageSwipeAction?.swipeActionSpec(
     val kind = this
     val keyHandler = LocalKeyboardActionHandler.current
     return when (kind) {
+        ScPrefs.MessageSwipeAction.TIMESTAMPS -> MessageSwipeActionSpec(kind, Icons.Default.Schedule) {}
         ScPrefs.MessageSwipeAction.REPLY -> MessageSwipeActionSpec(kind, Icons.AutoMirrored.Default.Reply) {
             keyHandler.handleAction(focusId, Action.Event.ComposeReply)
         }
@@ -109,6 +143,7 @@ fun EventSwipeable(
     focusId: Uuid,
     isOwn: Boolean,
     swipeConfig: MessageSwipeConfig,
+    timestampRevealState: MessageTimestampRevealState,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
@@ -139,6 +174,13 @@ fun EventSwipeable(
             MessageSwipePosition.Neutral -> 0f
             MessageSwipePosition.Left -> (offset + delta).coerceIn(-maxSwipe, 0f)
             MessageSwipePosition.Right -> (offset + delta).coerceIn(0f, maxSwipe)
+        }
+        if (swipeDirection == MessageSwipePosition.Left &&
+            swipeActionLeft?.kind == ScPrefs.MessageSwipeAction.TIMESTAMPS
+        ) {
+            timestampRevealState.update(offset, maxSwipe)
+        } else {
+            timestampRevealState.reset()
         }
     }
     val decay = rememberSplineBasedDecay<Float>()
@@ -174,12 +216,16 @@ fun EventSwipeable(
                                 gestureId++
                                 offset = 0f
                                 swipeDirection = MessageSwipePosition.Neutral
+                                timestampRevealState.reset()
                             },
                             onDragStopped = { velocity ->
                                 val targetOffset = decay.calculateTargetValue(offset, velocity)
                                 when (swipeDirection) {
                                     MessageSwipePosition.Neutral -> {}
-                                    MessageSwipePosition.Left -> if (targetOffset <= -threshold) {
+                                    MessageSwipePosition.Left -> if (
+                                        targetOffset <= -threshold &&
+                                        swipeActionLeft?.kind != ScPrefs.MessageSwipeAction.TIMESTAMPS
+                                    ) {
                                         swipeActionLeft?.execute()
                                     }
                                     MessageSwipePosition.Right -> if (targetOffset >= threshold) {
@@ -195,14 +241,30 @@ fun EventSwipeable(
                                 ) { value, _ ->
                                     if (gestureId == stoppedGestureId) {
                                         offset = value
+                                        if (swipeDirection == MessageSwipePosition.Left &&
+                                            swipeActionLeft?.kind == ScPrefs.MessageSwipeAction.TIMESTAMPS
+                                        ) {
+                                            timestampRevealState.update(value, maxSwipe)
+                                        }
                                     }
                                 }
                                 if (gestureId == stoppedGestureId) {
                                     offset = 0f
                                     swipeDirection = MessageSwipePosition.Neutral
+                                    timestampRevealState.reset()
                                 }
                             },
-                        ).absoluteOffset { IntOffset(offset.roundToInt(), 0) }
+                        ).absoluteOffset {
+                            val localOffset = if (
+                                swipeDirection == MessageSwipePosition.Left &&
+                                swipeActionLeft?.kind == ScPrefs.MessageSwipeAction.TIMESTAMPS
+                            ) {
+                                0f
+                            } else {
+                                offset
+                            }
+                            IntOffset(localOffset.roundToInt(), 0)
+                        }
                     }
             )
         }
@@ -216,7 +278,11 @@ private fun BoxScope.MessageSwipeActionIndicator(
     offset: Float,
     modifier: Modifier = Modifier,
 ) {
-    if (action == null || direction == MessageSwipePosition.Neutral) return
+    if (
+        action == null ||
+        direction == MessageSwipePosition.Neutral ||
+        action.kind == ScPrefs.MessageSwipeAction.TIMESTAMPS
+    ) return
 
     val threshold = LocalDensity.current.run { Dimens.Conversation.MessageSwipe.threshold.toPx() }
     val progress = (offset.absoluteValue / threshold).coerceIn(0f, 1f)
