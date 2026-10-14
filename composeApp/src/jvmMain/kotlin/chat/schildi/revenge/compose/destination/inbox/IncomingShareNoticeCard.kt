@@ -1,14 +1,15 @@
 package chat.schildi.revenge.compose.destination.inbox
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,9 +49,8 @@ fun IncomingShareNoticeCard(
 ) {
     Row(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, Dimens.Conversation.messageBubbleShape)
-            .border(1.dp, MaterialTheme.colorScheme.outline, Dimens.Conversation.messageBubbleShape)
-            .padding(Dimens.Conversation.messageBubbleInnerPadding),
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, Dimens.Inbox.noticeShape)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Dimens.horizontalArrangement,
     ) {
@@ -94,11 +94,10 @@ fun IncomingShareNoticeCard(
                 )
             }
         }
-        Icon(
-            Icons.Default.Clear,
-            stringResource(Res.string.action_clear_attachment),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        IconButton(
+            onClick = IncomingShare::clear,
             modifier = Modifier
+                .size(40.dp)
                 .keyFocusable(
                     FocusRole.AUX_ITEM,
                     actionProvider = actionProvider(
@@ -107,8 +106,13 @@ fun IncomingShareNoticeCard(
                             true
                         },
                     ),
-                )
-                .padding(8.dp)
-        )
+                ),
+        ) {
+            Icon(
+                Icons.Default.Clear,
+                stringResource(Res.string.action_clear_attachment),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

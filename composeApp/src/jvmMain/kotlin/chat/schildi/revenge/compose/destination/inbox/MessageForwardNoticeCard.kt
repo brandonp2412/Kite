@@ -1,13 +1,14 @@
 package chat.schildi.revenge.compose.destination.inbox
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,9 +34,8 @@ fun MessageForwardNoticeCard(
 ) {
     Row(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, Dimens.Conversation.messageBubbleShape)
-            .border(1.dp, MaterialTheme.colorScheme.outline, Dimens.Conversation.messageBubbleShape)
-            .padding(Dimens.Conversation.messageBubbleInnerPadding),
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, Dimens.Inbox.noticeShape)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Dimens.horizontalArrangement,
     ) {
@@ -50,11 +50,10 @@ fun MessageForwardNoticeCard(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Icon(
-            Icons.Default.Clear,
-            stringResource(Res.string.action_close),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        IconButton(
+            onClick = { MessageForward.clear(forward) },
             modifier = Modifier
+                .size(40.dp)
                 .keyFocusable(
                     FocusRole.AUX_ITEM,
                     actionProvider = actionProvider(
@@ -63,8 +62,13 @@ fun MessageForwardNoticeCard(
                             true
                         },
                     ),
-                )
-                .padding(8.dp),
-        )
+                ),
+        ) {
+            Icon(
+                Icons.Default.Clear,
+                stringResource(Res.string.action_close),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

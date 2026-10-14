@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.destination.inbox
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -118,6 +120,7 @@ fun InboxScreen(
         allowSilentUnreadCount = ScPrefs.RENDER_SILENT_UNREAD.value(),
         clientGeneratedUnreadCounts = ScPrefs.CLIENT_GENERATED_UNREAD_COUNTS.value(),
         renderUnderestimates = ScPrefs.INDICATE_UNREAD_COUNT_UNDERESTIMATES.value(),
+        dualMentionUnreadCounts = ScPrefs.DUAL_MENTION_UNREAD_COUNTS.value(),
     )
 
     FocusContainer(
@@ -129,7 +132,12 @@ fun InboxScreen(
         ),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .imePadding()
+        ) {
             val compact = maxWidth < Dimens.compactActionBarThreshold
             val navigationBottomPadding = WindowInsets.navigationBars
                 .asPaddingValues()
@@ -170,21 +178,40 @@ fun InboxScreen(
                 val needsAccountDisambiguation =
                     (accountsSorted?.count { it.isCurrentlyVisible } ?: 0) > 1
 
-                LaunchedEffect(listState, rooms, accountsSorted) {
+                LaunchedEffect(listState, rooms) {
                     snapshotFlow {
-                        listState.layoutInfo.visibleItemsInfo.map { it.index }
+                        val visibleItems = listState.layoutInfo.visibleItemsInfo
+                        if (visibleItems.isEmpty()) {
+                            -1L
+                        } else {
+                            (visibleItems.first().index.toLong() shl 32) or
+                                (visibleItems.last().index.toLong() and 0xffffffffL)
+                        }
                     }
                         .debounce(200)
-                        .collect { indices ->
-                            val visibleRooms = indices.mapNotNull { rooms?.getOrNull(it) }
-                            viewModel.onVisibleRoomsChanged(visibleRooms)
+                        .collect { visibleRange ->
+                            if (visibleRange < 0L || rooms == null) {
+                                viewModel.onVisibleRoomsChanged(emptyList())
+                            } else {
+                                val firstVisible = (visibleRange shr 32).toInt().coerceAtLeast(0)
+                                val lastVisible = visibleRange.toInt()
+                                val fromIndex = firstVisible.coerceAtMost(rooms.size)
+                                val toIndex = (lastVisible + 1).coerceIn(fromIndex, rooms.size)
+                                viewModel.onVisibleRoomsChanged(rooms.subList(fromIndex, toIndex))
+                            }
                         }
                 }
 
-                Box(
-                    contentModifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
+                Surface(
+                    modifier = contentModifier.fillMaxSize(),
+                    shape = Dimens.Inbox.listSurfaceShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp,
                 ) {
+                    Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
                     if (rooms.isNullOrEmpty()) {
                         EmptyListScreen(
                             title = Res.string.empty_screen_placeholder_inbox.toStringHolder(),
@@ -224,7 +251,9 @@ fun InboxScreen(
                             state = listState,
                             contentPadding = WindowInsets.navigationBars
                                 .only(WindowInsetsSides.Bottom)
-                                .asPaddingValues() + extraContentPadding,
+                                .asPaddingValues() +
+                                    extraContentPadding +
+                                    PaddingValues(vertical = Dimens.Inbox.listContentPadding),
                         ) {
                             items(
                                 rooms,
@@ -282,6 +311,7 @@ fun InboxScreen(
                                 pendingTransferHeight.intValue = 0
                             }
                         }
+                    }
                     }
                 }
             }

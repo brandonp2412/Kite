@@ -108,7 +108,7 @@ fun InboxRow(
             Row(
                 modifier = modifier
                     .fillMaxWidth()
-                    .heightIn(min = Dimens.Inbox.avatar + Dimens.listPaddingBig * 2)
+                    .heightIn(min = Dimens.Inbox.rowMinHeight)
                     .keyFocusable(
                         FocusRole.LIST_ITEM,
                         focusId,
@@ -193,7 +193,7 @@ fun InboxRow(
                     )
                     .padding(
                         horizontal = Dimens.windowPadding,
-                        vertical = 10.dp,
+                        vertical = Dimens.Inbox.rowVerticalPadding,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -221,10 +221,15 @@ fun InboxRow(
                         .padding(start = Dimens.Inbox.avatarItemPadding)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        ScNameAndTimestampRow(room.summary, hasDraft, unreadCounts)
+                        ScNameAndTimestampRow(room.summary, unreadCounts)
                     }
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        ScLastMessageAndIndicatorRow(viewModel, room, unreadCounts)
+                        ScLastMessageAndIndicatorRow(
+                            scopedRoom = room,
+                            hasDraft = hasDraft,
+                            unreadCounts = unreadCounts,
+                            dualMentionUnreadCounts = unreadCountPreferences.dualMentionUnreadCounts,
+                        )
                     }
                 }
             }
@@ -235,7 +240,6 @@ fun InboxRow(
 @Composable
 private fun RowScope.ScNameAndTimestampRow(
     room: RoomSummary,
-    hasDraft: Boolean,
     unreadCounts: RoomUnreadCounts,
 ) {
     val displayName = room.info.privateRoomName ?: room.info.name ?: room.roomId.value
@@ -250,67 +254,23 @@ private fun RowScope.ScNameAndTimestampRow(
         overflow = TextOverflow.Ellipsis,
     )
 
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(Dimens.horizontalItemPaddingSmall),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(start = Dimens.horizontalItemPadding),
-    ) {
-        if (hasDraft) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = null,
-                modifier = Modifier.size(Dimens.Inbox.smallIcon),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        val notificationMode = room.info.userDefinedNotificationMode
-        if (
-            notificationMode == RoomNotificationMode.MENTIONS_AND_KEYWORDS_ONLY ||
-            notificationMode == RoomNotificationMode.MUTE
-        ) {
-            Icon(
-                imageVector = Icons.Default.NotificationsOff,
-                contentDescription = null,
-                modifier = Modifier.size(Dimens.Inbox.smallIcon),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        if (room.info.isLowPriority) {
-            Icon(
-                imageVector = Icons.Default.LowPriority,
-                contentDescription = null,
-                modifier = Modifier.size(Dimens.Inbox.smallIcon),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-
-        if (room.info.isFavorite) {
-            Icon(
-                imageVector = Icons.Default.PushPin,
-                contentDescription = null,
-                modifier = Modifier.size(Dimens.Inbox.smallIcon),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-
-        room.latestEventTimestamp?.let { timestamp ->
-            Text(
-                text = DateTimeFormat.formatTimestampAsDateOrTime(timestamp),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (hasUnread) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+    room.latestEventTimestamp?.let { timestamp ->
+        Text(
+            text = DateTimeFormat.formatTimestampAsDateOrTime(timestamp),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (hasUnread) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = Dimens.horizontalItemPadding),
+        )
     }
 }
 
 @Composable
 private fun RowScope.ScLastMessageAndIndicatorRow(
-    viewModel: InboxViewModel,
     scopedRoom: ScopedRoomSummary,
+    hasDraft: Boolean,
     unreadCounts: RoomUnreadCounts,
+    dualMentionUnreadCounts: Boolean,
 ) {
     val room = scopedRoom.summary
     // Last Message
@@ -369,7 +329,7 @@ private fun RowScope.ScLastMessageAndIndicatorRow(
     Row(
         modifier = Modifier
             .weight(1f)
-            .padding(end = Dimens.horizontalItemPaddingBig),
+            .padding(end = Dimens.horizontalItemPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (room.isInvite()) {
@@ -396,13 +356,71 @@ private fun RowScope.ScLastMessageAndIndicatorRow(
         )
     }
 
-    // Unread
+    ScRoomStateIndicators(
+        room = room,
+        hasDraft = hasDraft,
+        modifier = Modifier.padding(end = Dimens.horizontalItemPadding),
+    )
+
     Row(
         modifier = Modifier.heightIn(min = Dimens.Inbox.smallIcon),
         horizontalArrangement = Dimens.horizontalArrangement,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ScUnreadCounter(scopedRoom, unreadCounts)
+        ScUnreadCounter(scopedRoom, unreadCounts, dualMentionUnreadCounts)
+    }
+}
+
+@Composable
+private fun ScRoomStateIndicators(
+    room: RoomSummary,
+    hasDraft: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.horizontalItemPaddingSmall),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (hasDraft) {
+            Icon(
+                imageVector = Icons.Default.Edit,
+                contentDescription = null,
+                modifier = Modifier.size(Dimens.Inbox.smallIcon),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        val notificationMode = room.info.userDefinedNotificationMode
+        if (
+            notificationMode == RoomNotificationMode.MENTIONS_AND_KEYWORDS_ONLY ||
+            notificationMode == RoomNotificationMode.MUTE
+        ) {
+            Icon(
+                imageVector = Icons.Default.NotificationsOff,
+                contentDescription = null,
+                modifier = Modifier.size(Dimens.Inbox.smallIcon),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (room.info.isLowPriority) {
+            Icon(
+                imageVector = Icons.Default.LowPriority,
+                contentDescription = null,
+                modifier = Modifier.size(Dimens.Inbox.smallIcon),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (room.info.isFavorite) {
+            Icon(
+                imageVector = Icons.Default.PushPin,
+                contentDescription = null,
+                modifier = Modifier.size(Dimens.Inbox.smallIcon),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 
@@ -410,6 +428,7 @@ data class RoomUnreadCountPreferences(
     val allowSilentUnreadCount: Boolean,
     val clientGeneratedUnreadCounts: Boolean,
     val renderUnderestimates: Boolean,
+    val dualMentionUnreadCounts: Boolean,
 )
 
 data class RoomUnreadCounts(
@@ -449,6 +468,7 @@ fun RoomSummary.unreadCounts(): RoomUnreadCounts = unreadCounts(
         allowSilentUnreadCount = ScPrefs.RENDER_SILENT_UNREAD.value(),
         clientGeneratedUnreadCounts = ScPrefs.CLIENT_GENERATED_UNREAD_COUNTS.value(),
         renderUnderestimates = ScPrefs.INDICATE_UNREAD_COUNT_UNDERESTIMATES.value(),
+        dualMentionUnreadCounts = ScPrefs.DUAL_MENTION_UNREAD_COUNTS.value(),
     )
 )
 
@@ -456,6 +476,7 @@ fun RoomSummary.unreadCounts(): RoomUnreadCounts = unreadCounts(
 private fun ScUnreadCounter(
     scopedRoom: ScopedRoomSummary,
     unreadCounts: RoomUnreadCounts,
+    dualMentionUnreadCounts: Boolean,
 ) {
     val room = scopedRoom.summary
     val (highlightCount, notificationCount, unreadCount, markedUnread, underestimate) = unreadCounts
@@ -470,7 +491,7 @@ private fun ScUnreadCounter(
             count = "!"
             badgeColor = MaterialTheme.scExposures.notificationBadgeColor
         }
-        ScPrefs.DUAL_MENTION_UNREAD_COUNTS.value() && highlightCount > 0 && (notificationCount > highlightCount || unreadCount > highlightCount) -> {
+        dualMentionUnreadCounts && highlightCount > 0 && (notificationCount > highlightCount || unreadCount > highlightCount) -> {
             val fullUnreadToUse = max(unreadCount, notificationCount)
             count = "${formatUnreadCount(highlightCount)}/${formatUnreadCount(fullUnreadToUse, underestimate)}"
             badgeColor = MaterialTheme.scExposures.mentionBadgeColor
@@ -512,7 +533,10 @@ private fun ScUnreadCounter(
                 else
                     it.background(badgeColor, RoundedCornerShape(30.dp))
             }
-            .sizeIn(minWidth = 20.dp, minHeight = 20.dp)
+            .sizeIn(
+                minWidth = Dimens.Inbox.unreadBadgeMinSize,
+                minHeight = Dimens.Inbox.unreadBadgeMinSize,
+            )
     ) {
         Text(
             text = count,

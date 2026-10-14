@@ -38,12 +38,18 @@ object Dimens {
     val fgDisabledAlpha = 0.38f
 
     object Inbox {
-        val avatar = 48.dp
+        val avatar = 52.dp
         val avatarItemPadding = 12.dp
         val accountAvatar = 16.dp
+        val rowMinHeight = 80.dp
+        val rowVerticalPadding = 10.dp
+        val listContentPadding = 8.dp
+        val listSurfaceShape = RoundedCornerShape(28.dp)
+        val noticeShape = RoundedCornerShape(24.dp)
         val spaceAvatar = 24.dp
         val spaceShape = RoundedCornerShape(4.dp)
         val smallIcon = 16.dp
+        val unreadBadgeMinSize = 20.dp
         val spaceSwipeIndicator = 48.dp
         val incomingShareAttachmentMaxHeight = 128.dp
     }

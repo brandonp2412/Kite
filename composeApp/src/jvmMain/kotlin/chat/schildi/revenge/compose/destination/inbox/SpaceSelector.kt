@@ -191,7 +191,7 @@ private fun ColumnScope.SpaceSelector(
         selectedTabIndex = selectedTabRendered,
         edgePadding = 0.dp,
         minTabWidth = 0.dp,
-        containerColor = MaterialTheme.scExposures.spaceBarBg ?: TabRowDefaults.primaryContainerColor,
+        containerColor = MaterialTheme.scExposures.spaceBarBg ?: MaterialTheme.colorScheme.surfaceContainer,
         indicator = { tabPositions ->
             Box(
                 Modifier
@@ -279,7 +279,7 @@ private fun Int.correctUpIfNot(condition: Boolean) = if (condition) this else in
 @Composable
 private fun SpaceTabText(text: String, selected: Boolean, expandable: Boolean) {
     val color = animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         label = "tabSelectedColor",
     ).value
     Row {
@@ -304,7 +304,7 @@ private fun SpaceTabText(text: String, selected: Boolean, expandable: Boolean) {
 @Composable
 fun ExpandableIndicator(selected: Boolean, modifier: Modifier = Modifier) {
     val color = animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         label = "tabSelectedColor",
     ).value
     Box(modifier.width(12.dp)) {

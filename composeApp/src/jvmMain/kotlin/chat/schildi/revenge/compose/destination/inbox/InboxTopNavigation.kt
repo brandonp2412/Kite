@@ -25,7 +25,8 @@ fun InboxTopNavigation(
         if (destinationState != null) {
             TopNavigationIcon(
                 Icons.Default.Add,
-                stringResource(Res.string.create_room)
+                stringResource(Res.string.create_room),
+                tonal = true,
             ) {
                 destinationState.navigate(Destination.CreateRoom(preferredSessionId))
             }

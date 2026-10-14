@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,9 +81,16 @@ fun TopNavigationIcon(
     imageVector: ImageVector,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    tonal: Boolean = false,
+    onClick: () -> Unit,
 ) {
-    TopNavigationIcon(rememberVectorPainter(imageVector), contentDescription, modifier, onClick)
+    TopNavigationIcon(
+        painter = rememberVectorPainter(imageVector),
+        contentDescription = contentDescription,
+        modifier = modifier,
+        tonal = tonal,
+        onClick = onClick,
+    )
 }
 
 @Composable
@@ -90,13 +98,18 @@ fun TopNavigationIcon(
     painter: Painter,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    tonal: Boolean = false,
+    onClick: () -> Unit,
 ) {
     WithTooltip(contentDescription, modifier) {
-        IconButton(
-            onClick = onClick,
-        ) {
-            Icon(painter, contentDescription)
+        if (tonal) {
+            FilledTonalIconButton(onClick = onClick) {
+                Icon(painter, contentDescription)
+            }
+        } else {
+            IconButton(onClick = onClick) {
+                Icon(painter, contentDescription)
+            }
         }
     }
 }
