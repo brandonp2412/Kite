@@ -20,7 +20,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.geometry.toRect
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
@@ -42,9 +41,6 @@ import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.util.filepicker.AndroidFilePickerLauncher
 import chat.schildi.revenge.util.filepicker.FilePicker
 import chat.schildi.theme.prefersDarkTheme
-import chat.schildi.theme.scbMaterialColorScheme
-import chat.schildi.theme.scdMaterialColorScheme
-import chat.schildi.theme.sclMaterialColorScheme
 import co.touchlab.kermit.Logger
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
@@ -100,12 +96,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val darkTheme = prefersDarkTheme()
-            val blackTheme = ScPrefs.BLACK_THEME.value()
-            val navigationBarColor = (when {
-                darkTheme && blackTheme -> scbMaterialColorScheme
-                darkTheme -> scdMaterialColorScheme
-                else -> sclMaterialColorScheme
-            }).surfaceContainerLow.toArgb()
+            val navigationBarColor = android.graphics.Color.TRANSPARENT
             SideEffect {
                 enableEdgeToEdge(
                     navigationBarStyle = if (darkTheme) {

@@ -18,8 +18,8 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
@@ -51,6 +51,7 @@ import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.revenge.Anim
@@ -159,7 +160,9 @@ fun ConversationScreen(
     BoxWithConstraints(
         modifier.fillMaxSize().let {
             if (viewModel.modeSupportsComposer) {
-                it.safeDrawingPadding().imePadding()
+                it.windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                ).imePadding()
             } else {
                 it.windowInsetsPadding(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
@@ -170,6 +173,17 @@ fun ConversationScreen(
     ) {
         val contentHeight = maxHeight
         val density = LocalDensity.current
+        val navigationBottomPadding = WindowInsets.navigationBars
+            .asPaddingValues()
+            .calculateBottomPadding()
+        val imeBottomPadding = WindowInsets.ime
+            .asPaddingValues()
+            .calculateBottomPadding()
+        val composerBottomPadding = if (imeBottomPadding > navigationBottomPadding) {
+            12.dp
+        } else {
+            navigationBottomPadding + 12.dp
+        }
 
         val timelineItems = viewModel.timelineItems.collectAsState().value
         // Keep selected timeline objects directly so toggling selection stays O(1) with
@@ -837,15 +851,13 @@ fun ConversationScreen(
                     }
                     AnimatedVisibility(
                         visible = shouldShowComposer,
+                        modifier = Modifier.padding(bottom = composerBottomPadding),
                         enter = slideInVertically(tween(Anim.DURATION)) { it } +
                                 expandVertically(tween(Anim.DURATION), expandFrom = Alignment.Bottom),
                         exit = slideOutVertically(tween(Anim.DURATION)) { it } +
                                 shrinkVertically(tween(Anim.DURATION), shrinkTowards = Alignment.Bottom),
                     ) {
-                        ComposerRow(
-                            viewModel,
-                            Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow),
-                        )
+                        ComposerRow(viewModel)
                     }
                 }
                 messageInfoEvent?.let { infoEvent ->

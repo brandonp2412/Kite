@@ -145,7 +145,11 @@ fun ComposerRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(
+                    start = Dimens.windowPadding,
+                    end = Dimens.windowPadding,
+                    top = 8.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val actionContext = currentActionContext()
