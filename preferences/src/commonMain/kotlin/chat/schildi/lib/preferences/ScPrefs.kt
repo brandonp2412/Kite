@@ -502,9 +502,9 @@ object ScPrefs {
 
     // Message rendering
     val MESSAGE_FONT_SIZE = ScIntPref("MESSAGE_FONT_SIZE", 14, Res.string.pref_message_font_size_title, Res.string.pref_message_font_size_summary, minValue = 8, maxValue = 24)
-    val MESSAGE_OTHER_SIDE_MARGIN = ScIntPref("MESSAGE_OTHER_SIDE_MARGIN", 48, Res.string.pref_message_other_side_margin_title, Res.string.pref_message_other_side_margin_summary, minValue = 0, maxValue = 200)
+    val MESSAGE_OTHER_SIDE_MARGIN = ScIntPref("MESSAGE_OTHER_SIDE_MARGIN", 16, Res.string.pref_message_other_side_margin_title, Res.string.pref_message_other_side_margin_summary, minValue = 0, maxValue = 200)
     val MESSAGE_MAX_WIDTH = ScIntPref("MESSAGE_MAX_WIDTH", 1400, Res.string.pref_message_max_width_title, Res.string.pref_message_max_width_summary, minValue = 200, maxValue = 4000)
-    val MESSAGE_AVATAR_SIZE = ScIntPref("MESSAGE_AVATAR_SIZE", 48, Res.string.pref_message_avatar_size_title, Res.string.pref_message_font_size_summary, minValue = 18, maxValue = 96)
+    val MESSAGE_AVATAR_SIZE = ScIntPref("MESSAGE_AVATAR_SIZE", 32, Res.string.pref_message_avatar_size_title, Res.string.pref_message_font_size_summary, minValue = 18, maxValue = 96)
 
     // Composer
     val AUTO_HIDE_COMPOSER = ScBoolPref("AUTO_HIDE_COMPOSER", false, Res.string.pref_auto_hide_composer_title, Res.string.pref_auto_hide_composer_summary, dependencies = MINIMAL_MODE.asDependencies(), supportedOnPlatform = scPrefPlatformSupport.desktopOnly)

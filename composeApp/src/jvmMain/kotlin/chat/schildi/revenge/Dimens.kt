@@ -60,7 +60,7 @@ object Dimens {
 
     object Conversation {
         val avatarForState = 16.dp
-        val avatarItemPadding = 12.dp
+        val avatarItemPadding = 8.dp
         val unreadLinePadding = 8.dp
         val dayHeaderPadding = 12.dp
         val messageBubbleCornerRadius = 20.dp
@@ -69,7 +69,7 @@ object Dimens {
         val replyItemPadding = 8.dp
         val messageBubbleInnerPadding = 8.dp
         val messageBubblePadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)
-        val timelineHorizontalPadding = 12.dp
+        val timelineHorizontalPadding = 8.dp
         val imageBubbleInnerPadding = 2.dp
         val messageSameSenderPadding = 3.dp
         val messageOtherSenderPadding = 10.dp
