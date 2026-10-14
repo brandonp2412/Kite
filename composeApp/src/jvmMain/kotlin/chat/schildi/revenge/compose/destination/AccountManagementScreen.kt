@@ -1,6 +1,6 @@
 package chat.schildi.revenge.compose.destination
 
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Verified
@@ -134,12 +136,15 @@ fun AccountManagementScreen(
     val listState = rememberLazyListState()
     FocusContainer(
         LocalListActionProvider provides rememberListActions(listState),
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        ),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            )
+            .fillMaxSize(),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
-        Column {
+        Column(Modifier.fillMaxSize()) {
             val destinationState = LocalDestinationState.current
             if (destinationState != null) {
                 TopNavigation(forceVisible = true) {
@@ -147,31 +152,44 @@ fun AccountManagementScreen(
                     TopNavigationTitle(stringResource(Res.string.manage_accounts))
                 }
             }
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LazyColumn(
-                    contentModifier.padding(vertical = Dimens.windowPadding),
-                    state = listState,
-                    verticalArrangement = Dimens.verticalArrangement,
-                    contentPadding = WindowInsets.navigationBars
-                        .only(WindowInsetsSides.Bottom)
-                        .asPaddingValues(),
-                ) {
-                    if (accounts.isNotEmpty()) {
-                        item(key = "manage") {
-                            SectionHeader(stringResource(Res.string.manage_accounts))
+            Surface(
+                modifier = contentModifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(vertical = 8.dp),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = WindowInsets.navigationBars
+                            .only(WindowInsetsSides.Bottom)
+                            .asPaddingValues(),
+                    ) {
+                        if (accounts.isNotEmpty()) {
+                            item(key = "manage") {
+                                SectionHeader(stringResource(Res.string.manage_accounts))
+                            }
+                            items(
+                                items = accounts,
+                                key = { it.session.userId },
+                                contentType = { "account" },
+                            ) { account ->
+                                ExistingLogin(account, viewModel)
+                            }
                         }
-                        items(accounts, key = { it.session.userId }) { account ->
-                            ExistingLogin(account, viewModel)
+                        item(key = "new_header") {
+                            SectionHeader(
+                                stringResource(Res.string.title_login_account),
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
                         }
-                    }
-                    item(key = "new_header") {
-                        SectionHeader(
-                            stringResource(Res.string.title_login_account),
-                            modifier = Modifier.padding(top = Dimens.horizontalItemPadding),
-                        )
-                    }
-                    item(key = "new") {
-                        NewLogin(viewModel)
+                        item(key = "new") {
+                            NewLogin(viewModel)
+                        }
                     }
                 }
             }
@@ -199,9 +217,9 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                .padding(horizontal = 16.dp, vertical = 3.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             Column(
                 Modifier
@@ -220,7 +238,7 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
             ) {
                 AvatarImage(
                     source = account.session.userAvatarUrl?.let(::MediaSource),
-                    size = 48.dp,
+                    size = 52.dp,
                     displayName = displayName,
                     sessionId = account.sessionId,
                     contentDescription = displayName,
@@ -250,7 +268,7 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
                 AccountManagementIconButton(
                     icon = rememberVectorPainter(Icons.AutoMirrored.Default.Logout),
                     contentDescription = stringResource(Res.string.action_logout),
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
                     focusId = logoutFocusId,
                 ) {
                     keyboardActionHandler.handleAction(
@@ -380,13 +398,30 @@ private fun AccountStatusIcon(
     modifier: Modifier = Modifier,
     critical: Boolean = false,
 ) {
+    val contentColor = if (critical) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
     WithTooltip(hint, modifier) {
-        Icon(
-            icon,
-            hint,
-            Modifier.size(16.dp),
-            tint = if (critical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                icon,
+                hint,
+                Modifier.size(16.dp),
+                tint = contentColor,
+            )
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -423,9 +458,9 @@ private fun NewLogin(viewModel: AccountManagementViewModel) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+            .padding(horizontal = 16.dp, vertical = 3.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(
             modifier = Modifier
@@ -457,61 +492,61 @@ private fun NewLogin(viewModel: AccountManagementViewModel) {
                 modifier = Modifier.weight(1f).keyFocusable(FocusRole.TEXT_FIELD_SINGLE_LINE),
                 enabled = loginVariant == null && !setHomeserverInProgress.value,
             )
-            AnimatedContent(Pair(loginVariant, hsDetails?.getOrNull())) { (selectedLogin, currentHsDetails) ->
-                when {
-                    selectedLogin != null -> {
-                        AccountManagementButton(
-                            stringResource(Res.string.action_change),
-                        ) {
-                            loginVariant = null
-                            hsDetails = null
-                            true
-                        }
+            val currentHsDetails = hsDetails?.getOrNull()
+            when {
+                loginVariant != null -> {
+                    AccountManagementButton(
+                        stringResource(Res.string.action_change),
+                    ) {
+                        loginVariant = null
+                        hsDetails = null
+                        true
                     }
-                    currentHsDetails == null -> {
-                        AccountManagementButton(
-                            stringResource(Res.string.action_check),
-                            enabled = !setHomeserverInProgress.value && homeserver.text.isNotBlank(),
-                        ) {
-                            if (setHomeserverInProgress.value) {
-                                return@AccountManagementButton false
-                            }
-                            setHomeserverInProgress.value = true
-                            scope.launch {
-                                try {
-                                    viewModel.setHomeserver(homeserver.text)
-                                        .also {
-                                            hsDetails = it
-                                        }
-                                        .onFailure {
-                                            loginError.value = it.message ?: it.toString()
-                                        }
-                                        .onSuccess {
-                                            when {
-                                                it.supportsOAuthLogin && it.supportsPasswordLogin -> {
-                                                    loginVariant = null
-                                                }
+                }
 
-                                                it.supportsOAuthLogin -> {
-                                                    loginVariant = LoginVariant.OAUTH
-                                                    viewModel.loginWithBrowser(actionContext)
-                                                }
+                currentHsDetails == null -> {
+                    AccountManagementButton(
+                        stringResource(Res.string.action_check),
+                        enabled = !setHomeserverInProgress.value && homeserver.text.isNotBlank(),
+                    ) {
+                        if (setHomeserverInProgress.value) {
+                            return@AccountManagementButton false
+                        }
+                        setHomeserverInProgress.value = true
+                        scope.launch {
+                            try {
+                                viewModel.setHomeserver(homeserver.text)
+                                    .also {
+                                        hsDetails = it
+                                    }
+                                    .onFailure {
+                                        loginError.value = it.message ?: it.toString()
+                                    }
+                                    .onSuccess {
+                                        when {
+                                            it.supportsOAuthLogin && it.supportsPasswordLogin -> {
+                                                loginVariant = null
+                                            }
 
-                                                it.supportsPasswordLogin -> {
-                                                    loginVariant = LoginVariant.PASSWORD
-                                                }
+                                            it.supportsOAuthLogin -> {
+                                                loginVariant = LoginVariant.OAUTH
+                                                viewModel.loginWithBrowser(actionContext)
+                                            }
 
-                                                else -> {
-                                                    loginError.value = getString(Res.string.login_not_supported)
-                                                }
+                                            it.supportsPasswordLogin -> {
+                                                loginVariant = LoginVariant.PASSWORD
+                                            }
+
+                                            else -> {
+                                                loginError.value = getString(Res.string.login_not_supported)
                                             }
                                         }
-                                } finally {
-                                    setHomeserverInProgress.value = false
-                                }
+                                    }
+                            } finally {
+                                setHomeserverInProgress.value = false
                             }
-                            true
                         }
+                        true
                     }
                 }
             }
@@ -685,6 +720,8 @@ private fun AccountManagementIconButton(
 ) {
     IconButton(
         modifier = modifier
+            .size(40.dp)
+            .background(MaterialTheme.colorScheme.errorContainer, CircleShape)
             .keyFocusable(
                 role = role,
                 id = focusId,

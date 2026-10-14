@@ -85,8 +85,10 @@ import shire.res.generated.resources.start_chat_no_results
 import shire.res.generated.resources.start_chat_people
 import shire.res.generated.resources.start_chat_search_hint
 
-private val StartChatSearchShape = RoundedCornerShape(28.dp)
+private val StartChatSearchShape = RoundedCornerShape(24.dp)
 private val StartChatPanelShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+private val StartChatResultsShape = RoundedCornerShape(24.dp)
+private val StartChatRowShape = RoundedCornerShape(20.dp)
 
 @Composable
 fun StartChatScreen(
@@ -119,7 +121,8 @@ fun StartChatScreen(
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
         Column(
-            Modifier.fillMaxSize(),
+            Modifier
+                .fillMaxSize(),
         ) {
             TopNavigation(forceVisible = true) {
                 TopNavigationCloseOrNavigateToInboxIcon(backStyle = true)
@@ -129,11 +132,13 @@ fun StartChatScreen(
             Surface(
                 modifier = contentModifier.fillMaxSize(),
                 shape = StartChatPanelShape,
-                color = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
                 tonalElevation = 0.dp,
             ) {
                 Column(
-                    Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 12.dp),
                 ) {
                     TextField(
                         value = query,
@@ -145,7 +150,11 @@ fun StartChatScreen(
                             )
                         },
                         leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null)
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         },
                         trailingIcon = if (query.isNotEmpty()) {
                             {
@@ -165,12 +174,7 @@ fun StartChatScreen(
                         keyboardActions = KeyboardActions(onSearch = {}),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(
-                                start = Dimens.windowPadding,
-                                end = Dimens.windowPadding,
-                                top = 12.dp,
-                                bottom = 8.dp,
-                            )
+                            .padding(horizontal = Dimens.windowPadding)
                             .heightIn(min = 56.dp)
                             .keyFocusable(role = FocusRole.SEARCH_BAR),
                         colors = TextFieldDefaults.colors(
@@ -189,9 +193,10 @@ fun StartChatScreen(
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(
-                                start = Dimens.windowPadding,
+                                start = Dimens.windowPadding + 4.dp,
                                 end = Dimens.windowPadding,
-                                top = 4.dp,
+                                top = 12.dp,
+                                bottom = 4.dp,
                             ),
                         )
                         LazyRow(
@@ -217,6 +222,8 @@ fun StartChatScreen(
                                 )
                             }
                         }
+                    } else {
+                        Spacer(Modifier.size(8.dp))
                     }
 
                     FilledTonalButton(
@@ -225,7 +232,7 @@ fun StartChatScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = Dimens.windowPadding, vertical = 4.dp)
+                            .padding(horizontal = Dimens.windowPadding)
                             .heightIn(min = 52.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
@@ -247,6 +254,7 @@ fun StartChatScreen(
                                 text = stringResource(Res.string.start_chat_search_hint),
                             )
                         }
+
                         is StartChatSearchState.Loading -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -258,6 +266,7 @@ fun StartChatScreen(
                                 )
                             }
                         }
+
                         is StartChatSearchState.Failure -> {
                             StartChatCenteredState(
                                 text = state.message
@@ -266,6 +275,7 @@ fun StartChatScreen(
                                 error = true,
                             )
                         }
+
                         is StartChatSearchState.Results -> {
                             if (state.users.isEmpty()) {
                                 StartChatCenteredState(
@@ -277,32 +287,42 @@ fun StartChatScreen(
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(
-                                        start = Dimens.windowPadding,
+                                        start = Dimens.windowPadding + 4.dp,
                                         end = Dimens.windowPadding,
-                                        top = 12.dp,
-                                        bottom = 4.dp,
+                                        top = 16.dp,
+                                        bottom = 8.dp,
                                     ),
                                 )
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    state = listState,
-                                    contentPadding = WindowInsets.navigationBars
-                                        .only(WindowInsetsSides.Bottom)
-                                        .asPaddingValues(),
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = Dimens.windowPadding),
+                                    shape = StartChatResultsShape,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    tonalElevation = 0.dp,
                                 ) {
-                                    items(
-                                        state.users,
-                                        key = { it.userId.value },
-                                    ) { user ->
-                                        StartChatUserRow(
-                                            user = user,
-                                            sessionId = selectedSessionId,
-                                            starting = startingUserId == user.userId,
-                                            enabled = startingUserId == null,
-                                            onClick = {
-                                                viewModel.startChat(user.userId, actionContext)
-                                            },
-                                        )
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        state = listState,
+                                        contentPadding = WindowInsets.navigationBars
+                                            .only(WindowInsetsSides.Bottom)
+                                            .asPaddingValues(),
+                                    ) {
+                                        items(
+                                            items = state.users,
+                                            key = { it.userId.value },
+                                            contentType = { "person" },
+                                        ) { user ->
+                                            StartChatUserRow(
+                                                user = user,
+                                                sessionId = selectedSessionId,
+                                                starting = startingUserId == user.userId,
+                                                enabled = startingUserId == null,
+                                                onClick = {
+                                                    viewModel.startChat(user.userId, actionContext)
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -325,10 +345,10 @@ private fun StartChatUserRow(
 ) {
     val displayName = user.displayName?.takeIf(String::isNotBlank) ?: user.userId.value
 
-    Row(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 76.dp)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
             .keyFocusable(
                 role = FocusRole.LIST_ITEM,
                 actionProvider = actionProvider(
@@ -342,45 +362,61 @@ private fun StartChatUserRow(
                     },
                 ),
                 enableClicks = enabled,
-            )
-            .padding(horizontal = Dimens.windowPadding, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+                shape = StartChatRowShape,
+            ),
+        shape = StartChatRowShape,
+        color = if (starting) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        tonalElevation = 0.dp,
     ) {
-        AvatarImage(
-            source = user.avatarUrl?.let(::MediaSource),
-            size = 52.dp,
-            sessionId = sessionId,
-            shape = CircleShape,
-            displayName = displayName,
-            contentDescription = user.userId.value,
-        )
-        Column(
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .padding(start = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+                .fillMaxWidth()
+                .heightIn(min = 68.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            AvatarImage(
+                source = user.avatarUrl?.let(::MediaSource),
+                size = 44.dp,
+                sessionId = sessionId,
+                shape = CircleShape,
+                displayName = displayName,
+                contentDescription = user.userId.value,
             )
-            Text(
-                text = user.userId.value,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (starting) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(22.dp),
-                strokeWidth = 2.dp,
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (user.displayName?.isNotBlank() == true) {
+                    Text(
+                        text = user.userId.value,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (starting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
         }
     }
 }
@@ -399,7 +435,7 @@ private fun StartChatCenteredState(
             color = if (error) {
                 MaterialTheme.colorScheme.errorContainer
             } else {
-                MaterialTheme.colorScheme.surfaceContainerLow
+                MaterialTheme.colorScheme.surfaceContainerHigh
             },
             tonalElevation = 0.dp,
         ) {

@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -148,13 +150,14 @@ fun SettingsScreen(
         LocalSearchProvider provides (viewModel.takeIf { it.isRootPreferences } as? SearchProvider ?: LocalSearchProvider.current),
         LocalListActionProvider provides listAction,
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-            ),
+            )
+            .fillMaxSize(),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
-        Column {
+        Column(Modifier.fillMaxSize()) {
             TopNavigation(forceVisible = true) {
                 val destinationState = LocalDestinationState.current
                 if (viewModel.isRootPreferences) {
@@ -192,26 +195,33 @@ fun SettingsScreen(
                     }
                 }
             }
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (prefScreen.prefs.isEmpty()) {
-                    EmptyListScreen(
-                        title = Res.string.empty_screen_placeholder_unexpected.toStringHolder(),
-                        icon = rememberVectorPainter(Icons.Default.BugReport),
-                        renderedSearchTerm = prefScreenState.searchQuery,
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = contentModifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(0.dp),
-                        state = listState,
-                        contentPadding = WindowInsets.navigationBars
-                            .only(WindowInsetsSides.Bottom)
-                            .asPaddingValues(),
-                    ) {
-                        renderPref(
-                            prefScreen,
-                            renderPrefScreenInline = prefScreenState.searchQuery != null
+            Surface(
+                modifier = contentModifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (prefScreen.prefs.isEmpty()) {
+                        EmptyListScreen(
+                            title = Res.string.empty_screen_placeholder_unexpected.toStringHolder(),
+                            icon = rememberVectorPainter(Icons.Default.BugReport),
+                            renderedSearchTerm = prefScreenState.searchQuery,
                         )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(0.dp),
+                            state = listState,
+                            contentPadding = WindowInsets.navigationBars
+                                .only(WindowInsetsSides.Bottom)
+                                .asPaddingValues(),
+                        ) {
+                            renderPref(
+                                prefScreen,
+                                renderPrefScreenInline = prefScreenState.searchQuery != null
+                            )
+                        }
                     }
                 }
             }

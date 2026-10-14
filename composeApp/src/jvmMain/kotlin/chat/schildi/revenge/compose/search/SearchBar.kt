@@ -104,7 +104,7 @@ fun SearchBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 56.dp)
-                            .padding(start = 16.dp, end = 4.dp),
+                            .padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(
@@ -124,7 +124,7 @@ fun SearchBar(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 12.dp),
+                                .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.CenterStart,
                         ) {
                             if (searchValue.isEmpty()) {

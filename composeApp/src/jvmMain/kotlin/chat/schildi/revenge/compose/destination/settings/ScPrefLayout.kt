@@ -34,7 +34,7 @@ import chat.schildi.revenge.preferences.value
 import org.jetbrains.compose.resources.stringResource
 import kotlin.uuid.Uuid
 
-private val SettingsPreferenceShape = RoundedCornerShape(16.dp)
+private val SettingsPreferenceShape = RoundedCornerShape(20.dp)
 
 @Composable
 fun <T> ScPref<T>.ScPrefLayout(
@@ -106,7 +106,7 @@ private fun Modifier.preferenceRowModifier(
     primaryAction: InteractionAction?,
     copyText: String,
 ): Modifier = fillMaxWidth()
-    .padding(horizontal = 16.dp, vertical = 2.dp)
+    .padding(horizontal = 16.dp, vertical = 3.dp)
     .clip(SettingsPreferenceShape)
     .keyFocusable(
         role = FocusRole.LIST_ITEM,
@@ -142,15 +142,15 @@ private fun ScPrefRow(
     Surface(
         modifier = modifier,
         shape = SettingsPreferenceShape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = if (hasSecondary) 76.dp else 64.dp)
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .heightIn(min = if (hasSecondary) 80.dp else 68.dp)
+                .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
@@ -189,7 +189,7 @@ fun ScPrefCategoryHeader(
     style: TextStyle = MaterialTheme.typography.labelLarge,
 ) {
     Column(Modifier.fillMaxWidth()) {
-        Spacer(Modifier.height(if (isFirst) 12.dp else 20.dp))
+        Spacer(Modifier.height(if (isFirst) 10.dp else 16.dp))
         Text(
             text = title,
             style = style,

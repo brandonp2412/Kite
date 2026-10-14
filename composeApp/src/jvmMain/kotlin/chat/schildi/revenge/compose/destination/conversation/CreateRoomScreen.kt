@@ -26,6 +26,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -125,9 +126,9 @@ fun CreateRoomScreen(
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
         Column(contentModifier.fillMaxSize()) {
-            TopNavigation {
+            TopNavigation(forceVisible = true) {
+                TopNavigationCloseOrNavigateToInboxIcon(backStyle = true)
                 TopNavigationTitle(stringResource(Res.string.create_room))
-                TopNavigationCloseOrNavigateToInboxIcon()
             }
 
             val state = viewModel.state.collectAsState().value
@@ -136,23 +137,31 @@ fun CreateRoomScreen(
             val renderedTopic = viewModel.renderedTopic.collectAsState().value
             val showAdvancedSettings = ScPrefs.SHOW_ADVANCED_ROOM_CREATION_PARAMETERS.value()
             val actionContext = currentActionContext()
+            val coroutineScope = rememberCoroutineScope()
 
             val roomVersions = viewModel.availableRoomVersions.collectAsState(null).value
+            val availableSessionIds = viewModel.availableSessionIds.collectAsState(null).value.orEmpty()
+            val sessionEntries = remember(availableSessionIds) {
+                availableSessionIds.map {
+                    EditableDropdownEntry(it, it.value.toStringHolder())
+                }
+            }
 
             val canEditSettings = state is CreateRoomState.Idle || state is CreateRoomState.Failure
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                color = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
                 tonalElevation = 0.dp,
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = Dimens.windowPadding),
+                            .padding(horizontal = Dimens.windowPadding)
+                            .padding(top = 12.dp),
                         state = listState,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         contentPadding = WindowInsets.navigationBars
                             .only(WindowInsetsSides.Bottom)
@@ -160,15 +169,12 @@ fun CreateRoomScreen(
                     ) {
                     // Room creator
                     item {
-                        val sessionIds = viewModel.availableSessionIds.collectAsState(null).value.orEmpty().map {
-                            EditableDropdownEntry(it, it.value.toStringHolder())
-                        }
                         CreateRoomDropDownSetting(
                             stringResource(Res.string.power_level_user_role_creator),
                             settings.sessionId,
-                            sessionIds,
+                            sessionEntries,
                             persist = { viewModel.setSessionId(it) },
-                            enabled = canEditSettings && sessionIds.any { it.value != settings.sessionId },
+                            enabled = canEditSettings && sessionEntries.any { it.value != settings.sessionId },
                         )
                     }
 
@@ -246,14 +252,13 @@ fun CreateRoomScreen(
                     }
 
                     item {
-                        val scope = rememberCoroutineScope()
                         CreateRoomSection {
                             ExpandButton(
                                 text = stringResource(Res.string.pref_category_advanced_room_settings),
                                 expanded = showAdvancedSettings,
                                 enabled = canEditSettings,
                             ) {
-                                scope.launch {
+                                coroutineScope.launch {
                                     RevengePrefs.setSetting(
                                         ScPrefs.SHOW_ADVANCED_ROOM_CREATION_PARAMETERS,
                                         !showAdvancedSettings
@@ -347,7 +352,7 @@ fun CreateRoomScreen(
                             shape = RoundedCornerShape(20.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 56.dp)
+                                .heightIn(min = 52.dp)
                                 // Extra padding to separate from edit fields
                                 .padding(top = Dimens.listPadding)
                                 .keyFocusable(
@@ -377,12 +382,12 @@ private fun CreateRoomEditorCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 0.dp,
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             content()
         }
@@ -515,12 +520,12 @@ private fun CreateRoomSection(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 0.dp,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Dimens.verticalArrangementSmall,
             horizontalAlignment = Alignment.Start,
         ) {
