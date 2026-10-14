@@ -785,43 +785,28 @@ class ConversationViewModel(
         rawTimelineItems,
         searchQuery
     ) { items, query ->
-        if (query.isNullOrBlank() || items == null) {
-            items
+        // Filter server events and orphan-prone date dividers before the LazyColumn
+        // calculates keys, neighbor messages, read markers, and scroll positions.
+        val visibleItems = items?.filter { it.isKiteVisibleConversationItem() }
+        val filteredItems = if (query.isNullOrBlank() || visibleItems == null) {
+            visibleItems
         } else {
             val lowerQuery = query.lowercase()
-            items.flatMap {
+            visibleItems.filter {
                 when (it) {
-                    is MatrixTimelineItem.Event -> {
-                        if ((it.event.content as? MessageContent)?.body?.lowercase()?.contains(lowerQuery) == true) {
-                            listOf(
-                                MatrixTimelineItem.Virtual(
-                                    UniqueId("search_date_${it.eventId}"),
-                                    VirtualTimelineItem.DayDivider(it.event.timestamp),
-                                ),
-                                it,
-                            )
-                        } else {
-                            emptyList()
-                        }
-                    }
+                    is MatrixTimelineItem.Event ->
+                        (it.event.content as? MessageContent)?.body?.contains(lowerQuery, ignoreCase = true) == true
 
-                    is MatrixTimelineItem.Virtual -> {
-                        // Only show room beginning and paging indicator virtual items during search
-                        when (it.virtual) {
-                            is VirtualTimelineItem.LoadingIndicator,
-                            VirtualTimelineItem.RoomBeginning,
-                            VirtualTimelineItem.LastForwardIndicator -> listOf(it)
+                    is MatrixTimelineItem.Virtual ->
+                        it.virtual is VirtualTimelineItem.LoadingIndicator ||
+                            it.virtual == VirtualTimelineItem.RoomBeginning ||
+                            it.virtual == VirtualTimelineItem.LastForwardIndicator
 
-                            is VirtualTimelineItem.DayDivider,
-                            VirtualTimelineItem.ReadMarker,
-                            VirtualTimelineItem.TypingNotification -> emptyList()
-                        }
-                    }
-
-                    is MatrixTimelineItem.Other -> emptyList()
+                    MatrixTimelineItem.Other -> false
                 }
             }
-        }?.map {
+        }
+        filteredItems?.map {
             it.toScTimelineItem(MessageFormatDefaults.parser, MessageFormatDefaults.parseStyle)
         }?.toPersistentList()
     }.flowOn(Dispatchers.Default)
