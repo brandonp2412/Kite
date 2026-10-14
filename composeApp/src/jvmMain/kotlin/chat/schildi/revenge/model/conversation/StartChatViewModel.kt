@@ -19,7 +19,6 @@ import io.element.android.libraries.matrix.api.room.startDM
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toPersistentList
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +29,6 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
@@ -76,8 +74,10 @@ class StartChatViewModel(
         UiState.sessionIdComparator,
     ) { clients, comparator ->
         clients.keys.sortedWith(comparator).also { sessionIds ->
-            if (sessionIds.isNotEmpty() && _sessionId.value == null) {
-                _sessionId.value = sessionIds.first()
+            _sessionId.value = when {
+                sessionIds.isEmpty() -> null
+                _sessionId.value !in sessionIds -> sessionIds.first()
+                else -> _sessionId.value
             }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -137,7 +137,6 @@ class StartChatViewModel(
             },
         )
     }
-        .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.Lazily, StartChatSearchState.Idle)
 
     override val windowTitle = flowOf(Res.string.action_start_chat.toStringHolder())
@@ -163,7 +162,7 @@ class StartChatViewModel(
         val client = clientFlow.value?.takeIf { it.sessionId == selectedSessionId } ?: return
 
         _startingUserId.value = userId
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
                 when (
                     val result = client.startDM(
