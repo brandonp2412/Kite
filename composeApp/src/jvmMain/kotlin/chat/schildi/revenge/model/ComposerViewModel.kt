@@ -4,6 +4,7 @@ import chat.schildi.matrixsdk.ImagePackImageSource
 import chat.schildi.matrixsdk.ImagePackImageWithRawInfo
 import chat.schildi.revenge.actions.ActionContext
 import chat.schildi.revenge.actions.ActionResult
+import chat.schildi.revenge.util.filepicker.AttachmentPickerKind
 import chat.schildi.resources.ComposableStringHolder
 import chat.schildi.resources.toStringHolder
 import com.beeper.android.messageformat.InlineImageInfo
@@ -104,7 +105,10 @@ interface ComposerViewModel {
     fun toggleStickerMode()
     fun sendMessage(context: ActionContext): ActionResult
     fun attachFile(context: ActionContext, path: String): Boolean
-    fun launchAttachmentPicker(context: ActionContext): ActionResult
+    fun launchAttachmentPicker(
+        context: ActionContext,
+        kind: AttachmentPickerKind = AttachmentPickerKind.FILE,
+    ): ActionResult
     fun clearAttachment()
     fun onConfirmSuggestion(suggestion: ComposerSuggestion): Boolean
     fun updateDraftTheme(theme: DraftTheme)

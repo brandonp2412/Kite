@@ -5,8 +5,10 @@ import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import chat.schildi.revenge.RevengeApplication
 import chat.schildi.revenge.WindowId
+import chat.schildi.revenge.actions.fileProviderAuthority
 import chat.schildi.revenge.androidWindowManager
 import chat.schildi.revenge.util.StartupCacheCleaner
 import chat.schildi.revenge.util.toSafeFilename
@@ -20,22 +22,69 @@ import java.io.File
 import kotlin.coroutines.resume
 import kotlin.uuid.Uuid
 
+actual val availableAttachmentPickerKinds: Set<AttachmentPickerKind> = AttachmentPickerKind.entries.toSet()
+
 actual object FilePicker {
-    actual suspend fun requestFilePicker(title: String, windowId: WindowId): Result<FilePickerResult?> {
+    actual suspend fun requestFilePicker(
+        title: String,
+        windowId: WindowId,
+        kind: AttachmentPickerKind,
+    ): Result<FilePickerResult?> {
         return try {
-            val uri = withContext(Dispatchers.Main.immediate) {
-                val activity = androidWindowManager.getActivity(windowId)
-                    ?: error("The window is not attached to an Android activity")
-                activity.filePickerLauncher.requestDocument()
-            }
-            if (uri == null) {
-                Result.success(null)
-            } else {
-                copyUriToCache(uri)
+            when (kind) {
+                AttachmentPickerKind.FILE -> requestDocument(windowId, arrayOf("*/*"))
+                AttachmentPickerKind.GALLERY -> requestDocument(windowId, arrayOf("image/*", "video/*"))
+                AttachmentPickerKind.CAMERA -> requestCamera(windowId)
             }
         } catch (exception: CancellationException) {
             throw exception
         } catch (throwable: Throwable) {
+            Result.failure(throwable)
+        }
+    }
+
+    private suspend fun requestDocument(
+        windowId: WindowId,
+        mimeTypes: Array<String>,
+    ): Result<FilePickerResult?> {
+        val uri = withContext(Dispatchers.Main.immediate) {
+            val activity = androidWindowManager.getActivity(windowId)
+                ?: error("The window is not attached to an Android activity")
+            activity.filePickerLauncher.requestDocument(mimeTypes)
+        }
+        return if (uri == null) {
+            Result.success(null)
+        } else {
+            copyUriToCache(uri)
+        }
+    }
+
+    private suspend fun requestCamera(windowId: WindowId): Result<FilePickerResult?> {
+        val importDir = ComposerAttachmentCache.createImportDir()
+        val destination = File(importDir, "camera-" + System.currentTimeMillis() + ".jpg")
+        return try {
+            check(destination.createNewFile()) { "Failed to create camera attachment file" }
+            val captured = withContext(Dispatchers.Main.immediate) {
+                val activity = androidWindowManager.getActivity(windowId)
+                    ?: error("The window is not attached to an Android activity")
+                val uri = FileProvider.getUriForFile(
+                    activity,
+                    activity.fileProviderAuthority,
+                    destination,
+                )
+                activity.filePickerLauncher.requestCamera(uri)
+            }
+            if (!captured || destination.length() == 0L) {
+                importDir.deleteRecursively()
+                Result.success(null)
+            } else {
+                Result.success(FilePickerResult(destination, "image/jpeg", true))
+            }
+        } catch (exception: CancellationException) {
+            importDir.deleteRecursively()
+            throw exception
+        } catch (throwable: Throwable) {
+            importDir.deleteRecursively()
             Result.failure(throwable)
         }
     }
@@ -118,36 +167,70 @@ internal object ComposerAttachmentCache {
 }
 
 internal class AndroidFilePickerLauncher(activity: ComponentActivity) {
-    private var pendingRequest: CancellableContinuation<Uri?>? = null
-    private val launcher = activity.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        takePendingRequest()?.resume(uri)
+    private var pendingDocumentRequest: CancellableContinuation<Uri?>? = null
+    private var pendingCameraRequest: CancellableContinuation<Boolean>? = null
+
+    private val documentLauncher = activity.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        takePendingDocumentRequest()?.resume(uri)
+    }
+    private val cameraLauncher = activity.registerForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
+        takePendingCameraRequest()?.resume(captured)
     }
 
-    suspend fun requestDocument(): Uri? = suspendCancellableCoroutine { continuation ->
+    suspend fun requestDocument(mimeTypes: Array<String>): Uri? = suspendCancellableCoroutine { continuation ->
         synchronized(this) {
-            check(pendingRequest == null) { "An attachment picker is already open for this window" }
-            pendingRequest = continuation
+            check(pendingDocumentRequest == null && pendingCameraRequest == null) {
+                "An attachment picker is already open for this window"
+            }
+            pendingDocumentRequest = continuation
         }
         continuation.invokeOnCancellation {
             synchronized(this) {
-                if (pendingRequest === continuation) pendingRequest = null
+                if (pendingDocumentRequest === continuation) pendingDocumentRequest = null
             }
         }
         try {
-            launcher.launch(arrayOf("*/*"))
+            documentLauncher.launch(mimeTypes)
         } catch (throwable: Throwable) {
             synchronized(this) {
-                if (pendingRequest === continuation) pendingRequest = null
+                if (pendingDocumentRequest === continuation) pendingDocumentRequest = null
+            }
+            continuation.resumeWith(Result.failure(throwable))
+        }
+    }
+
+    suspend fun requestCamera(uri: Uri): Boolean = suspendCancellableCoroutine { continuation ->
+        synchronized(this) {
+            check(pendingDocumentRequest == null && pendingCameraRequest == null) {
+                "An attachment picker is already open for this window"
+            }
+            pendingCameraRequest = continuation
+        }
+        continuation.invokeOnCancellation {
+            synchronized(this) {
+                if (pendingCameraRequest === continuation) pendingCameraRequest = null
+            }
+        }
+        try {
+            cameraLauncher.launch(uri)
+        } catch (throwable: Throwable) {
+            synchronized(this) {
+                if (pendingCameraRequest === continuation) pendingCameraRequest = null
             }
             continuation.resumeWith(Result.failure(throwable))
         }
     }
 
     fun close() {
-        takePendingRequest()?.cancel(CancellationException("The attachment picker activity was destroyed"))
+        takePendingDocumentRequest()?.cancel(CancellationException("The attachment picker activity was destroyed"))
+        takePendingCameraRequest()?.cancel(CancellationException("The attachment picker activity was destroyed"))
     }
 
-    private fun takePendingRequest(): CancellableContinuation<Uri?>? = synchronized(this) {
-        pendingRequest.also { pendingRequest = null }
+    private fun takePendingDocumentRequest(): CancellableContinuation<Uri?>? = synchronized(this) {
+        pendingDocumentRequest.also { pendingDocumentRequest = null }
+    }
+
+    private fun takePendingCameraRequest(): CancellableContinuation<Boolean>? = synchronized(this) {
+        pendingCameraRequest.also { pendingCameraRequest = null }
     }
 }

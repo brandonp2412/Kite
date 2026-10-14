@@ -10,9 +10,18 @@ import kotlinx.coroutines.withContext
 import java.awt.FileDialog
 import java.awt.Frame
 
+actual val availableAttachmentPickerKinds: Set<AttachmentPickerKind> = setOf(
+    AttachmentPickerKind.FILE,
+    AttachmentPickerKind.GALLERY,
+)
+
 actual object FilePicker {
 
-    actual suspend fun requestFilePicker(title: String, windowId: WindowId): Result<FilePickerResult?> = when (SystemInfo.getOs()) {
+    actual suspend fun requestFilePicker(
+        title: String,
+        windowId: WindowId,
+        kind: AttachmentPickerKind,
+    ): Result<FilePickerResult?> = when (SystemInfo.getOs()) {
         OperatingSystem.Linux -> runCatching {
             FreedesktopPortal.requestFile(title)?.let(::FilePickerResult)
         }

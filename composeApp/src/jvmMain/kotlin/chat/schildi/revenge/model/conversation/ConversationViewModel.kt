@@ -87,6 +87,7 @@ import chat.schildi.revenge.notification.platformDismissNotification
 import chat.schildi.revenge.toDestination
 import chat.schildi.revenge.toPrettyJson
 import chat.schildi.revenge.util.tryOrNull
+import chat.schildi.revenge.util.filepicker.AttachmentPickerKind
 import chat.schildi.revenge.util.filepicker.FilePicker
 import chat.schildi.revenge.util.flowClosable
 import co.touchlab.kermit.Logger
@@ -2093,7 +2094,10 @@ class ConversationViewModel(
         return ActionResult.Success()
     }
 
-    override fun launchAttachmentPicker(context: ActionContext) = context.launchActionAsync(
+    override fun launchAttachmentPicker(
+        context: ActionContext,
+        kind: AttachmentPickerKind,
+    ) = context.launchActionAsync(
         "attachmentPicker",
         viewModelScope,
         Dispatchers.IO
@@ -2101,6 +2105,7 @@ class ConversationViewModel(
         val fileResult = FilePicker.requestFilePicker(
             getString(Res.string.action_add_attachment),
             context.windowId,
+            kind,
         )
         if (fileResult.isFailure) {
             return@launchActionAsync fileResult.toActionResult()
