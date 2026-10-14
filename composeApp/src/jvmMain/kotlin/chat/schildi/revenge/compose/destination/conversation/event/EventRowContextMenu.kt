@@ -73,6 +73,7 @@ import shire.res.generated.resources.action_edit
 import shire.res.generated.resources.action_end_poll
 import shire.res.generated.resources.action_forward
 import shire.res.generated.resources.action_jump_to_replied_to_message
+import shire.res.generated.resources.kite_action_select_more
 import shire.res.generated.resources.action_mark_as_read
 import shire.res.generated.resources.action_mark_as_read_type_read_marker
 import shire.res.generated.resources.action_mark_as_read_type_read_receipt_private
@@ -82,7 +83,6 @@ import shire.res.generated.resources.action_pin
 import shire.res.generated.resources.action_react
 import shire.res.generated.resources.action_redact
 import shire.res.generated.resources.action_reply
-import shire.res.generated.resources.action_select_message
 import shire.res.generated.resources.action_show_more
 import shire.res.generated.resources.action_thread
 import shire.res.generated.resources.action_unpin
@@ -329,7 +329,7 @@ fun EventTimelineItem.contextMenu(
             title = if (isSelected) {
                 Res.string.action_deselect_message.toStringHolder()
             } else {
-                Res.string.action_select_message.toStringHolder()
+                Res.string.kite_action_select_more.toStringHolder()
             },
             icon = rememberVectorPainter(
                 if (isSelected) Icons.Default.CheckCircle else Icons.Outlined.RadioButtonUnchecked

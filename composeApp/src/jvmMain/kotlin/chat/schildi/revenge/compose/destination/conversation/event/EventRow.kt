@@ -32,6 +32,7 @@ import chat.schildi.revenge.actions.currentActionContext
 import chat.schildi.revenge.actions.actionProvider
 import chat.schildi.revenge.actions.hierarchicalKeyboardActionProvider
 import chat.schildi.revenge.compose.components.ContextMenuPresentation
+import chat.schildi.revenge.compose.components.LocalTouchTextSelectionEnabled
 import chat.schildi.revenge.compose.components.WithContextMenu
 import chat.schildi.revenge.compose.destination.conversation.event.message.timestampOverlayContent
 import chat.schildi.revenge.compose.destination.conversation.event.reaction.ReactionsRow
@@ -128,6 +129,7 @@ fun EventRow(
         ),
         presentation = ContextMenuPresentation.Message,
     ) { openContextMenu ->
+        val messageActionMenuOpen = LocalTouchTextSelectionEnabled.current
         Column(
             modifier
                 .keyFocusable(
@@ -151,6 +153,12 @@ fun EventRow(
                         secondaryAction = openContextMenu,
                         copyActions = eventCopyActions(event, messageMetadata),
                     ),
+                    // Once the Messages-style action surface is visible, pointer
+                    // gestures belong to the message content itself: a second
+                    // long-press selects text and handle drags refine that range.
+                    // Keep keyboard/focus actions installed, but remove this row's
+                    // click/long-click detector until the action surface closes.
+                    addClickListener = !messageActionMenuOpen,
                 )
                 .background(
                     if (isSelected) {
@@ -204,7 +212,7 @@ fun EventRow(
                             isOwn = event.isOwn,
                             swipeConfig = swipeConfig,
                             timestampRevealState = timestampRevealState,
-                            enabled = !selectionActive,
+                            enabled = !selectionActive && !messageActionMenuOpen,
                         ) { modifier ->
                             EventContentLayout(
                                 eventId = event.eventId,
@@ -225,7 +233,7 @@ fun EventRow(
                                 modifier = modifier,
                                 messageContentModifier = Modifier.passiveDoubleTapReaction(
                                     focusId = focusId,
-                                    enabled = canDoubleTapReact,
+                                    enabled = canDoubleTapReact && !messageActionMenuOpen,
                                     reaction = doubleTapReaction,
                                 ),
                             )

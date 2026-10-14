@@ -22,3 +22,5 @@ private object EmptyTextContextMenu : TextContextMenu {
 actual fun WithPlatformTextContextMenuDisabled(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalTextContextMenu provides EmptyTextContextMenu, content = content)
 }
+
+actual val messageContextMenuFocusable: Boolean = true

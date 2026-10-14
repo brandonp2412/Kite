@@ -7,3 +7,6 @@ import androidx.compose.runtime.Composable
  */
 @Composable
 expect fun WithPlatformTextContextMenuDisabled(content: @Composable () -> Unit)
+
+/** Android allows touch-through for precise selection; desktop keeps popup focus. */
+expect val messageContextMenuFocusable: Boolean

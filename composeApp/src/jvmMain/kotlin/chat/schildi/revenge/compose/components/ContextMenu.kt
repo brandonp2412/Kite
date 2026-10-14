@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.PopupProperties
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.ActionContext
 import chat.schildi.revenge.actions.ActionResult
@@ -85,6 +87,12 @@ sealed interface ContextMenuDecoration {
 enum class ContextMenuPresentation {
     Default,
     Message,
+}
+
+private enum class ContextMenuOpenState {
+    Closed,
+    Open,
+    ChildOpen,
 }
 
 data class ContextMenuActionEntry(
@@ -156,10 +164,26 @@ fun WithContextMenu(
     content: @Composable () -> Unit,
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
-    val currentMenu = keyHandler.currentOpenContextMenu.collectAsState().value
-    val expanded = currentMenu?.hasMenu(menuId) == true
-    val hasChild = expanded && currentMenu.menuId != menuId
-    var anchorBounds by remember { mutableStateOf<Rect?>(null) }
+    // Do not recompose every visible message whenever some other row opens/closes a
+    // context menu. Each row observes only whether its own menu state changed.
+    val currentMenuState = keyHandler.currentOpenContextMenu.collectAsState()
+    val menuOpenState by remember(keyHandler, menuId) {
+        derivedStateOf {
+            val currentMenu = currentMenuState.value
+            when {
+                currentMenu?.hasMenu(menuId) != true -> ContextMenuOpenState.Closed
+                currentMenu.menuId != menuId -> ContextMenuOpenState.ChildOpen
+                else -> ContextMenuOpenState.Open
+            }
+        }
+    }
+    val expanded = menuOpenState != ContextMenuOpenState.Closed
+    val hasChild = menuOpenState == ContextMenuOpenState.ChildOpen
+
+    // Window bounds change continuously while the timeline scrolls. They are only
+    // needed at menu-open time, so keep the latest value outside snapshot state;
+    // otherwise onGloballyPositioned invalidates every visible message every frame.
+    val anchorBounds = remember { arrayOfNulls<Rect>(1) }
     var pointerPositionOnOpen by remember { mutableStateOf<Offset?>(null) }
     val density = LocalDensity.current
 
@@ -175,8 +199,8 @@ fun WithContextMenu(
         }
     }
 
-    val offset = remember(pointerPositionOnOpen, anchorBounds) {
-        val anchor = anchorBounds
+    val offset = remember(pointerPositionOnOpen, expanded) {
+        val anchor = anchorBounds[0]
         val position = pointerPositionOnOpen
         if (anchor == null || position == null) {
             DpOffset(0.dp, 0.dp)
@@ -190,7 +214,7 @@ fun WithContextMenu(
 
     Box(
         modifier.onGloballyPositioned {
-            anchorBounds = it.boundsInWindow()
+            anchorBounds[0] = it.boundsInWindow()
         }
     ) {
         // If we have selectable text, want to override that menu as well
@@ -206,6 +230,13 @@ fun WithContextMenu(
                 } else {
                     MaterialTheme.shapes.medium
                 },
+                // Message actions intentionally stay non-focusable. Current Google Messages
+                // keeps the floating action surface visible while a second long-press lands
+                // on the message text for precise selection. A focusable popup consumes that
+                // second gesture before SelectionContainer can see it.
+                properties = PopupProperties(
+                    focusable = presentation != ContextMenuPresentation.Message || messageContextMenuFocusable,
+                ),
                 content = popupContent,
             )
             if (presentation == ContextMenuPresentation.Message) {

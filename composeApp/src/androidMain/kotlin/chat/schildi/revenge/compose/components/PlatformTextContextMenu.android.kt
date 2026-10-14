@@ -4,3 +4,5 @@ import androidx.compose.runtime.Composable
 
 @Composable
 actual fun WithPlatformTextContextMenuDisabled(content: @Composable () -> Unit) = content()
+
+actual val messageContextMenuFocusable: Boolean = false
