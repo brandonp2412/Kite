@@ -102,8 +102,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransa
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.putting
-import kotlinx.collections.immutable.removing
+import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -174,10 +173,12 @@ fun ConversationScreen(
                 if (event?.isKiteSelectableMessage() == true) {
                     event.kiteSelectionKey()?.let { key ->
                         val current = selectedMessagesState.value
-                        selectedMessagesState.value = if (key in current) {
-                            current.removing(key)
-                        } else {
-                            current.putting(key, item)
+                        selectedMessagesState.value = current.mutate { selected ->
+                            if (key in current) {
+                                selected.remove(key)
+                            } else {
+                                selected[key] = item
+                            }
                         }
                     }
                 }
