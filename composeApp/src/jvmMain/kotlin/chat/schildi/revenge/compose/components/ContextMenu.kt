@@ -59,6 +59,7 @@ import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.displayName
 import chat.schildi.revenge.compose.destination.conversation.event.reaction.KiteReactionGlyph
+import chat.schildi.theme.scExposures
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import shire.res.generated.resources.Res
@@ -328,22 +329,18 @@ private fun ContextMenuActionRowContent(
                     onClick = { onActionClick(action) },
                     enabled = entry.enabled && action.enabled,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .semantics {
                             contentDescription = actionTitle
                             this.selected = selected
                         },
                     shape = MaterialTheme.shapes.extraLarge,
                     color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
+                        MaterialTheme.scExposures.accentColor.copy(alpha = 0.20f)
                     } else {
                         MaterialTheme.colorScheme.surfaceContainerHigh
                     },
-                    contentColor = if (selected) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         val compactLabel = action.compactLabel

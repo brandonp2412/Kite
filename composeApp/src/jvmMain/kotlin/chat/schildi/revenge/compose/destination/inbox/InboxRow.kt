@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LowPriority
@@ -93,11 +94,13 @@ fun InboxRow(
     user: MatrixUser?,
     needsAccountDisambiguation: Boolean,
     pendingForward: PendingMessageForward?,
+    unreadCountPreferences: RoomUnreadCountPreferences,
     modifier: Modifier = Modifier,
 ) {
     ComposeSessionScope(room.sessionId) {
         val focusId = rememberFocusId()
         val actionContext = currentActionContext()
+        val unreadCounts = room.summary.unreadCounts(unreadCountPreferences)
         WithContextMenu(
             focusId = focusId,
             entries = room.contextMenu(),
@@ -190,7 +193,7 @@ fun InboxRow(
                     )
                     .padding(
                         horizontal = Dimens.windowPadding,
-                        vertical = Dimens.listPaddingBig,
+                        vertical = 10.dp,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -199,6 +202,7 @@ fun InboxRow(
                         source = room.summary.info.avatarUrl?.let(::MediaSource)
                             ?: room.summary.info.heroes.singleOrNull()?.avatarUrl?.let(::MediaSource),
                         size = Dimens.Inbox.avatar,
+                        shape = CircleShape,
                         displayName = room.summary.info.name ?: "",
                     )
                     user?.avatarUrl?.takeIf { needsAccountDisambiguation }?.let { userAvatar ->
@@ -217,10 +221,10 @@ fun InboxRow(
                         .padding(start = Dimens.Inbox.avatarItemPadding)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        ScNameAndTimestampRow(room.summary, hasDraft)
+                        ScNameAndTimestampRow(room.summary, hasDraft, unreadCounts)
                     }
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        ScLastMessageAndIndicatorRow(viewModel, room)
+                        ScLastMessageAndIndicatorRow(viewModel, room, unreadCounts)
                     }
                 }
             }
@@ -229,13 +233,19 @@ fun InboxRow(
 }
 
 @Composable
-private fun RowScope.ScNameAndTimestampRow(room: RoomSummary, hasDraft: Boolean) {
+private fun RowScope.ScNameAndTimestampRow(
+    room: RoomSummary,
+    hasDraft: Boolean,
+    unreadCounts: RoomUnreadCounts,
+) {
     val displayName = room.info.privateRoomName ?: room.info.name ?: room.roomId.value
+    val hasUnread = unreadCounts.hasUnread()
     Text(
         modifier = Modifier.weight(1f),
-        style = MaterialTheme.typography.titleMedium,
+        style = MaterialTheme.typography.bodyLarge,
         text = displayName,
         color = MaterialTheme.colorScheme.onSurface,
+        fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Medium,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -288,8 +298,9 @@ private fun RowScope.ScNameAndTimestampRow(room: RoomSummary, hasDraft: Boolean)
         room.latestEventTimestamp?.let { timestamp ->
             Text(
                 text = DateTimeFormat.formatTimestampAsDateOrTime(timestamp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (hasUnread) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -299,6 +310,7 @@ private fun RowScope.ScNameAndTimestampRow(room: RoomSummary, hasDraft: Boolean)
 private fun RowScope.ScLastMessageAndIndicatorRow(
     viewModel: InboxViewModel,
     scopedRoom: ScopedRoomSummary,
+    unreadCounts: RoomUnreadCounts,
 ) {
     val room = scopedRoom.summary
     // Last Message
@@ -373,9 +385,13 @@ private fun RowScope.ScLastMessageAndIndicatorRow(
         }
         Text(
             text = messagePreview,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content),
-            maxLines = 2,
+            color = if (unreadCounts.hasUnread()) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                textDirection = TextDirection.Content,
+                fontWeight = if (unreadCounts.hasUnread()) FontWeight.Medium else FontWeight.Normal,
+            ),
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
     }
@@ -386,9 +402,15 @@ private fun RowScope.ScLastMessageAndIndicatorRow(
         horizontalArrangement = Dimens.horizontalArrangement,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ScUnreadCounter(scopedRoom)
+        ScUnreadCounter(scopedRoom, unreadCounts)
     }
 }
+
+data class RoomUnreadCountPreferences(
+    val allowSilentUnreadCount: Boolean,
+    val clientGeneratedUnreadCounts: Boolean,
+    val renderUnderestimates: Boolean,
+)
 
 data class RoomUnreadCounts(
     val highlightCount: Long,
@@ -401,23 +423,20 @@ data class RoomUnreadCounts(
     fun canMarkUnread() = !markedUnread && notificationCount == 0L && highlightCount == 0L
 }
 
-@Composable
-fun RoomSummary.unreadCounts(): RoomUnreadCounts {
-    val allowSilentUnreadCount = ScPrefs.RENDER_SILENT_UNREAD.value()
-    return if (ScPrefs.CLIENT_GENERATED_UNREAD_COUNTS.value()) {
-        val renderUnderestimates = ScPrefs.INDICATE_UNREAD_COUNT_UNDERESTIMATES.value()
+fun RoomSummary.unreadCounts(preferences: RoomUnreadCountPreferences): RoomUnreadCounts {
+    return if (preferences.clientGeneratedUnreadCounts) {
         RoomUnreadCounts(
             highlightCount = info.numUnreadMentions,
             notificationCount = info.numUnreadNotifications,
-            unreadCount = if (allowSilentUnreadCount) info.numUnreadMessages else 0,
+            unreadCount = if (preferences.allowSilentUnreadCount) info.numUnreadMessages else 0,
             markedUnread = info.isMarkedUnread,
-            unreadUnderestimate = renderUnderestimates && info.unreadCountUnderestimate,
+            unreadUnderestimate = preferences.renderUnderestimates && info.unreadCountUnderestimate,
         )
     } else {
         RoomUnreadCounts(
             highlightCount = info.highlightCount,
             notificationCount = info.notificationCount,
-            unreadCount = if (allowSilentUnreadCount) info.unreadCount else 0,
+            unreadCount = if (preferences.allowSilentUnreadCount) info.unreadCount else 0,
             markedUnread = info.isMarkedUnread,
             unreadUnderestimate = false,
         )
@@ -425,9 +444,21 @@ fun RoomSummary.unreadCounts(): RoomUnreadCounts {
 }
 
 @Composable
-private fun ScUnreadCounter(scopedRoom: ScopedRoomSummary) {
+fun RoomSummary.unreadCounts(): RoomUnreadCounts = unreadCounts(
+    RoomUnreadCountPreferences(
+        allowSilentUnreadCount = ScPrefs.RENDER_SILENT_UNREAD.value(),
+        clientGeneratedUnreadCounts = ScPrefs.CLIENT_GENERATED_UNREAD_COUNTS.value(),
+        renderUnderestimates = ScPrefs.INDICATE_UNREAD_COUNT_UNDERESTIMATES.value(),
+    )
+)
+
+@Composable
+private fun ScUnreadCounter(
+    scopedRoom: ScopedRoomSummary,
+    unreadCounts: RoomUnreadCounts,
+) {
     val room = scopedRoom.summary
-    val (highlightCount, notificationCount, unreadCount, markedUnread, underestimate) = room.unreadCounts()
+    val (highlightCount, notificationCount, unreadCount, markedUnread, underestimate) = unreadCounts
     val count: String
     val badgeColor: Color
     var outlinedBadge = false
@@ -481,12 +512,15 @@ private fun ScUnreadCounter(scopedRoom: ScopedRoomSummary) {
                 else
                     it.background(badgeColor, RoundedCornerShape(30.dp))
             }
-            .sizeIn(minWidth = 24.dp, minHeight = 24.dp)
+            .sizeIn(minWidth = 20.dp, minHeight = 20.dp)
     ) {
         Text(
             text = count,
             color = if (outlinedBadge) badgeColor else MaterialTheme.scExposures.colorOnAccent,
-            style = MaterialTheme.typography.bodySmall.let { if (outlinedBadge) it.copy(fontWeight = FontWeight.Bold) else it },
+            style = MaterialTheme.typography.labelSmall.let {
+                if (outlinedBadge) it.copy(fontWeight = FontWeight.Bold)
+                else it.copy(fontWeight = FontWeight.SemiBold)
+            },
             maxLines = 1,
             textAlign = TextAlign.Center,
             modifier = Modifier

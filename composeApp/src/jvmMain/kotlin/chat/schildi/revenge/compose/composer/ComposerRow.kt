@@ -4,15 +4,18 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -130,9 +133,18 @@ fun ComposerRow(
             modifier = Modifier.heightIn(max = 200.dp),
         )
         if (draftState.inReplyTo != null) {
-            Row(Modifier.padding(horizontal = Dimens.windowPadding), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                        RoundedCornerShape(20.dp),
+                    )
+                    .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 ReplyContent(draftState.inReplyTo, null, Modifier.weight(1f))
-                ClearButton(Modifier.padding(start = Dimens.horizontalItemPadding)) {
+                ClearButton(Modifier.padding(start = Dimens.horizontalItemPaddingSmall)) {
                     viewModel.onComposerUpdate(draftState.copy(inReplyTo = null))
                 }
             }
@@ -147,20 +159,25 @@ fun ComposerRow(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        val textMessageOnly =
-            draftState.rawBody.isNotEmpty() ||
-                    draftState.inReplyTo != null ||
-                    draftState.type == DraftType.EDIT ||
-                    draftState.type == DraftType.EDIT_CAPTION
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             val actionContext = currentActionContext()
-            AnimatedVisibility(
-                draftState.canAddAttachment() && !textMessageOnly,
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 56.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                        RoundedCornerShape(28.dp),
+                    ),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                AnimatedVisibility(
+                    draftState.canAddAttachment(),
             ) {
                 WithTooltip(stringResource(Res.string.action_add_attachment)) {
                     ScIconButton(
@@ -173,7 +190,7 @@ fun ComposerRow(
                             if (isSendInProgress)
                                 MaterialTheme.colorScheme.tertiary
                             else
-                                MaterialTheme.colorScheme.onSurface,
+                                MaterialTheme.colorScheme.onSurfaceVariant,
                         ).value
                         Icon(
                             Icons.Default.Add,
@@ -262,12 +279,12 @@ fun ComposerRow(
                 ),
                 maxLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
                 minLines = 1,
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                cursorBrush = SolidColor(MaterialTheme.scExposures.accentColor),
                 decorationBox = { innerTextField ->
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 6.dp, top = 3.dp, end = 6.dp, bottom = 6.dp),
+                            .padding(start = 4.dp, top = 4.dp, end = 8.dp, bottom = 8.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         if (draftState.textFieldValue.text.isEmpty()) {
@@ -298,7 +315,7 @@ fun ComposerRow(
                             if (draftState.type == DraftType.STICKER)
                                 MaterialTheme.scExposures.accentColor
                             else
-                                MaterialTheme.colorScheme.onSurface,
+                                MaterialTheme.colorScheme.onSurfaceVariant,
                         ).value
                         Icon(
                             Icons.Default.CrueltyFree,
@@ -308,6 +325,8 @@ fun ComposerRow(
                     }
                 }
             }
+            }
+            Spacer(Modifier.width(6.dp))
             AnimatedContent(isSendInProgress) { sending ->
                 if (sending) {
                     Box(Modifier.minimumInteractiveComponentSize(), contentAlignment = Alignment.Center) {
@@ -406,28 +425,20 @@ fun RoomPrivacyIndicator(
 
 @Composable
 fun SendButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val bubbleColor = if (MaterialTheme.scExposures.isDarkTheme) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.primary
-    }
-    val onBubbleColor = if (MaterialTheme.scExposures.isDarkTheme) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onPrimary
-    }
     val background = animateColorAsState(
-        if (enabled) bubbleColor else bubbleColor.copy(alpha = 0.38f)
+        if (enabled) MaterialTheme.scExposures.accentColor
+        else MaterialTheme.colorScheme.surfaceContainerHigh
     )
     val foreground = animateColorAsState(
-        if (enabled) onBubbleColor else onBubbleColor.copy(alpha = 0.62f)
+        if (enabled) MaterialTheme.scExposures.colorOnAccent
+        else MaterialTheme.colorScheme.onSurfaceVariant
     )
     IconButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier
-            .size(44.dp)
-            .background(background.value, RoundedCornerShape(12.dp)),
+            .size(48.dp)
+            .background(background.value, CircleShape),
     ) {
         Icon(
             Icons.AutoMirrored.Default.Send,

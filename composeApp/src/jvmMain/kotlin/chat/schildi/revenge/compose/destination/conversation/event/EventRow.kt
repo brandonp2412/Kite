@@ -138,7 +138,7 @@ fun EventRow(
                     Dimens.Conversation.messageBubbleShape,
                 )
                 .drawJumpTargetDecoration(enabled = highlight == EventHighlight.JUMP_TARGET)
-                .padding(horizontal = Dimens.windowPadding)
+                .padding(horizontal = Dimens.Conversation.timelineHorizontalPadding)
         ) {
             val threadInfo = event.threadInfo()
             Row(

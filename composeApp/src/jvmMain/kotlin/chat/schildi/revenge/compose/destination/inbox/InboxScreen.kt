@@ -112,6 +112,12 @@ fun InboxScreen(
     }
     val drafts = DraftRepo.roomsWithDrafts.collectAsState(persistentSetOf())
     val pendingForward = MessageForward.pending.collectAsState(null).value
+    // Read inbox-wide unread preferences once instead of collecting them separately in every row.
+    val unreadCountPreferences = RoomUnreadCountPreferences(
+        allowSilentUnreadCount = ScPrefs.RENDER_SILENT_UNREAD.value(),
+        clientGeneratedUnreadCounts = ScPrefs.CLIENT_GENERATED_UNREAD_COUNTS.value(),
+        renderUnderestimates = ScPrefs.INDICATE_UNREAD_COUNT_UNDERESTIMATES.value(),
+    )
 
     FocusContainer(
         LocalSearchProvider provides viewModel,
@@ -241,6 +247,7 @@ fun InboxScreen(
                                     user = remember(accounts) { accounts?.get(room.sessionId)?.user },
                                     needsAccountDisambiguation = needsDisambiguation,
                                     pendingForward = pendingForward,
+                                    unreadCountPreferences = unreadCountPreferences,
                                 )
                             }
                         }

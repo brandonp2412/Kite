@@ -27,8 +27,8 @@ object Dimens {
     val verticalArrangement = Arrangement.spacedBy(listPadding)
     val verticalArrangementSmall = Arrangement.spacedBy(listPaddingSmall)
 
-    val topAppBarIconSize = 36.dp
-    val topAppBarMinHeight = 48.dp
+    val topAppBarIconSize = 40.dp
+    val topAppBarMinHeight = 56.dp
     val compactActionBarThreshold = 600.dp
 
     val squareButtonClip = RoundedCornerShape(4.dp)
@@ -62,15 +62,17 @@ object Dimens {
         val avatarForState = 16.dp
         val avatarItemPadding = 12.dp
         val unreadLinePadding = 8.dp
-        val dayHeaderPadding = 16.dp
-        val messageBubbleCornerRadius = 10.dp
+        val dayHeaderPadding = 12.dp
+        val messageBubbleCornerRadius = 20.dp
         val messageBubbleShape = RoundedCornerShape(messageBubbleCornerRadius)
-        val replyContentShape = RoundedCornerShape(6.dp)
+        val replyContentShape = RoundedCornerShape(12.dp)
         val replyItemPadding = 8.dp
         val messageBubbleInnerPadding = 8.dp
+        val messageBubblePadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)
+        val timelineHorizontalPadding = 12.dp
         val imageBubbleInnerPadding = 2.dp
-        val messageSameSenderPadding = 4.dp
-        val messageOtherSenderPadding = 12.dp
+        val messageSameSenderPadding = 3.dp
+        val messageOtherSenderPadding = 10.dp
         val captionPadding = 8.dp
         val timestampPaddingWithOverlayBg = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         val timestampHorizontalPaddingToText = 8.dp

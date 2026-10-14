@@ -35,8 +35,8 @@ fun DayHeader(
     Text(
         DateTimeFormat.formatTimestampAsDate(timestamp),
         modifier,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.Medium,
     )
 }

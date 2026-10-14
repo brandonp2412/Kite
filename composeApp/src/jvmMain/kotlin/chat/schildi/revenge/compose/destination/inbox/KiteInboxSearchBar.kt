@@ -1,6 +1,7 @@
 package chat.schildi.revenge.compose.destination.inbox
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
@@ -37,9 +38,10 @@ import io.element.android.libraries.matrix.api.media.MediaSource
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_clear_search
+import shire.res.generated.resources.hint_search
 import shire.res.generated.resources.hint_settings
 
-private val KiteSearchShape = RoundedCornerShape(12.dp)
+private val KiteSearchShape = RoundedCornerShape(28.dp)
 
 @Composable
 fun KiteInboxSearchBar(
@@ -72,8 +74,8 @@ fun KiteInboxSearchBar(
         },
         placeholder = {
             Text(
-                text = "Search...",
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                text = stringResource(Res.string.hint_search),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
         leadingIcon = {
@@ -104,9 +106,9 @@ fun KiteInboxSearchBar(
                 if (account != null) {
                     AvatarImage(
                         source = account.avatarUrl?.let(::MediaSource),
-                        size = 44.dp,
+                        size = 36.dp,
                         sessionId = account.sessionId,
-                        shape = KiteSearchShape,
+                        shape = CircleShape,
                         displayName = account.displayName ?: account.sessionId.value,
                         contentDescription = stringResource(Res.string.hint_settings),
                     )
@@ -130,9 +132,9 @@ fun KiteInboxSearchBar(
                 requestFocusOnMount = false,
             ),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            unfocusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent,

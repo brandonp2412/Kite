@@ -2,6 +2,7 @@ package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -112,8 +113,9 @@ fun ConversationTopNavigation(
                         source = avatar,
                         size = Dimens.topAppBarIconSize,
                         displayName = title,
+                        shape = CircleShape,
                         modifier = Modifier.padding(
-                            start = Dimens.windowPadding,
+                            start = Dimens.listPadding,
                             top = Dimens.listPadding,
                             bottom = Dimens.listPadding,
                         ),

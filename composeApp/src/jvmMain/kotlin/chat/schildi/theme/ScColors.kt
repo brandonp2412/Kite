@@ -6,6 +6,16 @@ import androidx.compose.ui.graphics.Color
 internal object KiteBrandColors {
     val primary = Color(0xff5625ba)
     val primaryDark = Color(0xffad98ff)
+    val lightBackground = Color(0xfffbf8ff)
+    val lightContainer = Color(0xfff1edf7)
+    val lightContainerHigh = Color(0xffebe5f3)
+    val lightIncomingBubble = Color(0xfff0edf5)
+    val lightOutgoingBubble = Color(0xffe4d9ff)
+    val darkBackground = Color(0xff121116)
+    val darkContainer = Color(0xff201e24)
+    val darkContainerHigh = Color(0xff2a2730)
+    val darkIncomingBubble = Color(0xff29262e)
+    val darkOutgoingBubble = Color(0xff3a3152)
 }
 
 internal object ScColors {

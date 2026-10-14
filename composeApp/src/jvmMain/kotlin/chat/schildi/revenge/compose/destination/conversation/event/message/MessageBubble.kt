@@ -89,7 +89,7 @@ fun MessageBubble(
     allowTimestampOverlay: Boolean = true,
     isMediaOverlay: Boolean = false,
     modifier: Modifier = Modifier,
-    padding: PaddingValues = PaddingValues(Dimens.Conversation.messageBubbleInnerPadding),
+    padding: PaddingValues = Dimens.Conversation.messageBubblePadding,
     outlined: Boolean = false,
     transparent: Boolean = false,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,

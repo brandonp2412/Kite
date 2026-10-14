@@ -26,6 +26,7 @@ import chat.schildi.revenge.compose.components.WithUserTimestampListPopup
 import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.model.conversation.ConversationViewModel
+import chat.schildi.theme.scExposures
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
@@ -75,11 +76,14 @@ fun ReactionsBubble(
         Row(
             modifier.let {
                 if (includesSelf) {
-                    it.background(MaterialTheme.colorScheme.surfaceVariant, Dimens.Conversation.reactionShape)
+                    it.background(
+                        MaterialTheme.scExposures.accentColor.copy(alpha = 0.18f),
+                        Dimens.Conversation.reactionShape,
+                    )
                         .border(
                             1.dp,
-                            MaterialTheme.colorScheme.onSurface,
-                            Dimens.Conversation.reactionShape
+                            MaterialTheme.scExposures.accentColor.copy(alpha = 0.55f),
+                            Dimens.Conversation.reactionShape,
                         )
                 } else {
                     it.background(MaterialTheme.colorScheme.surfaceContainerHigh, Dimens.Conversation.reactionShape)
@@ -107,8 +111,8 @@ fun ReactionsBubble(
             ReactionContent(reaction.key, reaction.shortcode)
             Text(
                 reaction.senders.size.toString(),
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelLarge,
             )
         }
     }
