@@ -711,6 +711,7 @@ fun ConversationScreen(
 
                     MessageSelectionBar(
                         selectedCount = selectedMessages.size,
+                        modifier = Modifier.padding(bottom = composerBottomPadding),
                         canReply = selectedSingleEvent?.eventId != null &&
                                 (roomPermissions?.canSendMessages ?: false),
                         canRetry = selectedSingleEvent?.localSendState is LocalEventSendState.Failed,
