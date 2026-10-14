@@ -738,10 +738,6 @@ fun ConversationScreen(
                         }
                     }
 
-                    if (ScPrefs.FLOATING_DATE.value()) {
-                        FloatingDateHeader(listState, renderedItems)
-                    }
-
                     // Jump-to-message FABs
                     val isLive = viewModel.activeTimelineState.collectAsState().value?.isLive != false
                     val bottomItem = if (isLive) getNextItem(
