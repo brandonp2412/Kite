@@ -9,12 +9,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PestControlRodent
 import androidx.compose.material3.Icon
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.dp
 import chat.schildi.lib.preferences.ScPrefs
@@ -32,11 +34,11 @@ import chat.schildi.revenge.compose.components.ContextMenuDecoration
 import chat.schildi.revenge.compose.components.TopNavigation
 import chat.schildi.revenge.compose.components.TopNavigationCloseOrNavigateToInboxIcon
 import chat.schildi.revenge.compose.components.TopNavigationIcon
-import chat.schildi.revenge.compose.components.TopNavigationSearchOrTitle
 import chat.schildi.revenge.compose.components.TopNavigationTitle
 import chat.schildi.revenge.compose.components.WithContextMenu
 import chat.schildi.revenge.compose.focus.LocalFocusParent
 import chat.schildi.revenge.compose.search.LocalSearchProvider
+import chat.schildi.revenge.compose.search.SearchBar
 import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.config.keybindings.Action
@@ -55,6 +57,7 @@ import shire.res.generated.resources.action_close
 import shire.res.generated.resources.action_close_unread
 import shire.res.generated.resources.action_show_room_members
 import shire.res.generated.resources.dev_tools_title
+import shire.res.generated.resources.hint_search
 import shire.res.generated.resources.keep_24px
 import shire.res.generated.resources.pinned_messages
 import shire.res.generated.resources.pref_always_show_sdk_unread_line_title_short
@@ -89,6 +92,7 @@ fun ConversationTopNavigation(
     val keyHandler = LocalKeyboardActionHandler.current
     val focusParent = LocalFocusParent.current
     val destinationState = LocalDestinationState.current
+    val focusManager = LocalFocusManager.current
     val detailsDestination = directHero
         ?.let { hero -> Destination.UserDetails(viewModel.sessionId, hero.userId, viewModel.roomId) }
         ?: Destination.RoomDetails(viewModel.sessionId, viewModel.roomId)
@@ -106,6 +110,25 @@ fun ConversationTopNavigation(
             )
             return@TopNavigation
         }
+        // Search owns the entire header: never squeeze its field beside room metadata.
+        // This also prevents the title/search crossfade from measuring two layouts at once.
+        if (isSearchVisible && searchProvider != null) {
+            TopNavigationIcon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                stringResource(Res.string.action_close),
+            ) {
+                keyHandler.clearSearch()
+                focusManager.clearFocus()
+            }
+            SearchBar(
+                searchProvider = searchProvider,
+                searchFocusContainer = null,
+                modifier = Modifier.weight(1f).padding(end = 12.dp),
+                showClearButton = true,
+                topNavigationStyle = true,
+            )
+            return@TopNavigation
+        }
         if (compact) {
             TopNavigationIcon(
                 Icons.AutoMirrored.Filled.ArrowBack,
@@ -116,8 +139,8 @@ fun ConversationTopNavigation(
         }
 
         when (viewModel.timelineParams) {
-            is CreateTimelineParams.Threaded -> TopNavigationSearchOrTitle(stringResource(Res.string.thread))
-            is CreateTimelineParams.PinnedOnly -> TopNavigationSearchOrTitle(stringResource(Res.string.pinned_messages))
+            is CreateTimelineParams.Threaded -> TopNavigationTitle(stringResource(Res.string.thread))
+            is CreateTimelineParams.PinnedOnly -> TopNavigationTitle(stringResource(Res.string.pinned_messages))
             else -> {
                 if (avatar != null && !isSearchVisible) {
                     AvatarImage(
@@ -134,14 +157,8 @@ fun ConversationTopNavigation(
                             .clickable { destinationState?.navigate(detailsDestination) },
                     )
                 }
-                if (hasTimeline) {
-                    TopNavigationSearchOrTitle(title) {
-                        destinationState?.navigate(detailsDestination)
-                    }
-                } else {
-                    TopNavigationTitle(title) {
-                        destinationState?.navigate(detailsDestination)
-                    }
+                TopNavigationTitle(title) {
+                    destinationState?.navigate(detailsDestination)
                 }
                 if (focusParent != null) {
                     // In compact mode, hide what can be reached via room click or room details anyway
@@ -260,6 +277,14 @@ fun ConversationTopNavigation(
                         }
                     }
                 }
+            }
+        }
+        if (hasTimeline && searchProvider != null) {
+            TopNavigationIcon(
+                Icons.Default.Search,
+                stringResource(Res.string.hint_search),
+            ) {
+                keyHandler.onSearchEnter(searchProvider, null, "")
             }
         }
         if (compact) {
