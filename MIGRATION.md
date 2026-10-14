@@ -1024,3 +1024,13 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --quiet`: passed.
 - ARM64 APK SHA-256 `4b26d5f853704f91af6b15007b77cd755d5d2e7b1266b07f4f04cffc97fc82fe`, package `app.kite.revenge.debug`, existing certificate verified. Installed via `adb -s 10.66.66.3:5555 install -r` (Success). DataDir and firstInstallTime retained; lastUpdateTime `2026-10-15 07:59:50`. Production `app.kite` untouched.
 - No live message interaction performed; visual behavior and actual open-intent result depend on the device's installed file handlers. Preserved unrelated in-progress hide-chat work in `InboxViewModel.kt`, `AppStateStore.kt`, and strings.
+
+
+## 2026-10-15 — Keep Delete visible in message long-press menu
+
+- User screenshot showed reaction row, Copy and Select, with Delete missing. Cause: `EventRowContextMenu` was dropping the entire Delete entry using `.takeIf { canRedact }` whenever the Rust SDK reported insufficient redaction permission, or the event identifier was absent.
+- Delete is now always displayed after Copy and Select for a user message, with `enabled = canRedact`. Thus it stays visible (greyed out if not permitted), without bypassing Matrix access controls, confirmation or the underlying redaction action. Transaction IDs also count as valid identifiers for pending own sends.
+- Added `MessageDeleteMenuTest` covering own/other permissions, missing event IDs, and null permission state.
+- Glass checks: `:composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --quiet` passed; ARM64 `:androidApp:assemblePerfDebug` passed.
+- Verified isolated Android APK package `app.kite.revenge.debug` and existing signer. `adb install -r` succeeded on Samsung; first install time and app data path unchanged, last update `2026-10-15 08:06:32`. Production `app.kite` not modified. No live chat or redaction action was performed; visual verification is pending.
+- Existing unrelated unfinished hide-chat changes in InboxViewModel, AppStateStore and strings left unchanged.

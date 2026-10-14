@@ -34,8 +34,8 @@ import shire.res.generated.resources.action_react
 
 /**
  * Kite's deliberately minimal long-press surface: quick emoji reactions,
- * then Copy, Select, Delete. Actions unavailable for a given event are omitted;
- * Matrix permission checks and the existing delete confirmation remain in force.
+ * then Copy, Select, Delete. Delete remains visible even in rooms where
+ * redaction is unavailable, but stays disabled until Matrix permits it.
  */
 @Composable
 fun EventTimelineItem.contextMenu(
@@ -48,11 +48,11 @@ fun EventTimelineItem.contextMenu(
     if (!isUserMessage) return persistentListOf()
 
     val canReact = eventId != null && permissions?.canSendReactions == true
-    val canRedact = eventId != null && if (isOwn) {
-        permissions?.canRedactOwn ?: true
-    } else {
-        permissions?.canRedactOther ?: false
-    }
+    val canRedact = canDeleteMessage(
+        eventHasId = eventId != null || transactionId != null,
+        isOwn = isOwn,
+        permissions = permissions,
+    )
     val ownUserId = LocalSessionId.current
     val reactionsRow = ContextMenuActionRowEntry(
         title = "Quick reactions".toStringHolder(),
@@ -110,6 +110,18 @@ fun EventTimelineItem.contextMenu(
             Action.Event.Redact,
             critical = true,
             keyboardShortcut = Key.D,
-        ).takeIf { canRedact },
+            enabled = canRedact,
+        ),
     ).toPersistentList()
+}
+
+/** Kept separate from menu presentation so permission-specific visibility is testable. */
+internal fun canDeleteMessage(
+    eventHasId: Boolean,
+    isOwn: Boolean,
+    permissions: ConversationPermissions?,
+): Boolean = eventHasId && if (isOwn) {
+    permissions?.canRedactOwn ?: true
+} else {
+    permissions?.canRedactOther ?: false
 }
