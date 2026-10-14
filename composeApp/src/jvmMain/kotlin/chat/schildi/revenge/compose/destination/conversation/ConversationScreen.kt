@@ -99,10 +99,8 @@ import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
-import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -162,32 +160,28 @@ fun ConversationScreen(
         val density = LocalDensity.current
 
         val timelineItems = viewModel.timelineItems.collectAsState().value
-        val selectedMessageKeysState = remember { mutableStateOf(persistentSetOf<String>()) }
-        val selectedMessageKeys = selectedMessageKeysState.value
-        val selectionActive = selectedMessageKeys.isNotEmpty()
-        val selectedTimelineItems = remember(timelineItems, selectedMessageKeys) {
-            timelineItems.orEmpty().mapNotNull { item ->
-                val event = (item.item as? MatrixTimelineItem.Event)?.event ?: return@mapNotNull null
-                event.kiteSelectionKey()
-                    ?.takeIf { it in selectedMessageKeys }
-                    ?.let { item }
-            }.toPersistentList()
-        }
-        val toggleMessageSelection: (EventTimelineItem) -> Unit = remember(selectedMessageKeysState) {
-            { event ->
-                if (event.isKiteSelectableMessage()) {
+        // Keep selected timeline objects directly so toggling selection stays O(1) with
+        // respect to loaded room history. Re-scanning every event here can hitch large rooms.
+        val selectedMessagesState = remember { mutableStateOf<Map<String, ScTimelineItem>>(emptyMap()) }
+        val selectedMessages = selectedMessagesState.value
+        val selectionActive = selectedMessages.isNotEmpty()
+        val toggleMessageSelection: (ScTimelineItem) -> Unit = remember {
+            { item ->
+                val event = (item.item as? MatrixTimelineItem.Event)?.event
+                if (event?.isKiteSelectableMessage() == true) {
                     event.kiteSelectionKey()?.let { key ->
-                        selectedMessageKeysState.value = if (key in selectedMessageKeysState.value) {
-                            selectedMessageKeysState.value.removing(key)
+                        val current = selectedMessagesState.value
+                        selectedMessagesState.value = if (key in current) {
+                            current - key
                         } else {
-                            selectedMessageKeysState.value.adding(key)
+                            current + (key to item)
                         }
                     }
                 }
             }
         }
         PlatformBackHandler(enabled = selectionActive) {
-            selectedMessageKeysState.value = persistentSetOf()
+            selectedMessagesState.value = emptyMap()
         }
         val debugLines = if (ScPrefs.SHOW_DEV_INFOS.value()) {
             viewModel.debugLines.collectAsState().value
@@ -517,7 +511,7 @@ fun ConversationScreen(
                             // Reverse list causes reverses indices
                             val currentDebugLines = debugLines?.get(timelineItems.size - index - 1) ?: persistentListOf()
                             val rowEvent = (item.item as? MatrixTimelineItem.Event)?.event
-                            val rowSelected = rowEvent?.kiteSelectionKey()?.let { it in selectedMessageKeys } == true
+                            val rowSelected = rowEvent?.kiteSelectionKey()?.let(selectedMessages::containsKey) == true
                             ConversationItemRow(
                                 viewModel = viewModel,
                                 item = item,
@@ -610,7 +604,7 @@ fun ConversationScreen(
                 val shouldShowComposer = viewModel.shouldShowComposer.collectAsState().value
                 if (selectionActive) {
                     val actionScope = rememberCoroutineScope()
-                    val selectedSingle = selectedTimelineItems.singleOrNull()
+                    val selectedSingle = selectedMessages.values.singleOrNull()
                     val selectedSingleEvent = (selectedSingle?.item as? MatrixTimelineItem.Event)?.event
                     val executeSelectedAction: (ScTimelineItem, Action.Event) -> ActionResult = { selected, action ->
                         val event = (selected.item as MatrixTimelineItem.Event).event
@@ -621,10 +615,10 @@ fun ConversationScreen(
                         ).handleAction(actionContext, action, emptyList())
                     }
                     val clearSelection = {
-                        selectedMessageKeysState.value = persistentSetOf()
+                        selectedMessagesState.value = emptyMap()
                     }
                     MessageSelectionBar(
-                        selectedCount = selectedTimelineItems.size,
+                        selectedCount = selectedMessages.size,
                         canReply = selectedSingleEvent?.eventId != null,
                         canEdit = selectedSingleEvent?.isOwn == true &&
                                 selectedSingleEvent.content is MessageContent,
@@ -637,7 +631,7 @@ fun ConversationScreen(
                             }
                         },
                         onCopy = {
-                            val snapshot = selectedTimelineItems
+                            val snapshot = selectedMessages.values.toList()
                             actionScope.launch {
                                 val result = if (
                                     snapshot.size == 1 &&

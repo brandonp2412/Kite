@@ -72,7 +72,7 @@ fun EventRow(
     swipeConfig: MessageSwipeConfig,
     selectionActive: Boolean,
     isSelected: Boolean,
-    onToggleSelection: (EventTimelineItem) -> Unit,
+    onToggleSelection: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val backgroundHighlightColor = animateColorAsState(
@@ -87,8 +87,8 @@ fun EventRow(
         rememberMatrixFormatInteractionState(it)
     }
     val selectable = event.isKiteSelectableMessage()
-    val toggleSelection = remember(event, onToggleSelection) {
-        { onToggleSelection(event) }
+    val toggleSelection = remember(onToggleSelection) {
+        { onToggleSelection() }
     }
     val canDoubleTapReact = !selectionActive && doubleTapToReact &&
             event.content is MessageContent &&

@@ -35,7 +35,6 @@ import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
-import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import io.element.android.libraries.matrix.api.timeline.item.event.perMessageProfile
 import io.element.android.libraries.matrix.api.timeline.item.virtual.VirtualTimelineItem
@@ -62,7 +61,7 @@ fun ConversationItemRow(
     swipeConfig: MessageSwipeConfig,
     selectionActive: Boolean,
     isSelected: Boolean,
-    onToggleSelection: (EventTimelineItem) -> Unit,
+    onToggleSelection: (ScTimelineItem) -> Unit,
     showBackwardPagingIndicator: Boolean,
     showForwardPagingIndicator: Boolean,
     modifier: Modifier = Modifier,
@@ -139,7 +138,7 @@ fun ConversationItemRow(
                     swipeConfig = swipeConfig,
                     selectionActive = selectionActive,
                     isSelected = isSelected,
-                    onToggleSelection = onToggleSelection,
+                    onToggleSelection = { onToggleSelection(item) },
                     modifier = debugSeparatorLines.firstOrNull { it.position == DebugLinePosition.Start }?.let {
                         Modifier.drawTimelineItemDebugLineBehind(it)
                     } ?: Modifier,
