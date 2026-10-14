@@ -75,15 +75,7 @@ fun EventTimelineItem.timestampOverlayContent(settings: TimestampSettings) = Tim
     isEdited = (content as? EventCanBeEdited)?.isEdited == true,
     isSending = localSendState is LocalEventSendState.Sending,
     sendError = localSendState as? LocalEventSendState.Failed,
-    messageShield = messageShieldProvider(strict = false)?.takeIf {
-        when (it) {
-            is MessageShield.AuthenticityNotGuaranteed -> settings.renderAuthenticityNotGuaranteed
-            is MessageShield.MismatchedSender -> settings.renderSenderMismatch
-            is MessageShield.UnsignedDevice -> settings.renderUnsignedDevice
-            is MessageShield.SentInClear -> content !is RedactedContent
-            else -> true
-        }
-    },
+    messageShield = null,
 )
 
 @Composable

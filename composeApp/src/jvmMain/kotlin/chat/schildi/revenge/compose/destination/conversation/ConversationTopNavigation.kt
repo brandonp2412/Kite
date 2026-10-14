@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.destination.conversation
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -35,6 +36,7 @@ import chat.schildi.revenge.compose.components.TopNavigationSearchOrTitle
 import chat.schildi.revenge.compose.components.TopNavigationTitle
 import chat.schildi.revenge.compose.components.WithContextMenu
 import chat.schildi.revenge.compose.focus.LocalFocusParent
+import chat.schildi.revenge.compose.search.LocalSearchProvider
 import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.config.keybindings.Action
@@ -81,10 +83,19 @@ fun ConversationTopNavigation(
     } else {
         roomInfo?.name ?: ""
     }
-    val avatar = roomInfo?.avatarUrl?.let { MediaSource(it) }
+    val directHero = roomInfo?.heroes?.singleOrNull()
+        ?.takeIf { roomInfo.joinedMembersCount <= 2 }
+    val avatar = (roomInfo?.avatarUrl ?: directHero?.avatarUrl)?.let(::MediaSource)
     val keyHandler = LocalKeyboardActionHandler.current
     val focusParent = LocalFocusParent.current
     val destinationState = LocalDestinationState.current
+    val detailsDestination = directHero
+        ?.let { hero -> Destination.UserDetails(viewModel.sessionId, hero.userId, viewModel.roomId) }
+        ?: Destination.RoomDetails(viewModel.sessionId, viewModel.roomId)
+    val searchProvider = LocalSearchProvider.current
+    val isSearchVisible = searchProvider?.let { provider ->
+        keyHandler.needsKeyboardSearchBar(provider).collectAsState().value
+    } ?: false
     TopNavigation(forceVisible = compact) {
         if (selectionCount > 0 && onClearSelection != null) {
             TopNavigationTitle(stringResource(Res.string.selection_messages_count, selectionCount))
@@ -108,26 +119,28 @@ fun ConversationTopNavigation(
             is CreateTimelineParams.Threaded -> TopNavigationSearchOrTitle(stringResource(Res.string.thread))
             is CreateTimelineParams.PinnedOnly -> TopNavigationSearchOrTitle(stringResource(Res.string.pinned_messages))
             else -> {
-                if (avatar != null) {
+                if (avatar != null && !isSearchVisible) {
                     AvatarImage(
                         source = avatar,
                         size = Dimens.topAppBarIconSize,
                         displayName = title,
                         shape = CircleShape,
-                        modifier = Modifier.padding(
-                            start = Dimens.listPadding,
-                            top = Dimens.listPadding,
-                            bottom = Dimens.listPadding,
-                        ),
+                        modifier = Modifier
+                            .padding(
+                                start = Dimens.listPadding,
+                                top = Dimens.listPadding,
+                                bottom = Dimens.listPadding,
+                            )
+                            .clickable { destinationState?.navigate(detailsDestination) },
                     )
                 }
                 if (hasTimeline) {
                     TopNavigationSearchOrTitle(title) {
-                        destinationState?.navigate(Destination.RoomDetails(viewModel.sessionId, viewModel.roomId))
+                        destinationState?.navigate(detailsDestination)
                     }
                 } else {
                     TopNavigationTitle(title) {
-                        destinationState?.navigate(Destination.RoomDetails(viewModel.sessionId, viewModel.roomId))
+                        destinationState?.navigate(detailsDestination)
                     }
                 }
                 if (focusParent != null) {

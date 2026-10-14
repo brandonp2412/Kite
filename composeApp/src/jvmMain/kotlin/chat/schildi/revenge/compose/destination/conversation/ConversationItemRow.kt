@@ -36,7 +36,12 @@ import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
+import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseStateContent
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
+import io.element.android.libraries.matrix.api.timeline.item.event.ProfileChangeContent
+import io.element.android.libraries.matrix.api.timeline.item.event.RoomMembershipContent
+import io.element.android.libraries.matrix.api.timeline.item.event.StateContent
+import io.element.android.libraries.matrix.api.timeline.item.event.UnknownContent
 import io.element.android.libraries.matrix.api.timeline.item.event.perMessageProfile
 import io.element.android.libraries.matrix.api.timeline.item.virtual.VirtualTimelineItem
 import kotlinx.collections.immutable.ImmutableList
@@ -92,7 +97,7 @@ fun ConversationItemRow(
                         instance = NewMessageLineInstance.Sdk,
                         isThreadedTimeline = currentThreadId != null,
                     )
-                    VirtualTimelineItem.RoomBeginning -> RoomBeginning()
+                    VirtualTimelineItem.RoomBeginning -> {}
                     // Not sure if we're supposed to render something for that one
                     VirtualTimelineItem.LastForwardIndicator -> {}
                     VirtualTimelineItem.TypingNotification -> TypingUsersRow(
@@ -103,6 +108,7 @@ fun ConversationItemRow(
             }
 
             is MatrixTimelineItem.Event -> {
+                if (item.item.event.isKiteServerEvent()) return@Column
                 val isFirstUnreadEvent = fullyReadEvent?.has(previousEvent?.eventId) == true
                 val showUnreadLine = isFirstUnreadEvent && (!item.item.event.isOwn || fullyReadEvent.usedAsJumpTarget)
                 if (isFirstUnreadEvent || fullyReadEvent?.has(item.item.eventId) == true) {
@@ -119,7 +125,9 @@ fun ConversationItemRow(
                 }
 
                 val directPreviousEvent = (previous?.item as? MatrixTimelineItem.Event)?.event
+                    ?.takeUnless { it.isKiteServerEvent() }
                 val directNextEvent = (next?.item as? MatrixTimelineItem.Event)?.event
+                    ?.takeUnless { it.isKiteServerEvent() }
                 val previousSender = directPreviousEvent?.sender?.takeIf { !showUnreadLine }
                 val isSameAsPreviousSender = previousSender == item.item.event.sender &&
                         directPreviousEvent.content is MessageContent &&
@@ -177,4 +185,14 @@ fun ConversationItemRow(
             Spacer(Modifier.height(Dimens.windowPadding))
         }
     }
+}
+
+
+private fun EventTimelineItem.isKiteServerEvent(): Boolean = when (content) {
+    is RoomMembershipContent,
+    is ProfileChangeContent,
+    is StateContent,
+    is FailedToParseStateContent,
+    is UnknownContent -> true
+    else -> false
 }

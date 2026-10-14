@@ -22,8 +22,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.CrueltyFree
 import androidx.compose.material.icons.filled.NoEncryption
+import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -63,6 +64,7 @@ import chat.schildi.revenge.model.ComposerState
 import chat.schildi.revenge.model.ComposerViewModel
 import chat.schildi.revenge.model.DraftType
 import chat.schildi.revenge.model.DraftValue
+import chat.schildi.revenge.util.filepicker.AttachmentPickerKind
 import chat.schildi.revenge.util.filepicker.availableAttachmentPickerKinds
 import chat.schildi.theme.scExposures
 import com.beeper.android.messageformat.MatrixBodyParseResult
@@ -162,8 +164,8 @@ fun ComposerRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.Bottom,
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             val actionContext = currentActionContext()
             Row(
@@ -174,7 +176,7 @@ fun ComposerRow(
                         MaterialTheme.colorScheme.surfaceContainerHigh,
                         RoundedCornerShape(28.dp),
                     ),
-                verticalAlignment = Alignment.Bottom,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 AnimatedVisibility(
                     draftState.canAddAttachment(),
@@ -195,7 +197,7 @@ fun ComposerRow(
                         Icon(
                             Icons.Default.Add,
                             stringResource(Res.string.action_add_attachment),
-                            modifier = Modifier.size(28.dp),
+                            modifier = Modifier.size(24.dp),
                             tint = color,
                         )
                     }
@@ -216,11 +218,11 @@ fun ComposerRow(
             val maxLinesFocused = ScPrefs.COMPOSER_MAX_LINES.value()
             val maxLinesUnfocused = ScPrefs.COMPOSER_MAX_LINES_UNFOCUSED.value()
             val composerHint = when (draftState.type) {
-                DraftType.TEXT -> stringResource(Res.string.hint_composer_text).appendComposerFormat(draftState)
+                DraftType.TEXT -> stringResource(Res.string.hint_composer_text)
                 DraftType.NOTICE -> stringResource(Res.string.hint_composer_notice).appendComposerFormat(draftState)
                 DraftType.EMOTE -> stringResource(Res.string.hint_composer_emote).appendComposerFormat(draftState)
-                DraftType.EDIT -> stringResource(Res.string.hint_composer_edit).appendComposerFormat(draftState)
-                DraftType.EDIT_CAPTION -> stringResource(Res.string.hint_composer_edit_caption).appendComposerFormat(draftState)
+                DraftType.EDIT -> stringResource(Res.string.hint_composer_edit)
+                DraftType.EDIT_CAPTION -> stringResource(Res.string.hint_composer_edit_caption)
                 DraftType.REACTION -> stringResource(Res.string.hint_composer_reaction)
                 DraftType.STICKER -> stringResource(Res.string.hint_composer_sticker_shortcode)
                 DraftType.ATTACHMENT -> when (draftState.attachment) {
@@ -229,7 +231,7 @@ fun ComposerRow(
                     is Attachment.Image -> stringResource(Res.string.hint_composer_image)
                     is Attachment.Video -> stringResource(Res.string.hint_composer_video)
                     null -> stringResource(Res.string.hint_composer_caption)
-                }.appendComposerFormat(draftState)
+                }
                 DraftType.CUSTOM_EVENT -> draftState.customEventType ?: ""
                 DraftType.CUSTOM_STATE_EVENT -> {
                     if (draftState.stateKey == null) {
@@ -266,7 +268,7 @@ fun ComposerRow(
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 52.dp)
+                    .heightIn(min = 56.dp)
                     .keyFocusable(role = FocusRole.MESSAGE_COMPOSER)
                     .onFocusChanged {
                         isFocused = it.isFocused
@@ -284,7 +286,7 @@ fun ComposerRow(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 4.dp, top = 4.dp, end = 8.dp, bottom = 8.dp),
+                            .padding(start = 2.dp, end = 4.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         if (draftState.textFieldValue.text.isEmpty()) {
@@ -318,9 +320,30 @@ fun ComposerRow(
                                 MaterialTheme.colorScheme.onSurfaceVariant,
                         ).value
                         Icon(
-                            Icons.Default.CrueltyFree,
+                            Icons.Outlined.EmojiEmotions,
                             stringResource(Res.string.hint_composer_sticker),
                             tint = color,
+                        )
+                    }
+                }
+            }
+            AnimatedVisibility(
+                draftState.type == DraftType.TEXT &&
+                        draftState.attachment == null &&
+                        AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
+            ) {
+                WithTooltip(stringResource(Res.string.action_add_attachment)) {
+                    ScIconButton(
+                        onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
+                        enabled = !isSendInProgress,
+                        minWidth = Dimens.Conversation.Composer.buttonWidth,
+                        minHeight = Dimens.Conversation.Composer.buttonHeight,
+                    ) {
+                        Icon(
+                            Icons.Outlined.PhotoLibrary,
+                            stringResource(Res.string.action_add_attachment),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                 }
@@ -437,7 +460,7 @@ fun SendButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modif
         onClick = onClick,
         enabled = enabled,
         modifier = modifier
-            .size(48.dp)
+            .size(46.dp)
             .background(background.value, CircleShape),
     ) {
         Icon(

@@ -203,6 +203,7 @@ fun RowScope.TopNavigationSearchOrTitle(
                     searchFocusContainer,
                     Modifier.weight(1f),
                     showClearButton = true,
+                    topNavigationStyle = true,
                 )
             } else {
                 TopNavigationTitle(title, Modifier.weight(1f), onTitleClick)

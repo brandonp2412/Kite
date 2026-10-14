@@ -218,16 +218,8 @@ fun UserDetailsScreen(
                                             stringResource(Res.string.verification_status_verified),
                                             MaterialTheme.scExposures.accentColor,
                                         )
-                                        IdentityState.PinViolation -> UserIdentityIcon(
-                                            painterResource(Res.drawable.verified_off_24px),
-                                            stringResource(Res.string.verification_status_not_verified),
-                                            MaterialTheme.colorScheme.onSurface,
-                                        )
-                                        IdentityState.VerificationViolation -> UserIdentityIcon(
-                                            painterResource(Res.drawable.verified_off_24px),
-                                            stringResource(Res.string.verification_status_not_verified),
-                                            MaterialTheme.colorScheme.error,
-                                        )
+                                        IdentityState.PinViolation,
+                                        IdentityState.VerificationViolation,
                                         IdentityState.Pinned,
                                         null -> {}
                                     }

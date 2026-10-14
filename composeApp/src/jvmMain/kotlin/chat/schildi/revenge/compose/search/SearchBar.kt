@@ -2,9 +2,11 @@ package chat.schildi.revenge.compose.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.components.PlatformBackHandler
@@ -35,6 +38,7 @@ fun SearchBar(
     searchFocusContainer: Uuid?,
     modifier: Modifier = Modifier,
     showClearButton: Boolean = false,
+    topNavigationStyle: Boolean = false,
 ) {
     val handler = LocalKeyboardActionHandler.current
     val isFocused = remember { mutableStateOf(false) }
@@ -49,15 +53,27 @@ fun SearchBar(
         onValueChange = {
             handler.onSearchType(it, searchProvider, searchFocusContainer)
         },
-        label = {
+        label = if (topNavigationStyle) null else {{
             Text(
                 stringResource(Res.string.hint_search),
                 color = if (showClearButton) Color.Unspecified else MaterialTheme.scExposures.searchHint,
             )
-        },
+        }},
+        placeholder = if (topNavigationStyle) {{
+            Text(
+                stringResource(Res.string.hint_search),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }} else null,
+        leadingIcon = if (topNavigationStyle) {{
+            androidx.compose.material3.Icon(
+                Icons.Default.Search,
+                stringResource(Res.string.hint_search),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }} else null,
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
             .onFocusChanged {
                 isFocused.value = it.isFocused
             }
@@ -66,10 +82,21 @@ fun SearchBar(
         keyboardActions = KeyboardActions {
             handler.onSearchEnter(searchProvider, searchFocusContainer)
         },
-        colors = TextFieldDefaults.colors().copy(
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-        ),
+        shape = if (topNavigationStyle) RoundedCornerShape(28.dp) else TextFieldDefaults.shape,
+        colors = if (topNavigationStyle) {
+            TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+            )
+        } else {
+            TextFieldDefaults.colors().copy(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            )
+        },
         trailingIcon = if (showClearButton) {{
             TopNavigationIcon(
                 Icons.Default.Clear,
