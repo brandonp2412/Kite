@@ -476,3 +476,46 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - On a naturally awake/unlocked Samsung, compare the installed Kite build side-by-side with installed Google Messages and verify repeated Inbox <-> Conversation navigation has no end-jolt, the single-selection header/overflow density matches the reference better, and short loads no longer flash a spinner.
 - Re-test the already-installed Messages-style right-swipe reply / left-swipe timestamp reveal on long histories, attachment/reaction/read-receipt rows, dark theme, keyboard/insets, and capture controlled gfxinfo/frame evidence at 120 Hz.
 - Finish partial-text selection as an explicit message-scoped mode only after observing the actual native handle/context-menu interaction on device; do not reintroduce per-row Matrix collectors or broad timeline state.
+
+
+## 2026-10-15 01:50 NZDT — Messages long-press/partial-copy interaction + menu hot-path cleanup
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages reference mapping before changing the message-action surface.
+- Cross-checked the now-wide stable Google Messages long-press redesign: reactions remain above a floating action list, the primary list includes Reply / Forward / Copy / Star / Delete / Select more / Info (plus Save for media), and precise partial copy is entered by long-pressing the selected message text a second time.
+- Kept Kite's Matrix room Pin in the primary action stack as the closest existing Matrix-specific analogue to the reference's Star position; no Matrix capability was removed.
+- The Samsung remained Dozing / non-interactive throughout implementation and installation, so neither Kite nor Google Messages was opened merely to manufacture screenshot evidence.
+
+### Implemented
+- Finished the partial-text-selection plumbing instead of adding a separate explicit selection mode:
+  - Android message action popups are now non-focusable so a second long-press outside the popup can reach the selected message text.
+  - Desktop message popups deliberately remain focusable, preserving keyboard/pointer menu navigation.
+  - While a message action popup is open, the row-level click/long-click recognizer, swipe recognizer and passive double-tap-reaction recognizer stand down. This gives Compose text selection and its handle drags ownership of the touch stream; all normal first-long-press, swipe and double-tap behavior returns when the popup closes.
+  - Normal touch scrolling still keeps message text non-selectable until its own action surface is open.
+- Updated the message action wording from generic Select to the current Messages-style Select more without editing the unrelated dirty common strings.xml; the label lives in a dedicated Kite conversation resource file.
+- Tightened the context-menu hot path for long histories:
+  - the existing global open-menu state collector is retained, but consumption now goes through derivedStateOf, so rows whose own menu state stays Closed do not need composition invalidation merely because another row opens/closes a menu;
+  - per-row window bounds from onGloballyPositioned are no longer stored in Compose snapshot state. Scrolling still updates the latest anchor geometry, but does not write a snapshot value on every row movement just to position a closed menu.
+- No new Matrix collector, duplicated timeline state, animation/effect pass or blocking UI work was introduced.
+
+### Validation
+- Cohesive source checkpoint: 87de6793 (Polish Messages actions and gesture arbitration), 7 files, 61 insertions / 11 deletions.
+- git diff --check: pass.
+- Glass/JDK25 :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass (BUILD SUCCESSFUL in 35s, 87 actionable tasks).
+- Release-like validation used isolated detached worktree /home/brandon/worktrees/kite-revenge-validate-87de6793 at exact superproject 87de6793, with Matrix Rust SDK pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- The initial clean :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 exceeded the connector's foreground call window but continued as the original single build; one replayed duplicate writer was terminated immediately. The original produced a fresh APK. A cached exact-command verification rerun then reported BUILD SUCCESSFUL in 3s, 275 actionable tasks (10 executed / 265 up-to-date).
+- Final APK: /home/brandon/worktrees/kite-revenge-validate-87de6793/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,853,803 bytes, SHA-256 8d28c03ed8369093343763659db3adcab7a46310a06e6b5ae1393a19c68f4c00.
+- AAPT verifies package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37 and arm64-v8a. apksigner verifies the existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung 10.66.66.3:5555 preflight and postflight found neither production app.kite nor redundant app.kite.revenge; only app.kite.revenge.debug was targeted. adb install -r returned Success.
+- Debug data/login was preserved: dataDir=/data/user/0/app.kite.revenge.debug, firstInstallTime=2026-10-14 11:55:12, lastUpdateTime=2026-10-15 01:49:34.
+- Device remained mWakefulness=Dozing and mHalInteractiveModeEnabled=false; Kite was not launched. Precise-selection handles, popup dismissal, dark-mode appearance and 120 Hz frame timing therefore remain deliberately unclaimed.
+- The pre-existing hide-room work remains unstaged and byte-for-byte unchanged:
+  - InboxViewModel.kt SHA-256 cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7
+  - AppStateStore.kt SHA-256 7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673
+  - strings.xml SHA-256 dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a
+
+### Next substantial slice
+- On a naturally awake/unlocked Samsung, test the exact Google Messages gesture sequence side-by-side: first long-press -> floating actions -> second long-press directly on text -> drag selection handles -> Copy/Select All surface. Verify popup touch-through/dismissal does not regress normal action taps.
+- Re-run right-swipe reply / left-swipe timestamp reveal and double-tap reaction immediately after closing the menu to prove gesture arbitration restores cleanly.
+- Capture controlled gfxinfo/frame evidence on a long room at 120 Hz, especially while scrolling rows that host closed context-menu anchors; only then claim a measurable hot-path improvement.
+- Continue into the adjacent reactions/action-sheet/dark-theme polish from that observed device state rather than adding a parallel interaction/state system.
