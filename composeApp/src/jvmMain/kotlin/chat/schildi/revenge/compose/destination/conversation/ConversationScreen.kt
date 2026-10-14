@@ -606,6 +606,18 @@ fun ConversationScreen(
                     val actionScope = rememberCoroutineScope()
                     val selectedSingle = selectedMessages.values.singleOrNull()
                     val selectedSingleEvent = (selectedSingle?.item as? MatrixTimelineItem.Event)?.event
+                    val selectedEvents = remember(selectedMessages) {
+                        selectedMessages.values.mapNotNull { selected ->
+                            (selected.item as? MatrixTimelineItem.Event)?.event
+                        }
+                    }
+                    val canDeleteSelection = selectedEvents.isNotEmpty() && selectedEvents.all { event ->
+                        if (event.isOwn) {
+                            roomPermissions?.canRedactOwn ?: true
+                        } else {
+                            roomPermissions?.canRedactOther ?: false
+                        }
+                    }
                     val executeSelectedAction: (ScTimelineItem, Action.Event) -> ActionResult = { selected, action ->
                         val event = (selected.item as MatrixTimelineItem.Event).event
                         viewModel.getKeyboardActionProviderForEvent(
@@ -621,7 +633,9 @@ fun ConversationScreen(
                         selectedCount = selectedMessages.size,
                         canReply = selectedSingleEvent?.eventId != null,
                         canEdit = selectedSingleEvent?.isOwn == true &&
-                                selectedSingleEvent.content is MessageContent,
+                                selectedSingleEvent.content is MessageContent &&
+                                (roomPermissions?.canSendMessages ?: true),
+                        canDelete = canDeleteSelection,
                         onClear = clearSelection,
                         onReply = {
                             selectedSingle?.let {
@@ -676,6 +690,13 @@ fun ConversationScreen(
                                     clearSelection()
                                 }
                             }
+                        },
+                        onDelete = {
+                            viewModel.redactEventsWithConfirmation(
+                                context = actionContext,
+                                events = selectedEvents,
+                                onConfirmed = clearSelection,
+                            )
                         },
                     )
                 } else {

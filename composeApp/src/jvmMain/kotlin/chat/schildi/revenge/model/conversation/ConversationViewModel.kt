@@ -2186,6 +2186,7 @@ class ConversationViewModel(
         senderName: String,
         isMessage: Boolean,
         redactReason: String? = null,
+        onConfirmed: () -> Unit = {},
     ): ActionResult {
         val timeline = activeTimeline.value ?: return ActionResult.Failure("Timeline not ready")
         val message = when {
@@ -2208,6 +2209,7 @@ class ConversationViewModel(
                 _highlightedActionEventId.update { it.takeIf { it != eventOrTransactionId } }
             }
         ) {
+            onConfirmed()
             launchActionAsync(
                 "redact",
                 GlobalActionsScope,
@@ -2217,6 +2219,69 @@ class ConversationViewModel(
                 timeline.redactEvent(eventOrTransactionId, reason = redactReason).toActionResult().also {
                     _highlightedActionEventId.update { it.takeIf { it != eventOrTransactionId } }
                 }
+            }
+        }
+    }
+
+
+    /**
+     * Redact the currently selected user-visible events behind one confirmation.
+     *
+     * Selection mode owns permission filtering; this method deliberately reuses the same
+     * confirmation and timeline path as the per-event Redact action so destructive behavior
+     * stays centralized.
+     */
+    fun redactEventsWithConfirmation(
+        context: ActionContext,
+        events: List<EventTimelineItem>,
+        onConfirmed: () -> Unit = {},
+    ): ActionResult = with(context) {
+        if (events.isEmpty() || events.any { it.content is RedactedContent }) {
+            return@with ActionResult.Inapplicable
+        }
+        if (events.size == 1) {
+            val event = events.single()
+            val eventOrTransactionId = tryOrNull {
+                EventOrTransactionId.from(event.eventId, event.transactionId)
+            } ?: return@with ActionResult.Inapplicable
+            return@with redactWithConfirmation(
+                eventOrTransactionId = eventOrTransactionId,
+                isOwn = event.isOwn,
+                senderName = event.senderProfile.getDisambiguatedDisplayName(event.sender),
+                isMessage = event.content is MessageContent,
+                onConfirmed = onConfirmed,
+            )
+        }
+
+        val timeline = activeTimeline.value ?: return@with ActionResult.Failure("Timeline not ready")
+        val eventIds = events.map { event ->
+            tryOrNull {
+                EventOrTransactionId.from(event.eventId, event.transactionId)
+            } ?: return@with ActionResult.Inapplicable
+        }
+        withCriticalActionConfirmation(
+            prompt = StringResourceHolder(
+                Res.string.action_redact_messages_prompt,
+                events.size.toString().toStringHolder(),
+            ),
+            confirmText = StringResourceHolder(Res.string.action_redact),
+        ) {
+            onConfirmed()
+            launchActionAsync(
+                "redactSelection",
+                GlobalActionsScope,
+                notifyProcessing = true,
+                appMessageId = ConfirmActionAppMessage.MESSAGE_ID,
+            ) {
+                for (eventId in eventIds) {
+                    val result = timeline.redactEvent(eventId, reason = null)
+                    if (result.isFailure) {
+                        return@launchActionAsync ActionResult.Failure(
+                            result.exceptionOrNull()?.message ?: "Failed to redact selected message"
+                        )
+                    }
+                }
+                ActionResult.Success()
             }
         }
     }
