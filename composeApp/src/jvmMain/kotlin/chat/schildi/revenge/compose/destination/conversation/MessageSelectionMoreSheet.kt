@@ -1,13 +1,12 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
@@ -16,18 +15,16 @@ import androidx.compose.material.icons.filled.Gesture
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import chat.schildi.revenge.compose.components.KiteModalBottomSheet
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
@@ -40,7 +37,6 @@ import shire.res.generated.resources.action_report_message
 import shire.res.generated.resources.action_thread
 import shire.res.generated.resources.action_unpin
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessageSelectionMoreSheet(
     canEdit: Boolean,
@@ -59,9 +55,8 @@ fun MessageSelectionMoreSheet(
     onReport: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    ModalBottomSheet(
+    KiteModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         if (canEdit) {
             SelectionMoreAction(Res.string.action_edit, { Icon(Icons.Default.Edit, null) }) {
@@ -125,46 +120,27 @@ private fun SelectionMoreAction(
     color: Color = MaterialTheme.colorScheme.onSurface,
     onClick: () -> Unit,
 ) {
-    val destructive = color == MaterialTheme.colorScheme.error
     Surface(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp),
-        shape = MaterialTheme.shapes.large,
-        color = if (destructive) {
-            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.58f)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
-        },
-        contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            .padding(horizontal = 8.dp),
+        color = Color.Transparent,
+        contentColor = color,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 56.dp)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = if (destructive) {
-                    MaterialTheme.colorScheme.errorContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHighest
-                },
-                contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    icon()
-                }
-            }
+            icon()
             Text(
                 text = stringResource(label),
                 color = color,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
             )
         }
     }

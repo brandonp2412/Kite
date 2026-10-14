@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.destination.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -145,9 +147,11 @@ fun SettingsScreen(
     FocusContainer(
         LocalSearchProvider provides (viewModel.takeIf { it.isRootPreferences } as? SearchProvider ?: LocalSearchProvider.current),
         LocalListActionProvider provides listAction,
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        ),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            ),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
         Column {
@@ -195,7 +199,7 @@ fun SettingsScreen(
                     )
                 } else {
                     LazyColumn(
-                        modifier = contentModifier,
+                        modifier = contentModifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(0.dp),
                         state = listState,
                         contentPadding = WindowInsets.navigationBars

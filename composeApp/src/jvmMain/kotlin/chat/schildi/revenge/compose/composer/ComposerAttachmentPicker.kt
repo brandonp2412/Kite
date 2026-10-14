@@ -16,10 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import chat.schildi.revenge.compose.components.KiteModalBottomSheet
 import chat.schildi.revenge.util.filepicker.AttachmentPickerKind
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
@@ -35,18 +34,20 @@ import shire.res.generated.resources.action_attachment_file
 import shire.res.generated.resources.action_attachment_gallery
 
 private val AttachmentActionShape = RoundedCornerShape(28.dp)
+private val AttachmentActionOrder = listOf(
+    AttachmentPickerKind.GALLERY,
+    AttachmentPickerKind.CAMERA,
+    AttachmentPickerKind.FILE,
+)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ComposerAttachmentPicker(
     availableKinds: Set<AttachmentPickerKind>,
     onPick: (AttachmentPickerKind) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
+    KiteModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
     ) {
         Column(
             Modifier
@@ -58,7 +59,7 @@ internal fun ComposerAttachmentPicker(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                AttachmentPickerKind.entries.forEach { kind ->
+                AttachmentActionOrder.forEach { kind ->
                     if (kind in availableKinds) {
                         val label = when (kind) {
                             AttachmentPickerKind.CAMERA -> stringResource(Res.string.action_attachment_camera)
@@ -78,7 +79,7 @@ internal fun ComposerAttachmentPicker(
                                 modifier = Modifier
                                     .size(width = 68.dp, height = 56.dp)
                                     .clip(AttachmentActionShape)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                                     .clickable {
                                         onDismiss()
                                         onPick(kind)

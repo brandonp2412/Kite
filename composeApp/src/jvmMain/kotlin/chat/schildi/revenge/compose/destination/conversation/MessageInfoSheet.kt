@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.DateTimeFormat
+import chat.schildi.revenge.compose.components.KiteModalBottomSheet
 import chat.schildi.revenge.toPrettyJson
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
@@ -35,7 +34,6 @@ import shire.res.generated.resources.message_info_source
 import shire.res.generated.resources.message_info_status
 import shire.res.generated.resources.message_info_time
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessageInfoSheet(
     event: EventTimelineItem,
@@ -56,14 +54,13 @@ fun MessageInfoSheet(
         }
     }
 
-    ModalBottomSheet(
+    KiteModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(Res.string.action_message_info),
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.titleLarge,
             )
             InfoItem(
@@ -118,7 +115,7 @@ private fun InfoItem(label: String, value: String) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp),
+            .padding(horizontal = 16.dp, vertical = 2.dp),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
