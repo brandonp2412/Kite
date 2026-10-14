@@ -902,3 +902,64 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - When the Samsung is naturally awake/unlocked, compare this exact installed PerfDebug build side-by-side with Google Messages across room details, member lists, reactions/read receipts, long names/MXIDs, dark mode and back navigation; fix concrete mismatches in the same run.
 - Capture controlled 120 Hz frame evidence for detail-list scrolling and Inbox/Conversation/detail navigation before claiming measurable performance parity.
 - Continue the adjacent Google-Messages-style room preview/join/invite and verification/dialog surfaces; perform controlled notification quick-reply/action E2E only when it can be done without disturbing production conversations or external recipients.
+## 2026-10-15 07:09 NZDT — Google Messages room preview, verification, and transient notice slice
+
+### Visual reference and scope
+- Started from the pinned Google Messages reference set in docs/design-reference/google-messages and its README source mapping. This slice follows the already-established Material 3 treatment: surfaceContainer destination chrome, rounded 28 dp low-container content panels, high-tonal cards, circular avatars, strong title/secondary-text hierarchy, compact tonal metadata, and full-width rounded primary actions.
+- The intentional Kite bottom-search exception is unchanged.
+- The installed Google Messages app was not opened or mutated. The Samsung was in active use by Chrome/ChatGPT earlier in the run and was Dozing with NotificationShade focused after installation, so this run deliberately did not steal focus for reference gathering. No fresh side-by-side or visual-parity claim is made.
+
+### Room preview / invite / join
+- Reworked RoomPreviewScreen from the remaining flat Revenge presentation into the same Google-Messages-style destination hierarchy used by native Kite's room details:
+  - surfaceContainer outer chrome with safe top/horizontal insets;
+  - rounded-top 28 dp surfaceContainerLow content panel;
+  - stable LazyColumn item keys/content types with 8 dp spacing and navigation-bar bottom inset;
+  - 104 dp circular room avatar in a 28 dp surfaceContainerHigh hero card;
+  - headline/alias hierarchy plus compact tonal room-type and membership pills;
+  - 48 dp inviter avatar and inviter identity/details in a 20 dp high-tonal card;
+  - existing mutual-room disclosure/list reused rather than duplicating state or navigation;
+  - full-width 56 dp join action and full-width error-tonal reject-invite action;
+  - via-server metadata moved into a rounded tonal card;
+  - preview failure state now uses an intentional error-container card rather than bare centered text.
+- Preserved RoomActionProvider join/leave handling, PendingAction tracking, inviter navigation, copy actions, mutual-room behavior, keyboard focus/action providers, and Matrix room state.
+- Review caught and corrected a lazy-key interpolation mistake before validation; mutual room keys are now based on preview.id.
+
+### Verification
+- Reworked VerificationRequestScreen into the same native Messages-style shell and card hierarchy:
+  - surfaceContainer chrome, back-style top navigation, rounded-top 28 dp surfaceContainerLow body;
+  - keyed verification state items and navigation-bar inset handling;
+  - metadata grouped into 20 dp surfaceContainerHigh cards;
+  - verification identity rows changed from dense inline pairs to label/value hierarchy;
+  - incoming verification avatar reduced to 88 dp and kept circular;
+  - normal and critical state messages presented as tonal/error cards;
+  - primary/critical actions are full-width 56 dp rounded buttons;
+  - progress is contained in a tonal card;
+  - SAS emoji comparison uses compact 20 dp secondaryContainer cards with 56 dp emoji assets.
+- Existing verification request lifecycle and Matrix Rust SDK pathways remain intact: accept, cancel, SAS start, approve, mismatch/decline, completion and failure flows were not replaced.
+
+### App-level transient messages
+- Reworked AppMessages from flat animated rows into 20 dp rounded tonal cards with body/action hierarchy matching the rest of the native UI.
+- Confirmation and verification prompts now use secondary TextButton + compact primary Button action rows while preserving keyboard actions, copying, dismissal and verification navigation/failure behavior.
+- Removed the previous slide/expand/shrink AnimatedVisibility treatment. This reduces decorative work in this transient UI path; no broader performance-parity claim is made.
+
+### Validation
+- Cohesive source checkpoint: a3426d2e4825679548e3282a87d22a6f18b7264b (Polish Messages invite and verification surfaces), 3 files, 655 insertions / 443 deletions.
+- git diff --check and staged diff check: pass.
+- Glass with JDK 25 + /opt/android-sdk:
+  - :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 37s, 82 actionable tasks.
+  - :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 7s, 55 actionable tasks.
+- Clean detached validation worktree /home/brandon/worktrees/kite-revenge-validate-dbd57198 checked out at exact source commit a3426d2e4825679548e3282a87d22a6f18b7264b; Matrix Rust SDK remained pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 1m 4s, 279 actionable tasks.
+- Exact APK: /home/brandon/worktrees/kite-revenge-validate-dbd57198/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,886,711 bytes, SHA-256 342134cf8c515e8b0a838d39b8bb1a8ca339b9febdbb70d59521238049d22680.
+- AAPT verifies package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37 and native code arm64-v8a.
+- APK signature verified with the existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung SM-S931B replacement install preserved debug state: dataDir remains /data/user/0/app.kite.revenge.debug, firstInstallTime remains 2026-10-14 11:55:12, and lastUpdateTime advanced to 2026-10-15 07:06:30.
+- Post-install package filtering shows app.kite.revenge.debug; production app.kite was not installed/overwritten/cleared and the redundant app.kite.revenge package was not recreated.
+- The phone was Dozing with NotificationShade focused at the final checkpoint. Kite and Google Messages were not launched after replacement installation, and no SMS/RCS or external Matrix action was sent for visual QA.
+- No fresh 120 Hz frame-time claim is made. This slice changed non-scrolling preview/verification/transient surfaces and did not add per-row Matrix collectors or a parallel state system.
+- Concurrent unrelated local changes appeared while this run was active (ComposerRow.kt, EventRowContextMenu.kt, InboxScreen.kt, InboxTopNavigation.kt, InboxViewModel.kt, AppStateStore.kt, ScSdkRoomSortOrder.kt and strings.xml). They remain unstaged and were excluded from this checkpoint.
+
+### Next substantial slice
+- When the Samsung is naturally awake and Kite can be foregrounded without disrupting the user, visually compare this exact installed build against the installed Google Messages app for invite/preview, verification, dark theme, long names/MXIDs, insets and transient notices; fix concrete mismatches in the same run.
+- Continue the adjacent Google-Messages-style conversation interaction surfaces: composer attachment treatment, long-press/selection state, reactions/action sheets and remaining dialogs/transient states, preserving Kite's Matrix-specific controls.
+- Capture controlled 120 Hz frame evidence on Inbox/Conversation scrolling and navigation before making a measurable performance-parity claim.
