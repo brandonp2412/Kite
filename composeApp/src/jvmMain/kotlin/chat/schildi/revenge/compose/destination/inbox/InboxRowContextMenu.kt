@@ -3,7 +3,6 @@ package chat.schildi.revenge.compose.destination.inbox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.LowPriority
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Visibility
@@ -14,9 +13,7 @@ import androidx.compose.ui.input.key.Key
 import chat.schildi.revenge.compose.components.ContextMenuActionEntry
 import chat.schildi.revenge.compose.components.ContextMenuDecoration
 import chat.schildi.revenge.compose.components.ContextMenuEntry
-import chat.schildi.revenge.compose.components.ContextMenuSubmenuEntry
 import chat.schildi.revenge.compose.components.isAllowed
-import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.UiState
 import chat.schildi.revenge.config.keybindings.Action
@@ -34,7 +31,6 @@ import shire.res.generated.resources.action_leave
 import shire.res.generated.resources.action_mark_as_read
 import shire.res.generated.resources.action_mark_as_unread
 import shire.res.generated.resources.action_reject_invite
-import shire.res.generated.resources.action_show_more
 import shire.res.generated.resources.action_mute
 import shire.res.generated.resources.action_pin
 import shire.res.generated.resources.action_unmute
@@ -104,20 +100,13 @@ fun ScopedRoomSummary.contextMenu(): ImmutableList<ContextMenuEntry> {
                 decoration = ContextMenuDecoration.Toggle(summary.info.isFavorite),
                 keyboardShortcut = Key.F,
             ),
-            ContextMenuSubmenuEntry(
-                Res.string.action_show_more.toStringHolder(),
-                rememberVectorPainter(Icons.Default.MoreHoriz),
-                rememberFocusId(),
-                persistentListOf(
-                    ContextMenuActionEntry(
-                        Res.string.action_context_low_priority_toggle.toStringHolder(),
-                        rememberVectorPainter(Icons.Default.LowPriority),
-                        Action.Room.MarkLowPriority,
-                        persistentListOf((!summary.info.isLowPriority).toString()),
-                        decoration = ContextMenuDecoration.Toggle(summary.info.isLowPriority),
-                        keyboardShortcut = Key.L,
-                    ),
-                ),
+            ContextMenuActionEntry(
+                Res.string.action_context_low_priority_toggle.toStringHolder(),
+                rememberVectorPainter(Icons.Default.LowPriority),
+                Action.Room.MarkLowPriority,
+                persistentListOf((!summary.info.isLowPriority).toString()),
+                decoration = ContextMenuDecoration.Toggle(summary.info.isLowPriority),
+                keyboardShortcut = Key.L,
             ).takeIf { !summary.info.isFavorite },
             ContextMenuActionEntry(
                 if (isMuted) {
