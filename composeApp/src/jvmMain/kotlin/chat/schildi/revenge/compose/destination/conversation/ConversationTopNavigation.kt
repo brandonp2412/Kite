@@ -93,19 +93,17 @@ private fun RowScope.ConversationParticipantHeader(
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (avatar != null) {
-            AvatarImage(
-                source = avatar,
-                size = 36.dp,
-                displayName = title,
-                shape = CircleShape,
-            )
-        }
+        AvatarImage(
+            source = avatar,
+            size = 36.dp,
+            displayName = title,
+            shape = CircleShape,
+        )
         Text(
             text = title,
             modifier = Modifier
                 .weight(1f)
-                .padding(start = if (avatar != null) 10.dp else 4.dp, end = 4.dp),
+                .padding(start = 10.dp, end = 4.dp),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleMedium,
             maxLines = 1,
@@ -165,7 +163,7 @@ fun ConversationTopNavigation(
                 keyHandler.clearSearch()
                 focusManager.clearFocus()
             }
-            TopNavigationTitle(stringResource(Res.string.hint_search))
+            TopNavigationTitle(title)
             return@TopNavigation
         }
         if (compact) {

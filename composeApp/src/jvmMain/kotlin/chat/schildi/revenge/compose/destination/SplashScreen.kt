@@ -2,12 +2,15 @@ package chat.schildi.revenge.compose.destination
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.UiState
 import chat.schildi.revenge.actions.FocusRole
@@ -36,19 +39,25 @@ fun SplashScreenContent(
     modifier: Modifier = Modifier,
     loadState: StateFlow<LoadState>? = null,
 ) {
-    // Room and inbox data frequently arrives within a frame or two. Rendering the
-    // spinner immediately causes an obvious one-frame flash on every navigation.
-    // Delay this transient placeholder, but never delay visibility of load failures.
+    // Room and inbox data frequently arrives within a frame or two. Keep those fast
+    // transitions visually silent. Sustained work uses a restrained linear indicator instead
+    // of a circular spinner, while failures still surface immediately with their details.
     val currentLoadState = loadState?.collectAsState()?.value
     val hasFailure = currentLoadState?.any { it.state == CheckpointLoadState.FAILED } == true
-    val showLoadingIndicator = rememberTransientLoadingVisible(forceVisible = hasFailure)
-    if (showLoadingIndicator) {
+    val showLoadingChrome = rememberTransientLoadingVisible(forceVisible = hasFailure)
+    if (showLoadingChrome) {
         Column(
             modifier,
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Dimens.verticalArrangementBig,
         ) {
-            CircularProgressIndicator()
+            if (!hasFailure) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(2.dp),
+                )
+            }
             if (currentLoadState != null) {
                 ScreenLoadProgressDetails(currentLoadState)
             }

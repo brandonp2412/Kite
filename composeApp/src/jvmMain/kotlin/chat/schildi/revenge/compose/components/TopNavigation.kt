@@ -1,15 +1,11 @@
 package chat.schildi.revenge.compose.components
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -121,23 +117,21 @@ fun TopNavigationCloseOrNavigateToInboxIcon(modifier: Modifier = Modifier) {
         // No window open with inbox, suggest to navigate back to inbox instead of closing this window.
         else -> true
     }
-    AnimatedContent(showInboxIcon) {
-        if (it) {
-            TopNavigationIcon(
-                Icons.Default.Inbox,
-                stringResource(Res.string.action_open_inbox),
-                modifier,
-            ) {
-                destinationState?.navigate(Destination.Inbox, NavigationPreference.REPLACE)
-            }
-        } else {
-            TopNavigationIcon(
-                Icons.Default.Close,
-                stringResource(Res.string.action_close),
-                modifier,
-            ) {
-                destinationState?.closeScreen(keyHandler)
-            }
+    if (showInboxIcon) {
+        TopNavigationIcon(
+            Icons.Default.Inbox,
+            stringResource(Res.string.action_open_inbox),
+            modifier,
+        ) {
+            destinationState?.navigate(Destination.Inbox, NavigationPreference.REPLACE)
+        }
+    } else {
+        TopNavigationIcon(
+            Icons.Default.Close,
+            stringResource(Res.string.action_close),
+            modifier,
+        ) {
+            destinationState?.closeScreen(keyHandler)
         }
     }
 }
@@ -156,26 +150,16 @@ fun RowScope.TopNavigationTitle(
             },
         contentAlignment = Alignment.CenterStart,
     ) {
-        AnimatedContent(
+        Text(
             title,
-            Modifier.fillMaxWidth(),
-            transitionSpec = {
-                fadeIn(
-                    animationSpec = Dimens.tweenSmooth()
-                ) togetherWith fadeOut(
-                    animationSpec = Dimens.tweenSmooth()
-                )
-            },
-        ) { title ->
-            Text(
-                title,
-                Modifier.padding(horizontal = 12.dp),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -191,28 +175,25 @@ fun RowScope.TopNavigationSearchOrTitle(
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
     val searchBarVisible = keyHandler.needsKeyboardSearchBar(searchProvider).collectAsState().value
-    AnimatedContent(
-        searchBarVisible,
-        modifier.weight(1f),
-        transitionSpec = { fadeIn(Dimens.tween()) togetherWith fadeOut(Dimens.tween()) }
-    ) { searchBarVisible ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (searchBarVisible) {
-                SearchBar(
-                    searchProvider,
-                    searchFocusContainer,
-                    Modifier.weight(1f),
-                    showClearButton = true,
-                    topNavigationStyle = true,
-                )
-            } else {
-                TopNavigationTitle(title, Modifier.weight(1f), onTitleClick)
-                TopNavigationIcon(
-                    Icons.Default.Search,
-                    stringResource(Res.string.hint_search)
-                ) {
-                    keyHandler.onSearchEnter(searchProvider, searchFocusContainer, "")
-                }
+    Row(
+        modifier = modifier.weight(1f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (searchBarVisible) {
+            SearchBar(
+                searchProvider,
+                searchFocusContainer,
+                Modifier.weight(1f),
+                showClearButton = true,
+                topNavigationStyle = true,
+            )
+        } else {
+            TopNavigationTitle(title, Modifier.weight(1f), onTitleClick)
+            TopNavigationIcon(
+                Icons.Default.Search,
+                stringResource(Res.string.hint_search)
+            ) {
+                keyHandler.onSearchEnter(searchProvider, searchFocusContainer, "")
             }
         }
     }

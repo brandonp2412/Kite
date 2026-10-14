@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.NoEncryption
 import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,7 +49,6 @@ import chat.schildi.revenge.MessageFormatDefaults
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.currentActionContext
 import chat.schildi.revenge.compose.components.ScIconButton
-import chat.schildi.revenge.compose.components.rememberTransientLoadingVisible
 import chat.schildi.revenge.compose.components.WithTooltip
 import chat.schildi.revenge.compose.destination.conversation.event.message.ReplyContent
 import chat.schildi.revenge.compose.destination.conversation.event.message.TextLikeMessageContent
@@ -95,12 +93,17 @@ import shire.res.generated.resources.hint_not_encrypted
 import shire.res.generated.resources.hint_public_room
 import kotlin.math.min
 
+private val MessagesComposerShape = RoundedCornerShape(28.dp)
+
 @Composable
 fun ComposerRow(viewModel: ComposerViewModel, modifier: Modifier = Modifier) {
     when (val draftState = viewModel.composerState.collectAsState().value) {
         is DraftValue -> ComposerRow(draftState, viewModel, modifier)
         is ComposerState.ComposerLessTimeline -> {}
-        is ComposerState.NoSendPermission -> BlockedComposer(stringResource(Res.string.hint_composer_missing_send_permission))
+        is ComposerState.NoSendPermission -> BlockedComposer(
+            stringResource(Res.string.hint_composer_missing_send_permission),
+            modifier,
+        )
     }
 }
 
@@ -137,7 +140,13 @@ fun ComposerRow(
         if (bodyValidationError != null) {
             Text(
                 bodyValidationError,
+                modifier = Modifier.padding(
+                    start = Dimens.windowPadding + 16.dp,
+                    end = Dimens.windowPadding + 16.dp,
+                    bottom = 4.dp,
+                ),
                 color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
         Row(
@@ -156,7 +165,7 @@ fun ComposerRow(
                     .weight(1f)
                     .background(
                         MaterialTheme.colorScheme.surfaceContainerHigh,
-                        RoundedCornerShape(28.dp),
+                        MessagesComposerShape,
                     ),
             ) {
                 if (draftState.inReplyTo != null) {
@@ -392,18 +401,10 @@ fun ComposerRow(
                     }
                 }
                 if (isSendInProgress) {
-                    Box(
-                        modifier = Modifier.minimumInteractiveComponentSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (rememberTransientLoadingVisible()) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.scExposures.accentColor,
-                            )
-                        }
-                    }
+                    // Keep the trailing slot stable while the Matrix send completes, but avoid
+                    // turning it into a transient faux send-button/spinner. The local echo is
+                    // the message-level send feedback and the keyboard remains the send action.
+                    Spacer(Modifier.minimumInteractiveComponentSize())
                 }
                 }
             }
@@ -480,11 +481,23 @@ private fun BlockedComposer(reason: String, modifier: Modifier = Modifier) {
     Box(
         modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(horizontal = Dimens.horizontalItemPaddingBig, vertical = Dimens.listPaddingBig),
+            .padding(
+                start = Dimens.windowPadding,
+                end = Dimens.windowPadding,
+                top = 8.dp,
+            )
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                MessagesComposerShape,
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(reason)
+        Text(
+            text = reason,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

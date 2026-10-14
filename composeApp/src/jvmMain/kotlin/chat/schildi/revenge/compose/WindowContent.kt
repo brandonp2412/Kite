@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -110,9 +109,9 @@ fun WindowContent(
                     }
                 }
             }
-            if (ScPrefs.FRAME_DROP_SPINNER.value()) {
-                CircularProgressIndicator(Modifier.safeDrawingPadding())
-            }
+            // Do not paint Revenge's global frame-drop spinner over Kite. It can flash
+            // during ordinary navigation and makes otherwise-stable screens look like they
+            // are loading. Performance remains measured with Android frame tooling instead.
         }
     }
 }
