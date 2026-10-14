@@ -519,3 +519,49 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Re-run right-swipe reply / left-swipe timestamp reveal and double-tap reaction immediately after closing the menu to prove gesture arbitration restores cleanly.
 - Capture controlled gfxinfo/frame evidence on a long room at 120 Hz, especially while scrolling rows that host closed context-menu anchors; only then claim a measurable hot-path improvement.
 - Continue into the adjacent reactions/action-sheet/dark-theme polish from that observed device state rather than adding a parallel interaction/state system.
+
+## 2026-10-15 02:26 NZDT — Messages conversation chrome, stable composer states, and transient-loading cleanup
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages baseline in docs/design-reference/google-messages/README.md, including the official conversation/composer, Material 3 chat, inbox hierarchy, and dark attachment references.
+- Preserved the intentional Kite exception: inbox search remains at the bottom.
+- The Samsung stayed Dozing / non-interactive throughout device validation, so neither Google Messages nor Kite was launched merely for screenshot gathering. No fresh side-by-side visual-parity or 120 Hz frame-time claim is made in this slice.
+
+### Implemented
+- Removed Revenge's global frame-drop diagnostic spinner from WindowContent. Kite now relies on Android frame tooling for performance measurement instead of painting debug progress chrome over ordinary navigation.
+- Reworked transient loading presentation so fast loads remain visually silent and sustained navigation/pagination uses a compact linear progress treatment instead of circular spinners:
+  - SplashScreenContent still delays transient loading chrome and still surfaces failure details immediately.
+  - Conversation pagination retains a fixed 32 dp slot to avoid timeline remeasure/jump, but uses a 56 x 2 dp progress line after the grace period.
+  - Composer send-in-progress retains its trailing interactive-size slot without rendering a faux send-button/spinner; Matrix local echo remains the message-level send feedback and keyboard IME Send remains the send action.
+- Removed app-bar crossfades for inbox/close icon changes, title changes, and generic search/title changes. These are now direct state swaps, reducing animated intermediate frames and late-title/search visual churn.
+- Stabilized compact conversation header geometry:
+  - Always render the existing 36 dp avatar component so rooms without an avatar URL get its generated fallback instead of shifting the title left.
+  - Keep the conversation title in the top bar while bottom in-chat search is active instead of replacing it with a generic Search label.
+  - Existing direct-message header tap still routes through the participant UserDetails destination.
+- Tightened composer fallback states around the existing Messages-style 28 dp pill:
+  - Normal composer and no-send-permission state now share the same rounded shape.
+  - The no-send-permission surface receives the same caller bottom inset as the normal composer and uses the same horizontal dock margins instead of becoming a full-width rectangular Revenge bar.
+  - Body-validation errors now use compact body-small text aligned to the composer content rather than appearing flush against the window edge.
+- No Matrix collectors, duplicate timeline state, new animation systems, blocking UI work, or Flutter code were added.
+
+### Validation
+- Source checkpoint: 4dfda8a3ce28b92220d79ed6bc5a76ec5c84ffa0 (Polish Messages conversation chrome and loading), 6 source files, 110 insertions / 108 deletions.
+- git diff --check: pass.
+- Glass with JDK 25 + Android SDK: :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass, 91 actionable tasks, BUILD SUCCESSFUL in 37s.
+- Release-like validation used isolated detached worktree /home/brandon/worktrees/kite-revenge-validate-4dfda8a3 at exact superproject commit 4dfda8a3ce28b92220d79ed6bc5a76ec5c84ffa0; Matrix Rust SDK pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- Initial :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain outlived the connector call. A replayed duplicate Gradle writer was detected and terminated, leaving the original single writer to finish. Exact-command cached verification then reported BUILD SUCCESSFUL in 3s, 275 actionable tasks (10 executed / 265 up-to-date).
+- Final APK: /home/brandon/worktrees/kite-revenge-validate-4dfda8a3/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,853,803 bytes, SHA-256 d68c781c60c69ca0598f354a73425b9b186f68f86a102c8a96da775b41da7d00.
+- AAPT: package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37, native code arm64-v8a.
+- APK signature verified with existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung 10.66.66.3:5555 preflight/postflight found neither production app.kite nor redundant app.kite.revenge; only app.kite.revenge.debug was targeted. adb install -r returned Success.
+- Existing debug app data/login was preserved: dataDir=/data/user/0/app.kite.revenge.debug, firstInstallTime=2026-10-14 11:55:12; post-install lastUpdateTime=2026-10-15 02:24:44.
+- Device remained mWakefulness=Dozing / mHalInteractiveModeEnabled=false; Kite was not launched and the phone was not woken merely for QA.
+- The pre-existing hide-room work remains unstaged and byte-for-byte unchanged:
+  - InboxViewModel.kt SHA-256 cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7
+  - AppStateStore.kt SHA-256 7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673
+  - strings.xml SHA-256 dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a
+
+### Next substantial slice
+- When the Samsung is naturally awake/unlocked, compare the installed build side-by-side with installed Google Messages across Inbox -> Conversation -> search -> composer focus/keyboard -> long-press selection, verifying that the removed circular loading chrome and app-bar crossfades eliminate the reported flash/jolt.
+- Capture controlled gfxinfo/frame evidence during repeated Inbox <-> Conversation navigation, long-history scrolling, right-swipe reply, and left-swipe timestamp reveal at 120 Hz before making a measurable performance-parity claim.
+- Continue the adjacent Google-Messages-style composer/reply/edit/attachment and reaction/action-sheet dark-theme polish from the observed device state, keeping the bottom inbox search exception and existing Matrix behavior intact.
