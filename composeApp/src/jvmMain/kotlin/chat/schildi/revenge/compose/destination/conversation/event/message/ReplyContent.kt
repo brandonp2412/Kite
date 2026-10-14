@@ -31,16 +31,26 @@ import shire.res.generated.resources.reply_failed_to_load
 fun ReplyContent(
     inReplyTo: InReplyTo,
     threadInfo: EventThreadInfo?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    composerPreview: Boolean = false,
 ) {
     // TODO jump to message action
-    Box(
-        modifier
-            .padding(bottom = Dimens.Conversation.replyItemPadding)
-            .border(1.dp, MaterialTheme.scExposures.accentColor, Dimens.Conversation.replyContentShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant, Dimens.Conversation.replyContentShape)
-            .clip(Dimens.Conversation.replyContentShape)
-    ) {
+    val containerModifier = modifier
+        .padding(bottom = Dimens.Conversation.replyItemPadding)
+        .let {
+            if (composerPreview) {
+                it.background(
+                    MaterialTheme.colorScheme.surfaceContainerHighest,
+                    Dimens.Conversation.replyContentShape,
+                )
+            } else {
+                it
+                    .border(1.dp, MaterialTheme.scExposures.accentColor, Dimens.Conversation.replyContentShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, Dimens.Conversation.replyContentShape)
+            }
+        }
+        .clip(Dimens.Conversation.replyContentShape)
+    Box(containerModifier) {
         when (inReplyTo) {
             is InReplyTo.Error -> {
                 Text(

@@ -1,13 +1,18 @@
 package chat.schildi.revenge.compose.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.RocketLaunch
@@ -32,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.key.Key
@@ -188,8 +194,8 @@ fun WithContextMenu(
     val density = LocalDensity.current
 
     val containerColor = when {
+        presentation == ContextMenuPresentation.Message -> Color.Transparent
         hasChild -> MaterialTheme.colorScheme.surfaceContainerLow
-        presentation == ContextMenuPresentation.Message -> MaterialTheme.colorScheme.surfaceContainerHigh
         else -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
 
@@ -281,16 +287,57 @@ fun WithContextMenu(
             )
         },
         popupContent = {
-            entries.forEach { entry ->
-                ContextMenuDropdownMenuItem(
-                    entry = entry,
-                    focusId = focusId,
-                    menuId = menuId,
-                    presentation = presentation,
-                    onClick = {
-                        keyHandler.handleContextMenuEntry(focusId, menuId, entry)
+            if (presentation == ContextMenuPresentation.Message) {
+                val actionRows = entries.filterIsInstance<ContextMenuActionRowEntry>()
+                val menuEntries = entries.filterNot { it is ContextMenuActionRowEntry }
+
+                actionRows.forEach { entry ->
+                    ContextMenuDropdownMenuItem(
+                        entry = entry,
+                        focusId = focusId,
+                        menuId = menuId,
+                        presentation = presentation,
+                        onClick = {
+                            keyHandler.handleContextMenuEntry(focusId, menuId, entry)
+                        },
+                    )
+                }
+                if (actionRows.isNotEmpty() && menuEntries.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (menuEntries.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.extraLarge,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Column {
+                            menuEntries.forEach { entry ->
+                                ContextMenuDropdownMenuItem(
+                                    entry = entry,
+                                    focusId = focusId,
+                                    menuId = menuId,
+                                    presentation = presentation,
+                                    onClick = {
+                                        keyHandler.handleContextMenuEntry(focusId, menuId, entry)
+                                    },
+                                )
+                            }
+                        }
                     }
-                )
+                }
+            } else {
+                entries.forEach { entry ->
+                    ContextMenuDropdownMenuItem(
+                        entry = entry,
+                        focusId = focusId,
+                        menuId = menuId,
+                        presentation = presentation,
+                        onClick = {
+                            keyHandler.handleContextMenuEntry(focusId, menuId, entry)
+                        },
+                    )
+                }
             }
         }
     )
@@ -364,11 +411,22 @@ private fun ContextMenuActionRowContent(
     }
     val compactMessageSurface = presentation == ContextMenuPresentation.Message
     Column(
-        modifier = modifier.padding(
-            horizontal = if (compactMessageSurface) 8.dp else 12.dp,
-            vertical = if (compactMessageSurface) 8.dp else 10.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(if (compactMessageSurface) 4.dp else 8.dp),
+        modifier = modifier
+            .then(
+                if (compactMessageSurface) {
+                    Modifier.background(
+                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.shapes.extraLarge,
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .padding(
+                horizontal = if (compactMessageSurface) 6.dp else 12.dp,
+                vertical = if (compactMessageSurface) 4.dp else 10.dp,
+            ),
+        verticalArrangement = Arrangement.spacedBy(if (compactMessageSurface) 2.dp else 8.dp),
     ) {
         if (entry.showTitle) {
             Text(
@@ -377,7 +435,7 @@ private fun ContextMenuActionRowContent(
                 style = MaterialTheme.typography.labelLarge,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(if (compactMessageSurface) 4.dp else 8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(if (compactMessageSurface) 2.dp else 8.dp)) {
             entry.actions.forEach { action ->
                 val actionTitle = action.title.render()
                 val selected = when (val decoration = action.decoration) {
@@ -389,14 +447,16 @@ private fun ContextMenuActionRowContent(
                     onClick = { onActionClick(action) },
                     enabled = entry.enabled && action.enabled,
                     modifier = Modifier
-                        .size(if (compactMessageSurface) 48.dp else 52.dp)
+                        .size(if (compactMessageSurface) 44.dp else 52.dp)
                         .semantics {
                             contentDescription = actionTitle
                             this.selected = selected
                         },
-                    shape = MaterialTheme.shapes.extraLarge,
+                    shape = if (compactMessageSurface) CircleShape else MaterialTheme.shapes.extraLarge,
                     color = if (selected) {
                         MaterialTheme.colorScheme.primaryContainer
+                    } else if (compactMessageSurface) {
+                        Color.Transparent
                     } else {
                         MaterialTheme.colorScheme.surfaceContainerHighest
                     },

@@ -1,6 +1,7 @@
 package chat.schildi.revenge.compose.composer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,6 +18,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NoEncryption
@@ -72,6 +75,7 @@ import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_add_attachment
 import shire.res.generated.resources.action_clear_reply
 import shire.res.generated.resources.action_reply
+import shire.res.generated.resources.action_send
 import shire.res.generated.resources.hint_composer_audio
 import shire.res.generated.resources.hint_composer_caption
 import shire.res.generated.resources.hint_composer_edit
@@ -169,34 +173,48 @@ fun ComposerRow(
                     ),
             ) {
                 if (draftState.inReplyTo != null) {
-                    Column(
-                        Modifier
+                    Row(
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 2.dp),
+                            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.Top,
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(Res.string.action_reply),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.scExposures.accentColor,
-                                modifier = Modifier.weight(1f),
-                            )
-                            ComposerContextClearButton(
-                                contentDescription = stringResource(Res.string.action_clear_reply),
-                            ) {
-                                viewModel.onComposerUpdate(draftState.copy(inReplyTo = null))
-                            }
-                        }
-                        ReplyContent(
-                            draftState.inReplyTo,
-                            null,
+                        Box(
                             Modifier
-                                .fillMaxWidth()
-                                .padding(end = 10.dp, bottom = 6.dp),
+                                .width(3.dp)
+                                .height(48.dp)
+                                .background(
+                                    MaterialTheme.scExposures.accentColor,
+                                    RoundedCornerShape(2.dp),
+                                )
                         )
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = stringResource(Res.string.action_reply),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.scExposures.accentColor,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                ComposerContextClearButton(
+                                    contentDescription = stringResource(Res.string.action_clear_reply),
+                                ) {
+                                    viewModel.onComposerUpdate(draftState.copy(inReplyTo = null))
+                                }
+                            }
+                            ReplyContent(
+                                draftState.inReplyTo,
+                                null,
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 10.dp, bottom = 4.dp),
+                                composerPreview = true,
+                            )
+                        }
                     }
                 } else if (draftState.type == DraftType.EDIT || draftState.type == DraftType.EDIT_CAPTION) {
                     ComposerModeHeader(
@@ -408,7 +426,15 @@ fun ComposerRow(
                 }
                 }
             }
-            if (!isSendInProgress && draftState.type.needsClearButton() && draftState.isEmpty()) {
+            val canSendNow = draftState.canSend() && bodyValidationError == null
+            if (canSendNow || isSendInProgress) {
+                Spacer(Modifier.width(6.dp))
+                ComposerSendButton(
+                    enabled = canSendNow && !isSendInProgress,
+                ) {
+                    viewModel.sendMessage(actionContext)
+                }
+            } else if (draftState.type.needsClearButton() && draftState.isEmpty()) {
                 Spacer(Modifier.width(6.dp))
                 ClearButton {
                     viewModel.onComposerUpdate(DraftValue())
@@ -426,9 +452,19 @@ private fun ComposerModeHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 2.dp),
+            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            Modifier
+                .width(3.dp)
+                .height(24.dp)
+                .background(
+                    MaterialTheme.scExposures.accentColor,
+                    RoundedCornerShape(2.dp),
+                )
+        )
+        Spacer(Modifier.width(10.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
@@ -439,6 +475,39 @@ private fun ComposerModeHeader(
             contentDescription = label,
             onClick = onClear,
         )
+    }
+}
+
+@Composable
+private fun ComposerSendButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val containerColor = if (enabled) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+    val contentColor = if (enabled) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    WithTooltip(stringResource(Res.string.action_send)) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier
+                .size(48.dp)
+                .background(containerColor, CircleShape),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Send,
+                contentDescription = stringResource(Res.string.action_send),
+                modifier = Modifier.size(22.dp),
+                tint = contentColor,
+            )
+        }
     }
 }
 

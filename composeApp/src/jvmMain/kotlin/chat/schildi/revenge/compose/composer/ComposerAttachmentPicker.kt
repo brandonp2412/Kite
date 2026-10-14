@@ -11,7 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -33,7 +34,7 @@ import shire.res.generated.resources.action_attachment_camera
 import shire.res.generated.resources.action_attachment_file
 import shire.res.generated.resources.action_attachment_gallery
 
-private val AttachmentActionShape = RoundedCornerShape(28.dp)
+private val AttachmentActionShape = CircleShape
 private val AttachmentActionOrder = listOf(
     AttachmentPickerKind.GALLERY,
     AttachmentPickerKind.CAMERA,
@@ -57,7 +58,7 @@ internal fun ComposerAttachmentPicker(
         ) {
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 AttachmentActionOrder.forEach { kind ->
                     if (kind in availableKinds) {
@@ -72,12 +73,12 @@ internal fun ComposerAttachmentPicker(
                             AttachmentPickerKind.GALLERY -> Icons.Default.PhotoLibrary
                         }
                         Column(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.width(72.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(width = 68.dp, height = 56.dp)
+                                    .size(64.dp)
                                     .clip(AttachmentActionShape)
                                     .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                                     .clickable {
@@ -96,7 +97,7 @@ internal fun ComposerAttachmentPicker(
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                             )
