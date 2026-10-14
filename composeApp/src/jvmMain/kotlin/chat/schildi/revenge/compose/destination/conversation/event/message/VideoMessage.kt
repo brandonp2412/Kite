@@ -152,7 +152,13 @@ fun VideoContentOverlay(modifier: Modifier = Modifier) {
     Icon(
         Icons.Default.PlayArrow,
         null,
-        modifier.size(32.dp).background(MaterialTheme.colorScheme.onSurface, CircleShape).padding(4.dp),
-        tint = MaterialTheme.colorScheme.surface,
+        modifier = modifier
+            .size(Dimens.Conversation.videoPlayButtonSize)
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                CircleShape,
+            )
+            .padding((Dimens.Conversation.videoPlayButtonSize - Dimens.Conversation.videoPlayIconSize) / 2),
+        tint = MaterialTheme.colorScheme.onSurface,
     )
 }

@@ -19,14 +19,9 @@ class MessageBubbleShapeTest {
     }
 
     @Test
-    fun incomingRunConnectsOnLeadingEdge() {
+    fun incomingRunKeepsFullRadius() {
         assertEquals(
-            RoundedCornerShape(
-                topStart = 6.dp,
-                topEnd = 20.dp,
-                bottomStart = 6.dp,
-                bottomEnd = 20.dp,
-            ),
+            RoundedCornerShape(20.dp),
             Dimens.Conversation.messageBubbleShape(
                 isOwn = false,
                 joinsPrevious = true,
@@ -36,14 +31,9 @@ class MessageBubbleShapeTest {
     }
 
     @Test
-    fun outgoingRunConnectsOnTrailingEdge() {
+    fun outgoingRunKeepsFullRadius() {
         assertEquals(
-            RoundedCornerShape(
-                topStart = 20.dp,
-                topEnd = 6.dp,
-                bottomStart = 20.dp,
-                bottomEnd = 6.dp,
-            ),
+            RoundedCornerShape(20.dp),
             Dimens.Conversation.messageBubbleShape(
                 isOwn = true,
                 joinsPrevious = true,

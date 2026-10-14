@@ -106,13 +106,13 @@ fun ReactionsBubble(
                     vertical = Dimens.Conversation.reactionInnerPaddingVertical,
                 ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             ReactionContent(reaction.key, reaction.shortcode)
             Text(
                 reaction.senders.size.toString(),
                 color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
             )
         }
     }

@@ -8,7 +8,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.Dimens
 import io.element.android.libraries.matrix.api.timeline.item.virtual.VirtualTimelineItem
@@ -35,8 +34,7 @@ fun DayHeader(
     Text(
         DateTimeFormat.formatTimestampAsDate(timestamp),
         modifier,
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.Medium,
     )
 }

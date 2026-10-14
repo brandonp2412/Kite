@@ -62,9 +62,9 @@ object Dimens {
         val avatarForState = 16.dp
         val avatarItemPadding = 8.dp
         val unreadLinePadding = 8.dp
-        val dayHeaderPadding = 12.dp
+        val dayHeaderPadding = 16.dp
         val messageBubbleCornerRadius = 20.dp
-        val messageBubbleGroupedCornerRadius = 6.dp
+        val messageBubbleGroupedCornerRadius = messageBubbleCornerRadius
         val messageBubbleShape = RoundedCornerShape(messageBubbleCornerRadius)
         fun messageBubbleShape(
             isOwn: Boolean,
@@ -91,9 +91,9 @@ object Dimens {
         val messageBubblePadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)
         val timelineHorizontalPadding = 8.dp
         val timelineSurfaceShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        val imageBubbleInnerPadding = 2.dp
-        val messageSameSenderPadding = 3.dp
-        val messageOtherSenderPadding = 10.dp
+        val imageBubbleInnerPadding = 0.dp
+        val messageSameSenderPadding = 4.dp
+        val messageOtherSenderPadding = 12.dp
         val captionPadding = 8.dp
         val timestampPaddingWithOverlayBg = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
         val timestampHorizontalPaddingToText = 6.dp
@@ -127,22 +127,27 @@ object Dimens {
         val imageRepliedToMaxHeight = 200.dp
 
         val reactionShape = RoundedCornerShape(16.dp)
-        val reactionPaddingHorizontal = 8.dp
-        val reactionPaddingVertical = 4.dp
-        val reactionInnerPaddingHorizontal = 12.dp
-        val reactionInnerPaddingVertical = 6.dp
+        val reactionPaddingHorizontal = 4.dp
+        val reactionPaddingVertical = 2.dp
+        val reactionInnerPaddingHorizontal = 9.dp
+        val reactionInnerPaddingVertical = 4.dp
         const val reactionMaxLength = 200
 
         val receiptSize = 16.dp
         val receiptPaddingHorizontal = (-4).dp
-        val receiptPaddingVertical = 4.dp
+        val receiptPaddingVertical = 2.dp
 
         val threadInfoPaddingVertical = 4.dp
         val threadInfoPaddingHorizontal = messageBubbleInnerPadding
 
         val newMessagesLineHeight = 2.dp
 
-        val fileIconSize = 36.dp
+        val fileIconSize = 40.dp
+        val fileIconPadding = 10.dp
+        val attachmentMinWidth = 176.dp
+        val audioMinWidth = 220.dp
+        val videoPlayButtonSize = 40.dp
+        val videoPlayIconSize = 24.dp
 
         val jumpToMessageFab = 36.dp
         val jumpToMessageFabIcon = 24.dp

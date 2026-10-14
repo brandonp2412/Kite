@@ -3,10 +3,10 @@ package chat.schildi.revenge.compose.destination.conversation.event.message
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
@@ -91,7 +91,7 @@ fun FileMessage(
         isOwn = isOwn,
         timestamp = timestamp,
         modifier = modifier,
-        padding = PaddingValues(Dimens.Conversation.messageBubbleInnerPadding),
+        padding = Dimens.Conversation.messageBubblePadding,
         contentTextLayoutResult = captionLayoutResult.value,
         verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.captionPadding),
         nonTextWidth = if (messageMetadata?.preFormattedContent == null) Dimens.Conversation.fileIconSize + Dimens.horizontalItemPadding else 0.dp,
@@ -111,32 +111,45 @@ fun FileMessage(
 }
 
 @Composable
+internal fun MessageAttachmentIcon(
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        icon,
+        null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+            .size(Dimens.Conversation.fileIconSize)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape)
+            .padding(Dimens.Conversation.fileIconPadding),
+    )
+}
+
+@Composable
 fun ColumnScope.FileMessageContent(
     type: FileMessageRenderType,
     messageMetadata: MessageMetadata?,
     filename: String,
     onCaptionTextLayout: (TextLayoutResult?) -> Unit = {},
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Dimens.horizontalArrangement) {
-        Icon(
-            type.icon,
-            null,
-            modifier = Modifier
-                .size(Dimens.Conversation.fileIconSize)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                .padding(Dimens.Conversation.messageBubbleInnerPadding)
-        )
+    Row(
+        modifier = Modifier.widthIn(min = Dimens.Conversation.attachmentMinWidth),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Dimens.horizontalArrangement,
+    ) {
+        MessageAttachmentIcon(type.icon)
         TextLikeMessageContent(
             MatrixBodyParseResult(filename),
             allowBigEmojiOnly = false,
             onTextLayout = if (messageMetadata?.preFormattedContent == null) onCaptionTextLayout else {{}},
+            maxLines = 2,
         )
     }
     if (messageMetadata?.preFormattedContent != null) {
         TextLikeMessageContent(
             messageMetadata.preFormattedContent,
             allowBigEmojiOnly = false,
-            modifier = Modifier.padding(top = Dimens.Conversation.captionPadding),
             onTextLayout = onCaptionTextLayout,
         )
     }

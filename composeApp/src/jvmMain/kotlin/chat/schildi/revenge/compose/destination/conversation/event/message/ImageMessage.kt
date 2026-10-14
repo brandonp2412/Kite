@@ -210,12 +210,7 @@ fun ColumnScope.ImageMessageContent(
         TextLikeMessageContent(
             caption,
             allowBigEmojiOnly = false,
-            modifier = Modifier.padding(
-                top = Dimens.Conversation.captionPadding,
-                bottom = Dimens.Conversation.messageBubbleInnerPadding,
-                start = Dimens.Conversation.messageBubbleInnerPadding,
-                end = Dimens.Conversation.messageBubbleInnerPadding,
-            ),
+            modifier = Modifier.padding(Dimens.Conversation.messageBubblePadding),
             onTextLayout = onCaptionTextLayout,
         )
     } else {

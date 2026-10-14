@@ -1,36 +1,28 @@
 package chat.schildi.revenge.compose.destination.conversation.event.message
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.DurationFormat
@@ -122,7 +114,7 @@ fun AudioLikeMessage(
         isOwn = isOwn,
         timestamp = timestamp,
         modifier = modifier,
-        padding = PaddingValues(Dimens.Conversation.messageBubbleInnerPadding),
+        padding = Dimens.Conversation.messageBubblePadding,
         contentTextLayoutResult = captionLayoutResult.value,
         verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.captionPadding),
         nonTextWidth = if (messageMetadata?.preFormattedContent == null) {
@@ -166,40 +158,35 @@ fun ColumnScope.AudioLikeMessageContent(
     onCaptionTextLayout: (TextLayoutResult?) -> Unit = {},
 ) {
     val waveform = details?.waveform
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Dimens.horizontalArrangement) {
-        Icon(
-            type.icon,
-            null,
-            modifier = Modifier
-                .size(Dimens.Conversation.fileIconSize)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                .padding(Dimens.Conversation.messageBubbleInnerPadding)
-        )
-        var canvasSize by remember { mutableStateOf(DpSize(0.dp, 0.dp)) }
-        var canvasSizePx by remember { mutableStateOf(Size(0f, 0f)) }
+    Row(
+        modifier = Modifier.widthIn(min = Dimens.Conversation.audioMinWidth),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Dimens.horizontalArrangement,
+    ) {
+        MessageAttachmentIcon(type.icon)
+        var canvasWidthPx by remember { mutableIntStateOf(0) }
         if (!waveform.isNullOrEmpty()) {
-            val amplitudeDisplayCount by remember(canvasSize) {
-                derivedStateOf {
-                    (canvasSize.width.value / (Dimens.Conversation.AudioWaveform.linePadding.value + Dimens.Conversation.AudioWaveform.linePadding.value)).toInt()
-                }
+            val waveformStepPx = with(LocalDensity.current) {
+                (Dimens.Conversation.AudioWaveform.linePadding + Dimens.Conversation.AudioWaveform.lineWidth)
+                    .toPx()
             }
-            val normalizedWaveformData by remember(amplitudeDisplayCount) {
-                derivedStateOf {
-                    waveform.normalisedWaveform(amplitudeDisplayCount)
-                }
+            val amplitudeDisplayCount = remember(canvasWidthPx, waveformStepPx) {
+                waveformSampleCount(canvasWidthPx, waveformStepPx)
+            }
+            val normalizedWaveformData = remember(waveform, amplitudeDisplayCount) {
+                waveform.normalisedWaveform(amplitudeDisplayCount)
             }
             val brush = SolidColor(MaterialTheme.colorScheme.onSurface)
             Canvas(
                 modifier = Modifier
                     .height(32.dp)
                     .widthIn(max = Dimens.Conversation.AudioWaveform.maxWidth(waveform.size))
-                    .weight(1f),
+                    .weight(1f)
+                    .onSizeChanged { canvasWidthPx = it.width },
             ) {
-                canvasSize = size.toDpSize()
-                canvasSizePx = size
                 drawWaveform(
                     waveformData = normalizedWaveformData,
-                    canvasSizePx = canvasSizePx,
+                    canvasSizePx = size,
                     brush = brush,
                 )
             }
@@ -233,7 +220,6 @@ fun ColumnScope.AudioLikeMessageContent(
         TextLikeMessageContent(
             messageMetadata.preFormattedContent,
             allowBigEmojiOnly = false,
-            modifier = Modifier.padding(top = Dimens.Conversation.captionPadding),
             onTextLayout = onCaptionTextLayout,
         )
     } else if (waveform != null) {
@@ -241,4 +227,11 @@ fun ColumnScope.AudioLikeMessageContent(
             onCaptionTextLayout(null)
         }
     }
+}
+
+internal fun waveformSampleCount(widthPx: Int, stepPx: Float): Int {
+    if (widthPx <= 0 || !stepPx.isFinite() || stepPx <= 0f) return 1
+    return (widthPx / stepPx)
+        .toInt()
+        .coerceIn(1, Dimens.Conversation.AudioWaveform.maxRenderedSegments)
 }
