@@ -3,6 +3,7 @@ package chat.schildi.revenge.compose.destination.conversation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
@@ -83,7 +84,7 @@ fun ConversationTopNavigation(
     val keyHandler = LocalKeyboardActionHandler.current
     val focusParent = LocalFocusParent.current
     val destinationState = LocalDestinationState.current
-    TopNavigation {
+    TopNavigation(forceVisible = compact) {
         if (selectionCount > 0 && onClearSelection != null) {
             TopNavigationTitle(stringResource(Res.string.selection_messages_count, selectionCount))
             TopNavigationIcon(
@@ -93,6 +94,15 @@ fun ConversationTopNavigation(
             )
             return@TopNavigation
         }
+        if (compact) {
+            TopNavigationIcon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                stringResource(Res.string.action_close),
+            ) {
+                destinationState?.closeScreen(keyHandler)
+            }
+        }
+
         when (viewModel.timelineParams) {
             is CreateTimelineParams.Threaded -> TopNavigationSearchOrTitle(stringResource(Res.string.thread))
             is CreateTimelineParams.PinnedOnly -> TopNavigationSearchOrTitle(stringResource(Res.string.pinned_messages))
@@ -237,6 +247,10 @@ fun ConversationTopNavigation(
                 }
             }
         }
+        if (compact) {
+            return@TopNavigation
+        }
+
         val canBypassMarkReadOnClose = ScPrefs.AUTO_MARK_AS_READ_TRIGGER.value() == ScPrefs.AutoMarkAsReadTrigger.ROOM_CLOSE.name
         if (canBypassMarkReadOnClose) {
             val directLongpressAction = ScPrefs.LONGPRESS_CLOSE_TO_UNREAD.value()

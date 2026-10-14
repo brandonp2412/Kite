@@ -146,3 +146,11 @@ Use `git show 4c517c66b` in old Kite, and inspect `lib/pages/chat/events/message
 3. Installed release app.kite.revenge on Samsung S25 ADB serial 10.66.66.3:5555; app.kite and app.kite.revenge.debug remained installed side-by-side. Android reports versionCode=26101400, versionName=26.10.14, primary ABI arm64-v8a, and no DEBUGGABLE package flag.
 4. Updated the existing app.kite.revenge.debug install with the optimized PerfDebug APK so the same focus fix is present while preserving its logged-in app data. The handset was dozing during final verification, so no claim is made that the return-from-chat IME sequence was interactively exercised after the fix; compile/package/install evidence is complete.
 5. Note: the installed release artifact was built from the current worktree while the next device-local hide-room slice was still in progress and unstaged. Do not treat its APK hash as a clean-commit release artifact.
+
+### Mobile navigation and IME follow-up — 2026-10-14
+
+- Compact Inbox now applies IME padding to the viewport so the list and bottom search field stay visible while typing.
+- Compact conversations keep a visible top navigation row in minimal mode and use a leading back arrow.
+- Wide/desktop conversation navigation remains unchanged.
+- Samsung test target is now original app.kite plus native app.kite.revenge.debug using the release-optimized PerfDebug variant.
+- The separate app.kite.revenge install is no longer present on the device.

@@ -54,8 +54,11 @@ import shire.res.generated.resources.hint_search
 import kotlin.uuid.Uuid
 
 @Composable
-fun TopNavigation(content: @Composable RowScope.() -> Unit) {
-    val visible = !ScPrefs.MINIMAL_MODE.value()
+fun TopNavigation(
+    forceVisible: Boolean = false,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val visible = forceVisible || !ScPrefs.MINIMAL_MODE.value()
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically(tween(Anim.DURATION)) { -it } +

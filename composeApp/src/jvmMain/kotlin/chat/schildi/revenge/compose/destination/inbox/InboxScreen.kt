@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -120,7 +121,7 @@ fun InboxScreen(
         ),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
             val compact = maxWidth < Dimens.compactActionBarThreshold
             val navigationBottomPadding = WindowInsets.navigationBars
                 .asPaddingValues()
