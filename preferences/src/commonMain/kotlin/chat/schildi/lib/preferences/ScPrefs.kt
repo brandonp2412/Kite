@@ -368,11 +368,8 @@ object ScPrefs {
 
     // Timeline
     val THREAD_REPLIES_IN_MAIN_TIMELINE = ScBoolPref("THREAD_REPLIES_IN_MAIN_TIMELINE", true, Res.string.pref_threaded_replies_in_main_timeline_title, Res.string.pref_threaded_replies_in_main_timeline_summary)
-    val HIDE_MESSAGE_AUTHENTICITY_WARNINGS_IN_BRIDGED_CHATS = ScBoolPref("HIDE_MESSAGE_AUTHENTICITY_WARNINGS_IN_BRIDGED_CHATS", false, Res.string.pref_hide_message_authenticity_warnings_in_bridged_chats_title, Res.string.pref_hide_message_authenticity_warnings_in_bridged_chats_summary)
-    val HIDE_AUTHENTICITY_NOT_GUARANTEED = ScBoolPref("HIDE_AUTHENTICITY_NOT_GUARANTEED", false, Res.string.pref_hide_message_authenticity_not_guaranteed_title, Res.string.pref_hide_message_authenticity_not_guaranteed_summary)
     val VIEW_HIDDEN_EVENTS = ScBoolPref("VIEW_HIDDEN_EVENTS", false, Res.string.pref_view_hidden_events_title, Res.string.pref_view_hidden_events_summary)
     val VIEW_REDACTIONS = ScBoolPref("VIEW_REDACTIONS", false, Res.string.pref_view_redactions_title, dependencies = listOf(VIEW_HIDDEN_EVENTS.toDependency(expect = false)), disabledValue = true)
-    val VIEW_MEMBERSHIP_EVENTS_IN_PUBLIC_ROOMS = ScBoolPref("VIEW_MEMBERSHIP_EVENTS_IN_PUBLIC_ROOMS", true, Res.string.pref_view_membership_events_in_public_rooms_title, Res.string.pref_view_membership_events_in_public_rooms_summary, dependencies = listOf(VIEW_HIDDEN_EVENTS.toDependency(expect = false)), disabledValue = true)
     val PREFERRED_MESSAGE_FORMAT = ScStringListPref(
         "PREFERRED_MESSAGE_FORMAT",
         defaultValue = ComposerFormat.MARKDOWN.toString(),
@@ -601,7 +598,6 @@ object ScPrefs {
             )),
             ScPrefCategory("TIMELINE_EVENT_VISIBILITY", Res.string.pref_category_timeline_event_visibility, null, listOf(
                 VIEW_REDACTIONS,
-                VIEW_MEMBERSHIP_EVENTS_IN_PUBLIC_ROOMS,
             )),
             ScPrefCategory("COMPOSER", Res.string.pref_category_composer, null, listOf(
                 PREFERRED_MESSAGE_FORMAT,
@@ -617,10 +613,6 @@ object ScPrefs {
                 URL_PREVIEWS,
                 URL_PREVIEWS_IN_E2EE_ROOMS,
                 URL_PREVIEWS_REQUIRE_EXPLICIT_LINKS,
-            )),
-            ScPrefCategory("MESSAGE_AUTHENTICITY", Res.string.pref_category_message_authenticity_warnings, null, listOf(
-                HIDE_AUTHENTICITY_NOT_GUARANTEED,
-                HIDE_MESSAGE_AUTHENTICITY_WARNINGS_IN_BRIDGED_CHATS,
             )),
             ScPrefCategory("MESSAGE_APPEARANCE", Res.string.pref_category_message_appearance, null, listOf(
                 MESSAGE_FONT_SIZE,

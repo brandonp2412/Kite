@@ -34,7 +34,6 @@ import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.model.conversation.ConversationPermissions
 import chat.schildi.revenge.model.conversation.ConversationViewModel
 import chat.schildi.revenge.model.conversation.MessageMetadata
-import chat.schildi.revenge.model.conversation.TimestampSettings
 import chat.schildi.revenge.plaintext.EventTextFormat
 import com.beeper.android.messageformat.MatrixFormatInteractionState
 import com.beeper.android.messageformat.rememberMatrixFormatInteractionState
@@ -69,7 +68,6 @@ fun EventRow(
     showSenderDetails: Boolean,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     highlight: EventHighlight,
-    timestampSettings: TimestampSettings,
     doubleTapToReact: Boolean,
     doubleTapReaction: String,
     swipeConfig: MessageSwipeConfig,
@@ -180,8 +178,8 @@ fun EventRow(
                             senderProfile = event.senderProfile,
                             isOwn = event.isOwn,
                             showSenderDetails = showSenderDetails,
-                            timestamp = remember(event, timestampSettings) {
-                                event.timestampOverlayContent(timestampSettings)
+                            timestamp = remember(event) {
+                                event.timestampOverlayContent()
                             },
                             isSameAsPreviousSender = isSameAsPreviousSender,
                             isSameAsNextSender = isSameAsNextSender,

@@ -30,7 +30,6 @@ import chat.schildi.revenge.model.conversation.ConversationViewModel
 import chat.schildi.revenge.model.conversation.EventJumpTarget
 import chat.schildi.revenge.model.conversation.FullyReadEventState
 import chat.schildi.revenge.model.conversation.ScTimelineItem
-import chat.schildi.revenge.model.conversation.TimestampSettings
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
@@ -62,7 +61,6 @@ fun ConversationItemRow(
     targetEvent: EventJumpTarget?,
     roomPermissions: ConversationPermissions?,
     highlight: EventHighlight,
-    timestampSettings: TimestampSettings,
     doubleTapToReact: Boolean,
     doubleTapReaction: String,
     swipeConfig: MessageSwipeConfig,
@@ -155,7 +153,6 @@ fun ConversationItemRow(
                     showSenderDetails = showSenderDetails,
                     roomMembersById = roomMembersById,
                     highlight = highlight,
-                    timestampSettings = timestampSettings,
                     doubleTapToReact = doubleTapToReact,
                     doubleTapReaction = doubleTapReaction,
                     swipeConfig = swipeConfig,

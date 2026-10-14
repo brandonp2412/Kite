@@ -233,7 +233,6 @@ fun ConversationScreen(
         val backwardPaginationStatus = viewModel.backwardPaginationStatus.collectAsState(null).value
         val showBackwardPagingIndicator = backwardPaginationStatus?.hasMoreToLoad == true
         val showForwardPagingIndicator = forwardPaginationStatus?.hasMoreToLoad == true
-        val timestampSettings = viewModel.timestampSettings.collectAsState().value
 
         val roomInfo = viewModel.roomInfo.collectAsState().value
         val roomPreview = viewModel.roomPreview.collectAsState().value
@@ -717,7 +716,6 @@ fun ConversationScreen(
                                 targetEvent = targetEvent,
                                 roomPermissions = roomPermissions,
                                 highlight = highlight,
-                                timestampSettings = timestampSettings,
                                 doubleTapToReact = doubleTapToReact,
                                 doubleTapReaction = doubleTapReaction,
                                 swipeConfig = messageSwipeConfig,

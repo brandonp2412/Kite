@@ -224,12 +224,6 @@ import kotlin.time.Duration.Companion.milliseconds
 private const val TYPING_NOTICE_REPEAT_INTERVAL = 5000L
 private const val URL_PREVIEW_PREFETCH_WINDOW = 5
 
-data class TimestampSettings(
-    val renderAuthenticityNotGuaranteed: Boolean = true,
-    val renderSenderMismatch: Boolean = true,
-    val renderUnsignedDevice: Boolean = true,
-)
-
 private data class ComposerSettings(
     val autoHideComposer: Boolean,
 ) {
@@ -271,7 +265,7 @@ private fun buildScTimelineFilterSettings(lookup: (ScPref<*>) -> Any?) = ScTimel
     showHiddenEvents = ScPrefs.VIEW_HIDDEN_EVENTS.safeLookup(lookup),
     showRedactions = ScPrefs.VIEW_REDACTIONS.safeLookup(lookup),
     preferHideThreadedEvents = !ScPrefs.THREAD_REPLIES_IN_MAIN_TIMELINE.safeLookup(lookup),
-    showMembershipEventsInPublicRooms = ScPrefs.VIEW_MEMBERSHIP_EVENTS_IN_PUBLIC_ROOMS.safeLookup(lookup),
+    showMembershipEventsInPublicRooms = false,
 )
 
 data class ConversationPermissions(
@@ -1034,23 +1028,6 @@ class ConversationViewModel(
             force || !minimalMode || !state.isEmpty()
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, forceShowComposer.value)
-
-    private val bridgeInfo = roomInfo.map { info ->
-        info?.bridgeState
-    }.distinctUntilChanged()
-
-    val timestampSettings = combine(
-        scPreferencesStore.settingFlow(ScPrefs.HIDE_AUTHENTICITY_NOT_GUARANTEED),
-        scPreferencesStore.settingFlow(ScPrefs.HIDE_MESSAGE_AUTHENTICITY_WARNINGS_IN_BRIDGED_CHATS),
-        bridgeInfo,
-    ) { hideAuthenticityNotGuaranteed, hideAuthenticityForBridgedChats, bridgeInfo ->
-        val hideForBridgeChat = hideAuthenticityForBridgedChats && !bridgeInfo.isNullOrEmpty()
-        TimestampSettings(
-            renderAuthenticityNotGuaranteed = !hideAuthenticityNotGuaranteed && !hideForBridgeChat,
-            renderSenderMismatch = !hideForBridgeChat,
-            renderUnsignedDevice = !hideForBridgeChat,
-        )
-    }.stateIn(viewModelScope, SharingStarted.Lazily, TimestampSettings())
 
     override fun onComposerUpdate(value: DraftValue) {
         draftKey ?: return

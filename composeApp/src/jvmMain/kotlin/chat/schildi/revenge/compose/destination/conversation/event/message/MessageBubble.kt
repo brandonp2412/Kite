@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.NoEncryption
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,25 +29,15 @@ import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.compose.components.WithTooltip
 import chat.schildi.revenge.compose.components.thenIf
-import chat.schildi.revenge.model.conversation.TimestampSettings
 import chat.schildi.theme.scExposures
 import io.element.android.libraries.matrix.api.timeline.item.event.EventCanBeEdited
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
-import io.element.android.libraries.matrix.api.timeline.item.event.MessageShield
 import io.element.android.libraries.matrix.api.timeline.item.event.RedactedContent
-import io.element.android.libraries.matrix.api.timeline.item.event.isCritical
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.hint_sending
 import shire.res.generated.resources.message_edited_decoration
-import shire.res.generated.resources.message_shield_authenticity_not_guaranteed
-import shire.res.generated.resources.message_shield_mismatched_sender
-import shire.res.generated.resources.message_shield_sent_in_clear
-import shire.res.generated.resources.message_shield_unknown_device
-import shire.res.generated.resources.message_shield_unsigned_device
-import shire.res.generated.resources.message_shield_unverified_identity
-import shire.res.generated.resources.message_shield_verification_violation
 import shire.res.generated.resources.send_error_invalid_mime_type
 import shire.res.generated.resources.send_error_missing_media_content
 import shire.res.generated.resources.send_error_sending_from_unverified_device
@@ -67,15 +54,13 @@ data class TimestampOverlayContent(
     val isEdited: Boolean,
     val isSending: Boolean,
     val sendError: LocalEventSendState.Failed?,
-    val messageShield: MessageShield?,
 )
 
-fun EventTimelineItem.timestampOverlayContent(settings: TimestampSettings) = TimestampOverlayContent(
+fun EventTimelineItem.timestampOverlayContent() = TimestampOverlayContent(
     timestamp = DateTimeFormat.formatTime(DateTimeFormat.timestampToDateTime(timestamp)),
     isEdited = (content as? EventCanBeEdited)?.isEdited == true,
     isSending = localSendState is LocalEventSendState.Sending,
     sendError = localSendState as? LocalEventSendState.Failed,
-    messageShield = null,
 )
 
 @Composable
@@ -154,12 +139,11 @@ private fun TimestampContent(
     if (content == null) return
 
     // Google Messages keeps successful message bubbles free of an always-visible time stamp.
-    // Preserve Matrix state that actually needs attention (edited/sending/failed/security)
+    // Preserve only message state that actually needs attention (edited/sending/failed)
     // and include the time alongside that state.
     val hasStatusDecoration = content.isEdited ||
             content.isSending ||
-            content.sendError != null ||
-            content.messageShield != null
+            content.sendError != null
     if (!hasStatusDecoration) return
 
     val overlayBgColor = MaterialTheme.scExposures.timestampOverlayBg
@@ -217,33 +201,5 @@ private fun TimestampContent(
             style = Dimens.Conversation.messageTimestampStyle,
             modifier = Modifier.alignByBaseline(),
         )
-        content.messageShield?.let { messageShield ->
-            val hint = when (messageShield) {
-                is MessageShield.AuthenticityNotGuaranteed -> stringResource(Res.string.message_shield_authenticity_not_guaranteed)
-                is MessageShield.MismatchedSender -> stringResource(Res.string.message_shield_mismatched_sender)
-                is MessageShield.SentInClear -> stringResource(Res.string.message_shield_sent_in_clear)
-                is MessageShield.UnknownDevice -> stringResource(Res.string.message_shield_unknown_device)
-                is MessageShield.UnsignedDevice -> stringResource(Res.string.message_shield_unsigned_device)
-                is MessageShield.UnverifiedIdentity -> stringResource(Res.string.message_shield_unverified_identity)
-                is MessageShield.VerificationViolation -> stringResource(Res.string.message_shield_verification_violation)
-            }
-            val icon = when (messageShield) {
-                is MessageShield.SentInClear -> Icons.Default.NoEncryption
-                is MessageShield.UnknownDevice,
-                is MessageShield.UnsignedDevice,
-                is MessageShield.UnverifiedIdentity,
-                is MessageShield.AuthenticityNotGuaranteed -> Icons.Default.Info
-                is MessageShield.MismatchedSender,
-                is MessageShield.VerificationViolation -> Icons.Default.Warning
-            }
-            WithTooltip(hint) {
-                Icon(
-                    icon,
-                    hint,
-                    tint = if (messageShield.isCritical) MaterialTheme.colorScheme.error else textColor,
-                    modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon)
-                )
-            }
-        }
     }
 }
