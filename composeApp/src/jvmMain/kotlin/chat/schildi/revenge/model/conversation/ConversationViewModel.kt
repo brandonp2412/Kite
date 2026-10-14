@@ -1027,7 +1027,16 @@ class ConversationViewModel(
         } else {
             force || !minimalMode || !state.isEmpty()
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, forceShowComposer.value)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        // Start with the cached preference/draft instead of hiding the composer for
+        // the first frame. The old false initial state resized the timeline as soon
+        // as the combined flows emitted on every room open.
+        forceShowComposer.value ||
+            !scPreferencesStore.getCachedOrDefaultValue(ScPrefs.MINIMAL_MODE) ||
+            !composerState.value.isEmpty(),
+    )
 
     override fun onComposerUpdate(value: DraftValue) {
         draftKey ?: return

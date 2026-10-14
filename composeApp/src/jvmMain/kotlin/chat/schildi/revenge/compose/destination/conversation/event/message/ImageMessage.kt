@@ -147,6 +147,11 @@ fun ColumnScope.ImageMessageContent(
     onCaptionTextLayout: (TextLayoutResult?) -> Unit = {},
     overlay: @Composable () -> Unit = {},
 ) {
+    // Reserve identical bounds before and after decoding. Coil's intrinsic image
+    // size can differ from the event metadata, and switching ratios on success
+    // otherwise remeasures the whole message list as an image comes into view.
+    // Unknown dimensions use a stable square rather than jumping after loading.
+    val reservedAspectRatio = aspectRatioOrNull(width, height) ?: 1f
     Box(
         modifier = Modifier.align(Alignment.CenterHorizontally),
         contentAlignment = Alignment.Center,
@@ -171,7 +176,7 @@ fun ColumnScope.ImageMessageContent(
                         minHeight,
                         maxWidth,
                         maxHeight,
-                        aspectRatioOrNull(width, height),
+                        reservedAspectRatio,
                     ),
                 )
                 return@SubcomposeAsyncImage
@@ -183,7 +188,7 @@ fun ColumnScope.ImageMessageContent(
                         minHeight,
                         maxWidth,
                         maxHeight,
-                        painter.intrinsicSize.width / painter.intrinsicSize.height,
+                        reservedAspectRatio,
                     ),
                 )
                 AsyncImagePainter.State.Empty,
@@ -198,7 +203,7 @@ fun ColumnScope.ImageMessageContent(
                             minHeight,
                             maxWidth,
                             maxHeight,
-                            aspectRatioOrNull(width, height),
+                            reservedAspectRatio,
                         ),
                     )
                 }

@@ -1,8 +1,11 @@
 package chat.schildi.revenge.compose.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -12,6 +15,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
@@ -72,18 +76,29 @@ fun AvatarImage(
             alignment = Alignment.Center,
             contentDescription = contentDescription,
         ) {
-            when (painter.state.collectAsState().value) {
-                is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
-                AsyncImagePainter.State.Empty -> {
-                    AvatarFallback(displayName, shape, size)
+            val painterState = painter.state.collectAsState().value
+            val loaded = painterState is AsyncImagePainter.State.Success
+            // Keep the same size and fallback in place while an asynchronously
+            // decoded image is revealed. Replacing initials with a photo in one
+            // frame was particularly noticeable when opening a conversation.
+            val imageAlpha = animateFloatAsState(
+                targetValue = if (loaded) 1f else 0f,
+                animationSpec = tween(90),
+                label = "Avatar reveal",
+            ).value
+            Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+                if (!loaded || imageAlpha < 1f) {
+                    AvatarFallback(
+                        displayName = displayName,
+                        shape = shape,
+                        size = size,
+                        fallbackColorSource = fallbackColorSource,
+                        sessionId = sessionId,
+                        isError = painterState is AsyncImagePainter.State.Error,
+                    )
                 }
-
-                is AsyncImagePainter.State.Error -> {
-                    AvatarFallback(displayName, shape, size, fallbackColorSource = fallbackColorSource, sessionId = sessionId, isError = true)
-                }
-
-                is AsyncImagePainter.State.Loading -> {
-                    AvatarFallback(displayName, shape, size)
+                if (loaded) {
+                    this@SubcomposeAsyncImage.SubcomposeAsyncImageContent(Modifier.fillMaxSize().alpha(imageAlpha))
                 }
             }
         }

@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,11 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.max
 import chat.schildi.matrixsdk.urlpreview.UrlPreview
 import chat.schildi.matrixsdk.urlpreview.UrlPreviewInfo
 import chat.schildi.matrixsdk.urlpreview.UrlPreviewStateProvider
@@ -49,7 +45,6 @@ import coil3.compose.SubcomposeAsyncImageContent
 import com.beeper.android.messageformat.MatrixBodyParseResult
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
-import kotlin.math.max
 
 /**
  * Provides a [UrlPreviewStateProvider] to the composition.
@@ -96,25 +91,22 @@ fun UrlPreviewView(
             .combinedClickable(onClick = onClick, onLongClick = onLongCLick)
             .padding(Dimens.Conversation.UrlPreview.cardInnerPadding)
     ) {
-        val titleColumnHeight = remember { mutableIntStateOf(0) }
         val density = LocalDensity.current
         val textStyle = LocalMessageStyle.current.textStyle
         Row {
             urlPreview.imageUrl?.let { imageUrl ->
-                // Reserve the thumbnail area at its size from the start (aspect ratio when known),
-                // and re-fit it to the actual image once it has loaded, so the final result
-                // always matches the image (reported measures can be wrong).
+                // The thumbnail must not resize when the image decodes or the title
+                // is measured: either change would move adjacent chat messages.
                 val reservedSize = fitImageSize(
                     urlPreview.imageWidth,
                     urlPreview.imageHeight,
-                    titleColumnHeight.intValue,
                     density,
                 )
-                val fixedBoxModifier = Modifier.sizeIn(
-                    maxWidth = Dimens.Conversation.UrlPreview.imageMaxWidth,
-                    maxHeight = max(Dimens.Conversation.UrlPreview.imageMinHeight, density.run { titleColumnHeight.intValue.toDp() }),
-                    minWidth = Dimens.Conversation.UrlPreview.imageMinSize,
-                    minHeight = Dimens.Conversation.UrlPreview.imageMinSize,
+                val thumbnailModifier = reservedSize?.let { size ->
+                    with(density) { Modifier.size(size.width.toDp(), size.height.toDp()) }
+                } ?: Modifier.size(
+                    Dimens.Conversation.UrlPreview.imageMaxWidth,
+                    Dimens.Conversation.UrlPreview.imageMinHeight,
                 )
                 SubcomposeAsyncImage(
                     modifier = Modifier.align(Alignment.Top),
@@ -126,25 +118,6 @@ fun UrlPreviewView(
                     contentDescription = null,
                 ) {
                     val state = painter.state.collectAsState().value
-                    // Once the image has loaded, its actual measures win over the reserved size.
-                    val loadedSize = if (state is AsyncImagePainter.State.Success) {
-                        fitImageSize(
-                            painter.intrinsicSize.width.toInt(),
-                            painter.intrinsicSize.height.toInt(),
-                            titleColumnHeight.intValue,
-                            density,
-                        )
-                    } else {
-                        null
-                    }
-                    val thumbnailSize = loadedSize ?: reservedSize
-                    val thumbnailModifier = if (thumbnailSize != null) {
-                        with(density) {
-                            Modifier.size(thumbnailSize.width.toDp(), thumbnailSize.height.toDp())
-                        }
-                    } else {
-                        fixedBoxModifier
-                    }
                     val innerModifier = thumbnailModifier
                         .fillMaxSize()
                         .padding(Dimens.Conversation.UrlPreview.imagePadding)
@@ -163,8 +136,7 @@ fun UrlPreviewView(
             Column(
                 Modifier
                     .padding(horizontal = Dimens.Conversation.UrlPreview.titlePaddingHorizontal)
-                    .align(Alignment.CenterVertically)
-                    .onGloballyPositioned { titleColumnHeight.intValue = it.size.height },
+                    .align(Alignment.CenterVertically),
             ) {
                 urlPreview.title?.let { title ->
                     Text(
@@ -208,14 +180,13 @@ fun UrlPreviewView(
 private fun fitImageSize(
     imageWidth: Int?,
     imageHeight: Int?,
-    titleColumnHeightPx: Int,
     density: Density,
 ): Size? {
     val widthPx = imageWidth?.takeIf { it > 0 } ?: return null
     val heightPx = imageHeight?.takeIf { it > 0 } ?: return null
     val aspect = widthPx.toFloat() / heightPx
     val maxWidthPx = with(density) { Dimens.Conversation.UrlPreview.imageMaxWidth.toPx() }
-    val maxHeightPx = with(density) { max(Dimens.Conversation.UrlPreview.imageMinHeight.toPx(), titleColumnHeightPx.toFloat()) }
+    val maxHeightPx = with(density) { Dimens.Conversation.UrlPreview.imageMinHeight.toPx() }
     val minWidthPx = with(density) { Dimens.Conversation.UrlPreview.imageMinSize.toPx() }
     var width = maxWidthPx
     var height = width / aspect
