@@ -130,7 +130,7 @@ object AndroidNotifier {
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setContentIntent(id.createPendingIntent(context, notificationId))
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(if (id is NotificationId.Event) R.drawable.ic_notification_message else R.drawable.ic_notification)
             .setLargeIcon(largeIcon)
             .setContentTitle(title)
             .setContentText(message)
@@ -372,7 +372,7 @@ object AndroidNotifier {
         }
 
         val notification = builder
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_notification_message)
             .setContentTitle(data.roomDisplayName)
             .setContentText(plainMessageText)
             .setTicker(plainMessageText)
