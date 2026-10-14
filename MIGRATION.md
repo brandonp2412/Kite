@@ -1034,3 +1034,13 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass checks: `:composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --quiet` passed; ARM64 `:androidApp:assemblePerfDebug` passed.
 - Verified isolated Android APK package `app.kite.revenge.debug` and existing signer. `adb install -r` succeeded on Samsung; first install time and app data path unchanged, last update `2026-10-15 08:06:32`. Production `app.kite` not modified. No live chat or redaction action was performed; visual verification is pending.
 - Existing unrelated unfinished hide-chat changes in InboxViewModel, AppStateStore and strings left unchanged.
+
+
+## 2026-10-15 — Full-row tap selection in conversation selection mode
+
+- User requested tapping anywhere on a message while selection mode is active to select or deselect it, rather than tapping only the selection circle. Existing row primary action was insufficient because child links/media/polls/reaction chips can receive and consume taps.
+- Added a last-drawn transparent `Box` overlay with `matchParentSize().clickable(...)` over the full selectable event row **only** when selection is active. It uses the existing `toggleSelection` callback, announces Select/Deselect to accessibility, and has no ripple or layout measurement impact. The old row click/long-click handler is disabled during selection to avoid duplicate toggles; keyboard actions remain registered.
+- The selection overlay covers attachments, message text, sender headers, avatar, timestamps, reaction chips, and the selection indicator. Nonselectable system rows are excluded; outside selection mode the overlay is absent and normal attachment/link/reaction/swipe handling is unchanged. Compose clickable cancels in favor of parent LazyColumn scrolling when the gesture is a drag.
+- Glass validation: `:composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --quiet` passed after closing the inner Column correctly and removing an invalid `matchParentSize` import. `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --quiet` passed.
+- ARM64 APK SHA-256 `d0ae905f7684c8d92c735ec38e4aaf097c477832ceb6f5f6b48759a9cbc9227e`, package `app.kite.revenge.debug`, prior signer verified. Samsung `adb install -r` returned Success; dataDir `/data/user/0/app.kite.revenge.debug` and original install date retained, lastUpdateTime `2026-10-15 08:25:43`. Did not touch production `app.kite` or live Matrix state.
+- No live tap test/visual proof; handset was running ChatGPT. Existing unrelated hide-chat work in InboxViewModel, AppStateStore and strings was kept untouched and excluded from commit.

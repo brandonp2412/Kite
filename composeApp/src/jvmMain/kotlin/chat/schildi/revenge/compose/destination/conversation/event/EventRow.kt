@@ -2,6 +2,8 @@ package chat.schildi.revenge.compose.destination.conversation.event
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,6 +57,10 @@ import io.element.android.libraries.matrix.api.timeline.item.event.MessageConten
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
 import io.element.android.libraries.matrix.api.timeline.item.event.UnknownContent
 import kotlinx.collections.immutable.ImmutableMap
+import org.jetbrains.compose.resources.stringResource
+import shire.res.generated.resources.Res
+import shire.res.generated.resources.action_deselect_message
+import shire.res.generated.resources.action_select_message
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -122,8 +128,13 @@ fun EventRow(
         presentation = ContextMenuPresentation.Message,
     ) { openContextMenu ->
         val messageActionMenuOpen = LocalTouchTextSelectionEnabled.current
-        Column(
-            modifier
+        // Child content (links, media, polls and reaction chips) has its own click
+        // targets. In selection mode place one hit target *above* all of them,
+        // so touching any part of this message toggles selection exactly once.
+        // matchParentSize does not change the row's measured size or scroll offset.
+        Box(Modifier.fillMaxWidth()) {
+            Column(
+                modifier
                 .keyFocusable(
                     FocusRole.LIST_ITEM,
                     focusId,
@@ -149,8 +160,9 @@ fun EventRow(
                     // gestures belong to the message content itself: a second
                     // long-press selects text and handle drags refine that range.
                     // Keep keyboard/focus actions installed, but remove this row's
-                    // click/long-click detector until the action surface closes.
-                    addClickListener = !messageActionMenuOpen,
+                    // click/long-click detector while the menu or selection overlay
+                    // takes ownership of pointer taps.
+                    addClickListener = !messageActionMenuOpen && !selectionActive,
                 )
                 .background(
                     if (isSelected) {
@@ -261,6 +273,22 @@ fun EventRow(
                         }
                     }
                 }
+            }
+            }
+            if (selectionActive && selectable) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClickLabel = stringResource(
+                                if (isSelected) Res.string.action_deselect_message
+                                else Res.string.action_select_message
+                            ),
+                            onClick = toggleSelection,
+                        ),
+                )
             }
         }
     }
