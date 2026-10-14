@@ -31,6 +31,8 @@ import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.LocalDestinationState
+import chat.schildi.revenge.NavigationPreference
+import chat.schildi.revenge.platformWindowManager
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.InteractionAction
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
@@ -171,7 +173,11 @@ fun ConversationTopNavigation(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 stringResource(Res.string.action_close),
             ) {
-                destinationState?.closeScreen(keyHandler)
+                if (!platformWindowManager.appOwnsWindows) {
+                    destinationState?.navigate(Destination.Inbox, NavigationPreference.REPLACE)
+                } else {
+                    destinationState?.closeScreen(keyHandler)
+                }
             }
         }
 

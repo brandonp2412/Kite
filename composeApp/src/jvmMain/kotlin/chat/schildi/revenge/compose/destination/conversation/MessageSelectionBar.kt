@@ -60,7 +60,7 @@ fun RowScope.MessageSelectionActions(actions: MessageSelectionActions) {
         onClick = actions.onCopy,
     )
 
-    if (actions.canForward) {
+    if (actions.selectedCount > 1 && actions.canForward) {
         TopNavigationIcon(
             Icons.AutoMirrored.Default.Forward,
             stringResource(Res.string.action_forward),

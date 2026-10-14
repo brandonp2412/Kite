@@ -55,6 +55,10 @@ class MainActivity : ComponentActivity() {
 
     private val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
+            if (destinationStateHolder?.state?.value?.destination is Destination.Conversation) {
+                destinationStateHolder?.navigate(Destination.Inbox, NavigationPreference.REPLACE)
+                return
+            }
             if (shouldRemoveTaskOnBack()) {
                 finishAndRemoveTask()
             } else {

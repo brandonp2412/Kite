@@ -790,6 +790,7 @@ fun ConversationScreen(
                             canPin = selectedSingleEvent.eventId != null && roomPermissions?.canPinUnpin == true,
                             isPinned = isPinned,
                             canDownload = canDownload,
+                            canForward = canForwardSelection,
                             canReport = selectedSingleEvent.eventId != null && !selectedSingleEvent.isOwn,
                             canDelete = canDeleteSelection,
                             onDismiss = { selectionMoreOpen = false },
@@ -825,6 +826,9 @@ fun ConversationScreen(
                                 if (executeSelectedAction(selectedSingle, Action.Event.DownloadFile) is ActionResult.Success) {
                                     clearSelection()
                                 }
+                            },
+                            onForward = {
+                                forwardEvents(listOf(selectedSingleEvent))
                             },
                             onInfo = { messageInfoEvent = selectedSingleEvent },
                             onReport = { selectionReportOpen = true },

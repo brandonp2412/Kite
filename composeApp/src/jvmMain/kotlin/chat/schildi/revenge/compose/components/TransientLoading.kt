@@ -8,7 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 
-internal const val TransientLoadingGracePeriodMillis = 350L
+internal const val TransientLoadingGracePeriodMillis = 650L
 
 /**
  * Avoid painting progress chrome for work that completes within a few frames.

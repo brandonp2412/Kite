@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
@@ -30,6 +31,7 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_download
 import shire.res.generated.resources.action_edit
+import shire.res.generated.resources.action_forward
 import shire.res.generated.resources.action_message_info
 import shire.res.generated.resources.action_pin
 import shire.res.generated.resources.action_redact
@@ -44,6 +46,7 @@ fun MessageSelectionMoreSheet(
     canPin: Boolean,
     isPinned: Boolean,
     canDownload: Boolean,
+    canForward: Boolean,
     canReport: Boolean,
     canDelete: Boolean,
     onDismiss: () -> Unit,
@@ -51,6 +54,7 @@ fun MessageSelectionMoreSheet(
     onOpenThread: () -> Unit,
     onTogglePin: () -> Unit,
     onDownload: () -> Unit,
+    onForward: () -> Unit,
     onInfo: () -> Unit,
     onReport: () -> Unit,
     onDelete: () -> Unit,
@@ -83,6 +87,12 @@ fun MessageSelectionMoreSheet(
             SelectionMoreAction(Res.string.action_download, { Icon(Icons.Default.Download, null) }) {
                 onDismiss()
                 onDownload()
+            }
+        }
+        if (canForward) {
+            SelectionMoreAction(Res.string.action_forward, { Icon(Icons.AutoMirrored.Filled.Forward, null) }) {
+                onDismiss()
+                onForward()
             }
         }
         SelectionMoreAction(Res.string.action_message_info, { Icon(Icons.Default.Info, null) }) {

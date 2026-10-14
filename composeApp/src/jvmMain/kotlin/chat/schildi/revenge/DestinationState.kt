@@ -76,10 +76,16 @@ class DefaultDestinationStateHolder(
             NavigationPreference.NEW_WINDOW_NEW_TASK -> UiState.openWindow(destination, true, initialTitle)
             NavigationPreference.AUTO -> {
                 val currentCategory = state.value.destination.category
-                when {
-                    currentCategory == DestinationCategory.WILDCARD ||
-                    currentCategory == destination.category -> navigateThis(destination, invalidateHolderId)
-                    else -> UiState.openWindow(destination, false, initialTitle)
+                if (
+                    shouldNavigateInCurrentWindow(
+                        currentCategory = currentCategory,
+                        destinationCategory = destination.category,
+                        appOwnsWindows = platformWindowManager.appOwnsWindows,
+                    )
+                ) {
+                    navigateThis(destination, invalidateHolderId)
+                } else {
+                    UiState.openWindow(destination, false, initialTitle)
                 }
             }
         }
@@ -130,6 +136,21 @@ data class DestinationState(
     @Transient
     val titleOverride: ComposableStringHolder? = null,
 )
+
+
+
+internal fun shouldNavigateInCurrentWindow(
+    currentCategory: DestinationCategory,
+    destinationCategory: DestinationCategory,
+    appOwnsWindows: Boolean,
+): Boolean =
+    currentCategory == DestinationCategory.WILDCARD ||
+            currentCategory == destinationCategory ||
+            (
+                !appOwnsWindows &&
+                        currentCategory == DestinationCategory.INBOX &&
+                        destinationCategory == DestinationCategory.CONVERSATION
+            )
 
 val LocalDestinationState = compositionLocalOf<DestinationStateHolder?> { null }
 
