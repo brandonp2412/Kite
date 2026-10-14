@@ -765,3 +765,51 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - When the Samsung is naturally awake/unlocked, compare this exact installed build side-by-side with installed Google Messages across Start chat, typed/no-result people search, multi-account selection, create-room grouping, bottom inbox search geometry, dark mode, long names/MXIDs, and IME/inset behavior; fix measured mismatches in the same run.
 - Capture controlled `gfxinfo`/frame evidence for inbox search + navigation and Start-chat result scrolling at an active 120 Hz mode before making a measurable performance-parity claim.
 - Continue the next broad native Messages-style surface even if device QA is still unavailable: settings/account rows, dialogs/toggles and remaining profile/account selection details, preserving all Matrix-specific capabilities and existing native state/navigation paths.
+
+## 2026-10-15 05:34 NZDT — Messages Start-chat refinement + settings/account tonal system
+
+### Visual / interaction reference
+- Continued from the committed Google Messages reference set in docs/design-reference/google-messages, especially the Material 3 Expressive overview/settings and inbox references, and cross-checked current public Google Messages coverage showing rounded result/contact containers and rounded per-setting containers.
+- Preserved Kite identity and Matrix-only controls. The intentional Inbox exception remains unchanged: search stays at the bottom.
+- The Samsung stayed Dozing / non-interactive for the entire device checkpoint, so installed Google Messages was not opened merely to gather screenshots and no SMS/RCS state was touched.
+
+### Implemented
+- Refined the already-native Start-chat flow into a more coherent Messages-style people picker:
+  - 24 dp search/result containers and 20 dp contact cards;
+  - clearer surface-container tonal hierarchy;
+  - compact 68 dp rows with 44 dp avatars and name/MXID hierarchy;
+  - explicit contentType for result rows to keep lazy reuse stable;
+  - loading/empty/failure surfaces now use the same tonal system.
+- Tightened shared search chrome icon/text spacing without moving or altering the bottom Inbox search placement.
+- Brought Matrix room creation into the same navigation and tonal treatment:
+  - leading back navigation, 28 dp rounded-top content panel, 24 dp setting/editor cards, denser create action;
+  - moved available-session collection and advanced-settings coroutine scope out of LazyColumn item composition;
+  - memoized session dropdown entries, reducing avoidable lazy-item state/collector work.
+- Reworked settings as a Messages-style tonal hierarchy:
+  - surfaceContainer destination chrome -> rounded-top surfaceContainerLow content panel -> 20 dp surfaceContainerHigh preference cards;
+  - 68/80 dp minimum row heights and calmer category spacing while retaining existing Material switches/sliders and native preference persistence.
+- Reworked account management in the same system:
+  - rounded-top content panel plus 24 dp account/login cards and 52 dp account avatars;
+  - visible Matrix verification status text beside its status glyph instead of tooltip-only status;
+  - 40 dp error-container logout affordance;
+  - explicit account lazy-list contentType;
+  - removed the decorative AnimatedContent around homeserver login controls so account state changes are direct and allocation/animation-free.
+- No new Matrix state stack, per-room/per-message collectors, blur/effect loops, or blocking UI work were introduced.
+
+### Validation
+- Cohesive source checkpoint: 48ed5b390c2883a2b9162168fe7acf48ecf4812d (Polish Messages start chat and settings surfaces), 6 files, 300 insertions / 212 deletions.
+- git diff --check: pass.
+- Glass, JDK 25 + /opt/android-sdk: :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 38s, 91 actionable tasks.
+- Clean detached validation worktree /home/brandon/worktrees/kite-revenge-validate-dbd57198 checked out at exact source commit 48ed5b390c2883a2b9162168fe7acf48ecf4812d; Matrix Rust SDK remained pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 1m 4s, 279 actionable tasks.
+- Exact APK: /home/brandon/worktrees/kite-revenge-validate-dbd57198/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,886,711 bytes, SHA-256 e06a15e74a9b5eab4ea2e5d3fb1bba6fb2862c90087f0f1c918cab4783b0b5e9.
+- AAPT: package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37, native code arm64-v8a.
+- APK signature: V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung 10.66.66.3:5555 preflight found only app.kite.revenge.debug among Kite packages. adb install -r returned Success; post-install dataDir=/data/user/0/app.kite.revenge.debug, firstInstallTime=2026-10-14 11:55:12 remained unchanged, and lastUpdateTime=2026-10-15 05:32:55.
+- Device remained mWakefulness=Dozing / mHalInteractiveModeEnabled=false; neither Kite nor Google Messages was launched for visual QA. No side-by-side visual-parity or 120 Hz performance claim is made.
+- The unrelated local hide-room work remains unstaged and excluded from this checkpoint: InboxViewModel.kt, AppStateStore.kt, and the three hide-chat/undo strings.
+
+### Next substantial slice
+- When the Samsung is naturally awake/unlocked, compare this exact installed PerfDebug build side-by-side with Google Messages across Start chat, create-room, Settings and account management in light/dark mode, including long names/MXIDs, switches, login fields, keyboard/insets and back navigation; fix concrete mismatches in the same run.
+- Capture controlled 120 Hz frame evidence for Inbox search/navigation and Start-chat result scrolling before claiming measurable performance parity.
+- Continue remaining profile/account-selection dialogs and transient surfaces, then return to notification quick-reply/actions and controlled message/composer E2E while preserving the bottom Inbox search exception and all Matrix behavior.
