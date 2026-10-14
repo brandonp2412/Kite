@@ -1,20 +1,23 @@
 package chat.schildi.revenge.compose.destination.settings
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.ListItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.preferences.LocalScPreferencesStore
 import chat.schildi.lib.preferences.ScPref
 import chat.schildi.revenge.preferences.enabledState
@@ -45,7 +48,12 @@ fun <T> ScPref<T>.ScPrefLayout(
     val secondaryText = summaryRes?.let { stringResource(it, valueToString(currentValue)) }
         ?: currentValue.takeIf { selectionAsSummary }?.let { valueToString(it) }
     ListItem(
-        modifier = modifier.keyFocusable(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .keyFocusable(
             role = FocusRole.LIST_ITEM,
             id = focusId,
             actionProvider = actionProvider(
@@ -57,7 +65,7 @@ fun <T> ScPref<T>.ScPrefLayout(
         text = {
             val color = animateColorAsState(
                 if (enabled)
-                    MaterialTheme.colorScheme.primary
+                    MaterialTheme.colorScheme.onSurface
                 else
                     MaterialTheme.colorScheme.tertiary
             ).value
@@ -66,7 +74,7 @@ fun <T> ScPref<T>.ScPrefLayout(
         secondaryText = secondaryText?.let {{
             val color = animateColorAsState(
                 if (enabled)
-                    MaterialTheme.colorScheme.secondary
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 else
                     MaterialTheme.colorScheme.tertiary
             ).value
@@ -94,7 +102,12 @@ fun ScPrefLayout(
     trailing: @Composable ((enabled: Boolean) -> Unit)? = null,
 ) {
     ListItem(
-        modifier = modifier.keyFocusable(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .keyFocusable(
             role = FocusRole.LIST_ITEM,
             id = focusId,
             actionProvider = actionProvider(
@@ -106,7 +119,7 @@ fun ScPrefLayout(
         text = {
             val color = animateColorAsState(
                 if (enabled)
-                    MaterialTheme.colorScheme.primary
+                    MaterialTheme.colorScheme.onSurface
                 else
                     MaterialTheme.colorScheme.tertiary
             ).value
@@ -115,7 +128,7 @@ fun ScPrefLayout(
         secondaryText = secondaryText?.let {{
             val color = animateColorAsState(
                 if (enabled)
-                    MaterialTheme.colorScheme.secondary
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 else
                     MaterialTheme.colorScheme.tertiary
             ).value
@@ -134,22 +147,18 @@ fun ScPrefLayout(
 fun ScPrefCategoryHeader(
     title: String,
     isFirst: Boolean = false,
-    color: Color = MaterialTheme.colorScheme.primary,
-    style: TextStyle = MaterialTheme.typography.bodySmall,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    style: TextStyle = MaterialTheme.typography.labelLarge,
 ) {
     Column(Modifier.fillMaxWidth()) {
-        if (isFirst) {
-            Spacer(Modifier.height(Dimens.listPadding))
-        } else {
-            HorizontalDivider(modifier = Modifier.padding(top = Dimens.listPadding))
-        }
+        Spacer(Modifier.height(if (isFirst) 12.dp else 20.dp))
         Text(
             text = title,
             style = style,
             color = color,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Dimens.windowPadding, vertical = Dimens.listPadding),
+                .padding(horizontal = 24.dp, vertical = 8.dp),
         )
     }
 }

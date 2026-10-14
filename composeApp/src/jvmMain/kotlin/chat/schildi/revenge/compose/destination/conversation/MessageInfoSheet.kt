@@ -1,6 +1,7 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -56,11 +56,14 @@ fun MessageInfoSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(Res.string.action_message_info),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.titleLarge,
             )
             InfoItem(
@@ -89,8 +92,8 @@ fun MessageInfoSheet(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Surface(
-                    modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                 ) {
                     SelectionContainer {
@@ -112,12 +115,29 @@ fun MessageInfoSheet(
 
 @Composable
 private fun InfoItem(label: String, value: String) {
-    ListItem(
-        headlineContent = { Text(label) },
-        supportingContent = {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             SelectionContainer {
-                Text(value)
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
-        },
-    )
+        }
+    }
 }

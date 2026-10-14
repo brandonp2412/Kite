@@ -59,7 +59,6 @@ import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.displayName
 import chat.schildi.revenge.compose.destination.conversation.event.reaction.KiteReactionGlyph
-import chat.schildi.theme.scExposures
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import shire.res.generated.resources.Res
@@ -309,15 +308,15 @@ private fun ContextMenuActionRowContent(
         MaterialTheme.colorScheme.tertiary
     }
     Column(
-        modifier = modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = entry.title.render(),
             color = labelColor,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             entry.actions.forEach { action ->
                 val actionTitle = action.title.render()
                 val selected = when (val decoration = action.decoration) {
@@ -329,18 +328,18 @@ private fun ContextMenuActionRowContent(
                     onClick = { onActionClick(action) },
                     enabled = entry.enabled && action.enabled,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(52.dp)
                         .semantics {
                             contentDescription = actionTitle
                             this.selected = selected
                         },
                     shape = MaterialTheme.shapes.extraLarge,
                     color = if (selected) {
-                        MaterialTheme.scExposures.accentColor.copy(alpha = 0.20f)
+                        MaterialTheme.colorScheme.primaryContainer
                     } else {
-                        MaterialTheme.colorScheme.surfaceContainerHigh
+                        MaterialTheme.colorScheme.surfaceContainerHighest
                     },
-                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         val compactLabel = action.compactLabel
@@ -380,7 +379,7 @@ private fun ContextMenuDropdownMenuItemContent(
     val primaryColor = if (entry.critical) {
         MaterialTheme.colorScheme.error
     } else {
-        MaterialTheme.colorScheme.primary
+        MaterialTheme.colorScheme.onSurface
     }
     DropdownMenuItem(
         modifier = modifier,

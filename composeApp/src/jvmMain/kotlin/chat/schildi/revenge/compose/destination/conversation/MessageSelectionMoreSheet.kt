@@ -1,8 +1,11 @@
 package chat.schildi.revenge.compose.destination.conversation
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -15,7 +18,6 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -57,7 +59,10 @@ fun MessageSelectionMoreSheet(
     onReport: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
         if (canEdit) {
             SelectionMoreAction(Res.string.action_edit, { Icon(Icons.Default.Edit, null) }) {
                 onDismiss()
@@ -121,30 +126,46 @@ private fun SelectionMoreAction(
     onClick: () -> Unit,
 ) {
     val destructive = color == MaterialTheme.colorScheme.error
-    ListItem(
-        headlineContent = {
-            Text(
-                text = stringResource(label),
-                color = color,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp),
+        shape = MaterialTheme.shapes.large,
+        color = if (destructive) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.58f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
         },
-        leadingContent = {
+        contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Surface(
-                modifier = Modifier.size(38.dp),
-                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.size(40.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 color = if (destructive) {
                     MaterialTheme.colorScheme.errorContainer
                 } else {
                     MaterialTheme.colorScheme.surfaceContainerHighest
                 },
+                contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     icon()
                 }
             }
-        },
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+            Text(
+                text = stringResource(label),
+                color = color,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
 }

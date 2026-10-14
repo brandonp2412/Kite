@@ -1,6 +1,7 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -54,15 +55,20 @@ fun MessageSelectionBar(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        tonalElevation = 2.dp,
-        shadowElevation = 1.dp,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 6.dp),
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (canReply) {
@@ -97,8 +103,9 @@ private fun SelectionAction(
         onClick = onClick,
         modifier = Modifier
             .widthIn(min = 68.dp)
-            .heightIn(min = 54.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
+            .heightIn(min = 56.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
@@ -110,8 +117,8 @@ private fun SelectionAction(
                 text = stringResource(label),
                 modifier = Modifier.widthIn(max = 72.dp),
                 color = contentColor,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

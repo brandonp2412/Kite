@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -139,7 +140,7 @@ fun AccountManagementScreen(
         Column {
             val destinationState = LocalDestinationState.current
             if (destinationState != null) {
-                TopNavigation {
+                TopNavigation(forceVisible = true) {
                     TopNavigationTitle(stringResource(Res.string.manage_accounts))
                     TopNavigationCloseOrNavigateToInboxIcon()
                 }
@@ -183,9 +184,9 @@ private fun SectionHeader(
 ) {
     Text(
         text,
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.labelMedium,
-        modifier = modifier.padding(horizontal = Dimens.windowPadding),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = modifier.padding(horizontal = 24.dp, vertical = 8.dp),
     )
 }
 
@@ -193,11 +194,18 @@ private fun SectionHeader(
 private fun ExistingLogin(account: AccountManagementData, viewModel: AccountManagementViewModel) {
     val scope = rememberCoroutineScope()
     FocusContainer(role = FocusRole.CONTAINER_ITEM) {
-        Column(
-            Modifier
+        Surface(
+            modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Dimens.windowPadding)
+                .padding(horizontal = 16.dp, vertical = 2.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
             FlowRow(
                 horizontalArrangement = Dimens.horizontalArrangement,
                 verticalArrangement = Dimens.verticalArrangementSmall,
@@ -281,6 +289,7 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
                 Text("Backup state: ${account.backupState}")
                 Text("Recovery state: ${account.recoveryState}")
                 Text("Login type: ${account.session.loginType}")
+            }
             }
         }
     }
@@ -388,13 +397,20 @@ private fun NewLogin(viewModel: AccountManagementViewModel) {
             }
         }
     }
-    Column(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Dimens.windowPadding)
-            .imePadding(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         val error = loginError.value ?: hsDetails?.exceptionOrNull()?.let {
             it.message ?: it.toString()
         }
@@ -523,6 +539,7 @@ private fun NewLogin(viewModel: AccountManagementViewModel) {
                     }
                     true
                 }
+            }
             }
         }
     }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -34,14 +35,21 @@ fun ReportMessageSheet(
     onReport: (String) -> Unit,
 ) {
     var reason by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(Res.string.report_message_title))
+            Text(
+                text = stringResource(Res.string.report_message_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             OutlinedTextField(
                 value = reason,
                 onValueChange = { reason = it },
@@ -50,6 +58,7 @@ fun ReportMessageSheet(
                 minLines = 2,
                 maxLines = 4,
                 singleLine = false,
+                shape = MaterialTheme.shapes.large,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -68,6 +77,7 @@ fun ReportMessageSheet(
                         }
                     },
                     enabled = reason.isNotBlank(),
+                    shape = MaterialTheme.shapes.extraLarge,
                 ) {
                     Text(stringResource(Res.string.action_report_message))
                 }

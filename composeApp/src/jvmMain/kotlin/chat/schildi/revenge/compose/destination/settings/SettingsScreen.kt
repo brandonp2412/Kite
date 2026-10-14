@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.destination.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -150,7 +151,7 @@ fun SettingsScreen(
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
         Column {
-            TopNavigation {
+            TopNavigation(forceVisible = true) {
                 val destinationState = LocalDestinationState.current
                 if (viewModel.isRootPreferences) {
                     TopNavigationSearchOrTitle(stringResource(viewModel.prefScreen.collectAsState().value.prefScreen.titleRes))
@@ -195,7 +196,7 @@ fun SettingsScreen(
                 } else {
                     LazyColumn(
                         modifier = contentModifier,
-                        verticalArrangement = Dimens.verticalArrangement,
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
                         state = listState,
                         contentPadding = WindowInsets.navigationBars
                             .only(WindowInsetsSides.Bottom)
