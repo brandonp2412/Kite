@@ -851,3 +851,54 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - APK signing SHA-256: 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
 - Replace-install on Samsung SM-S931B: PASS; dataDir remained /data/user/0/app.kite.revenge.debug and firstInstallTime remained 2026-10-14 11:55:12. lastUpdateTime became 2026-10-15 06:06:57.
 - The app was not launched after installation and the Samsung remained dozing, preserving device/user state. Side-by-side visual QA and 120 Hz frame measurement remain intentionally deferred until the device is naturally awake/unlocked.
+
+
+## 2026-10-15 06:38 NZDT — Messages room details, members, reactions, and receipts
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages mapping in docs/design-reference/google-messages/README.md and used the committed Material 3 Expressive settings/detail references as the stable baseline for rounded content panels, per-row tonal containers, profile/detail navigation and compact metadata pills.
+- Cross-checked current public Google Messages Material 3 Expressive coverage showing rounded containers for details/settings surfaces and pill-like detail actions rather than flat Revenge rows.
+- Preserved Kite identity, Matrix-specific room metadata/actions, and the deliberate Inbox exception unchanged: search remains at the bottom.
+- The Samsung remained Dozing / non-interactive, so installed Google Messages was not opened or mutated merely for reference gathering and no fresh side-by-side claim is made.
+
+### Implemented
+- Reworked RoomDetailsScreen into the same Messages-style tonal hierarchy now used across Settings and profile surfaces:
+  - surfaceContainer destination chrome -> 28 dp rounded-top surfaceContainerLow content panel -> 20 dp surfaceContainerHigh detail/editor cards;
+  - 8 dp list rhythm and 16 x 14 dp card padding;
+  - room name, topic and private-name editors now sit in deliberate tonal cards rather than floating on the page;
+  - aliases, join rule, history visibility, room ID/type/version/predecessor and bridge metadata retain their existing copy/edit/navigation behavior but share one visual system;
+  - public/private/direct/encryption badges now use compact 16 dp surfaceContainerHighest pills instead of conversation-bubble styling.
+- Moved joinRuleRoomNames collection from inside a LazyColumn item to screen scope, avoiding lazy-item collector creation/recreation while preserving the existing Matrix state source.
+- Reworked RoomMembersScreen:
+  - matching rounded-top low-tonal panel and intentional loading/empty states;
+  - 12 dp list inset, 8 dp row spacing, stable room-member contentType;
+  - shared user rows now use 20 dp high-tonal cards, 72 dp minimum touch height and 48 dp avatars;
+  - removed accidental reuse of the outer row modifier on AvatarImage, preventing duplicated row modifiers from being applied to avatars.
+- Matrix-specific member role/power-level and non-joined membership states now render as compact 12 dp tonal pills in a FlowRow instead of stacked secondary text.
+- Applied the same detail-list system to message reactions and read receipts, including stable lazy content types and the shared 72 dp user-row treatment.
+- Changed the shared conversation-detail app-bar affordance from a Close X to an auto-mirrored back arrow while preserving the existing closeScreen navigation semantics for normal and split-pane layouts.
+- Audited Android notification actions without replacing working native behavior:
+  - inline RemoteInput reply, mark-as-read and conservative Copy code actions remain present;
+  - quick reply sends through the joined room live timeline, then updates private/full read markers only after a successful send;
+  - NotificationActionReceiver remains non-exported and uses goAsync for the asynchronous Matrix work.
+- No new per-row Matrix collectors, duplicated room state, blur/effect loops or decorative animations were introduced.
+
+### Validation
+- Cohesive source checkpoint: 1dc65e0399c07bb36b482a7f6ea0f576bb69cee8 (Polish Messages room detail surfaces), 7 files, 357 insertions / 219 deletions.
+- git diff --check and staged diff check: pass.
+- Glass with JDK 25 + /opt/android-sdk: :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass after the final slice, BUILD SUCCESSFUL in 34s, 87 actionable tasks.
+- Clean detached validation worktree /home/brandon/worktrees/kite-revenge-validate-dbd57198 checked out at exact source commit 1dc65e0399c07bb36b482a7f6ea0f576bb69cee8; Matrix Rust SDK remained pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 1m 3s, 279 actionable tasks.
+- Exact APK: /home/brandon/worktrees/kite-revenge-validate-dbd57198/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,886,711 bytes, SHA-256 79cd5eb7a14f6a71c5b3e27fa59dc849a3fb9863608be8af4d391790d0ac1241.
+- AAPT verifies package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37 and native code arm64-v8a.
+- APK signature verified with the existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung SM-S931B / 10.66.66.3:5555 preflight and postflight found only app.kite.revenge.debug among Kite packages. Production app.kite and redundant app.kite.revenge were not touched.
+- adb install -r returned Success. dataDir remained /data/user/0/app.kite.revenge.debug and firstInstallTime remained 2026-10-14 11:55:12; lastUpdateTime advanced from 2026-10-15 06:06:57 to 2026-10-15 06:37:17, preserving debug data/login.
+- The phone remained mWakefulness=Dozing / mHalInteractiveModeEnabled=false before and after installation. Neither Kite nor Google Messages was launched, no notification reply was sent, and no SMS/RCS state was touched.
+- No fresh side-by-side visual-parity or 120 Hz frame-time claim is made for this slice.
+- The unrelated in-progress device-local hide-room edits remain unstaged and excluded from this checkpoint: InboxViewModel.kt, AppStateStore.kt and the hide-chat/undo strings.
+
+### Next substantial slice
+- When the Samsung is naturally awake/unlocked, compare this exact installed PerfDebug build side-by-side with Google Messages across room details, member lists, reactions/read receipts, long names/MXIDs, dark mode and back navigation; fix concrete mismatches in the same run.
+- Capture controlled 120 Hz frame evidence for detail-list scrolling and Inbox/Conversation/detail navigation before claiming measurable performance parity.
+- Continue the adjacent Google-Messages-style room preview/join/invite and verification/dialog surfaces; perform controlled notification quick-reply/action E2E only when it can be done without disturbing production conversations or external recipients.
