@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -17,9 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NoEncryption
@@ -44,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import chat.schildi.lib.preferences.ScPrefs
@@ -76,7 +76,6 @@ import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_add_attachment
 import shire.res.generated.resources.action_clear_reply
 import shire.res.generated.resources.action_reply
-import shire.res.generated.resources.action_send
 import shire.res.generated.resources.hint_composer_audio
 import shire.res.generated.resources.hint_composer_caption
 import shire.res.generated.resources.hint_composer_edit
@@ -316,6 +315,14 @@ fun ComposerRow(
                     ),
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Send,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            if (draftState.canSend() && !isSendInProgress && bodyValidationError == null) {
+                                viewModel.sendMessage(actionContext)
+                            }
+                        },
                     ),
                     maxLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
                     minLines = 1,
@@ -388,24 +395,21 @@ fun ComposerRow(
                 }
                 }
             }
-            Spacer(Modifier.width(6.dp))
-            AnimatedContent(isSendInProgress) { sending ->
-                if (sending) {
-                    Box(Modifier.minimumInteractiveComponentSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(32.dp),
-                            color = MaterialTheme.scExposures.accentColor,
-                        )
+            if (isSendInProgress || draftState.type.needsClearButton() && draftState.isEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                AnimatedContent(isSendInProgress) { sending ->
+                    if (sending) {
+                        Box(Modifier.minimumInteractiveComponentSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                color = MaterialTheme.scExposures.accentColor,
+                            )
+                        }
+                    } else {
+                        ClearButton {
+                            viewModel.onComposerUpdate(DraftValue())
+                        }
                     }
-                } else if (draftState.type.needsClearButton() && draftState.isEmpty()) {
-                    ClearButton {
-                        viewModel.onComposerUpdate(DraftValue())
-                    }
-                } else {
-                    SendButton(
-                        enabled = draftState.canSend() && !isSendInProgress && bodyValidationError == null,
-                        onClick = { viewModel.sendMessage(actionContext) }
-                    )
                 }
             }
         }
@@ -523,31 +527,6 @@ fun RoomPrivacyIndicator(
             stringResource(Res.string.hint_not_encrypted),
             Modifier.size(12.dp),
             tint = tint,
-        )
-    }
-}
-
-@Composable
-fun SendButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val background = animateColorAsState(
-        if (enabled) MaterialTheme.scExposures.accentColor
-        else MaterialTheme.colorScheme.surfaceContainerHigh
-    )
-    val foreground = animateColorAsState(
-        if (enabled) MaterialTheme.scExposures.colorOnAccent
-        else MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier
-            .size(46.dp)
-            .background(background.value, CircleShape),
-    ) {
-        Icon(
-            Icons.AutoMirrored.Default.Send,
-            stringResource(Res.string.action_send),
-            tint = foreground.value,
         )
     }
 }

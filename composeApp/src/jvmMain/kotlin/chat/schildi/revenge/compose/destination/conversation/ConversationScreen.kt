@@ -160,7 +160,7 @@ fun ConversationScreen(
     BoxWithConstraints(
         modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .let {
             if (viewModel.modeSupportsComposer) {
                 it.windowInsetsPadding(
