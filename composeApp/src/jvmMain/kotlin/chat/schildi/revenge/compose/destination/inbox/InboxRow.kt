@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.LowPriority
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,7 +60,7 @@ import chat.schildi.revenge.actions.actionProvider
 import chat.schildi.revenge.actions.hierarchicalKeyboardActionProvider
 import chat.schildi.revenge.actions.plainTextCopyAction
 import chat.schildi.revenge.compose.components.WithContextMenu
-import chat.schildi.revenge.compose.components.WithTrackedAction
+import chat.schildi.revenge.compose.components.isAllowed
 import chat.schildi.revenge.compose.components.thenIf
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.model.conversation.ConversationViewModel
@@ -71,19 +71,18 @@ import chat.schildi.revenge.model.ScopedRoomKey
 import chat.schildi.theme.scExposures
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
+import io.element.android.libraries.matrix.api.room.RoomNotificationMode
 import io.element.android.libraries.matrix.api.roomlist.LatestEventValue
 import io.element.android.libraries.matrix.api.roomlist.RoomSummary
 import io.element.android.libraries.matrix.api.timeline.item.event.getDisplayName
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
-import shire.res.generated.resources.action_join
 import shire.res.generated.resources.membership_change_invited
 import shire.res.generated.resources.message_placeholder_invite
 import shire.res.generated.resources.message_placeholder_invite_by
 import shire.res.generated.resources.message_placeholder_invite_by_disambiguated
 import shire.res.generated.resources.message_placeholder_tombstone
-import shire.res.generated.resources.room_type_space
 import kotlin.math.max
 
 @Composable
@@ -101,12 +100,12 @@ fun InboxRow(
         val actionContext = currentActionContext()
         WithContextMenu(
             focusId = focusId,
-            entries = room.contextMenu(viewModel, focusId),
+            entries = room.contextMenu(),
         ) { openContextMenu ->
             Row(
                 modifier = modifier
                     .fillMaxWidth()
-                    .heightIn(min = Dimens.Inbox.avatar + Dimens.listPadding * 2)
+                    .heightIn(min = Dimens.Inbox.avatar + Dimens.listPaddingBig * 2)
                     .keyFocusable(
                         FocusRole.LIST_ITEM,
                         focusId,
@@ -134,6 +133,35 @@ fun InboxRow(
                                     isInvite = room.summary.isInvite(),
                                 ),
                             )
+                        } else if (room.summary.isInvite()) {
+                            val destinationStateHolder = LocalDestinationState.current
+                            val canJoin = PendingAction.RoomJoin(room.summary.roomId).isAllowed()
+                            actionProvider(
+                                primaryAction = if (canJoin) {
+                                    InteractionAction.Invoke {
+                                        val result = viewModel.joinRoom(
+                                            actionContext,
+                                            room.sessionId,
+                                            room.summary.roomId,
+                                        )
+                                        if (result is ActionResult.Success) {
+                                            destinationStateHolder?.navigate(
+                                                Destination.Conversation(room.sessionId, room.summary.roomId)
+                                            )
+                                        }
+                                        result is ActionResult.Actioned
+                                    }
+                                } else {
+                                    null
+                                },
+                                secondaryAction = openContextMenu,
+                                copyActions = plainTextCopyAction { room.summary.info.name },
+                                keyActions = inboxRowKeyboardActionProvider(
+                                    viewModel,
+                                    room.key,
+                                    isInvite = true,
+                                ),
+                            )
                         } else {
                             buildNavigationActionProvider(
                                 initialTitle = {
@@ -146,7 +174,7 @@ fun InboxRow(
                                 keyActions = inboxRowKeyboardActionProvider(
                                     viewModel,
                                     room.key,
-                                    isInvite = room.summary.isInvite(),
+                                    isInvite = false,
                                 ),
                                 secondaryAction = openContextMenu,
                                 copyActions = plainTextCopyAction { room.summary.info.name },
@@ -162,7 +190,7 @@ fun InboxRow(
                     )
                     .padding(
                         horizontal = Dimens.windowPadding,
-                        vertical = Dimens.listPadding,
+                        vertical = Dimens.listPaddingBig,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -202,53 +230,20 @@ fun InboxRow(
 
 @Composable
 private fun RowScope.ScNameAndTimestampRow(room: RoomSummary, hasDraft: Boolean) {
-    // Name
-    val primaryName = room.info.privateRoomName ?: room.info.name ?: room.roomId.value
-    val secondaryName = if (room.info.privateRoomName != null && room.info.name != null) {
-        room.info.name
-    } else {
-        null
-    }
+    val displayName = room.info.privateRoomName ?: room.info.name ?: room.roomId.value
     Text(
-        modifier = Modifier
-            .thenIf(secondaryName == null && !room.info.isSpace) {
-                weight(1f)
-            },
+        modifier = Modifier.weight(1f),
         style = MaterialTheme.typography.titleMedium,
-        text = primaryName,
+        text = displayName,
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        overflow = TextOverflow.Ellipsis,
     )
-    if (room.info.isSpace) {
-        Text(
-            modifier = Modifier
-                .padding(start = Dimens.horizontalItemPadding)
-                .thenIf(secondaryName == null) {
-                    weight(1f)
-                },
-            style = MaterialTheme.typography.titleMedium,
-            text = stringResource(Res.string.room_type_space),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-    if (secondaryName != null) {
-        Text(
-            modifier = Modifier
-                .padding(start = Dimens.horizontalItemPadding)
-                .weight(1f),
-            style = MaterialTheme.typography.titleMedium,
-            text = secondaryName,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
+
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(start = Dimens.horizontalItemPaddingBig),
+        horizontalArrangement = Arrangement.spacedBy(Dimens.horizontalItemPaddingSmall),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = Dimens.horizontalItemPadding),
     ) {
         if (hasDraft) {
             Icon(
@@ -258,25 +253,38 @@ private fun RowScope.ScNameAndTimestampRow(room: RoomSummary, hasDraft: Boolean)
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        // Favorite
-        if (room.info.isFavorite && ScPrefs.PIN_FAVORITES.value()) {
+
+        val notificationMode = room.info.userDefinedNotificationMode
+        if (
+            notificationMode == RoomNotificationMode.MENTIONS_AND_KEYWORDS_ONLY ||
+            notificationMode == RoomNotificationMode.MUTE
+        ) {
             Icon(
-                imageVector = Icons.Default.Star,
+                imageVector = Icons.Default.NotificationsOff,
                 contentDescription = null,
                 modifier = Modifier.size(Dimens.Inbox.smallIcon),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        // Low prio
-        if (room.info.isLowPriority && ScPrefs.BURY_LOW_PRIORITY.value()) {
+
+        if (room.info.isLowPriority) {
             Icon(
-                imageVector = Icons.Default.Archive,
+                imageVector = Icons.Default.LowPriority,
                 contentDescription = null,
                 modifier = Modifier.size(Dimens.Inbox.smallIcon),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.primary,
             )
         }
-        // Timestamp
+
+        if (room.info.isFavorite) {
+            Icon(
+                imageVector = Icons.Default.PushPin,
+                contentDescription = null,
+                modifier = Modifier.size(Dimens.Inbox.smallIcon),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+
         room.latestEventTimestamp?.let { timestamp ->
             Text(
                 text = DateTimeFormat.formatTimestampAsDateOrTime(timestamp),
@@ -378,32 +386,6 @@ private fun RowScope.ScLastMessageAndIndicatorRow(
         horizontalArrangement = Dimens.horizontalArrangement,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (room.isInvite()) {
-            val actionContext = currentActionContext()
-            val destinationStateHolder = LocalDestinationState.current
-            fun join(): Boolean {
-                val result = viewModel.joinRoom(actionContext, scopedRoom.sessionId, room.roomId)
-                if (result is ActionResult.Success) {
-                    destinationStateHolder?.navigate(Destination.Conversation(scopedRoom.sessionId, scopedRoom.summary.roomId))
-                }
-                return result is ActionResult.Actioned
-            }
-            WithTrackedAction(PendingAction.RoomJoin(room.roomId)) { enabled ->
-                Button(
-                    modifier = Modifier.keyFocusable(
-                        actionProvider = actionProvider(
-                            primaryAction = if (enabled) InteractionAction.Invoke(::join) else null,
-                        ),
-                        addMouseFocusable = false,
-                        addClickListener = false,
-                    ),
-                    enabled = enabled,
-                    onClick = { join() },
-                ) {
-                    Text(stringResource(Res.string.action_join))
-                }
-            }
-        }
         ScUnreadCounter(scopedRoom)
     }
 }

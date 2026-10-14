@@ -1,7 +1,7 @@
 package chat.schildi.revenge.compose.destination.inbox
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.LowPriority
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MeetingRoom
@@ -28,7 +28,6 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import shire.res.generated.resources.Res
-import shire.res.generated.resources.action_context_favorite_toggle
 import shire.res.generated.resources.action_context_low_priority_toggle
 import shire.res.generated.resources.action_join
 import shire.res.generated.resources.action_leave
@@ -37,11 +36,12 @@ import shire.res.generated.resources.action_mark_as_unread
 import shire.res.generated.resources.action_reject_invite
 import shire.res.generated.resources.action_show_more
 import shire.res.generated.resources.action_mute
+import shire.res.generated.resources.action_pin
 import shire.res.generated.resources.action_unmute
-import kotlin.uuid.Uuid
+import shire.res.generated.resources.action_unpin
 
 @Composable
-fun ScopedRoomSummary.contextMenu(focusId: Uuid): ImmutableList<ContextMenuEntry> {
+fun ScopedRoomSummary.contextMenu(): ImmutableList<ContextMenuEntry> {
     return if (summary.isInvite()) {
         val isInviteSeen = UiState.appStateStore.isInviteSeenFlow(key).collectAsState(false).value
         listOfNotNull(
@@ -93,8 +93,12 @@ fun ScopedRoomSummary.contextMenu(focusId: Uuid): ImmutableList<ContextMenuEntry
                 keyboardShortcut = Key.U,
             ).takeIf { unreadCounts.canMarkUnread() },
             ContextMenuActionEntry(
-                Res.string.action_context_favorite_toggle.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Favorite),
+                if (summary.info.isFavorite) {
+                    Res.string.action_unpin.toStringHolder()
+                } else {
+                    Res.string.action_pin.toStringHolder()
+                },
+                rememberVectorPainter(Icons.Default.PushPin),
                 Action.Room.MarkFavorite,
                 persistentListOf((!summary.info.isFavorite).toString()),
                 decoration = ContextMenuDecoration.Toggle(summary.info.isFavorite),
