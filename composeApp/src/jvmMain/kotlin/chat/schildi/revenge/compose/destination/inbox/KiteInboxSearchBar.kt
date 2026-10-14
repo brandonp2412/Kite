@@ -14,8 +14,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.LocalDestinationState
@@ -43,10 +50,19 @@ fun KiteInboxSearchBar(
 ) {
     val handler = LocalKeyboardActionHandler.current
     val destinationState = LocalDestinationState.current
+    val focusManager = LocalFocusManager.current
     val searchActive = query != null
+    var isFocused by remember { mutableStateOf(false) }
 
-    PlatformBackHandler(enabled = searchActive) {
+    DisposableEffect(focusManager) {
+        onDispose {
+            focusManager.clearFocus()
+        }
+    }
+
+    PlatformBackHandler(enabled = searchActive || isFocused) {
         handler.clearSearch()
+        focusManager.clearFocus()
     }
 
     TextField(
@@ -108,7 +124,11 @@ fun KiteInboxSearchBar(
             handler.onSearchEnter(viewModel, null)
         },
         modifier = modifier
-            .keyFocusable(role = FocusRole.SEARCH_BAR),
+            .onFocusChanged { isFocused = it.isFocused }
+            .keyFocusable(
+                role = FocusRole.SEARCH_BAR,
+                requestFocusOnMount = false,
+            ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
             unfocusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,

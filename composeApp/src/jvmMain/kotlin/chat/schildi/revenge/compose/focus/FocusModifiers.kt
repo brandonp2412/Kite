@@ -129,6 +129,7 @@ fun Modifier.keyFocusable(
     id: Uuid = rememberFocusId(),
     actionProvider: ActionProvider = actionProvider(),
     focusRequester: FocusRequester = remember { FocusRequester() },
+    requestFocusOnMount: Boolean = true,
     enableClicks: Boolean = true,
     addClickListener: Boolean = true,
     addMouseFocusable: Boolean = role.allowsFocusable() && actionProvider.primaryAction == null,
@@ -137,7 +138,7 @@ fun Modifier.keyFocusable(
 ): Modifier {
     val keyHandler = LocalKeyboardActionHandler.current
     val destinationState = LocalDestinationState.current
-    if (role.shouldAutoRequestFocus()) {
+    if (requestFocusOnMount && role.shouldAutoRequestFocus()) {
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()
         }
