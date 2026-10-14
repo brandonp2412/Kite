@@ -4,6 +4,9 @@
         name="attachments"
         path="attachments/" />
     <cache-path
+        name="composer-attachments"
+        path="composerAttachments/" />
+    <cache-path
         name="external-view"
         path="external-view/" />
 </paths>

@@ -104,6 +104,9 @@
     <string name="action_done">Done</string>
     <string name="action_processing_done">Done</string>
     <string name="action_add_attachment">Add attachment</string>
+    <string name="action_attachment_camera">Camera</string>
+    <string name="action_attachment_file">Upload file</string>
+    <string name="action_attachment_gallery">Gallery</string>
     <string name="action_clear_attachment">Remove attachment</string>
     <string name="action_join">Join</string>
     <string name="action_reject">Reject</string>

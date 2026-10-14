@@ -59,6 +59,7 @@ import chat.schildi.revenge.model.ComposerState
 import chat.schildi.revenge.model.ComposerViewModel
 import chat.schildi.revenge.model.DraftType
 import chat.schildi.revenge.model.DraftValue
+import chat.schildi.revenge.util.filepicker.availableAttachmentPickerKinds
 import chat.schildi.theme.scExposures
 import com.beeper.android.messageformat.MatrixBodyParseResult
 import kotlinx.coroutines.Dispatchers
@@ -108,9 +109,18 @@ fun ComposerRow(
     val suggestionsState = viewModel.composerSuggestions.collectAsState().value
     val composerInfo = viewModel.composerRoomInfo.collectAsState().value
     val isSendInProgress = viewModel.isSendInProgress.collectAsState().value
+    var showAttachmentPicker by remember { mutableStateOf(false) }
     val draftTheme = MaterialTheme.scExposures.draftTheme
     LaunchedEffect(draftTheme) {
         viewModel.updateDraftTheme(draftTheme)
+    }
+    if (showAttachmentPicker) {
+        val actionContext = currentActionContext()
+        ComposerAttachmentPicker(
+            availableKinds = availableAttachmentPickerKinds,
+            onPick = { viewModel.launchAttachmentPicker(actionContext, it) },
+            onDismiss = { showAttachmentPicker = false },
+        )
     }
     Column(modifier) {
         ComposerSuggestions(
@@ -145,7 +155,7 @@ fun ComposerRow(
             ) {
                 WithTooltip(stringResource(Res.string.action_add_attachment)) {
                     ScIconButton(
-                        onClick = { viewModel.launchAttachmentPicker(actionContext) },
+                        onClick = { showAttachmentPicker = true },
                         enabled = !isSendInProgress,
                         minWidth = Dimens.Conversation.Composer.buttonWidth,
                         minHeight = Dimens.Conversation.Composer.buttonHeight,
