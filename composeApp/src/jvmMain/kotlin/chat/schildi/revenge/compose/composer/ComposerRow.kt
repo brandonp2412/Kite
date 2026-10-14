@@ -75,6 +75,7 @@ import org.matrix.rustcomponents.sdk.markdownToHtml
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_add_attachment
 import shire.res.generated.resources.action_clear_reply
+import shire.res.generated.resources.action_reply
 import shire.res.generated.resources.action_send
 import shire.res.generated.resources.hint_composer_audio
 import shire.res.generated.resources.hint_composer_caption
@@ -134,26 +135,6 @@ fun ComposerRow(
             viewModel::onConfirmSuggestion,
             modifier = Modifier.heightIn(max = 200.dp),
         )
-        if (draftState.inReplyTo != null) {
-            Row(
-                Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerHigh,
-                        RoundedCornerShape(20.dp),
-                    )
-                    .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ReplyContent(draftState.inReplyTo, null, Modifier.weight(1f))
-                ClearButton(Modifier.padding(start = Dimens.horizontalItemPaddingSmall)) {
-                    viewModel.onComposerUpdate(draftState.copy(inReplyTo = null))
-                }
-            }
-        }
-        if (draftState.attachment != null) {
-            ComposerAttachment(draftState.attachment, viewModel::clearAttachment)
-        }
         val bodyValidationError = remember(draftState.rawBody) { draftState.bodyValidationError() }
         if (bodyValidationError != null) {
             Text(
@@ -168,186 +149,240 @@ fun ComposerRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val actionContext = currentActionContext()
-            Row(
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 56.dp)
                     .background(
                         MaterialTheme.colorScheme.surfaceContainerHigh,
                         RoundedCornerShape(28.dp),
                     ),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                AnimatedVisibility(
-                    draftState.canAddAttachment(),
-            ) {
-                WithTooltip(stringResource(Res.string.action_add_attachment)) {
-                    ScIconButton(
-                        onClick = { showAttachmentPicker = true },
-                        enabled = !isSendInProgress,
-                        minWidth = Dimens.Conversation.Composer.buttonWidth,
-                        minHeight = Dimens.Conversation.Composer.buttonHeight,
+                if (draftState.inReplyTo != null) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 2.dp),
                     ) {
-                        val color = animateColorAsState(
-                            if (isSendInProgress)
-                                MaterialTheme.colorScheme.tertiary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                        ).value
-                        Icon(
-                            Icons.Default.Add,
-                            stringResource(Res.string.action_add_attachment),
-                            modifier = Modifier.size(24.dp),
-                            tint = color,
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.action_reply),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.scExposures.accentColor,
+                                modifier = Modifier.weight(1f),
+                            )
+                            ComposerContextClearButton(
+                                contentDescription = stringResource(Res.string.action_clear_reply),
+                            ) {
+                                viewModel.onComposerUpdate(draftState.copy(inReplyTo = null))
+                            }
+                        }
+                        ReplyContent(
+                            draftState.inReplyTo,
+                            null,
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(end = 10.dp, bottom = 6.dp),
                         )
                     }
+                } else if (draftState.type == DraftType.EDIT || draftState.type == DraftType.EDIT_CAPTION) {
+                    ComposerModeHeader(
+                        label = if (draftState.type == DraftType.EDIT_CAPTION) {
+                            stringResource(Res.string.hint_composer_edit_caption)
+                        } else {
+                            stringResource(Res.string.hint_composer_edit)
+                        },
+                        onClear = { viewModel.onComposerUpdate(DraftValue()) },
+                    )
                 }
-            }
-            if (ScPrefs.FORMATTED_COMPOSER_PREVIEW.value() && draftState.format != ComposerFormat.PLAIN) {
-                val content = formattedMessagePreview(draftState)
-                TextLikeMessageContent(
-                    content,
-                    Modifier
-                        .fillMaxWidth(fraction = 0.4f)
-                        .padding(horizontal = Dimens.horizontalItemPadding)
-                        .border(1.dp, MaterialTheme.scExposures.accentColor, Dimens.Conversation.messageBubbleShape)
-                        .padding(Dimens.Conversation.messageBubbleInnerPadding),
-                )
-            }
-            var isFocused by remember { mutableStateOf(false) }
-            val maxLinesFocused = ScPrefs.COMPOSER_MAX_LINES.value()
-            val maxLinesUnfocused = ScPrefs.COMPOSER_MAX_LINES_UNFOCUSED.value()
-            val composerHint = when (draftState.type) {
-                DraftType.TEXT -> stringResource(Res.string.hint_composer_text)
-                DraftType.NOTICE -> stringResource(Res.string.hint_composer_notice).appendComposerFormat(draftState)
-                DraftType.EMOTE -> stringResource(Res.string.hint_composer_emote).appendComposerFormat(draftState)
-                DraftType.EDIT -> stringResource(Res.string.hint_composer_edit)
-                DraftType.EDIT_CAPTION -> stringResource(Res.string.hint_composer_edit_caption)
-                DraftType.REACTION -> stringResource(Res.string.hint_composer_reaction)
-                DraftType.STICKER -> stringResource(Res.string.hint_composer_sticker_shortcode)
-                DraftType.ATTACHMENT -> when (draftState.attachment) {
-                    is Attachment.Audio -> stringResource(Res.string.hint_composer_audio)
-                    is Attachment.Generic -> stringResource(Res.string.hint_composer_file)
-                    is Attachment.Image -> stringResource(Res.string.hint_composer_image)
-                    is Attachment.Video -> stringResource(Res.string.hint_composer_video)
-                    null -> stringResource(Res.string.hint_composer_caption)
+
+                if (draftState.attachment != null) {
+                    ComposerAttachment(
+                        attachment = draftState.attachment,
+                        onRemoveClick = viewModel::clearAttachment,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-                DraftType.CUSTOM_EVENT -> draftState.customEventType ?: ""
-                DraftType.CUSTOM_STATE_EVENT -> {
-                    if (draftState.stateKey == null) {
-                        draftState.customEventType ?: ""
-                    } else {
-                        buildString {
-                            append(draftState.customEventType ?: "")
-                            append(" ")
-                            append(draftState.stateKey)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AnimatedVisibility(
+                        draftState.canAddAttachment(),
+                    ) {
+                        WithTooltip(stringResource(Res.string.action_add_attachment)) {
+                            ScIconButton(
+                                onClick = { showAttachmentPicker = true },
+                                enabled = !isSendInProgress,
+                                minWidth = Dimens.Conversation.Composer.buttonWidth,
+                                minHeight = Dimens.Conversation.Composer.buttonHeight,
+                            ) {
+                                val color = animateColorAsState(
+                                    if (isSendInProgress)
+                                        MaterialTheme.colorScheme.tertiary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                ).value
+                                Icon(
+                                    Icons.Default.Add,
+                                    stringResource(Res.string.action_add_attachment),
+                                    modifier = Modifier.size(24.dp),
+                                    tint = color,
+                                )
+                            }
+                        }
+                    }
+                if (ScPrefs.FORMATTED_COMPOSER_PREVIEW.value() && draftState.format != ComposerFormat.PLAIN) {
+                    val content = formattedMessagePreview(draftState)
+                    TextLikeMessageContent(
+                        content,
+                        Modifier
+                            .fillMaxWidth(fraction = 0.4f)
+                            .padding(horizontal = Dimens.horizontalItemPadding)
+                            .border(1.dp, MaterialTheme.scExposures.accentColor, Dimens.Conversation.messageBubbleShape)
+                            .padding(Dimens.Conversation.messageBubbleInnerPadding),
+                    )
+                }
+                var isFocused by remember { mutableStateOf(false) }
+                val maxLinesFocused = ScPrefs.COMPOSER_MAX_LINES.value()
+                val maxLinesUnfocused = ScPrefs.COMPOSER_MAX_LINES_UNFOCUSED.value()
+                val composerHint = when (draftState.type) {
+                    DraftType.TEXT -> stringResource(Res.string.hint_composer_text)
+                    DraftType.NOTICE -> stringResource(Res.string.hint_composer_notice).appendComposerFormat(draftState)
+                    DraftType.EMOTE -> stringResource(Res.string.hint_composer_emote).appendComposerFormat(draftState)
+                    DraftType.EDIT -> stringResource(Res.string.hint_composer_edit)
+                    DraftType.EDIT_CAPTION -> stringResource(Res.string.hint_composer_edit_caption)
+                    DraftType.REACTION -> stringResource(Res.string.hint_composer_reaction)
+                    DraftType.STICKER -> stringResource(Res.string.hint_composer_sticker_shortcode)
+                    DraftType.ATTACHMENT -> when (draftState.attachment) {
+                        is Attachment.Audio -> stringResource(Res.string.hint_composer_audio)
+                        is Attachment.Generic -> stringResource(Res.string.hint_composer_file)
+                        is Attachment.Image -> stringResource(Res.string.hint_composer_image)
+                        is Attachment.Video -> stringResource(Res.string.hint_composer_video)
+                        null -> stringResource(Res.string.hint_composer_caption)
+                    }
+                    DraftType.CUSTOM_EVENT -> draftState.customEventType ?: ""
+                    DraftType.CUSTOM_STATE_EVENT -> {
+                        if (draftState.stateKey == null) {
+                            draftState.customEventType ?: ""
+                        } else {
+                            buildString {
+                                append(draftState.customEventType ?: "")
+                                append(" ")
+                                append(draftState.stateKey)
+                            }
                         }
                     }
                 }
-            }
-            val composerHintColor = animateColorAsState(
-                when (draftState.type) {
-                    DraftType.TEXT,
-                    DraftType.EDIT,
-                    DraftType.EDIT_CAPTION,
-                    DraftType.ATTACHMENT -> MaterialTheme.colorScheme.onSurfaceVariant
+                val composerHintColor = animateColorAsState(
+                    when (draftState.type) {
+                        DraftType.TEXT,
+                        DraftType.EDIT,
+                        DraftType.EDIT_CAPTION,
+                        DraftType.ATTACHMENT -> MaterialTheme.colorScheme.onSurfaceVariant
 
-                    DraftType.STICKER,
-                    DraftType.REACTION -> MaterialTheme.scExposures.reactHint
+                        DraftType.STICKER,
+                        DraftType.REACTION -> MaterialTheme.scExposures.reactHint
 
-                    DraftType.NOTICE,
-                    DraftType.EMOTE,
-                    DraftType.CUSTOM_EVENT,
-                    DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
-                }
-            ).value
-            BasicTextField(
-                value = draftState.textFieldValue,
-                onValueChange = {
-                    viewModel.onComposerUpdate(draftState.copy(textFieldValue = it))
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 56.dp)
-                    .keyFocusable(role = FocusRole.MESSAGE_COMPOSER)
-                    .onFocusChanged {
-                        isFocused = it.isFocused
+                        DraftType.NOTICE,
+                        DraftType.EMOTE,
+                        DraftType.CUSTOM_EVENT,
+                        DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
+                    }
+                ).value
+                BasicTextField(
+                    value = draftState.textFieldValue,
+                    onValueChange = {
+                        viewModel.onComposerUpdate(draftState.copy(textFieldValue = it))
                     },
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                ),
-                maxLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
-                minLines = 1,
-                cursorBrush = SolidColor(MaterialTheme.scExposures.accentColor),
-                decorationBox = { innerTextField ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 2.dp, end = 4.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        if (draftState.textFieldValue.text.isEmpty()) {
-                            Text(
-                                composerHint,
-                                color = composerHintColor,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 56.dp)
+                        .keyFocusable(role = FocusRole.MESSAGE_COMPOSER)
+                        .onFocusChanged {
+                            isFocused = it.isFocused
+                        },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                    ),
+                    maxLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
+                    minLines = 1,
+                    cursorBrush = SolidColor(MaterialTheme.scExposures.accentColor),
+                    decorationBox = { innerTextField ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 2.dp, end = 4.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            if (draftState.textFieldValue.text.isEmpty()) {
+                                Text(
+                                    composerHint,
+                                    color = composerHintColor,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                )
+                            }
+                            innerTextField()
+                        }
+                    },
+                )
+                AnimatedVisibility(
+                    draftState.type == DraftType.STICKER ||
+                            draftState.type == DraftType.TEXT && composerInfo?.canSendStickers == true &&
+                                    (draftState.isEmpty() || draftState.isValidSticker)
+                ) {
+                    WithTooltip(stringResource(Res.string.hint_composer_sticker)) {
+                        ScIconButton(
+                            onClick = { viewModel.toggleStickerMode() },
+                            enabled = !isSendInProgress,
+                            minWidth = Dimens.Conversation.Composer.buttonWidth,
+                            minHeight = Dimens.Conversation.Composer.buttonHeight,
+                        ) {
+                            val color = animateColorAsState(
+                                if (draftState.type == DraftType.STICKER)
+                                    MaterialTheme.scExposures.accentColor
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                            ).value
+                            Icon(
+                                Icons.Outlined.EmojiEmotions,
+                                stringResource(Res.string.hint_composer_sticker),
+                                tint = color,
                             )
                         }
-                        innerTextField()
-                    }
-                },
-            )
-            AnimatedVisibility(
-                draftState.type == DraftType.STICKER ||
-                        draftState.type == DraftType.TEXT && composerInfo?.canSendStickers == true &&
-                                (draftState.isEmpty() || draftState.isValidSticker)
-            ) {
-                WithTooltip(stringResource(Res.string.hint_composer_sticker)) {
-                    ScIconButton(
-                        onClick = { viewModel.toggleStickerMode() },
-                        enabled = !isSendInProgress,
-                        minWidth = Dimens.Conversation.Composer.buttonWidth,
-                        minHeight = Dimens.Conversation.Composer.buttonHeight,
-                    ) {
-                        val color = animateColorAsState(
-                            if (draftState.type == DraftType.STICKER)
-                                MaterialTheme.scExposures.accentColor
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                        ).value
-                        Icon(
-                            Icons.Outlined.EmojiEmotions,
-                            stringResource(Res.string.hint_composer_sticker),
-                            tint = color,
-                        )
                     }
                 }
-            }
-            AnimatedVisibility(
-                draftState.type == DraftType.TEXT &&
-                        draftState.attachment == null &&
-                        AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
-            ) {
-                WithTooltip(stringResource(Res.string.action_add_attachment)) {
-                    ScIconButton(
-                        onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
-                        enabled = !isSendInProgress,
-                        minWidth = Dimens.Conversation.Composer.buttonWidth,
-                        minHeight = Dimens.Conversation.Composer.buttonHeight,
-                    ) {
-                        Icon(
-                            Icons.Outlined.PhotoLibrary,
-                            stringResource(Res.string.action_add_attachment),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp),
-                        )
+                AnimatedVisibility(
+                    draftState.type == DraftType.TEXT &&
+                            draftState.attachment == null &&
+                            AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
+                ) {
+                    WithTooltip(stringResource(Res.string.action_add_attachment)) {
+                        ScIconButton(
+                            onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
+                            enabled = !isSendInProgress,
+                            minWidth = Dimens.Conversation.Composer.buttonWidth,
+                            minHeight = Dimens.Conversation.Composer.buttonHeight,
+                        ) {
+                            Icon(
+                                Icons.Outlined.PhotoLibrary,
+                                stringResource(Res.string.action_add_attachment),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
-            }
+                }
             }
             Spacer(Modifier.width(6.dp))
             AnimatedContent(isSendInProgress) { sending ->
@@ -370,6 +405,48 @@ fun ComposerRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ComposerModeHeader(
+    label: String,
+    onClear: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.scExposures.accentColor,
+            modifier = Modifier.weight(1f),
+        )
+        ComposerContextClearButton(
+            contentDescription = label,
+            onClick = onClear,
+        )
+    }
+}
+
+@Composable
+private fun ComposerContextClearButton(
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(36.dp),
+    ) {
+        Icon(
+            Icons.Default.Clear,
+            contentDescription,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

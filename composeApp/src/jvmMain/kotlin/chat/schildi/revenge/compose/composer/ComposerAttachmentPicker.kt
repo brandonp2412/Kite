@@ -30,12 +30,11 @@ import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.util.filepicker.AttachmentPickerKind
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
-import shire.res.generated.resources.action_add_attachment
 import shire.res.generated.resources.action_attachment_camera
 import shire.res.generated.resources.action_attachment_file
 import shire.res.generated.resources.action_attachment_gallery
 
-private val AttachmentActionShape = RoundedCornerShape(24.dp)
+private val AttachmentActionShape = RoundedCornerShape(28.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +45,8 @@ internal fun ComposerAttachmentPicker(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
     ) {
         Column(
             Modifier
@@ -54,12 +54,6 @@ internal fun ComposerAttachmentPicker(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp),
         ) {
-            Text(
-                text = stringResource(Res.string.action_add_attachment),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -82,9 +76,9 @@ internal fun ComposerAttachmentPicker(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(72.dp)
+                                    .size(width = 68.dp, height = 56.dp)
                                     .clip(AttachmentActionShape)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                                     .clickable {
                                         onDismiss()
                                         onPick(kind)
@@ -95,7 +89,7 @@ internal fun ComposerAttachmentPicker(
                                     imageVector = icon,
                                     contentDescription = label,
                                     tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(28.dp),
+                                    modifier = Modifier.size(26.dp),
                                 )
                             }
                             Spacer(Modifier.height(8.dp))

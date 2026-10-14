@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -158,7 +159,7 @@ fun ConversationScreen(
     BoxWithConstraints(
         modifier.fillMaxSize().let {
             if (viewModel.modeSupportsComposer) {
-                it.safeDrawingPadding()
+                it.safeDrawingPadding().imePadding()
             } else {
                 it.windowInsetsPadding(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),

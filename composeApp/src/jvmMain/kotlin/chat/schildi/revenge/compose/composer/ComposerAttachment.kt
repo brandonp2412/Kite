@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -14,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.compose.destination.conversation.event.message.FileMessageContent
 import chat.schildi.revenge.compose.destination.conversation.event.message.FileMessageRenderType
 import chat.schildi.revenge.compose.destination.conversation.event.message.ImageMessageContent
@@ -32,13 +32,19 @@ fun ComposerAttachment(
 ) {
     Row(
         modifier
-            .padding(horizontal = Dimens.windowPadding, vertical = 8.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
-            .padding(Dimens.Conversation.messageBubbleInnerPadding),
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(20.dp))
+            .padding(start = 10.dp, end = 2.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ComposerAttachmentContent(attachment)
-        IconButton(onClick = onRemoveClick) {
+        ComposerAttachmentContent(
+            attachment = attachment,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(
+            onClick = onRemoveClick,
+            modifier = Modifier.size(36.dp),
+        ) {
             Icon(
                 Icons.Default.Clear,
                 stringResource(Res.string.action_clear_attachment),
@@ -58,20 +64,20 @@ fun ComposerAttachmentContent(
             is Attachment.Image -> {
                 ImageMessageContent(
                     model = attachment.file,
-                    minWidth = Dimens.Conversation.imageMinWidth,
-                    minHeight = Dimens.Conversation.imageMinHeight,
-                    maxWidth = Dimens.Conversation.imageMaxWidth,
-                    maxHeight = Dimens.Conversation.imageRepliedToMaxHeight,
+                    minWidth = 72.dp,
+                    minHeight = 72.dp,
+                    maxWidth = 128.dp,
+                    maxHeight = 96.dp,
                 )
             }
 
             is Attachment.Video -> {
                 VideoMessageContent(
                     model = attachment.thumbnail?.data ?: attachment.file,
-                    minWidth = Dimens.Conversation.imageMinWidth,
-                    minHeight = Dimens.Conversation.imageMinHeight,
-                    maxWidth = Dimens.Conversation.imageMaxWidth,
-                    maxHeight = Dimens.Conversation.imageRepliedToMaxHeight,
+                    minWidth = 72.dp,
+                    minHeight = 72.dp,
+                    maxWidth = 128.dp,
+                    maxHeight = 96.dp,
                 )
             }
 
