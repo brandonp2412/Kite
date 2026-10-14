@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.AddReaction
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.PublicOff
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -27,9 +29,11 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
 import chat.schildi.lib.preferences.ScPrefs
+import chat.schildi.revenge.actions.ActionResult
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.components.ContextMenuActionEntry
 import chat.schildi.revenge.compose.components.ContextMenuActionRowEntry
+import chat.schildi.revenge.compose.components.ContextMenuCallbackEntry
 import chat.schildi.revenge.compose.components.ContextMenuDecoration
 import chat.schildi.revenge.compose.components.ContextMenuEntry
 import chat.schildi.revenge.compose.components.LocalSessionId
@@ -51,11 +55,13 @@ import io.element.android.libraries.matrix.api.timeline.item.event.EventTimeline
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
 import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
+import io.element.android.libraries.matrix.api.timeline.item.event.StickerContent
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_copy_body
+import shire.res.generated.resources.action_deselect_message
 import shire.res.generated.resources.action_copy_event_source
 import shire.res.generated.resources.action_download
 import shire.res.generated.resources.action_download_and_open
@@ -69,6 +75,7 @@ import shire.res.generated.resources.action_mark_as_read_type_read_receipt_publi
 import shire.res.generated.resources.action_react
 import shire.res.generated.resources.action_redact
 import shire.res.generated.resources.action_reply
+import shire.res.generated.resources.action_select_message
 import shire.res.generated.resources.action_thread
 import shire.res.generated.resources.action_view_event_source
 import shire.res.generated.resources.action_view_reactions
@@ -83,11 +90,15 @@ fun EventTimelineItem.contextMenu(
     permissions: ConversationPermissions?,
     messageMetadata: MessageMetadata?,
     currentThreadId: ThreadId?,
+    isSelected: Boolean = false,
+    onToggleSelection: (() -> Unit)? = null,
 ): ImmutableList<ContextMenuEntry> {
     val messageContent = content as? MessageContent
+    val stickerContent = content as? StickerContent
     val pollContent = content as? PollContent
+    val isUserMessage = messageContent != null || stickerContent != null || pollContent != null
     val showDevTools = ScPrefs.DEV_QUICK_OPTIONS.value()
-    if (messageContent == null && pollContent == null && !showDevTools) {
+    if (!isUserMessage && !showDevTools) {
         return persistentListOf()
     }
     val canRedact = if (isOwn) {
@@ -122,14 +133,14 @@ fun EventTimelineItem.contextMenu(
             rememberVectorPainter(Icons.AutoMirrored.Default.Reply),
             Action.Event.ComposeReply,
             keyboardShortcut = Key.R,
-        ).takeIf { messageContent != null && permissions?.canSendMessages ?: false },
+        ).takeIf { isUserMessage && eventId != null && permissions?.canSendMessages ?: false },
         ContextMenuActionEntry(
             Res.string.action_thread.toStringHolder(),
             rememberVectorPainter(Icons.Default.Gesture),
             Action.Navigation.NavigateAuto,
             actionArgs = persistentListOf(DestinationEnum.ConversationThread.destName, sessionId.value, roomId.value, threadRootId ?: ""),
             keyboardShortcut = Key.T,
-        ).takeIf { threadRootId != null && threadRootId != currentThreadId?.value && messageContent != null },
+        ).takeIf { threadRootId != null && threadRootId != currentThreadId?.value && isUserMessage },
         ContextMenuActionEntry(
             Res.string.action_edit.toStringHolder(),
             rememberVectorPainter(Icons.Default.Edit),
@@ -163,13 +174,13 @@ fun EventTimelineItem.contextMenu(
                     dismissParentsOnAutoClose = true,
                 )
             ).toPersistentList(),
-        ).takeIf { messageContent != null && permissions?.canSendReactions ?: false },
+        ).takeIf { isUserMessage && eventId != null && permissions?.canSendReactions ?: false },
         ContextMenuActionEntry(
             Res.string.action_react.toStringHolder(),
             rememberVectorPainter(Icons.Default.AddReaction),
             Action.Event.ComposeReaction,
             keyboardShortcut = Key.C,
-        ).takeIf { messageContent != null && permissions?.canSendReactions ?: false },
+        ).takeIf { isUserMessage && eventId != null && permissions?.canSendReactions ?: false },
         ContextMenuActionEntry(
             Res.string.action_view_reactions.toStringHolder(),
             rememberVectorPainter(Icons.Default.EmojiPeople),
@@ -197,6 +208,20 @@ fun EventTimelineItem.contextMenu(
             Action.Event.CopyContent,
             keyboardShortcut = Key.Y,
         ).takeIf { messageMetadata?.preFormattedContent != null },
+        ContextMenuCallbackEntry(
+            title = if (isSelected) {
+                Res.string.action_deselect_message.toStringHolder()
+            } else {
+                Res.string.action_select_message.toStringHolder()
+            },
+            icon = rememberVectorPainter(
+                if (isSelected) Icons.Default.CheckCircle else Icons.Outlined.RadioButtonUnchecked
+            ),
+            action = {
+                onToggleSelection?.invoke()
+                ActionResult.Success()
+            },
+        ).takeIf { onToggleSelection != null },
         ContextMenuSubmenuEntry(
             Res.string.action_mark_as_read.toStringHolder(),
             rememberVectorPainter(Icons.Default.Visibility),

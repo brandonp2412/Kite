@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -56,6 +57,7 @@ import chat.schildi.revenge.LocalDestinationState
 import chat.schildi.revenge.LocalMatrixBodyDrawStyle
 import chat.schildi.revenge.LocalMatrixBodyFormatter
 import chat.schildi.revenge.NavigationPreference
+import chat.schildi.revenge.actions.ActionResult
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.actions.LocalKeyboardActionProvider
@@ -66,8 +68,13 @@ import chat.schildi.revenge.actions.currentActionContext
 import chat.schildi.revenge.actions.hierarchicalKeyboardActionProvider
 import chat.schildi.revenge.actions.rememberListActions
 import chat.schildi.revenge.compose.composer.ComposerRow
+import chat.schildi.revenge.compose.components.PlatformBackHandler
 import chat.schildi.revenge.compose.destination.SplashScreenContent
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
+import chat.schildi.revenge.compose.destination.conversation.event.MessageSwipeConfig
+import chat.schildi.revenge.compose.destination.conversation.event.isKiteSelectableMessage
+import chat.schildi.revenge.compose.destination.conversation.event.kiteSelectionKey
+import chat.schildi.revenge.compose.destination.conversation.event.parseMessageSwipeAction
 import chat.schildi.revenge.compose.destination.conversation.event.message.LocalUrlPreviewStateProvider
 import chat.schildi.revenge.compose.destination.conversation.virtual.PagingIndicator
 import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
@@ -81,8 +88,10 @@ import chat.schildi.revenge.matrixBodyFormatter
 import chat.schildi.revenge.model.CheckpointLoadState
 import chat.schildi.revenge.model.LoadCheckPoint
 import chat.schildi.revenge.model.conversation.EventJumpTarget
+import chat.schildi.revenge.model.conversation.ScTimelineItem
 import chat.schildi.revenge.model.conversation.LocalEventActionViewModel
 import chat.schildi.revenge.preferences.value
+import chat.schildi.revenge.plaintext.EventTextFormat
 import chat.schildi.revenge.publishTitle
 import chat.schildi.revenge.viewModelKey
 import co.touchlab.kermit.Logger
@@ -90,8 +99,12 @@ import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
+import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
+import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_jump_to_bottom
@@ -149,6 +162,33 @@ fun ConversationScreen(
         val density = LocalDensity.current
 
         val timelineItems = viewModel.timelineItems.collectAsState().value
+        val selectedMessageKeysState = remember { mutableStateOf(persistentSetOf<String>()) }
+        val selectedMessageKeys = selectedMessageKeysState.value
+        val selectionActive = selectedMessageKeys.isNotEmpty()
+        val selectedTimelineItems = remember(timelineItems, selectedMessageKeys) {
+            timelineItems.orEmpty().mapNotNull { item ->
+                val event = (item.item as? MatrixTimelineItem.Event)?.event ?: return@mapNotNull null
+                event.kiteSelectionKey()
+                    ?.takeIf { it in selectedMessageKeys }
+                    ?.let { item }
+            }.toPersistentList()
+        }
+        val toggleMessageSelection: (EventTimelineItem) -> Unit = remember(selectedMessageKeysState) {
+            { event ->
+                if (event.isKiteSelectableMessage()) {
+                    event.kiteSelectionKey()?.let { key ->
+                        selectedMessageKeysState.value = if (key in selectedMessageKeysState.value) {
+                            selectedMessageKeysState.value.removing(key)
+                        } else {
+                            selectedMessageKeysState.value.adding(key)
+                        }
+                    }
+                }
+            }
+        }
+        PlatformBackHandler(enabled = selectionActive) {
+            selectedMessageKeysState.value = persistentSetOf()
+        }
         val debugLines = if (ScPrefs.SHOW_DEV_INFOS.value()) {
             viewModel.debugLines.collectAsState().value
         } else {
@@ -379,6 +419,8 @@ fun ConversationScreen(
 
                     // Track whether we see bottom or latest read message for jump-to-message FABs
                     val fullyReadEvent = viewModel.cachedFullyRead.collectAsState().value
+                    val currentThreadId = viewModel.threadId.collectAsState().value
+                    val roomPermissions = viewModel.roomPermissions.collectAsState().value
                     LaunchedEffect(listState, fullyReadEvent, renderedItems) {
                         snapshotFlow {
                             val visible = listState.layoutInfo.visibleItemsInfo
@@ -427,6 +469,14 @@ fun ConversationScreen(
                     // visible timeline row. This keeps preference-flow collection off the hot row path.
                     val doubleTapToReact = ScPrefs.DOUBLE_TAP_TO_REACT.value()
                     val doubleTapReaction = ScPrefs.DOUBLE_TAP_REACTION.value()
+                    val swipeActionLeftRaw = ScPrefs.MESSAGE_SWIPE_ACTION_LEFT.value()
+                    val swipeActionRightRaw = ScPrefs.MESSAGE_SWIPE_ACTION_RIGHT.value()
+                    val messageSwipeConfig = remember(swipeActionLeftRaw, swipeActionRightRaw) {
+                        MessageSwipeConfig(
+                            left = parseMessageSwipeAction(swipeActionLeftRaw),
+                            right = parseMessageSwipeAction(swipeActionRightRaw),
+                        )
+                    }
 
                     LazyColumn(
                         Modifier.fillMaxSize(),
@@ -466,6 +516,8 @@ fun ConversationScreen(
                             }
                             // Reverse list causes reverses indices
                             val currentDebugLines = debugLines?.get(timelineItems.size - index - 1) ?: persistentListOf()
+                            val rowEvent = (item.item as? MatrixTimelineItem.Event)?.event
+                            val rowSelected = rowEvent?.kiteSelectionKey()?.let { it in selectedMessageKeys } == true
                             ConversationItemRow(
                                 viewModel = viewModel,
                                 item = item,
@@ -478,10 +530,18 @@ fun ConversationScreen(
                                     it.item is MatrixTimelineItem.Event
                                 }.first?.item as? MatrixTimelineItem.Event,
                                 roomMembersById = roomMembersById.value,
+                                fullyReadEvent = fullyReadEvent,
+                                currentThreadId = currentThreadId,
+                                targetEvent = targetEvent,
+                                roomPermissions = roomPermissions,
                                 highlight = highlight,
                                 timestampSettings = timestampSettings,
                                 doubleTapToReact = doubleTapToReact,
                                 doubleTapReaction = doubleTapReaction,
+                                swipeConfig = messageSwipeConfig,
+                                selectionActive = selectionActive,
+                                isSelected = rowSelected,
+                                onToggleSelection = toggleMessageSelection,
                                 showBackwardPagingIndicator = showBackwardPagingIndicator,
                                 showForwardPagingIndicator = showForwardPagingIndicator,
                                 debugSeparatorLines = currentDebugLines.toPersistentList(),
@@ -521,7 +581,8 @@ fun ConversationScreen(
                         modifier = Modifier.align(Alignment.BottomEnd).padding(Dimens.windowPadding),
                         verticalArrangement = Dimens.verticalArrangement,
                     ) {
-                        val showAnyFabs = !keyHandler.keyboardPrimaryWithoutSettingOverride.collectAsState().value
+                        val showAnyFabs = !selectionActive &&
+                                !keyHandler.keyboardPrimaryWithoutSettingOverride.collectAsState().value
                         TimelineJumpFab(
                             Icons.Outlined.Visibility,
                             stringResource(Res.string.action_jump_to_unread),
@@ -547,20 +608,98 @@ fun ConversationScreen(
                 RoomUpgradeRow(viewModel)
 
                 val shouldShowComposer = viewModel.shouldShowComposer.collectAsState().value
-                val shouldAutoFocusComposer = FocusRole.MESSAGE_COMPOSER.shouldAutoRequestFocus()
-                LaunchedEffect(shouldShowComposer) {
-                    if (shouldShowComposer && shouldAutoFocusComposer) {
-                        keyHandler.focusByRole(FocusRole.MESSAGE_COMPOSER)
+                if (selectionActive) {
+                    val actionScope = rememberCoroutineScope()
+                    val selectedSingle = selectedTimelineItems.singleOrNull()
+                    val selectedSingleEvent = (selectedSingle?.item as? MatrixTimelineItem.Event)?.event
+                    val executeSelectedAction: (ScTimelineItem, Action.Event) -> ActionResult = { selected, action ->
+                        val event = (selected.item as MatrixTimelineItem.Event).event
+                        viewModel.getKeyboardActionProviderForEvent(
+                            event = event,
+                            messageMetadata = selected.messageMetadata,
+                            formatInteractionState = null,
+                        ).handleAction(actionContext, action, emptyList())
                     }
-                }
-                AnimatedVisibility(
-                    visible = shouldShowComposer,
-                    enter = slideInVertically(tween(Anim.DURATION)) { it } +
-                            expandVertically(tween(Anim.DURATION), expandFrom = Alignment.Bottom),
-                    exit = slideOutVertically(tween(Anim.DURATION)) { it } +
-                            shrinkVertically(tween(Anim.DURATION), shrinkTowards = Alignment.Bottom),
-                ) {
-                    ComposerRow(viewModel)
+                    val clearSelection = {
+                        selectedMessageKeysState.value = persistentSetOf()
+                    }
+                    MessageSelectionBar(
+                        selectedCount = selectedTimelineItems.size,
+                        canReply = selectedSingleEvent?.eventId != null,
+                        canEdit = selectedSingleEvent?.isOwn == true &&
+                                selectedSingleEvent.content is MessageContent,
+                        onClear = clearSelection,
+                        onReply = {
+                            selectedSingle?.let {
+                                if (executeSelectedAction(it, Action.Event.ComposeReply) is ActionResult.Success) {
+                                    clearSelection()
+                                }
+                            }
+                        },
+                        onCopy = {
+                            val snapshot = selectedTimelineItems
+                            actionScope.launch {
+                                val result = if (
+                                    snapshot.size == 1 &&
+                                    ((snapshot.single().item as? MatrixTimelineItem.Event)?.event?.content is MessageContent)
+                                ) {
+                                    executeSelectedAction(snapshot.single(), Action.Event.CopyContent)
+                                } else {
+                                    val selectedEvents = snapshot
+                                        .mapNotNull { selected ->
+                                            val event = (selected.item as? MatrixTimelineItem.Event)?.event
+                                                ?: return@mapNotNull null
+                                            event to selected.messageMetadata
+                                        }
+                                        .sortedBy { (event, _) -> event.timestamp }
+                                    val text = buildList {
+                                        for ((event, messageMetadata) in selectedEvents) {
+                                            add(
+                                                EventTextFormat.eventToTextSuspend(
+                                                    content = event.content,
+                                                    messageMetadata = messageMetadata,
+                                                    senderProfile = event.senderProfile,
+                                                    senderId = event.sender,
+                                                    stripNewlines = false,
+                                                )
+                                            )
+                                        }
+                                    }.joinToString("\n\n")
+                                    if (text.isEmpty()) {
+                                        ActionResult.Inapplicable
+                                    } else {
+                                        actionContext.copyToClipboard(text)
+                                    }
+                                }
+                                if (result is ActionResult.Success) {
+                                    clearSelection()
+                                }
+                            }
+                        },
+                        onEdit = {
+                            selectedSingle?.let {
+                                if (executeSelectedAction(it, Action.Event.ComposeEdit) is ActionResult.Success) {
+                                    clearSelection()
+                                }
+                            }
+                        },
+                    )
+                } else {
+                    val shouldAutoFocusComposer = FocusRole.MESSAGE_COMPOSER.shouldAutoRequestFocus()
+                    LaunchedEffect(shouldShowComposer) {
+                        if (shouldShowComposer && shouldAutoFocusComposer) {
+                            keyHandler.focusByRole(FocusRole.MESSAGE_COMPOSER)
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = shouldShowComposer,
+                        enter = slideInVertically(tween(Anim.DURATION)) { it } +
+                                expandVertically(tween(Anim.DURATION), expandFrom = Alignment.Bottom),
+                        exit = slideOutVertically(tween(Anim.DURATION)) { it } +
+                                shrinkVertically(tween(Anim.DURATION), shrinkTowards = Alignment.Bottom),
+                    ) {
+                        ComposerRow(viewModel)
+                    }
                 }
             }
         }

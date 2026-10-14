@@ -39,12 +39,10 @@ import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import chat.schildi.lib.preferences.ScPrefs
-import chat.schildi.lib.preferences.ScStringListPref
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.components.thenIf
 import chat.schildi.revenge.config.keybindings.Action
-import chat.schildi.revenge.preferences.value
 import co.touchlab.kermit.Logger
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
@@ -63,20 +61,25 @@ enum class MessageSwipePosition {
     Right,
 }
 
+data class MessageSwipeConfig(
+    val left: ScPrefs.MessageSwipeAction?,
+    val right: ScPrefs.MessageSwipeAction?,
+)
+
+fun parseMessageSwipeAction(rawValue: String): ScPrefs.MessageSwipeAction? =
+    try {
+        ScPrefs.MessageSwipeAction.valueOf(rawValue)
+    } catch (e: IllegalArgumentException) {
+        Logger.withTag("MessageSwipeConfig").e("Invalid message swipe action: $rawValue", e)
+        null
+    }
+
 @Composable
-fun ScStringListPref.swipeActionValue(
+private fun ScPrefs.MessageSwipeAction?.swipeActionSpec(
     focusId: Uuid,
     isOwn: Boolean,
 ): MessageSwipeActionSpec? {
-    val rawValue = value()
-    val kind = remember(rawValue) {
-        try {
-            ScPrefs.MessageSwipeAction.valueOf(rawValue)
-        } catch (e: IllegalArgumentException) {
-            Logger.withTag("swipeActionValue").e("Invalid message swipe action: $rawValue", e)
-            null
-        }
-    }
+    val kind = this
     val keyHandler = LocalKeyboardActionHandler.current
     return when (kind) {
         ScPrefs.MessageSwipeAction.REPLY -> MessageSwipeActionSpec(kind, Icons.AutoMirrored.Default.Reply) {
@@ -105,12 +108,14 @@ fun ScStringListPref.swipeActionValue(
 fun EventSwipeable(
     focusId: Uuid,
     isOwn: Boolean,
+    swipeConfig: MessageSwipeConfig,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
-    val swipeActionLeft = ScPrefs.MESSAGE_SWIPE_ACTION_LEFT.swipeActionValue(focusId, isOwn)
-    val swipeActionRight = ScPrefs.MESSAGE_SWIPE_ACTION_RIGHT.swipeActionValue(focusId, isOwn)
-    val hasSwipeAction = swipeActionLeft != null || swipeActionRight != null
+    val swipeActionLeft = swipeConfig.left.swipeActionSpec(focusId, isOwn)
+    val swipeActionRight = swipeConfig.right.swipeActionSpec(focusId, isOwn)
+    val hasSwipeAction = enabled && (swipeActionLeft != null || swipeActionRight != null)
     val maxSwipe = LocalDensity.current.run { Dimens.Conversation.MessageSwipe.maxOffset.toPx() }
     val threshold = LocalDensity.current.run { Dimens.Conversation.MessageSwipe.threshold.toPx() }
     var offset by remember { mutableFloatStateOf(0f) }

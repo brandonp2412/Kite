@@ -127,6 +127,9 @@
     <string name="action_view_read_receipts">View read receipts</string>
     <string name="action_view_user">View user</string>
     <string name="action_copy_body">Copy text</string>
+    <string name="action_select_message">Select</string>
+    <string name="action_deselect_message">Deselect</string>
+    <string name="selection_messages_count">%1$d selected</string>
     <string name="action_navigate_in_current">Open in current window</string>
     <string name="action_navigate_in_new_window">Open in new window</string>
     <string name="action_navigate_debug_timeline">Open debug timeline</string>

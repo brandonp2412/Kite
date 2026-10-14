@@ -3,11 +3,13 @@ package chat.schildi.revenge.compose.destination.conversation.event
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -28,12 +30,14 @@ import chat.schildi.revenge.compose.destination.conversation.event.message.times
 import chat.schildi.revenge.compose.destination.conversation.event.reaction.ReactionsRow
 import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.revenge.compose.focus.rememberFocusId
+import chat.schildi.revenge.model.conversation.ConversationPermissions
 import chat.schildi.revenge.model.conversation.ConversationViewModel
 import chat.schildi.revenge.model.conversation.MessageMetadata
 import chat.schildi.revenge.model.conversation.TimestampSettings
 import chat.schildi.revenge.plaintext.EventTextFormat
 import com.beeper.android.messageformat.MatrixFormatInteractionState
 import com.beeper.android.messageformat.rememberMatrixFormatInteractionState
+import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
@@ -57,12 +61,18 @@ fun EventRow(
     viewModel: ConversationViewModel,
     event: EventTimelineItem,
     messageMetadata: MessageMetadata?,
+    roomPermissions: ConversationPermissions?,
+    currentThreadId: ThreadId?,
     isSameAsPreviousSender: Boolean,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     highlight: EventHighlight,
     timestampSettings: TimestampSettings,
     doubleTapToReact: Boolean,
     doubleTapReaction: String,
+    swipeConfig: MessageSwipeConfig,
+    selectionActive: Boolean,
+    isSelected: Boolean,
+    onToggleSelection: (EventTimelineItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val backgroundHighlightColor = animateColorAsState(
@@ -76,8 +86,11 @@ fun EventRow(
     val formatInteractionState = messageMetadata?.preFormattedContent?.let {
         rememberMatrixFormatInteractionState(it)
     }
-    val roomPermissions = viewModel.roomPermissions.collectAsState().value
-    val canDoubleTapReact = doubleTapToReact &&
+    val selectable = event.isKiteSelectableMessage()
+    val toggleSelection = remember(event, onToggleSelection) {
+        { onToggleSelection(event) }
+    }
+    val canDoubleTapReact = !selectionActive && doubleTapToReact &&
             event.content is MessageContent &&
             (roomPermissions?.canSendReactions ?: false)
     WithContextMenu(
@@ -87,7 +100,9 @@ fun EventRow(
             viewModel.roomId,
             roomPermissions,
             messageMetadata,
-            viewModel.threadId.collectAsState().value,
+            currentThreadId,
+            isSelected = isSelected,
+            onToggleSelection = toggleSelection.takeIf { selectable },
         ),
     ) { openContextMenu ->
         Column(
@@ -102,62 +117,93 @@ fun EventRow(
                             messageMetadata,
                             formatInteractionState,
                         ),
-                        primaryAction = eventClickAction(viewModel, currentActionContext(), event),
+                        primaryAction = if (selectionActive && selectable) {
+                            InteractionAction.Invoke {
+                                toggleSelection()
+                                true
+                            }
+                        } else {
+                            eventClickAction(viewModel, currentActionContext(), event)
+                        },
                         secondaryAction = openContextMenu,
                         copyActions = eventCopyActions(event, messageMetadata),
                     ),
                 )
-                .background(backgroundHighlightColor, Dimens.Conversation.messageBubbleShape)
+                .background(
+                    if (isSelected) {
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                    } else {
+                        backgroundHighlightColor
+                    },
+                    Dimens.Conversation.messageBubbleShape,
+                )
                 .drawJumpTargetDecoration(enabled = highlight == EventHighlight.JUMP_TARGET)
                 .padding(horizontal = Dimens.windowPadding)
         ) {
             val threadInfo = event.threadInfo()
-            EventSwipeable(focusId, event.isOwn) { modifier ->
-                EventContentLayout(
-                    eventId = event.eventId,
-                    content = event.content,
-                    messageMetadata = messageMetadata,
-                    formatInteractionState = formatInteractionState,
-                    senderId = event.sender,
-                    senderProfile = event.senderProfile,
-                    isOwn = event.isOwn,
-                    timestamp = remember(event, timestampSettings) {
-                        event.timestampOverlayContent(timestampSettings)
-                    },
-                    isSameAsPreviousSender = isSameAsPreviousSender,
-                    inReplyTo = event.inReplyTo(),
-                    threadInfo = threadInfo,
-                    roomMembersById = roomMembersById,
-                    timelineItemDebugInfoProvider = event.timelineItemDebugInfoProvider,
-                    modifier = modifier,
-                    messageContentModifier = Modifier.passiveDoubleTapReaction(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+            ) {
+                if (selectionActive && selectable) {
+                    MessageSelectionIndicator(
+                        selected = isSelected,
+                        onClick = toggleSelection,
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    EventSwipeable(
                         focusId = focusId,
-                        enabled = canDoubleTapReact,
-                        reaction = doubleTapReaction,
-                    ),
-                )
+                        isOwn = event.isOwn,
+                        swipeConfig = swipeConfig,
+                        enabled = !selectionActive,
+                    ) { modifier ->
+                        EventContentLayout(
+                            eventId = event.eventId,
+                            content = event.content,
+                            messageMetadata = messageMetadata,
+                            formatInteractionState = formatInteractionState,
+                            senderId = event.sender,
+                            senderProfile = event.senderProfile,
+                            isOwn = event.isOwn,
+                            timestamp = remember(event, timestampSettings) {
+                                event.timestampOverlayContent(timestampSettings)
+                            },
+                            isSameAsPreviousSender = isSameAsPreviousSender,
+                            inReplyTo = event.inReplyTo(),
+                            threadInfo = threadInfo,
+                            roomMembersById = roomMembersById,
+                            timelineItemDebugInfoProvider = event.timelineItemDebugInfoProvider,
+                            modifier = modifier,
+                            messageContentModifier = Modifier.passiveDoubleTapReaction(
+                                focusId = focusId,
+                                enabled = canDoubleTapReact,
+                                reaction = doubleTapReaction,
+                            ),
+                        )
+                    }
+                    ReactionsRow(
+                        viewModel = viewModel,
+                        eventOrTransactionId = EventOrTransactionId.from(event.eventId, event.transactionId),
+                        reactions = event.reactions,
+                        roomMembersById = roomMembersById,
+                        messageIsOwn = event.isOwn,
+                    )
+                    if (threadInfo is EventThreadInfo.ThreadRoot && event.eventId?.value != currentThreadId?.value) {
+                        ThreadRootInfoRow(
+                            threadInfo = threadInfo,
+                            sessionId = viewModel.sessionId,
+                            roomId = viewModel.roomId,
+                            eventId = event.eventId,
+                            messageIsOwn = event.isOwn,
+                        )
+                    }
+                    ReadReceiptsRow(
+                        receipts = event.receipts,
+                        roomMembersById = roomMembersById,
+                    )
+                }
             }
-            ReactionsRow(
-                viewModel = viewModel,
-                eventOrTransactionId = EventOrTransactionId.from(event.eventId, event.transactionId),
-                reactions = event.reactions,
-                roomMembersById = roomMembersById,
-                messageIsOwn = event.isOwn,
-            )
-            val currentThreadId = viewModel.threadId.collectAsState().value
-            if (threadInfo is EventThreadInfo.ThreadRoot && event.eventId?.value != currentThreadId?.value) {
-                ThreadRootInfoRow(
-                    threadInfo = threadInfo,
-                    sessionId = viewModel.sessionId,
-                    roomId = viewModel.roomId,
-                    eventId = event.eventId,
-                    messageIsOwn = event.isOwn,
-                )
-            }
-            ReadReceiptsRow(
-                receipts = event.receipts,
-                roomMembersById = roomMembersById,
-            )
         }
     }
 }
