@@ -1,12 +1,7 @@
 package chat.schildi.revenge.compose.destination.inbox
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,7 +28,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -47,36 +40,31 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import chat.schildi.lib.preferences.ScPrefs
-import chat.schildi.revenge.preferences.value
-import chat.schildi.revenge.Anim
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.FocusRole
+import chat.schildi.revenge.actions.InteractionAction
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.actions.LocalKeyboardActionProvider
 import chat.schildi.revenge.actions.LocalListActionProvider
+import chat.schildi.revenge.actions.actionProvider
 import chat.schildi.revenge.actions.hierarchicalKeyboardActionProvider
+import chat.schildi.revenge.actions.rememberListActions
 import chat.schildi.revenge.compose.components.DiagnosticsRow
 import chat.schildi.revenge.compose.components.EmptyListScreen
-import chat.schildi.revenge.compose.focus.FocusContainer
-import chat.schildi.revenge.compose.search.LocalSearchProvider
-import chat.schildi.resources.toStringHolder
-import chat.schildi.revenge.actions.InteractionAction
-import chat.schildi.revenge.actions.actionProvider
-import chat.schildi.revenge.actions.rememberListActions
 import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
+import chat.schildi.revenge.compose.focus.FocusContainer
 import chat.schildi.revenge.compose.focus.keyFocusable
+import chat.schildi.revenge.compose.search.LocalSearchProvider
 import chat.schildi.revenge.config.keybindings.DestinationEnum
 import chat.schildi.revenge.model.DraftRepo
 import chat.schildi.revenge.model.InboxViewModel
 import chat.schildi.revenge.model.IncomingShare
 import chat.schildi.revenge.model.MessageForward
-import chat.schildi.revenge.model.spaces.PSEUDO_SPACE_ID_NO_FILTER
-import chat.schildi.revenge.model.spaces.SpaceListDataSource
-import chat.schildi.revenge.model.spaces.filterByVisible
-import chat.schildi.revenge.model.spaces.resolveSelection
+import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.publishTitle
 import chat.schildi.revenge.viewModelKey
+import chat.schildi.resources.toStringHolder
 import chat.schildi.theme.scExposures
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.FlowPreview
@@ -85,7 +73,8 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_account_management
 import shire.res.generated.resources.empty_screen_placeholder_inbox
-import shire.res.generated.resources.empty_screen_placeholder_space
+
+private val KiteCompactSearchBarReserve = 88.dp
 
 @OptIn(FlowPreview::class)
 @Composable
@@ -95,43 +84,33 @@ fun InboxScreen(
     contentModifier: Modifier = Modifier,
 ) {
     if (requireSinglePaneLayout(DestinationEnum.InboxConversationSplit, ScPrefs.PREFER_DUAL_PANE_INBOX) { inbox ->
-        Destination.InboxConversationMultiPane(
-            inbox = inbox,
-        )
+        Destination.InboxConversationMultiPane(inbox = inbox)
     }) {
         return
     }
 
     val viewModel: InboxViewModel = viewModel(
         key = viewModelKey(destination),
-        factory = viewModelFactory { initializer { InboxViewModel() } }
+        factory = viewModelFactory { initializer { InboxViewModel() } },
     )
     publishTitle(viewModel)
 
-    // Filters that should reset list state
-    val searchQuery = LocalKeyboardActionHandler.current.searchQueryForDestination(viewModel)
-        .collectAsState("").value
+    val keyboardActionHandler = LocalKeyboardActionHandler.current
+    val searchQuery = keyboardActionHandler
+        .searchQueryForDestination(viewModel)
+        .collectAsState(null).value
     val accounts = viewModel.accounts.collectAsState().value
     val accountsSorted = viewModel.accountsSorted.collectAsState().value
-    val accountUnreadCounts = viewModel.accountUnreadCounts.collectAsState().value
-    val spaceSelection = viewModel.spaceSelection.collectAsState().value
-    val spaces = viewModel.spaces.collectAsState().value?.filterByVisible(
-        spaceSelection,
-        ScPrefs.PSEUDO_SPACE_HIDE_EMPTY_UNREAD.value(),
-    )
-    val selectedSpace = if (searchQuery.isNullOrBlank()) {
-        spaces?.resolveSelection(spaceSelection, followWildcards = true)
-    } else {
-        // Search ignores spaces
-        null
-    }
+    val preferredAccount = accountsSorted
+        ?.firstOrNull { it.isCurrentlyVisible }
+        ?: accountsSorted?.firstOrNull()
 
-    val listState = key(searchQuery, selectedSpace?.selectionId) {
+    val listState = key(searchQuery) {
         rememberLazyListState()
     }
-
     val drafts = DraftRepo.roomsWithDrafts.collectAsState(persistentSetOf())
     val pendingForward = MessageForward.pending.collectAsState(null).value
+
     FocusContainer(
         LocalSearchProvider provides viewModel,
         LocalKeyboardActionProvider provides viewModel.hierarchicalKeyboardActionProvider(),
@@ -141,103 +120,62 @@ fun InboxScreen(
         ),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            InboxTopNavigation(
-                viewModel.windowTitle.collectAsState(null).value?.render(),
-                preferredSessionId = accountsSorted?.singleOrNull { it.isCurrentlyVisible }?.sessionId,
-            )
-            val roomsState = viewModel.filteredRooms.collectAsState().value
-            val rooms = roomsState?.rooms
-            val roomsByRoomId = viewModel.roomsByRoomId.collectAsState().value
-            val dmsByHeroes = viewModel.dmsByHeroes.collectAsState().value
-            val needsAccountDisambiguation = (accountsSorted?.count { it.isCurrentlyVisible } ?: 0) > 1
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val compact = maxWidth < Dimens.compactActionBarThreshold
+            val navigationBottomPadding = WindowInsets.navigationBars
+                .asPaddingValues()
+                .calculateBottomPadding()
 
-            val spaceSwipeState = rememberSpaceSwipeState()
-            val spaceSelectionState = spaces.toSelectionState(spaceSelection)
-
-            if (spaces != null) {
-                AnimatedVisibility(
-                    visible = viewModel.showSpaceUi.collectAsState().value,
-                    enter = slideInVertically(tween(Anim.DURATION)) { -it } +
-                            expandVertically(tween(Anim.DURATION), expandFrom = Alignment.Top),
-                    exit = slideOutVertically(tween(Anim.DURATION)) { -it } +
-                            shrinkVertically(tween(Anim.DURATION), shrinkTowards = Alignment.Top),
-                ) {
-                    SpaceSelectorRow(
-                        lazyListState = listState,
-                        spacesList = spaces,
-                        totalUnreadCounts = null, // TODO
-                        spaceSelectionHierarchy = spaceSelection,
-                        onSpaceSelected = viewModel::setSpaceSelection,
-                        modifier = Modifier,
-                        getSpaceActionProvider = viewModel::getKeyboardActionProviderForSpace,
-                    )
-                }
-            }
-
-            if (ScPrefs.SHOW_DEV_INFOS.value()) {
-                DiagnosticsRow(Modifier.fillMaxWidth())
-            }
-
-            // Observe which rooms are visible in the list so subscribe to room list updates
-            LaunchedEffect(listState, rooms, accountsSorted) {
-                snapshotFlow {
-                    // Adjust for header account selector offset
-                    val roomsOffset = if (!accountsSorted.isNullOrEmpty()) 1 else 0
-                    listState.layoutInfo.visibleItemsInfo.map { it.index - roomsOffset }
-                }
-                    .debounce(200)
-                    .collect { indices ->
-                        val visibleRooms = indices.mapNotNull { rooms?.getOrNull(it) }
-                        viewModel.onVisibleRoomsChanged(visibleRooms)
-                    }
-            }
-            Box(
+            Column(
                 Modifier
                     .fillMaxSize()
-                    .spaceSwipe(
-                        swipeState = spaceSwipeState,
-                        selectionState = spaceSelectionState,
-                    ) { space ->
-                        viewModel.setSpaceSelection(
-                            if (spaceSelection.isEmpty()) {
-                                listOf(space?.selectionId ?: PSEUDO_SPACE_ID_NO_FILTER)
-                            } else {
-                                val parentId = spaceSelection.getOrNull(spaceSelection.size - 2)
-                                spaceSelection.take(spaceSelection.size - 1) +
-                                        (space?.selectionId?.takeIf { it != parentId } ?: PSEUDO_SPACE_ID_NO_FILTER)
-                            }
-                        )
-                    },
-                contentAlignment = Alignment.Center,
+                    .padding(top = if (compact) Dimens.listPadding else 0.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (rooms.isNullOrEmpty()) {
-                    Column(contentModifier.fillMaxSize()) {
-                        if (!accountsSorted.isNullOrEmpty()) {
-                            AccountSelectorRow(
-                                viewModel = viewModel,
-                                accounts = accountsSorted,
-                                unreadCounts = accountUnreadCounts,
-                                modifier = Modifier.padding(vertical = Dimens.listPadding),
-                            )
+                if (!compact) {
+                    KiteInboxSearchBar(
+                        viewModel = viewModel,
+                        query = searchQuery,
+                        account = preferredAccount,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = Dimens.windowPadding,
+                                vertical = Dimens.listPadding,
+                            ),
+                    )
+                }
+
+                if (ScPrefs.SHOW_DEV_INFOS.value()) {
+                    DiagnosticsRow(Modifier.fillMaxWidth())
+                }
+
+                val roomsState = viewModel.filteredRooms.collectAsState().value
+                val rooms = roomsState?.rooms
+                val roomsByRoomId = viewModel.roomsByRoomId.collectAsState().value
+                val dmsByHeroes = viewModel.dmsByHeroes.collectAsState().value
+                val needsAccountDisambiguation =
+                    (accountsSorted?.count { it.isCurrentlyVisible } ?: 0) > 1
+
+                LaunchedEffect(listState, rooms, accountsSorted) {
+                    snapshotFlow {
+                        listState.layoutInfo.visibleItemsInfo.map { it.index }
+                    }
+                        .debounce(200)
+                        .collect { indices ->
+                            val visibleRooms = indices.mapNotNull { rooms?.getOrNull(it) }
+                            viewModel.onVisibleRoomsChanged(visibleRooms)
                         }
+                }
+
+                Box(
+                    contentModifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (rooms.isNullOrEmpty()) {
                         EmptyListScreen(
-                            title = if (selectedSpace == null) {
-                                Res.string.empty_screen_placeholder_inbox.toStringHolder()
-                            } else {
-                                Res.string.empty_screen_placeholder_space.toStringHolder()
-                            },
-                            icon = if (selectedSpace == null) {
-                                rememberVectorPainter(Icons.Default.Inbox)
-                            } else {
-                                val pseudoSpaceIcon = (selectedSpace as? SpaceListDataSource.PseudoSpaceItem)
-                                    ?.icon as? SpaceListDataSource.PseudoSpaceIconSource.Icon
-                                if (pseudoSpaceIcon != null) {
-                                    rememberVectorPainter(pseudoSpaceIcon.icon)
-                                } else {
-                                    rememberVectorPainter(Icons.Default.TravelExplore)
-                                }
-                            },
+                            title = Res.string.empty_screen_placeholder_inbox.toStringHolder(),
+                            icon = rememberVectorPainter(Icons.Default.Inbox),
                             renderedSearchTerm = roomsState?.searchTerm,
                             isLoading = roomsState == null,
                             modifier = Modifier.fillMaxSize(),
@@ -254,96 +192,99 @@ fun InboxScreen(
                                             actionProvider = actionProvider(
                                                 primaryAction = InteractionAction.Navigate {
                                                     Destination.AccountManagement()
-                                                }
+                                                },
                                             ),
                                         ),
                                 )
                             }
                         }
-                    }
-                } else {
-                    val pendingTransferHeight = remember { mutableIntStateOf(0) }
-                    val extraContentPadding = LocalDensity.current.run {
-                        PaddingValues(top = pendingTransferHeight.intValue.toDp() )
-                    }
-                    LazyColumn(
-                        modifier = contentModifier.fillMaxSize(),
-                        state = listState,
-                        contentPadding = WindowInsets.navigationBars
-                            .only(WindowInsetsSides.Bottom)
-                            .asPaddingValues() + extraContentPadding
-                    ) {
-                        if (!accountsSorted.isNullOrEmpty()) {
-                            item {
-                                AccountSelectorRow(
-                                    viewModel = viewModel,
-                                    accounts = accountsSorted,
-                                    unreadCounts = accountUnreadCounts,
-                                    modifier = Modifier.padding(vertical = Dimens.listPadding),
-                                )
-                            }
-                        }
-                        items(
-                            rooms,
-                            key = { room ->
-                                Pair(room.sessionId, room.summary.roomId)
-                            }
-                        ) { room ->
-                            val needsDisambiguation = needsAccountDisambiguation &&
-                                    selectedSpace?.sessionIds.let { it == null || it.size > 1 } &&
-                                    (
-                                            room.summary.isInvite() ||
-                                                    (roomsByRoomId[room.summary.roomId]?.size ?: 0) > 1 ||
-                                                    room.summary.isDm && (dmsByHeroes[room.summary.info.heroes]?.size
-                                                ?: 0) > 1
-                                            )
-                            InboxRow(
-                                viewModel,
-                                room,
-                                hasDraft = room.key in drafts.value,
-                                user = remember(accounts) { accounts?.get(room.sessionId)?.user },
-                                needsAccountDisambiguation = needsDisambiguation,
-                                pendingForward = pendingForward,
+                    } else {
+                        val pendingTransferHeight = remember { mutableIntStateOf(0) }
+                        val extraContentPadding = LocalDensity.current.run {
+                            PaddingValues(
+                                top = pendingTransferHeight.intValue.toDp(),
+                                bottom = if (compact) KiteCompactSearchBarReserve else 0.dp,
                             )
                         }
-                    }
-
-                    val incomingShare = IncomingShare.share.collectAsState(null).value
-                    if (pendingForward != null || incomingShare != null) {
-                        Box(
-                            Modifier.fillMaxWidth().align(Alignment.TopCenter),
-                            contentAlignment = Alignment.Center,
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            state = listState,
+                            contentPadding = WindowInsets.navigationBars
+                                .only(WindowInsetsSides.Bottom)
+                                .asPaddingValues() + extraContentPadding,
                         ) {
-                            val noticeModifier = Modifier
-                                .onGloballyPositioned {
-                                    pendingTransferHeight.intValue = it.size.height
-                                }
-                                .padding(
-                                    horizontal = Dimens.windowPadding,
-                                    vertical = Dimens.listPadding,
-                                )
-                            if (pendingForward != null) {
-                                MessageForwardNoticeCard(
-                                    forward = pendingForward,
-                                    modifier = noticeModifier,
-                                )
-                            } else if (incomingShare != null) {
-                                IncomingShareNoticeCard(
-                                    share = incomingShare,
-                                    modifier = noticeModifier,
+                            items(
+                                rooms,
+                                key = { room -> Pair(room.sessionId, room.summary.roomId) },
+                            ) { room ->
+                                val needsDisambiguation = needsAccountDisambiguation &&
+                                        (
+                                                room.summary.isInvite() ||
+                                                        (roomsByRoomId[room.summary.roomId]?.size ?: 0) > 1 ||
+                                                        room.summary.isDm &&
+                                                        (dmsByHeroes[room.summary.info.heroes]?.size ?: 0) > 1
+                                                )
+                                InboxRow(
+                                    viewModel,
+                                    room,
+                                    hasDraft = room.key in drafts.value,
+                                    user = remember(accounts) { accounts?.get(room.sessionId)?.user },
+                                    needsAccountDisambiguation = needsDisambiguation,
+                                    pendingForward = pendingForward,
                                 )
                             }
                         }
-                    } else {
-                        SideEffect {
-                            pendingTransferHeight.intValue = 0
+
+                        val incomingShare = IncomingShare.share.collectAsState(null).value
+                        if (pendingForward != null || incomingShare != null) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.TopCenter),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                val noticeModifier = Modifier
+                                    .onGloballyPositioned {
+                                        pendingTransferHeight.intValue = it.size.height
+                                    }
+                                    .padding(
+                                        horizontal = Dimens.windowPadding,
+                                        vertical = Dimens.listPadding,
+                                    )
+                                if (pendingForward != null) {
+                                    MessageForwardNoticeCard(
+                                        forward = pendingForward,
+                                        modifier = noticeModifier,
+                                    )
+                                } else if (incomingShare != null) {
+                                    IncomingShareNoticeCard(
+                                        share = incomingShare,
+                                        modifier = noticeModifier,
+                                    )
+                                }
+                            }
+                        } else {
+                            SideEffect {
+                                pendingTransferHeight.intValue = 0
+                            }
                         }
                     }
                 }
+            }
 
-                SpaceSwipeIndicatorOverlay(
-                    swipeState = spaceSwipeState,
-                    selectionState = spaceSelectionState,
+            if (compact) {
+                KiteInboxSearchBar(
+                    viewModel = viewModel,
+                    query = searchQuery,
+                    account = preferredAccount,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = Dimens.windowPadding,
+                            end = Dimens.windowPadding,
+                            bottom = navigationBottomPadding + 12.dp,
+                        ),
                 )
             }
         }

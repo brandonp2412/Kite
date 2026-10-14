@@ -29,7 +29,6 @@ import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.KeyTrigger
 import chat.schildi.revenge.flatMerge
 import chat.schildi.revenge.model.IncomingShare.applyShare
-import chat.schildi.revenge.model.invites.SeenInvitesStore
 import chat.schildi.revenge.model.conversation.MessageMetadata
 import chat.schildi.revenge.model.spaces.PSEUDO_SPACE_ID_NO_FILTER
 import chat.schildi.revenge.model.spaces.RevengeSpaceListDataSource
@@ -160,7 +159,6 @@ class InboxViewModel(
     private val scPreferencesStore: ScPreferencesStore = RevengePrefs,
     private val sessionIdComparatorFlow: Flow<Comparator<SessionId>> = UiState.sessionIdComparator,
     private val appStateStore: AppStateStore = UiState.appStateStore,
-    private val seenInvitesStore: SeenInvitesStore = UiState.appStateStore,
 ) : ViewModel(), SearchProvider, KeyboardActionProvider<Action.Inbox>, TitleProvider {
     private val log = Logger.withTag("Inbox")
 
@@ -261,42 +259,26 @@ class InboxViewModel(
     }.stateIn(viewModelScope, SharingStarted.Lazily, false)
 
     /**
-     * Rooms filtered by search and space selection.
+     * Rooms filtered for Kite's personal inbox. The Rust SDK room-list remains the
+     * source of truth; this only excludes spaces and ranks local name matches.
      */
     val filteredRooms = combine(
         allRooms,
         searchTerm,
-        selectedSpace,
         UiState.sessionIdOrder,
-        seenInvitesStore.seenInvites(),
-    ) { rooms, searchTerm, selectedSpace, sessionIdOrder, seenRoomInvites ->
-        // Only filter by spaces if search term is empty
-        if (searchTerm.isNullOrBlank()) {
-            RoomListState(
-                rooms = selectedSpace?.applyFilter(rooms, seenRoomInvites) ?: rooms.toPersistentList(),
-                searchTerm = null,
-            )
-        } else {
-            val lowercaseSearch = searchTerm.lowercase()
-            val searchedRooms = rooms.filter {
-                it.summary.info.name?.lowercase()?.contains(lowercaseSearch) == true ||
-                        it.summary.info.privateRoomName?.lowercase()?.contains(lowercaseSearch) == true
-            }.sortedWith(compareBy(
-                {
-                    minOf(
-                        it.summary.info.name?.lowercase()?.indexOf(lowercaseSearch)?.takeIf { it >= 0 } ?: Integer.MAX_VALUE,
-                        it.summary.info.privateRoomName?.lowercase()?.indexOf(lowercaseSearch)?.takeIf { it >= 0 } ?: Integer.MAX_VALUE,
-                    )
-                },
-                { it.summary.latestEventTimestamp == null },
-                { it.summary.latestEventTimestamp?.let { -it } },
-                { sessionIdOrder[it.sessionId.value] ?: Int.MAX_VALUE },
-            ))
-            RoomListState(
-                rooms = searchedRooms.toPersistentList(),
+    ) { rooms, searchTerm, sessionIdOrder ->
+        RoomListState(
+            rooms = filterKiteInboxItems(
+                items = rooms,
                 searchTerm = searchTerm,
-            )
-        }
+                isSpace = { it.summary.info.isSpace },
+                primaryName = { it.summary.info.name },
+                secondaryName = { it.summary.info.privateRoomName },
+                latestEventTimestamp = { it.summary.latestEventTimestamp },
+                sessionOrder = { sessionIdOrder[it.sessionId.value] ?: Int.MAX_VALUE },
+            ).toPersistentList(),
+            searchTerm = searchTerm?.takeUnless { it.isBlank() },
+        )
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Lazily, null)

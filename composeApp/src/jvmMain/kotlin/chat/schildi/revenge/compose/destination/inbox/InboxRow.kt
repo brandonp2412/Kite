@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -70,8 +69,6 @@ import chat.schildi.revenge.model.PendingAction
 import chat.schildi.revenge.model.PendingMessageForward
 import chat.schildi.revenge.model.ScopedRoomKey
 import chat.schildi.theme.scExposures
-import io.element.android.libraries.matrix.api.core.RoomId
-import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.roomlist.LatestEventValue
@@ -170,24 +167,13 @@ fun InboxRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box {
-                    val bridgeProtocol = room.summary.info.bridgeState
-                        .firstOrNull { it.protocol?.avatarUrl != null }
-                        ?.protocol
                     AvatarImage(
                         source = room.summary.info.avatarUrl?.let(::MediaSource)
-                            ?: room.summary.info.heroes.singleOrNull()?.avatarUrl?.let(::MediaSource)
-                            ?: room.summary.info.canonicalSpaceParent
-                                ?.takeIf { ScPrefs.CANONICAL_PARENT_SPACE_AVATAR_FALLBACK.value() }
-                                ?.let {
-                                    viewModel.spaceSummariesByKey.collectAsState().value
-                                        .deriveCanonicalSpaceAvatarRecursive(room.sessionId, it)
-                                        ?.let(::MediaSource)
-                                },
+                            ?: room.summary.info.heroes.singleOrNull()?.avatarUrl?.let(::MediaSource),
                         size = Dimens.Inbox.avatar,
                         displayName = room.summary.info.name ?: "",
-                        fallbackColorSource = bridgeProtocol?.avatarUrl?.let(::MediaSource),
                     )
-                    user?.avatarUrl?.takeIf { needsAccountDisambiguation}?.let { userAvatar ->
+                    user?.avatarUrl?.takeIf { needsAccountDisambiguation }?.let { userAvatar ->
                         AvatarImage(
                             source = MediaSource(userAvatar),
                             size = Dimens.Inbox.accountAvatar,
@@ -195,17 +181,6 @@ fun InboxRow(
                             displayName = user.displayName ?: user.userId.value,
                             modifier = Modifier.align(Alignment.BottomStart),
                         )
-                    }
-                    bridgeProtocol?.let { protocol ->
-                        protocol.avatarUrl?.let { bridgeAvatar ->
-                            AvatarImage(
-                                source = MediaSource(bridgeAvatar),
-                                size = Dimens.Inbox.accountAvatar,
-                                shape = CircleShape,
-                                displayName = protocol.displayName ?: protocol.id ?: "",
-                                modifier = Modifier.align(Alignment.BottomEnd),
-                            )
-                        }
                     }
                 }
                 Column(
@@ -551,17 +526,4 @@ private fun inboxRowKeyboardActionProvider(
         viewModel.getKeyboardActionProviderForRoom(room.sessionId, room.roomId, isInvite)
     }
     return ownHandler.hierarchicalKeyboardActionProvider()
-}
-
-private fun Map<ScopedRoomKey, RoomSummary>.deriveCanonicalSpaceAvatarRecursive(
-    sessionId: SessionId,
-    canonicalSpaceParent: String?
-): String? {
-    canonicalSpaceParent ?: return null
-    val key = ScopedRoomKey(sessionId, RoomId(canonicalSpaceParent))
-    val summary = get(key)
-    summary?.info?.avatarUrl?.let {
-        return it
-    }
-    return deriveCanonicalSpaceAvatarRecursive(sessionId, summary?.info?.canonicalSpaceParent)
 }

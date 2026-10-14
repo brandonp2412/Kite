@@ -3,17 +3,14 @@ package chat.schildi.revenge.compose.destination.inbox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LowPriority
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MeetingRoom
-import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.Window
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.key.Key
-import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.components.ContextMenuActionEntry
 import chat.schildi.revenge.compose.components.ContextMenuDecoration
 import chat.schildi.revenge.compose.components.ContextMenuEntry
@@ -22,18 +19,14 @@ import chat.schildi.revenge.compose.components.isAllowed
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.UiState
-import chat.schildi.revenge.compose.components.enterCommandModeContextMenuAction
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.ActionRoomNotificationSetting
-import chat.schildi.revenge.model.InboxViewModel
 import chat.schildi.revenge.model.PendingAction
 import chat.schildi.revenge.model.ScopedRoomSummary
 import io.element.android.libraries.matrix.api.room.RoomNotificationMode
-import io.element.android.libraries.matrix.api.room.RoomNotificationSettings
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
-import kotlinx.coroutines.flow.flowOf
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_context_favorite_toggle
 import shire.res.generated.resources.action_context_low_priority_toggle
@@ -41,18 +34,14 @@ import shire.res.generated.resources.action_join
 import shire.res.generated.resources.action_leave
 import shire.res.generated.resources.action_mark_as_read
 import shire.res.generated.resources.action_mark_as_unread
-import shire.res.generated.resources.action_navigate_in_current
-import shire.res.generated.resources.action_navigate_in_new_window
-import shire.res.generated.resources.action_notifications
-import shire.res.generated.resources.action_notifications_all
-import shire.res.generated.resources.action_notifications_default
-import shire.res.generated.resources.action_notifications_mentions
-import shire.res.generated.resources.action_notifications_none
 import shire.res.generated.resources.action_reject_invite
+import shire.res.generated.resources.action_show_more
+import shire.res.generated.resources.action_mute
+import shire.res.generated.resources.action_unmute
 import kotlin.uuid.Uuid
 
 @Composable
-fun ScopedRoomSummary.contextMenu(inboxViewModel: InboxViewModel, focusId: Uuid): ImmutableList<ContextMenuEntry> {
+fun ScopedRoomSummary.contextMenu(focusId: Uuid): ImmutableList<ContextMenuEntry> {
     return if (summary.isInvite()) {
         val isInviteSeen = UiState.appStateStore.isInviteSeenFlow(key).collectAsState(false).value
         listOfNotNull(
@@ -84,20 +73,12 @@ fun ScopedRoomSummary.contextMenu(inboxViewModel: InboxViewModel, focusId: Uuid)
                 enabled = PendingAction.RoomLeave(summary.roomId).isAllowed(),
                 keyboardShortcut = Key.R,
             ),
-            enterCommandModeContextMenuAction(),
         ).toPersistentList()
     } else {
-        val keyHandler = LocalKeyboardActionHandler.current
-        val isMenuVisible = keyHandler.currentOpenContextMenu.collectAsState().value?.hasMenu(focusId) == true
-        val notificationSettings = remember(inboxViewModel, this, isMenuVisible) {
-            if (isMenuVisible) {
-                inboxViewModel.followNotificationSettings(this)
-            } else {
-                flowOf(null)
-            }
-        }.collectAsState(null).value
-
         val unreadCounts = summary.unreadCounts()
+        val notificationMode = summary.info.userDefinedNotificationMode
+        val isMuted = notificationMode == RoomNotificationMode.MENTIONS_AND_KEYWORDS_ONLY ||
+                notificationMode == RoomNotificationMode.MUTE
         listOfNotNull(
             ContextMenuActionEntry(
                 Res.string.action_mark_as_read.toStringHolder(),
@@ -119,69 +100,37 @@ fun ScopedRoomSummary.contextMenu(inboxViewModel: InboxViewModel, focusId: Uuid)
                 decoration = ContextMenuDecoration.Toggle(summary.info.isFavorite),
                 keyboardShortcut = Key.F,
             ),
-            ContextMenuActionEntry(
-                Res.string.action_context_low_priority_toggle.toStringHolder(),
-                rememberVectorPainter(Icons.Default.LowPriority),
-                Action.Room.MarkLowPriority,
-                persistentListOf((!summary.info.isLowPriority).toString()),
-                decoration = ContextMenuDecoration.Toggle(summary.info.isLowPriority),
-                keyboardShortcut = Key.L,
-            ),
-            ContextMenuActionEntry(
-                Res.string.action_navigate_in_current.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Navigation),
-                Action.NavigationItem.NavigateCurrent,
-                keyboardShortcut = Key.O,
-            ),
-            ContextMenuActionEntry(
-                Res.string.action_navigate_in_new_window.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Window),
-                Action.NavigationItem.NavigateInNewWindow,
-                keyboardShortcut = Key.W,
-            ),
             ContextMenuSubmenuEntry(
-                Res.string.action_notifications.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Notifications),
+                Res.string.action_show_more.toStringHolder(),
+                rememberVectorPainter(Icons.Default.MoreHoriz),
                 rememberFocusId(),
                 persistentListOf(
                     ContextMenuActionEntry(
-                        Res.string.action_notifications_default.toStringHolder(),
-                        null,
-                        Action.Room.SetRoomNotifications,
-                        actionArgs = persistentListOf(ActionRoomNotificationSetting.Default.name),
-                        keyboardShortcut = Key.D,
-                        decoration = ContextMenuDecoration.CheckMark.takeIf { notificationSettings?.isDefault == true },
-                        autoCloseMenu = false,
-                    ),
-                    ContextMenuActionEntry(
-                        Res.string.action_notifications_all.toStringHolder(),
-                        null,
-                        Action.Room.SetRoomNotifications,
-                        actionArgs = persistentListOf(ActionRoomNotificationSetting.All.name),
-                        keyboardShortcut = Key.A,
-                        decoration = notificationModeCheckMark(RoomNotificationMode.ALL_MESSAGES, notificationSettings),
-                        autoCloseMenu = false,
-                    ),
-                    ContextMenuActionEntry(
-                        Res.string.action_notifications_mentions.toStringHolder(),
-                        null,
-                        Action.Room.SetRoomNotifications,
-                        actionArgs = persistentListOf(ActionRoomNotificationSetting.Mentions.name),
-                        keyboardShortcut = Key.M,
-                        decoration = notificationModeCheckMark(RoomNotificationMode.MENTIONS_AND_KEYWORDS_ONLY, notificationSettings),
-                        autoCloseMenu = false,
-                    ),
-                    ContextMenuActionEntry(
-                        Res.string.action_notifications_none.toStringHolder(),
-                        null,
-                        Action.Room.SetRoomNotifications,
-                        actionArgs = persistentListOf(ActionRoomNotificationSetting.Mute.name),
-                        keyboardShortcut = Key.N,
-                        decoration = notificationModeCheckMark(RoomNotificationMode.MUTE, notificationSettings),
-                        autoCloseMenu = false,
+                        Res.string.action_context_low_priority_toggle.toStringHolder(),
+                        rememberVectorPainter(Icons.Default.LowPriority),
+                        Action.Room.MarkLowPriority,
+                        persistentListOf((!summary.info.isLowPriority).toString()),
+                        decoration = ContextMenuDecoration.Toggle(summary.info.isLowPriority),
+                        keyboardShortcut = Key.L,
                     ),
                 ),
-                keyboardShortcut = Key.N,
+            ).takeIf { !summary.info.isFavorite },
+            ContextMenuActionEntry(
+                if (isMuted) {
+                    Res.string.action_unmute.toStringHolder()
+                } else {
+                    Res.string.action_mute.toStringHolder()
+                },
+                rememberVectorPainter(Icons.Default.NotificationsOff),
+                Action.Room.SetRoomNotifications,
+                actionArgs = persistentListOf(
+                    if (isMuted) {
+                        ActionRoomNotificationSetting.All.name
+                    } else {
+                        ActionRoomNotificationSetting.Mentions.name
+                    },
+                ),
+                keyboardShortcut = Key.M,
             ),
             ContextMenuActionEntry(
                 Res.string.action_leave.toStringHolder(),
@@ -191,24 +140,6 @@ fun ScopedRoomSummary.contextMenu(inboxViewModel: InboxViewModel, focusId: Uuid)
                 enabled = PendingAction.RoomLeave(summary.roomId).isAllowed(),
                 keyboardShortcut = Key.V,
             ),
-            enterCommandModeContextMenuAction(),
         ).toPersistentList()
     }
-}
-
-private fun ScopedRoomSummary.notificationModeCheckMark(
-    item: RoomNotificationMode,
-    settings: RoomNotificationSettings?
-) = when {
-    settings == null -> if (summary.info.userDefinedNotificationMode == item) {
-        ContextMenuDecoration.DisabledCheckMark
-    } else {
-        null
-    }
-    settings.mode == item -> if (settings.isDefault) {
-        ContextMenuDecoration.DisabledCheckMark
-    } else {
-        ContextMenuDecoration.CheckMark
-    }
-    else -> null
 }
