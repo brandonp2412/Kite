@@ -193,6 +193,7 @@ import shire.res.generated.resources.action_redact_event_by_sender_prompt
 import shire.res.generated.resources.action_redact_event_prompt
 import shire.res.generated.resources.action_redact_message_by_sender_prompt
 import shire.res.generated.resources.action_redact_message_prompt
+import shire.res.generated.resources.action_redact_messages_prompt
 import shire.res.generated.resources.command_copy_name_event_source
 import shire.res.generated.resources.command_copy_name_formatted_message_content
 import shire.res.generated.resources.command_copy_name_full_room_state

@@ -376,6 +376,7 @@ fun ConversationScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
             val roomMembersById = viewModel.roomMembersById.collectAsState()
+            val roomPermissions = viewModel.roomPermissions.collectAsState().value
             val highlightedJumpTargetEventId = (targetEvent as? EventJumpTarget.Event)?.let {
                 if (it.highlight) {
                     it.eventId
@@ -414,7 +415,6 @@ fun ConversationScreen(
                     // Track whether we see bottom or latest read message for jump-to-message FABs
                     val fullyReadEvent = viewModel.cachedFullyRead.collectAsState().value
                     val currentThreadId = viewModel.threadId.collectAsState().value
-                    val roomPermissions = viewModel.roomPermissions.collectAsState().value
                     LaunchedEffect(listState, fullyReadEvent, renderedItems) {
                         snapshotFlow {
                             val visible = listState.layoutInfo.visibleItemsInfo
