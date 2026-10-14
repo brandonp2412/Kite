@@ -135,3 +135,43 @@ androidComponents {
         variant.sources.jniLibs?.addGeneratedSourceDirectory(syncReleaseNativeLibraries, SyncNativeLibraries::outputDirectory)
     }
 }
+
+// Preserve Kite's intentionally compact Android long-press menus across release builds.
+// This also catches releases made from a checkout that accidentally omitted the UI remap.
+val verifyKiteLongPressMenu = tasks.register("verifyKiteLongPressMenu") {
+    group = "verification"
+    description = "Reject releases that regress Kite's message and inbox long-press actions"
+    val messageMenu = rootProject.file(
+        "composeApp/src/jvmMain/kotlin/chat/schildi/revenge/compose/destination/conversation/event/EventRowContextMenu.kt"
+    )
+    val inboxMenu = rootProject.file(
+        "composeApp/src/jvmMain/kotlin/chat/schildi/revenge/compose/destination/inbox/InboxRowContextMenu.kt"
+    )
+    inputs.files(messageMenu, inboxMenu)
+    doLast {
+        val messageSource = messageMenu.readText()
+        check(
+            listOf(
+                "ContextMenuActionRowEntry(",
+                "Action.Event.CopyContent",
+                "Res.string.action_select_message",
+                "Action.Event.Redact",
+            ).all(messageSource::contains) &&
+                !messageSource.contains("ContextMenuSubmenuEntry") &&
+                !messageSource.contains("action_show_more")
+        ) {
+            "Kite message long-press contract regressed: preserve quick reactions, Copy, Select, Delete, without Show more."
+        }
+        val inboxSource = inboxMenu.readText()
+        check(
+            inboxSource.contains("Action.Room.MarkLowPriority") &&
+                inboxSource.contains("Res.string.action_context_low_priority_toggle") &&
+                !inboxSource.contains("ContextMenuSubmenuEntry") &&
+                !inboxSource.contains("action_show_more")
+        ) {
+            "Kite inbox long-press contract regressed: show Low priority directly, not inside Show more."
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" || it.name == "prePerfDebugBuild" }
+    .configureEach { dependsOn(verifyKiteLongPressMenu) }
