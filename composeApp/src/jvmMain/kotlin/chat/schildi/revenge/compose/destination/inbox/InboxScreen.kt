@@ -54,6 +54,7 @@ import chat.schildi.revenge.actions.hierarchicalKeyboardActionProvider
 import chat.schildi.revenge.actions.rememberListActions
 import chat.schildi.revenge.compose.components.DiagnosticsRow
 import chat.schildi.revenge.compose.components.EmptyListScreen
+import chat.schildi.revenge.compose.destination.imeAwareBottomPadding
 import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
 import chat.schildi.revenge.compose.focus.FocusContainer
 import chat.schildi.revenge.compose.focus.keyFocusable
@@ -136,11 +137,7 @@ fun InboxScreen(
             val imeBottomPadding = WindowInsets.ime
                 .asPaddingValues()
                 .calculateBottomPadding()
-            val compactSearchBottomPadding = if (imeBottomPadding > navigationBottomPadding) {
-                12.dp
-            } else {
-                navigationBottomPadding + 12.dp
-            }
+            val compactSearchBottomPadding = imeAwareBottomPadding(navigationBottomPadding, imeBottomPadding)
 
             Column(
                 Modifier

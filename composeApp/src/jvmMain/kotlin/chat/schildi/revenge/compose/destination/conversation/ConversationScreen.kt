@@ -74,6 +74,7 @@ import chat.schildi.revenge.actions.hierarchicalKeyboardActionProvider
 import chat.schildi.revenge.actions.rememberListActions
 import chat.schildi.revenge.compose.composer.ComposerRow
 import chat.schildi.revenge.compose.components.PlatformBackHandler
+import chat.schildi.revenge.compose.destination.imeAwareBottomPadding
 import chat.schildi.revenge.compose.destination.SplashScreenContent
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
 import chat.schildi.revenge.compose.destination.conversation.event.MessageSwipeConfig
@@ -182,11 +183,7 @@ fun ConversationScreen(
         val imeBottomPadding = WindowInsets.ime
             .asPaddingValues()
             .calculateBottomPadding()
-        val composerBottomPadding = if (imeBottomPadding > navigationBottomPadding) {
-            12.dp
-        } else {
-            navigationBottomPadding + 12.dp
-        }
+        val composerBottomPadding = imeAwareBottomPadding(navigationBottomPadding, imeBottomPadding)
 
         val timelineItems = viewModel.timelineItems.collectAsState().value
         // Keep selected timeline objects directly so toggling selection stays O(1) with
