@@ -158,7 +158,10 @@ fun ConversationScreen(
     }
 
     BoxWithConstraints(
-        modifier.fillMaxSize().let {
+        modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+            .let {
             if (viewModel.modeSupportsComposer) {
                 it.windowInsetsPadding(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
@@ -476,6 +479,14 @@ fun ConversationScreen(
                     val renderedItems = remember(timelineItems) {
                         timelineItems.reversed().toPersistentList()
                     }
+                    val latestOwnMessageKey = remember(renderedItems) {
+                        renderedItems.firstNotNullOfOrNull { timelineItem ->
+                            val event = (timelineItem.item as? MatrixTimelineItem.Event)?.event
+                            event
+                                ?.takeIf { it.isOwn && it.content is MessageContent }
+                                ?.kiteSelectionKey()
+                        }
+                    }
 
                     // Track whether we see bottom or latest read message for jump-to-message FABs
                     val fullyReadEvent = viewModel.cachedFullyRead.collectAsState().value
@@ -603,6 +614,7 @@ fun ConversationScreen(
                                 isSelected = rowSelected,
                                 isPinned = rowEvent?.eventId?.let { it in pinnedEventIds } == true,
                                 canPin = roomPermissions?.canPinUnpin == true,
+                                showReadReceipts = rowEvent?.kiteSelectionKey() == latestOwnMessageKey,
                                 onToggleSelection = toggleMessageSelection,
                                 onForward = { event -> forwardEvents(listOf(event)) },
                                 onShowInfo = { event -> messageInfoEvent = event },

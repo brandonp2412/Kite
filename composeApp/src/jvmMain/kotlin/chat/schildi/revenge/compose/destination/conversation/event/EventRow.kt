@@ -77,6 +77,7 @@ fun EventRow(
     isSelected: Boolean,
     isPinned: Boolean,
     canPin: Boolean,
+    showReadReceipts: Boolean,
     onToggleSelection: () -> Unit,
     onForward: () -> Unit,
     onShowInfo: () -> Unit,
@@ -214,10 +215,12 @@ fun EventRow(
                             showSenderDetails = showSenderDetails,
                         )
                     }
-                    ReadReceiptsRow(
-                        receipts = event.receipts,
-                        roomMembersById = roomMembersById,
-                    )
+                    if (showReadReceipts) {
+                        ReadReceiptsRow(
+                            receipts = event.receipts,
+                            roomMembersById = roomMembersById,
+                        )
+                    }
                 }
             }
         }
