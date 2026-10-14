@@ -381,3 +381,52 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 ### Next substantial slice
 - When the Samsung is naturally awake/unlocked, do side-by-side screenshot QA of the new bottom in-chat search, composer focus/typing states, long-press floating menu, and compact receipt treatment against installed Google Messages.
 - Continue with precise partial-text copy inside the long-press flow and the current Google Messages swipe model (right-to-reply / left-to-reveal timestamps) only after confirming those gestures do not conflict with Kite's existing Matrix quick-reply semantics and 120Hz performance target.
+
+## 2026-10-15 00:42 NZDT — Google Messages swipe/timestamp reveal + partial-copy plumbing
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages reference README before changing the conversation interaction surface.
+- Cross-checked the current stable Google Messages behavior: right-swipe on a message replies; left-swipe reveals per-message timestamps across the visible conversation; the current long-press flow supports selecting part of message text after entering message actions.
+- The Samsung remained Dozing throughout final validation, so Google Messages and Kite were not launched or mutated for visual reference capture in this slice. No side-by-side screenshot claim is made.
+
+### Implemented
+- Moved the default touch swipe mapping to the current Google Messages model while preserving Kite's configurable Matrix actions:
+  - left swipe = timestamp reveal,
+  - right swipe = reply,
+  - explicit non-default swipe pairs remain unchanged,
+  - the historical touch default pair left=REPLY/right=NONE resolves at runtime to the new mapping so existing installs get the current gesture without rewriting preferences.
+- Added one stable conversation-level MessageTimestampRevealState instead of adding per-row collectors/state duplication. A left timestamp drag updates one float; visible message rows shift through layout/layer state reads while each row fades its already-available timestamp into the trailing edge.
+- Kept right-swipe reply on the existing Matrix compose-reply action path. Existing reaction/edit/read-marker swipe actions remain available through preferences.
+- Shifted the message content plus its reactions/thread/read-receipt metadata together during timestamp reveal so the interaction reads as one conversation surface rather than moving only a bubble.
+- Added touch partial-selection plumbing to the existing formatted-message renderer: message text remains non-selectable during normal scrolling, then enables the existing Compose SelectionContainer while the message action surface is open.
+- Added pure desktop tests covering legacy-default migration, current default stability, and preservation of explicit custom swipe pairs.
+- Reused the existing localized message_info_time resource for the new preference entry; the unrelated dirty resource file was not edited by this slice.
+
+### Validation
+- Main worktree source checkpoint: 44a08be32de1126683688dfca7cd10549987111d (Match Messages swipe and text selection interactions).
+- git diff --check: pass before checkpoint.
+- :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1: pass (91 actionable tasks, BUILD SUCCESSFUL).
+- Focused MessageSwipeActionsTest plus Android/desktop compile also passed before the full suite.
+- Release-like packaging isolated from the three unrelated hide-room edits using fresh clone /home/brandon/worktrees/kite-revenge-validate-44a08be3, exact superproject commit 44a08be3, Matrix Rust SDK 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1: pass (275 actionable tasks, BUILD SUCCESSFUL in 5m03s). The orchestration timeout replayed the same Gradle command once; the newer duplicate was terminated immediately so generated outputs had a single writer.
+- Final clean APK: androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,853,468 bytes, SHA-256 718493ac85b91d4451fdf660b01851cffa2a85e77586e8b10e3e38eef412de82.
+- AAPT: package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37, native-code arm64-v8a.
+- APK signature verified with existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung 10.66.66.3:5555 preflight found only app.kite.revenge.debug among the native migration packages; installed the exact verified APK with adb install -r and received Success.
+- Existing debug app data was preserved: firstInstallTime=2026-10-14 11:55:12, dataDir=/data/user/0/app.kite.revenge.debug; post-install lastUpdateTime=2026-10-15 00:41:33.
+- Device remained mWakefulness=Dozing / non-interactive after installation. Kite was not launched and the phone was not woken merely for QA.
+- No 120 Hz frame-time or visual-parity claim is made for the new swipe. Static hot-path review confirms this slice adds no Matrix collectors and uses one shared primitive Compose state, but device measurement is still required.
+- The pre-existing hide-room work remains unstaged and byte-for-byte unchanged:
+  - InboxViewModel.kt SHA-256 cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7
+  - AppStateStore.kt SHA-256 7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673
+  - strings.xml SHA-256 dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a
+
+### Concrete remaining QA / next substantial slice
+- When the Samsung is naturally awake/unlocked, verify the installed build side-by-side with installed Google Messages:
+  - right swipe replies without accidental vertical-scroll capture,
+  - left swipe reveals aligned timestamps across a long visible history and springs back cleanly,
+  - long-press then second-long-press on text produces partial-selection handles; Compose popup focus/outside-touch behavior is the known interaction risk and must not be claimed solved until this is observed,
+  - attachment/reaction/read-receipt rows move coherently with the timestamp reveal,
+  - dark theme and keyboard/inset behavior remain stable.
+- Capture gfxinfo/frame evidence during repeated swipes on a long room at 120 Hz. If the shared reveal still causes avoidable layout work, move more of the translation to graphics-layer-only placement before continuing.
+- After that QA, continue the next nearby Google-Messages-style conversation slice rather than adding another parallel state system.
