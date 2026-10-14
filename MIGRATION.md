@@ -842,3 +842,12 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Produce and verify the release-like PerfDebug APK from a clean detached checkout of this checkpoint, confirm package/signature identity, and install only app.kite.revenge.debug if safe.
 - When the Samsung is naturally awake/unlocked, compare account selection/profile/transient actions side-by-side with Google Messages and capture 120 Hz frame evidence.
 - Continue into the adjacent notification quick-reply/action verification and remaining room/profile detail surfaces.
+
+
+### PerfDebug validation completion
+- Clean detached validation checkout at commit a579db9d with Matrix Rust SDK pin 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- Java 25 :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a: PASS.
+- APK identity: app.kite.revenge.debug, native-code arm64-v8a.
+- APK signing SHA-256: 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Replace-install on Samsung SM-S931B: PASS; dataDir remained /data/user/0/app.kite.revenge.debug and firstInstallTime remained 2026-10-14 11:55:12. lastUpdateTime became 2026-10-15 06:06:57.
+- The app was not launched after installation and the Samsung remained dozing, preserving device/user state. Side-by-side visual QA and 120 Hz frame measurement remain intentionally deferred until the device is naturally awake/unlocked.
