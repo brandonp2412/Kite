@@ -1,15 +1,22 @@
 package chat.schildi.revenge.compose.search
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -17,9 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.ImeAction
@@ -35,6 +44,8 @@ import shire.res.generated.resources.action_clear_search
 import shire.res.generated.resources.hint_search
 import kotlin.uuid.Uuid
 
+private val MessagesSearchShape = RoundedCornerShape(28.dp)
+
 @Composable
 fun SearchBar(
     searchProvider: SearchProvider?,
@@ -47,70 +58,130 @@ fun SearchBar(
     val isFocused = remember { mutableStateOf(false) }
     val searchValue = handler.globalSearchQuery.collectAsState("").value
     val focusManager = LocalFocusManager.current
+    val searchHint = stringResource(Res.string.hint_search)
+    val clearSearchDescription = stringResource(Res.string.action_clear_search)
+    val keyboardActions = KeyboardActions(
+        onSearch = { handler.onSearchEnter(searchProvider, searchFocusContainer) },
+        onDone = { handler.onSearchEnter(searchProvider, searchFocusContainer) },
+    )
     PlatformBackHandler(enabled = searchValue.isNotEmpty() || isFocused.value) {
         handler.clearSearch()
         focusManager.clearFocus()
     }
+
+    if (topNavigationStyle) {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp),
+            shape = MessagesSearchShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            BasicTextField(
+                value = searchValue,
+                onValueChange = {
+                    handler.onSearchType(it, searchProvider, searchFocusContainer)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .onFocusChanged {
+                        isFocused.value = it.isFocused
+                    }
+                    .keyFocusable(role = FocusRole.SEARCH_BAR),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = keyboardActions,
+                cursorBrush = SolidColor(MaterialTheme.scExposures.accentColor),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .padding(start = 16.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            if (searchValue.isEmpty()) {
+                                Text(
+                                    text = searchHint,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                )
+                            }
+                            innerTextField()
+                        }
+                        if (showClearButton && searchValue.isNotEmpty()) {
+                            IconButton(
+                                onClick = handler::clearSearch,
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = clearSearchDescription,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                },
+            )
+        }
+        return
+    }
+
     TextField(
         value = searchValue,
         onValueChange = {
             handler.onSearchType(it, searchProvider, searchFocusContainer)
         },
-        label = if (topNavigationStyle) null else {{
+        label = {
             Text(
-                stringResource(Res.string.hint_search),
+                searchHint,
                 color = if (showClearButton) Color.Unspecified else MaterialTheme.scExposures.searchHint,
             )
-        }},
-        placeholder = if (topNavigationStyle) {{
-            Text(
-                stringResource(Res.string.hint_search),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }} else null,
-        leadingIcon = if (topNavigationStyle) {{
-            androidx.compose.material3.Icon(
-                Icons.Default.Search,
-                stringResource(Res.string.hint_search),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }} else null,
+        },
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = if (topNavigationStyle) 56.dp else 0.dp)
             .onFocusChanged {
                 isFocused.value = it.isFocused
             }
             .keyFocusable(role = FocusRole.SEARCH_BAR),
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = {
-            handler.onSearchEnter(searchProvider, searchFocusContainer)
-        }, onDone = {
-            handler.onSearchEnter(searchProvider, searchFocusContainer)
-        }),
-        shape = if (topNavigationStyle) RoundedCornerShape(28.dp) else TextFieldDefaults.shape,
-        colors = if (topNavigationStyle) {
-            TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-            )
-        } else {
-            TextFieldDefaults.colors().copy(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            )
-        },
-        trailingIcon = if (showClearButton) {{
-            TopNavigationIcon(
-                Icons.Default.Clear,
-                stringResource(Res.string.action_clear_search)
-            ) {
-                handler.clearSearch()
+        keyboardActions = keyboardActions,
+        colors = TextFieldDefaults.colors().copy(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+        ),
+        trailingIcon = if (showClearButton && searchValue.isNotEmpty()) {
+            {
+                IconButton(onClick = handler::clearSearch) {
+                    Icon(
+                        Icons.Default.Clear,
+                        contentDescription = clearSearchDescription,
+                    )
+                }
             }
-        }} else null,
+        } else {
+            null
+        },
     )
 }

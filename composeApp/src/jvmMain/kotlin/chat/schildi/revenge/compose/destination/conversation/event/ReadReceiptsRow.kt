@@ -35,7 +35,7 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableList
 import kotlin.math.absoluteValue
 
-private const val MAX_RECEIPTS = 50
+private const val MAX_VISIBLE_RECEIPTS = 3
 
 @Composable
 fun ColumnScope.ReadReceiptsRow(
@@ -63,7 +63,7 @@ fun ColumnScope.ReadReceiptsRow(
         modifier = modifier.padding(
             top = Dimens.Conversation.receiptPaddingVertical,
             start = 0.dp,
-            end = LocalMessageStyle.current.otherSideMargin,
+            end = LocalMessageStyle.current.otherSideMarginOutgoing,
         ).clip(RoundedCornerShape(Dimens.Conversation.receiptSize / 2)),
     ) {
         FlowRow(
@@ -76,14 +76,14 @@ fun ColumnScope.ReadReceiptsRow(
                         secondaryAction = InteractionAction.ContextMenu(focusId, null),
                     ),
                 )
-                .align(Alignment.Start),
+                .align(Alignment.End),
             verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.receiptPaddingVertical),
             horizontalArrangement = Arrangement.spacedBy(
                 Dimens.Conversation.receiptPaddingHorizontal,
-                Alignment.Start,
+                Alignment.End,
             ),
         ) {
-            receipts.take(MAX_RECEIPTS).forEachIndexed { index, receipt ->
+            receipts.take(MAX_VISIBLE_RECEIPTS).forEachIndexed { index, receipt ->
                 key(receipt.userId) {
                     ReadReceiptItem(
                         receipt = receipt,
@@ -92,9 +92,9 @@ fun ColumnScope.ReadReceiptsRow(
                     )
                 }
             }
-            if (receipts.size > MAX_RECEIPTS) {
+            if (receipts.size > MAX_VISIBLE_RECEIPTS) {
                 ReadReceiptOverflowItem(
-                    receipts.size - MAX_RECEIPTS,
+                    receipts.size - MAX_VISIBLE_RECEIPTS,
                     Modifier.padding(start = Dimens.Conversation.receiptPaddingHorizontal.value.absoluteValue.dp)
                 )
             }

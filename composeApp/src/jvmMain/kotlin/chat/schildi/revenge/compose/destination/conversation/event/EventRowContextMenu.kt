@@ -319,12 +319,6 @@ fun EventTimelineItem.contextMenu(
             if (isPinned) Action.Event.Unpin else Action.Event.Pin,
         ).takeIf { eventId != null && canPin },
         ContextMenuActionEntry(
-            Res.string.action_download.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Download),
-            Action.Event.DownloadFile,
-            keyboardShortcut = Key.L,
-        ).takeIf { messageContent?.type is MessageTypeWithAttachment },
-        ContextMenuActionEntry(
             Res.string.action_redact.toStringHolder(),
             rememberVectorPainter(Icons.Default.Delete),
             Action.Event.Redact,
@@ -353,6 +347,12 @@ fun EventTimelineItem.contextMenu(
                 ActionResult.Success()
             },
         ).takeIf { eventId != null && onShowInfo != null },
+        ContextMenuActionEntry(
+            Res.string.action_download.toStringHolder(),
+            rememberVectorPainter(Icons.Default.Download),
+            Action.Event.DownloadFile,
+            keyboardShortcut = Key.L,
+        ).takeIf { messageContent?.type is MessageTypeWithAttachment },
         ContextMenuSubmenuEntry(
             Res.string.action_show_more.toStringHolder(),
             rememberVectorPainter(Icons.Default.MoreHoriz),

@@ -1,6 +1,5 @@
 package chat.schildi.revenge.compose.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -163,13 +162,11 @@ fun WithContextMenu(
     var pointerPositionOnOpen by remember { mutableStateOf<Offset?>(null) }
     val density = LocalDensity.current
 
-    val containerColor = animateColorAsState(
-        when {
-            hasChild -> MaterialTheme.colorScheme.surfaceContainerLow
-            presentation == ContextMenuPresentation.Message -> MaterialTheme.colorScheme.surfaceContainerHigh
-            else -> MaterialTheme.colorScheme.surfaceContainerHighest
-        }
-    ).value
+    val containerColor = when {
+        hasChild -> MaterialTheme.colorScheme.surfaceContainerLow
+        presentation == ContextMenuPresentation.Message -> MaterialTheme.colorScheme.surfaceContainerHigh
+        else -> MaterialTheme.colorScheme.surfaceContainerHighest
+    }
 
     LaunchedEffect(expanded) {
         if (expanded) {

@@ -1,8 +1,5 @@
 package chat.schildi.revenge.compose.composer
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
@@ -53,6 +50,7 @@ import chat.schildi.revenge.MessageFormatDefaults
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.currentActionContext
 import chat.schildi.revenge.compose.components.ScIconButton
+import chat.schildi.revenge.compose.components.rememberTransientLoadingVisible
 import chat.schildi.revenge.compose.components.WithTooltip
 import chat.schildi.revenge.compose.destination.conversation.event.message.ReplyContent
 import chat.schildi.revenge.compose.destination.conversation.event.message.TextLikeMessageContent
@@ -116,6 +114,7 @@ fun ComposerRow(
     val composerInfo = viewModel.composerRoomInfo.collectAsState().value
     val isSendInProgress = viewModel.isSendInProgress.collectAsState().value
     var showAttachmentPicker by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(false) }
     val draftTheme = MaterialTheme.scExposures.draftTheme
     LaunchedEffect(draftTheme) {
         viewModel.updateDraftTheme(draftTheme)
@@ -215,9 +214,7 @@ fun ComposerRow(
                         .heightIn(min = 56.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    AnimatedVisibility(
-                        draftState.canAddAttachment(),
-                    ) {
+                    if (draftState.canAddAttachment()) {
                         WithTooltip(stringResource(Res.string.action_add_attachment)) {
                             ScIconButton(
                                 onClick = { showAttachmentPicker = true },
@@ -225,12 +222,11 @@ fun ComposerRow(
                                 minWidth = Dimens.Conversation.Composer.buttonWidth,
                                 minHeight = Dimens.Conversation.Composer.buttonHeight,
                             ) {
-                                val color = animateColorAsState(
-                                    if (isSendInProgress)
-                                        MaterialTheme.colorScheme.tertiary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant,
-                                ).value
+                                val color = if (isSendInProgress) {
+                                    MaterialTheme.colorScheme.tertiary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
                                 Icon(
                                     Icons.Default.Add,
                                     stringResource(Res.string.action_add_attachment),
@@ -251,7 +247,6 @@ fun ComposerRow(
                             .padding(Dimens.Conversation.messageBubbleInnerPadding),
                     )
                 }
-                var isFocused by remember { mutableStateOf(false) }
                 val maxLinesFocused = ScPrefs.COMPOSER_MAX_LINES.value()
                 val maxLinesUnfocused = ScPrefs.COMPOSER_MAX_LINES_UNFOCUSED.value()
                 val composerHint = when (draftState.type) {
@@ -282,22 +277,20 @@ fun ComposerRow(
                         }
                     }
                 }
-                val composerHintColor = animateColorAsState(
-                    when (draftState.type) {
-                        DraftType.TEXT,
-                        DraftType.EDIT,
-                        DraftType.EDIT_CAPTION,
-                        DraftType.ATTACHMENT -> MaterialTheme.colorScheme.onSurfaceVariant
+                val composerHintColor = when (draftState.type) {
+                    DraftType.TEXT,
+                    DraftType.EDIT,
+                    DraftType.EDIT_CAPTION,
+                    DraftType.ATTACHMENT -> MaterialTheme.colorScheme.onSurfaceVariant
 
-                        DraftType.STICKER,
-                        DraftType.REACTION -> MaterialTheme.scExposures.reactHint
+                    DraftType.STICKER,
+                    DraftType.REACTION -> MaterialTheme.scExposures.reactHint
 
-                        DraftType.NOTICE,
-                        DraftType.EMOTE,
-                        DraftType.CUSTOM_EVENT,
-                        DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
-                    }
-                ).value
+                    DraftType.NOTICE,
+                    DraftType.EMOTE,
+                    DraftType.CUSTOM_EVENT,
+                    DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
+                }
                 BasicTextField(
                     value = draftState.textFieldValue,
                     onValueChange = {
@@ -346,24 +339,26 @@ fun ComposerRow(
                         }
                     },
                 )
-                AnimatedVisibility(
-                    draftState.type == DraftType.STICKER ||
+                if (
+                    !isSendInProgress &&
+                    (
+                        draftState.type == DraftType.STICKER ||
                             draftState.type == DraftType.TEXT && composerInfo?.canSendStickers == true &&
-                                    (draftState.isEmpty() || draftState.isValidSticker)
+                                (draftState.isEmpty() || draftState.isValidSticker)
+                    )
                 ) {
                     WithTooltip(stringResource(Res.string.hint_composer_sticker)) {
                         ScIconButton(
                             onClick = { viewModel.toggleStickerMode() },
-                            enabled = !isSendInProgress,
+                            enabled = true,
                             minWidth = Dimens.Conversation.Composer.buttonWidth,
                             minHeight = Dimens.Conversation.Composer.buttonHeight,
                         ) {
-                            val color = animateColorAsState(
-                                if (draftState.type == DraftType.STICKER)
-                                    MaterialTheme.scExposures.accentColor
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                            ).value
+                            val color = if (draftState.type == DraftType.STICKER) {
+                                MaterialTheme.scExposures.accentColor
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                             Icon(
                                 Icons.Outlined.EmojiEmotions,
                                 stringResource(Res.string.hint_composer_sticker),
@@ -372,15 +367,18 @@ fun ComposerRow(
                         }
                     }
                 }
-                AnimatedVisibility(
+                if (
+                    !isSendInProgress &&
+                    !isFocused &&
                     draftState.type == DraftType.TEXT &&
-                            draftState.attachment == null &&
-                            AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
+                    draftState.attachment == null &&
+                    draftState.isEmpty() &&
+                    AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
                 ) {
                     WithTooltip(stringResource(Res.string.action_add_attachment)) {
                         ScIconButton(
                             onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
-                            enabled = !isSendInProgress,
+                            enabled = true,
                             minWidth = Dimens.Conversation.Composer.buttonWidth,
                             minHeight = Dimens.Conversation.Composer.buttonHeight,
                         ) {
@@ -393,23 +391,26 @@ fun ComposerRow(
                         }
                     }
                 }
-                }
-            }
-            if (isSendInProgress || draftState.type.needsClearButton() && draftState.isEmpty()) {
-                Spacer(Modifier.width(6.dp))
-                AnimatedContent(isSendInProgress) { sending ->
-                    if (sending) {
-                        Box(Modifier.minimumInteractiveComponentSize(), contentAlignment = Alignment.Center) {
+                if (isSendInProgress) {
+                    Box(
+                        modifier = Modifier.minimumInteractiveComponentSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (rememberTransientLoadingVisible()) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
                                 color = MaterialTheme.scExposures.accentColor,
                             )
                         }
-                    } else {
-                        ClearButton {
-                            viewModel.onComposerUpdate(DraftValue())
-                        }
                     }
+                }
+                }
+            }
+            if (!isSendInProgress && draftState.type.needsClearButton() && draftState.isEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                ClearButton {
+                    viewModel.onComposerUpdate(DraftValue())
                 }
             }
         }
