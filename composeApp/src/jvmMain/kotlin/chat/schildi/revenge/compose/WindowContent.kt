@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -22,6 +26,7 @@ import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.Anim
 import chat.schildi.revenge.DestinationStateHolder
 import chat.schildi.revenge.actions.KeyboardActionMode
+import chat.schildi.revenge.actions.ConfirmActionAppMessage
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.command.CommandBar
 import chat.schildi.revenge.compose.components.AppMessages
@@ -30,6 +35,7 @@ import chat.schildi.revenge.compose.focus.windowFocusContainer
 import chat.schildi.revenge.compose.search.SearchBar
 import chat.schildi.revenge.compose.util.rememberInvalidating
 import chat.schildi.theme.ScTheme
+import kotlinx.collections.immutable.toPersistentList
 import chat.schildi.theme.scExposures
 
 @Composable
@@ -47,11 +53,18 @@ fun WindowContent(
         // Global window bottom content (app messages, command bar, search)
         val keyboardActionHandler = LocalKeyboardActionHandler.current
         val publishedMessages = keyboardActionHandler.messageBoard.collectAsState().value
+        // Confirmation is a real overlay, never a bottom message that reduces the
+        // destination viewport or toggles the window's safe-area padding.
+        val confirmation = publishedMessages.lastOrNull {
+            it is ConfirmActionAppMessage && it.dismissedTimestamp == null
+        } as? ConfirmActionAppMessage
+        val bottomMessages = publishedMessages.filterNot { it is ConfirmActionAppMessage }
+            .toPersistentList()
         val showSearchBar = ScPrefs.MINIMAL_MODE.value() &&
                 keyboardActionHandler.needsKeyboardSearchBar(null).collectAsState().value
         val showCommandBar = keyboardActionHandler.mode.collectAsState().value is KeyboardActionMode.Command
         val showsBottomContent = showSearchBar || showCommandBar ||
-                publishedMessages.any { it.dismissedTimestamp == null }
+                bottomMessages.any { it.dismissedTimestamp == null }
 
         Box(
             modifier
@@ -84,7 +97,7 @@ fun WindowContent(
                     ) {
                         keyboardActionHandler.cleanUpMessageBoard()
                     }
-                    AppMessages(publishedMessages, destinationHolder)
+                    AppMessages(bottomMessages, destinationHolder)
 
                     // Search bar
                     AnimatedVisibility(
@@ -108,6 +121,24 @@ fun WindowContent(
                         CommandBar()
                     }
                 }
+            }
+            if (confirmation != null) {
+                AlertDialog(
+                    onDismissRequest = { keyboardActionHandler.dismissMessage(confirmation.uniqueId) },
+                    title = { Text(confirmation.message.render()) },
+                    confirmButton = {
+                        Button(onClick = confirmation.action) {
+                            Text(confirmation.confirmText.render())
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            keyboardActionHandler.dismissMessage(confirmation.uniqueId)
+                        }) {
+                            Text(confirmation.cancelText.render())
+                        }
+                    },
+                )
             }
             // Do not paint Revenge's global frame-drop spinner over Kite. It can flash
             // during ordinary navigation and makes otherwise-stable screens look like they

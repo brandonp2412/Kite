@@ -1,7 +1,24 @@
 package chat.schildi.revenge.compose.destination.conversation.event
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
@@ -26,12 +43,75 @@ fun Modifier.passiveDoubleTapReaction(
     focusId: Uuid,
     enabled: Boolean,
     reaction: String,
+    reactionActive: Boolean,
 ): Modifier {
     if (!enabled) return this
 
     val actionHandler = LocalKeyboardActionHandler.current
     val viewConfiguration = LocalViewConfiguration.current
-    return pointerInput(focusId, reaction, actionHandler, viewConfiguration) {
+    val haptics = LocalHapticFeedback.current
+    val activeReaction by rememberUpdatedState(reactionActive)
+    var burstPosition by remember(focusId) { mutableStateOf<Offset?>(null) }
+    var burstSerial by remember(focusId) { mutableIntStateOf(0) }
+    val burstProgress = remember(focusId) { Animatable(0f) }
+    val heartShape = remember {
+        Path().apply {
+            moveTo(0f, 27f)
+            cubicTo(-10f, 18f, -28f, 5f, -28f, -10f)
+            cubicTo(-28f, -29f, -9f, -31f, 0f, -18f)
+            cubicTo(9f, -31f, 28f, -29f, 28f, -10f)
+            cubicTo(28f, 5f, 10f, 18f, 0f, 27f)
+            close()
+        }
+    }
+    LaunchedEffect(burstSerial) {
+        if (burstSerial > 0) {
+            burstProgress.snapTo(0f)
+            burstProgress.animateTo(1f, tween(durationMillis = 540, easing = LinearEasing))
+            burstPosition = null
+        }
+    }
+    return drawWithContent {
+        drawContent()
+        val at = burstPosition ?: return@drawWithContent
+        val t = burstProgress.value
+        val opacity = when {
+            t < 0.18f -> t / 0.18f
+            t < 0.64f -> 1f
+            else -> (1f - t) / 0.36f
+        }.coerceIn(0f, 1f)
+        val scale = when {
+            t < 0.42f -> 0.3f + (1.14f - 0.3f) * (1f - (1f - t / 0.42f) * (1f - t / 0.42f))
+            t < 0.67f -> 1.14f - 0.16f * ((t - 0.42f) / 0.25f)
+            else -> 0.98f - 0.08f * ((t - 0.67f) / 0.33f)
+        }
+        val glyphScale = 64.dp.toPx() / 64f * scale
+        val liftPx = (4f - 16f * t).dp.toPx()
+        withTransform({
+            translate(left = at.x, top = at.y + liftPx)
+            rotate(degrees = -4f + 6f * t)
+            scale(scaleX = glyphScale, scaleY = glyphScale, pivot = Offset.Zero)
+        }) {
+            drawPath(heartShape, color = Color.Black, alpha = 0.16f * opacity)
+            drawPath(heartShape, color = Color(0xFFFF5278), alpha = opacity)
+        }
+        if (t < 0.6f) {
+            val sparkle = (1f - t / 0.6f).coerceIn(0f, 1f)
+            val spread = 15.dp.toPx() * (0.5f + t)
+            for (direction in 0..5) {
+                val angle = direction * kotlin.math.PI / 3
+                drawCircle(
+                    color = if (direction % 2 == 0) Color(0xFFFF90B0) else Color(0xFFFFD38A),
+                    radius = 2.6.dp.toPx() * sparkle,
+                    center = Offset(
+                        at.x + kotlin.math.cos(angle).toFloat() * (22.dp.toPx() + spread),
+                        at.y + kotlin.math.sin(angle).toFloat() * (22.dp.toPx() + spread),
+                    ),
+                    alpha = opacity * sparkle,
+                )
+            }
+        }
+    }.pointerInput(focusId, reaction, actionHandler, viewConfiguration) {
         val touchSlop = viewConfiguration.touchSlop
         val doubleTapSlop = touchSlop * DOUBLE_TAP_SLOP_MULTIPLIER
         val longPressTimeout = viewConfiguration.longPressTimeoutMillis
@@ -105,6 +185,13 @@ fun Modifier.passiveDoubleTapReaction(
                         ) {
                             previousTapTime = null
                             previousTapPosition = null
+                            if (!activeReaction) {
+                                burstPosition = change.position
+                                burstSerial++
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            } else {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
                             actionHandler.handleAction(
                                 focusId,
                                 Action.Event.ToggleReactionKey,

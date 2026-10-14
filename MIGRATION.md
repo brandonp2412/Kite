@@ -1000,3 +1000,13 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - ARM64 APK `/home/brandon/kite-revenge/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk`, SHA-256 `6413a353527ad687f79ec0dc8d4093b2d621e25d197c35174ef198ee9a0b4d9f`, confirmed package `app.kite.revenge.debug`, existing signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
 - `adb -s 10.66.66.3:5555 install -r` returned Success; retained isolated debug app package and did not modify production `app.kite` or Matrix account data.
 - Did not launch or interact with private live conversations; device-side direct order/visual proof remains to be collected. Rust's reported `latestEventTimestamp` can differ from indexed message history, so a live timestamp inspection is a follow-up if Benny still appears incorrectly without being pinned.
+
+
+## 2026-10-15 — Leave-chat overlay and heart reaction animation
+
+- Replaced layout-resizing bottom confirmation card with a Material 3 AlertDialog overlay. Confirm, cancel, and dismiss callbacks remain routed to the same existing handlers. Critical action gating is preserved; no chat was left during validation.
+- Added Flutter Kite-inspired 540 ms pink-heart double-tap burst with sparkles, lift, scale and fade, plus haptic feedback. The visual is drawn by drawWithContent, without adding layout, shifting message bounds or consuming tap gestures. Only adding a reaction animates; removing one does not.
+- Existing ReactionsRow can still change message height when a new reaction badge appears. No claim of perfect zero layout shift without direct screen measurements.
+- Glass desktop tests and Android/desktop compilation succeeded after fixing a draw-transform pixel conversion scope error. Glass ARM64 PerfDebug APK build succeeded.
+- Verified package app.kite.revenge.debug and existing signer. APK SHA-256 6e70d42e2c175619930662ff0eaa52d04180679f216ac53ce3ad3c2806c9501c. adb install -r on Samsung succeeded. Debug install time and dataDir persisted; production app.kite untouched.
+- Live modal/gesture interaction not performed because ChatGPT was foreground on Samsung. Existing hide-chat work remains untouched.

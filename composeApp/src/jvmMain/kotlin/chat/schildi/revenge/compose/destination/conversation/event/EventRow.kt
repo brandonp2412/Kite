@@ -235,6 +235,11 @@ fun EventRow(
                                     focusId = focusId,
                                     enabled = canDoubleTapReact && !messageActionMenuOpen,
                                     reaction = doubleTapReaction,
+                                    reactionActive = event.reactions.any { reaction ->
+                                        reaction.key == doubleTapReaction && reaction.senders.any { sender ->
+                                            sender.senderId.value == viewModel.sessionId.value
+                                        }
+                                    },
                                 ),
                             )
                         }
