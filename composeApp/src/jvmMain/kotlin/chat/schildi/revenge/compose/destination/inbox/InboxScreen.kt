@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -128,15 +129,18 @@ fun InboxScreen(
         LocalSearchProvider provides viewModel,
         LocalKeyboardActionProvider provides viewModel.hierarchicalKeyboardActionProvider(),
         LocalListActionProvider provides rememberListActions(listState),
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        ),
+        // The status-bar inset must be painted with the same surface as the inbox.
+        // Apply the background before consuming the system inset for edge-to-edge.
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            ),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceContainer)
                 .imePadding()
         ) {
             val compact = maxWidth < Dimens.compactActionBarThreshold
@@ -151,7 +155,8 @@ fun InboxScreen(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .padding(top = if (compact) Dimens.listPadding else 0.dp),
+                    .background(if (compact) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainer)
+                    .padding(top = if (compact) 0.dp else Dimens.listPadding),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (ScPrefs.SHOW_DEV_INFOS.value()) {
@@ -191,7 +196,9 @@ fun InboxScreen(
 
                 Surface(
                     modifier = contentModifier.fillMaxSize(),
-                    shape = Dimens.Inbox.listSurfaceShape,
+                    // A rounded inset card exposes a contrasting strip beneath the
+                    // Android status bar. Use a continuous flat sheet on phones.
+                    shape = if (compact) RectangleShape else Dimens.Inbox.listSurfaceShape,
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
                 ) {
