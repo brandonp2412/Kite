@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Search
@@ -101,7 +102,10 @@ fun TopNavigationIcon(
 }
 
 @Composable
-fun TopNavigationCloseOrNavigateToInboxIcon(modifier: Modifier = Modifier) {
+fun TopNavigationCloseOrNavigateToInboxIcon(
+    modifier: Modifier = Modifier,
+    backStyle: Boolean = false,
+) {
     val destinationState = LocalDestinationState.current
     val keyHandler = LocalKeyboardActionHandler.current
     val showInboxIcon = when {
@@ -119,7 +123,7 @@ fun TopNavigationCloseOrNavigateToInboxIcon(modifier: Modifier = Modifier) {
     }
     if (showInboxIcon) {
         TopNavigationIcon(
-            Icons.Default.Inbox,
+            if (backStyle) Icons.AutoMirrored.Default.ArrowBack else Icons.Default.Inbox,
             stringResource(Res.string.action_open_inbox),
             modifier,
         ) {
@@ -127,7 +131,7 @@ fun TopNavigationCloseOrNavigateToInboxIcon(modifier: Modifier = Modifier) {
         }
     } else {
         TopNavigationIcon(
-            Icons.Default.Close,
+            if (backStyle) Icons.AutoMirrored.Default.ArrowBack else Icons.Default.Close,
             stringResource(Res.string.action_close),
             modifier,
         ) {
@@ -183,7 +187,9 @@ fun RowScope.TopNavigationSearchOrTitle(
             SearchBar(
                 searchProvider,
                 searchFocusContainer,
-                Modifier.weight(1f),
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 showClearButton = true,
                 topNavigationStyle = true,
             )

@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -158,22 +158,30 @@ fun SettingsScreen(
             TopNavigation(forceVisible = true) {
                 val destinationState = LocalDestinationState.current
                 if (viewModel.isRootPreferences) {
-                    TopNavigationSearchOrTitle(stringResource(viewModel.prefScreen.collectAsState().value.prefScreen.titleRes))
-                    TopNavigationIcon(
-                        Icons.Default.Info,
-                        stringResource(Res.string.about)
-                    ) {
-                        destinationState?.navigate(Destination.About)
+                    TopNavigationCloseOrNavigateToInboxIcon(backStyle = true)
+                    TopNavigationSearchOrTitle(stringResource(prefScreen.titleRes))
+                    if (prefScreenState.searchQuery == null) {
+                        TopNavigationIcon(
+                            Icons.Default.AccountCircle,
+                            stringResource(Res.string.manage_accounts)
+                        ) {
+                            destinationState?.navigate(Destination.AccountManagement())
+                        }
+                        TopNavigationIcon(
+                            Icons.Default.Info,
+                            stringResource(Res.string.about)
+                        ) {
+                            destinationState?.navigate(Destination.About)
+                        }
                     }
-                    TopNavigationIcon(
-                        Icons.Default.AccountCircle,
-                        stringResource(Res.string.manage_accounts)
-                    ) {
-                        destinationState?.navigate(Destination.AccountManagement())
-                    }
-                    TopNavigationCloseOrNavigateToInboxIcon()
                 } else {
-                    TopNavigationTitle(stringResource(viewModel.prefScreen.collectAsState().value.prefScreen.titleRes))
+                    TopNavigationIcon(
+                        Icons.AutoMirrored.Default.ArrowBack,
+                        stringResource(Res.string.action_close),
+                    ) {
+                        destinationState?.navigate(Destination.SettingsPane(viewModel.parentPreferenceKey))
+                    }
+                    TopNavigationTitle(stringResource(prefScreen.titleRes))
                     if (prefScreen.sKey == ScPrefs.devPrefs.sKey) {
                         TopNavigationIcon(
                             Icons.Default.BugReport,
@@ -181,12 +189,6 @@ fun SettingsScreen(
                         ) {
                             destinationState?.navigate(Destination.Diagnostics)
                         }
-                    }
-                    TopNavigationIcon(
-                        Icons.Default.Close,
-                        stringResource(Res.string.action_close),
-                    ) {
-                        destinationState?.navigate(Destination.SettingsPane(viewModel.parentPreferenceKey))
                     }
                 }
             }

@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -50,7 +50,6 @@ import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.database.revengeDatabase
-import chat.schildi.theme.scExposures
 import co.touchlab.kermit.Logger
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -101,8 +100,8 @@ fun LazyListScope.renderPref(
                                 ScPrefCategoryHeader(
                                     title = stringResource(pref.titleRes),
                                     isFirst = isFirst,
-                                    color = MaterialTheme.scExposures.accentColor,
-                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.titleSmall,
                                 )
                             } else {
                                 pref.Rendered()
@@ -319,7 +318,7 @@ fun ScViewOnlyPref.Rendered() {
                 .collectAsState(null).value
             if (registrations == null) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    LinearProgressIndicator(modifier = Modifier.widthIn(max = 160.dp))
                 }
             } else if (registrations.isEmpty()) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {

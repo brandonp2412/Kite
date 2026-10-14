@@ -1,12 +1,16 @@
 package chat.schildi.revenge.compose.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -93,15 +97,40 @@ fun EmptySearchListScreen(
     inProgress: Boolean = false,
     actionContent: @Composable () -> Unit = {},
 ) {
-    EmptyListScreen(
-        title = if (inProgress)
-            Res.string.empty_screen_placeholder_search_in_progress.toStringHolder()
-        else
-            Res.string.empty_screen_placeholder_search.toStringHolder(),
-        icon = rememberVectorPainter(Icons.Default.Search),
+    val title = if (inProgress)
+        Res.string.empty_screen_placeholder_search_in_progress.toStringHolder()
+    else
+        Res.string.empty_screen_placeholder_search.toStringHolder()
+    Box(
         modifier = modifier,
-        actionContent = actionContent,
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    title.render(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                actionContent()
+            }
+        }
+    }
 }
 
 @Composable

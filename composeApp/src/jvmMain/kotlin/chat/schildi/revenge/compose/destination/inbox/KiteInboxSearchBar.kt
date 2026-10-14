@@ -1,10 +1,13 @@
 package chat.schildi.revenge.compose.destination.inbox
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -24,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.LocalDestinationState
@@ -38,6 +42,7 @@ import io.element.android.libraries.matrix.api.media.MediaSource
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_clear_search
+import shire.res.generated.resources.action_close
 import shire.res.generated.resources.hint_search
 import shire.res.generated.resources.hint_settings
 
@@ -81,12 +86,15 @@ fun KiteInboxSearchBar(
         leadingIcon = {
             if (searchActive) {
                 IconButton(
-                    onClick = handler::clearSearch,
+                    onClick = {
+                        handler.clearSearch()
+                        focusManager.clearFocus()
+                    },
                     modifier = Modifier.size(48.dp),
                 ) {
                     Icon(
-                        Icons.Default.Clear,
-                        contentDescription = stringResource(Res.string.action_clear_search),
+                        Icons.AutoMirrored.Default.ArrowBack,
+                        contentDescription = stringResource(Res.string.action_close),
                     )
                 }
             } else {
@@ -97,35 +105,53 @@ fun KiteInboxSearchBar(
             }
         },
         trailingIcon = {
-            IconButton(
-                onClick = {
-                    destinationState?.navigate(Destination.Settings())
-                },
-                modifier = Modifier.size(56.dp),
-            ) {
-                if (account != null) {
-                    AvatarImage(
-                        source = account.avatarUrl?.let(::MediaSource),
-                        size = 36.dp,
-                        sessionId = account.sessionId,
-                        shape = CircleShape,
-                        displayName = account.displayName ?: account.sessionId.value,
-                        contentDescription = stringResource(Res.string.hint_settings),
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = stringResource(Res.string.hint_settings),
-                    )
+            when {
+                searchActive && !query.isNullOrEmpty() -> {
+                    IconButton(
+                        onClick = handler::clearSearch,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Clear,
+                            contentDescription = stringResource(Res.string.action_clear_search),
+                        )
+                    }
+                }
+                !searchActive -> {
+                    IconButton(
+                        onClick = {
+                            destinationState?.navigate(Destination.Settings())
+                        },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        if (account != null) {
+                            AvatarImage(
+                                source = account.avatarUrl?.let(::MediaSource),
+                                size = 36.dp,
+                                sessionId = account.sessionId,
+                                shape = CircleShape,
+                                displayName = account.displayName ?: account.sessionId.value,
+                                contentDescription = stringResource(Res.string.hint_settings),
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(Res.string.hint_settings),
+                            )
+                        }
+                    }
                 }
             }
         },
         singleLine = true,
         shape = KiteSearchShape,
-        keyboardActions = KeyboardActions {
-            handler.onSearchEnter(viewModel, null)
-        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(
+            onSearch = { handler.onSearchEnter(viewModel, null) },
+            onDone = { handler.onSearchEnter(viewModel, null) },
+        ),
         modifier = modifier
+            .heightIn(min = 56.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .keyFocusable(
                 role = FocusRole.SEARCH_BAR,

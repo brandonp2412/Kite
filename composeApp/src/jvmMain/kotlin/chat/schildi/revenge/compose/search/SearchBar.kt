@@ -11,8 +11,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +41,7 @@ import chat.schildi.theme.scExposures
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_clear_search
+import shire.res.generated.resources.action_close
 import shire.res.generated.resources.hint_search
 import kotlin.uuid.Uuid
 
@@ -60,6 +61,7 @@ fun SearchBar(
     val focusManager = LocalFocusManager.current
     val searchHint = stringResource(Res.string.hint_search)
     val clearSearchDescription = stringResource(Res.string.action_clear_search)
+    val closeSearchDescription = stringResource(Res.string.action_close)
     val keyboardActions = KeyboardActions(
         onSearch = { handler.onSearchEnter(searchProvider, searchFocusContainer) },
         onDone = { handler.onSearchEnter(searchProvider, searchFocusContainer) },
@@ -105,12 +107,20 @@ fun SearchBar(
                             .padding(start = 16.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        IconButton(
+                            onClick = {
+                                handler.clearSearch()
+                                focusManager.clearFocus()
+                            },
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Default.ArrowBack,
+                                contentDescription = closeSearchDescription,
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Box(
                             modifier = Modifier
                                 .weight(1f)

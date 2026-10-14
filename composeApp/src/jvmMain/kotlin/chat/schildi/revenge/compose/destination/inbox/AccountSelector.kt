@@ -1,7 +1,5 @@
 package chat.schildi.revenge.compose.destination.inbox
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.PaddingValues
@@ -103,18 +101,14 @@ fun AccountButton(
     unreadCounts: SpaceAggregationDataSource.SpaceUnreadCounts?,
     modifier: Modifier = Modifier,
 ) {
-    val outlineColor = animateColorAsState(
-        if (account.isSelected)
-            MaterialTheme.scExposures.accentColor
-        else
-            Color.Transparent
-    ).value
-    val backgroundColor = animateColorAsState(
-        if (account.isCurrentlyVisible)
-            MaterialTheme.scExposures.bubbleBgIncoming // TODO
-        else
-            MaterialTheme.colorScheme.surfaceDim
-    ).value
+    val outlineColor = if (account.isSelected)
+        MaterialTheme.scExposures.accentColor
+    else
+        Color.Transparent
+    val backgroundColor = if (account.isCurrentlyVisible)
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    else
+        MaterialTheme.colorScheme.surfaceContainerLow
     WithTooltip(account.sessionId.value) {
         val focusId = rememberFocusId()
         WithContextMenu(
@@ -234,31 +228,29 @@ fun AccountButton(
                     SyncState.Terminated -> Icons.Default.Stop
                     SyncState.Offline -> Icons.Default.CloudOff
                 }
-                AnimatedContent(icon) { icon ->
-                    val hint = when (account.syncState) {
-                        SyncState.Error -> stringResource(Res.string.hint_sync_state_error)
-                        SyncState.Idle -> stringResource(Res.string.hint_sync_state_idle)
-                        SyncState.Running -> stringResource(Res.string.hint_sync_state_running)
-                        SyncState.Terminated -> stringResource(Res.string.hint_sync_state_terminated)
-                        SyncState.Offline -> stringResource(Res.string.hint_sync_state_offline)
-                    }
-                    val renderAsError = when (account.syncState) {
-                        SyncState.Terminated,
-                        SyncState.Offline,
-                        SyncState.Error -> !account.shouldHideErrors
-
-                        else -> false
-                    }
-                    Icon(
-                        icon,
-                        hint,
-                        Modifier.size(16.dp),
-                        tint = if (renderAsError)
-                            MaterialTheme.colorScheme.error
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                val hint = when (account.syncState) {
+                    SyncState.Error -> stringResource(Res.string.hint_sync_state_error)
+                    SyncState.Idle -> stringResource(Res.string.hint_sync_state_idle)
+                    SyncState.Running -> stringResource(Res.string.hint_sync_state_running)
+                    SyncState.Terminated -> stringResource(Res.string.hint_sync_state_terminated)
+                    SyncState.Offline -> stringResource(Res.string.hint_sync_state_offline)
                 }
+                val renderAsError = when (account.syncState) {
+                    SyncState.Terminated,
+                    SyncState.Offline,
+                    SyncState.Error -> !account.shouldHideErrors
+
+                    else -> false
+                }
+                Icon(
+                    icon,
+                    hint,
+                    Modifier.size(16.dp),
+                    tint = if (renderAsError)
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 if (ScPrefs.SHOW_DEV_INFOS.value()) {
                     val roomListState = when (account.roomListState) {
                         RoomListService.State.Error -> stringResource(Res.string.hint_sync_state_error)

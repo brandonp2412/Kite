@@ -34,7 +34,7 @@ import chat.schildi.revenge.preferences.value
 import org.jetbrains.compose.resources.stringResource
 import kotlin.uuid.Uuid
 
-private val SettingsPreferenceShape = RoundedCornerShape(12.dp)
+private val SettingsPreferenceShape = RoundedCornerShape(16.dp)
 
 @Composable
 fun <T> ScPref<T>.ScPrefLayout(

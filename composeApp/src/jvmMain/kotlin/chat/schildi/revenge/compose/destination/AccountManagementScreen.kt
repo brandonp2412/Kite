@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -50,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -68,6 +68,7 @@ import chat.schildi.revenge.actions.LocalListActionProvider
 import chat.schildi.revenge.actions.actionProvider
 import chat.schildi.revenge.actions.currentActionContext
 import chat.schildi.revenge.actions.rememberListActions
+import chat.schildi.revenge.compose.components.AvatarImage
 import chat.schildi.revenge.compose.components.TopNavigation
 import chat.schildi.revenge.compose.components.TopNavigationCloseOrNavigateToInboxIcon
 import chat.schildi.revenge.compose.components.TopNavigationTitle
@@ -84,6 +85,7 @@ import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.viewModelKey
 import co.touchlab.kermit.Logger
 import io.element.android.libraries.matrix.api.auth.MatrixHomeServerDetails
+import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.verification.SessionVerifiedStatus
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
@@ -141,8 +143,8 @@ fun AccountManagementScreen(
             val destinationState = LocalDestinationState.current
             if (destinationState != null) {
                 TopNavigation(forceVisible = true) {
+                    TopNavigationCloseOrNavigateToInboxIcon(backStyle = true)
                     TopNavigationTitle(stringResource(Res.string.manage_accounts))
-                    TopNavigationCloseOrNavigateToInboxIcon()
                 }
             }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -206,35 +208,45 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
-            FlowRow(
-                horizontalArrangement = Dimens.horizontalArrangement,
-                verticalArrangement = Dimens.verticalArrangementSmall,
-                itemVerticalAlignment = Alignment.CenterVertically,
+            val displayName = account.session.userDisplayName
+                ?.takeIf { it.isNotBlank() }
+                ?: account.session.userId
+            val keyboardActionHandler = LocalKeyboardActionHandler.current
+            val logoutFocusId = rememberFocusId()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    horizontalArrangement = Dimens.horizontalArrangement,
-                    verticalAlignment = Alignment.CenterVertically,
+                AvatarImage(
+                    source = account.session.userAvatarUrl?.let(::MediaSource),
+                    size = 48.dp,
+                    displayName = displayName,
+                    sessionId = account.sessionId,
+                    contentDescription = displayName,
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    AccountStatusRow(account)
                     Text(
-                        account.session.userId,
+                        displayName,
                         color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.alignByBaseline(),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                    if (displayName != account.session.userId) {
+                        Text(
+                            account.session.userId,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    AccountStatusRow(account)
                 }
-                if (account.sessionVerifiedStatus?.isVerified() == false) {
-                    val destinationStateHolder = LocalDestinationState.current
-                    AccountManagementButton(
-                        stringResource(Res.string.action_verify_with_another_device),
-                        role = FocusRole.NESTED_AUX_ITEM,
-                        onClick = {
-                            viewModel.launchDeviceVerification(account.sessionId, destinationStateHolder!!).isSuccess
-                        },
-                    )
-                }
-                val keyboardActionHandler = LocalKeyboardActionHandler.current
-                val logoutFocusId = rememberFocusId()
                 AccountManagementIconButton(
                     icon = rememberVectorPainter(Icons.AutoMirrored.Default.Logout),
                     contentDescription = stringResource(Res.string.action_logout),
@@ -250,6 +262,17 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
                         args = listOf(account.session.userId),
                     ) is ActionResult.Actioned
                 }
+            }
+            if (account.sessionVerifiedStatus?.isVerified() == false) {
+                val destinationStateHolder = LocalDestinationState.current
+                AccountManagementButton(
+                    stringResource(Res.string.action_verify_with_another_device),
+                    role = FocusRole.NESTED_AUX_ITEM,
+                    onClick = {
+                        viewModel.launchDeviceVerification(account.sessionId, destinationStateHolder!!).isSuccess
+                    },
+                    modifier = Modifier.padding(top = 10.dp),
+                )
             }
             if (account.needsVerification) {
                 var recoveryKey by remember { mutableStateOf(TextFieldValue()) }
