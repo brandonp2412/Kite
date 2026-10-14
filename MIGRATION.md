@@ -688,3 +688,59 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - When the Samsung is naturally awake/unlocked, compare the exact installed PerfDebug build side-by-side with installed Google Messages across long and short text runs, image/video bubbles, file/audio/voice cards, reactions, read receipts, dates, dark mode, and swipe-to-reveal metadata; capture controlled 120 Hz gfxinfo evidence before claiming measurable parity.
 - Continue the next broad Google-Messages-style surface even if device visual QA is still unavailable: search/results/navigation first, then settings/account rows, dialogs and toggles using the pinned reference set and existing native Revenge state/navigation paths.
 - Keep the Inbox search bar at the bottom and preserve all Matrix-specific behavior while avoiding per-row collectors, parallel state systems, and decorative animation.
+
+
+## 2026-10-15 04:28 NZDT — Messages inbox container, row hierarchy, and scroll hot-path cleanup
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages reference mapping in docs/design-reference/google-messages/README.md before changing the inbox, especially the inbox-branding and Material 3 overview references.
+- Cross-checked current public Google Messages Material 3 Expressive homepage coverage: the conversation list is presented as one rounded container, with larger contact imagery and clearer separation between the app/status chrome and the list surface.
+- Preserved Kite identity, Matrix unread/status semantics, and the deliberate product exception unchanged: the inbox search bar remains at the bottom.
+- The Samsung remained Dozing / non-interactive, so installed Google Messages was not opened or mutated merely for reference gathering and no fresh side-by-side visual-parity claim is made.
+
+### Implemented
+- Reworked the inbox shell as a single Messages-like tonal hierarchy:
+  - the destination background uses surfaceContainer;
+  - room/loading/empty content sits inside one 28 dp rounded surface;
+  - the room list has 8 dp internal vertical breathing room while retaining the existing bottom-search reservation and keyboard/inset behavior.
+- Reworked room-row sizing and information hierarchy:
+  - room avatars increased from 48 dp to 52 dp;
+  - rows use an 80 dp minimum touch/layout height with 10 dp vertical inset;
+  - the name/timestamp line is cleaner and timestamp emphasis becomes primary for unread rooms, otherwise onSurfaceVariant;
+  - draft, mute, low-priority and favorite Matrix indicators move to the preview line rather than competing with the timestamp;
+  - unread badge sizing is centralized at a 20 dp minimum and existing count/mention semantics remain intact.
+- Added a Messages-style tonal create-room action in the inbox app bar while keeping TopNavigationIcon backward-compatible through an opt-in tonal parameter.
+- Brought Matrix-specific adjacent surfaces into the same visual system:
+  - space-selector fallback surfaces use neutral surfaceContainer / onSurfaceVariant roles instead of stronger Revenge secondary-container styling;
+  - pending forward and incoming-share notices use 24 dp surfaceContainerHighest cards without the old outline;
+  - notice dismissal uses a proper 40 dp Material IconButton target while preserving keyboard focus actions.
+- Performance/hot-path cleanup:
+  - inbox-wide dual-mention unread preferences are now collected once at inbox scope and passed into rows instead of reading the preference separately in every row;
+  - visible-room subscription observation no longer allocates a list of every visible index on each scroll observation; it tracks only first/last visible indices in one packed value, debounces, then passes a subList view;
+  - removed the unrelated accountsSorted dependency from that scroll observation effect;
+  - no new Matrix collector, duplicated room state, animation loop, or blocking UI work was introduced.
+
+### Validation
+- Cohesive source checkpoint: c7eb9ce591717734652479cca6b9c1326d1a7592 (Polish Messages inbox surface and rows), 8 source files, 190 insertions / 108 deletions.
+- git diff --check: pass.
+- Glass with JDK 25 + /opt/android-sdk:
+  - :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 37s;
+  - after the hot-path cleanup, :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 38s, 91 actionable tasks.
+- Release-like validation reused clean detached worktree /home/brandon/worktrees/kite-revenge-validate-dbd57198, checked out at exact superproject commit c7eb9ce591717734652479cca6b9c1326d1a7592; Matrix Rust SDK remained pinned to 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain: pass, BUILD SUCCESSFUL in 1m 6s, 279 actionable tasks.
+- Exact clean APK: /home/brandon/worktrees/kite-revenge-validate-dbd57198/androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,870,187 bytes, SHA-256 1626f6caca46c68862e07cae3764f9d233759f6e465e357160afc2e013fc93ce.
+- AAPT verifies package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37, and native code arm64-v8a.
+- APK signature verified with the existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung 10.66.66.3:5555 preflight/postflight found only app.kite.revenge.debug among app.kite* packages; production app.kite and redundant app.kite.revenge were not targeted or installed.
+- The verified PerfDebug APK was replaced in place with adb install -r; postflight confirms dataDir=/data/user/0/app.kite.revenge.debug, unchanged firstInstallTime=2026-10-14 11:55:12, and updated lastUpdateTime=2026-10-15 04:25:29, preserving the existing debug app data/login.
+- Device state remained mWakefulness=Dozing / mHalInteractiveModeEnabled=false; Kite and Google Messages were not launched and the phone was not woken merely for QA.
+- No fresh side-by-side visual-parity or 120 Hz frame-time claim is made for this slice.
+- The pre-existing hide-room work remains unstaged and byte-for-byte unchanged:
+  - InboxViewModel.kt SHA-256 cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7
+  - AppStateStore.kt SHA-256 7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673
+  - strings.xml SHA-256 dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a
+
+### Next substantial slice
+- When the Samsung is naturally awake/unlocked, compare the exact installed PerfDebug build side-by-side with installed Google Messages across inbox shell curvature, 52 dp avatars, row density, unread/timestamp hierarchy, Matrix status indicators, bottom-search geometry, dark mode, long names/previews, and transient share/forward cards.
+- Capture controlled 120 Hz gfxinfo/frame evidence during long inbox scrolling, search focus/type/clear, and Inbox <-> Conversation navigation before making a measurable performance-parity claim.
+- Continue the next broad native surface while device visual QA is unavailable: create-room/start-chat and search-result presentation, then remaining account/profile/dialog details and dark/accessibility polish, preserving existing Matrix state/navigation paths and the bottom Inbox search exception.
