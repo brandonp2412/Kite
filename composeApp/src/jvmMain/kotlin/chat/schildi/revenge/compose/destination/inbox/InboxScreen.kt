@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
@@ -126,6 +127,14 @@ fun InboxScreen(
             val navigationBottomPadding = WindowInsets.navigationBars
                 .asPaddingValues()
                 .calculateBottomPadding()
+            val imeBottomPadding = WindowInsets.ime
+                .asPaddingValues()
+                .calculateBottomPadding()
+            val compactSearchBottomPadding = if (imeBottomPadding > navigationBottomPadding) {
+                12.dp
+            } else {
+                navigationBottomPadding + 12.dp
+            }
 
             Column(
                 Modifier
@@ -284,7 +293,7 @@ fun InboxScreen(
                         .padding(
                             start = Dimens.windowPadding,
                             end = Dimens.windowPadding,
-                            bottom = navigationBottomPadding + 12.dp,
+                            bottom = compactSearchBottomPadding,
                         ),
                 )
             }
