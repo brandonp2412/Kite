@@ -5,9 +5,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.LowPriority
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.NotificationsOff
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.key.Key
 import chat.schildi.revenge.compose.components.ContextMenuActionEntry
@@ -15,7 +13,6 @@ import chat.schildi.revenge.compose.components.ContextMenuDecoration
 import chat.schildi.revenge.compose.components.ContextMenuEntry
 import chat.schildi.revenge.compose.components.isAllowed
 import chat.schildi.resources.toStringHolder
-import chat.schildi.revenge.UiState
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.ActionRoomNotificationSetting
 import chat.schildi.revenge.model.PendingAction
@@ -28,8 +25,6 @@ import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_context_low_priority_toggle
 import shire.res.generated.resources.action_join
 import shire.res.generated.resources.action_leave
-import shire.res.generated.resources.action_mark_as_read
-import shire.res.generated.resources.action_mark_as_unread
 import shire.res.generated.resources.action_reject_invite
 import shire.res.generated.resources.action_mute
 import shire.res.generated.resources.action_pin
@@ -39,7 +34,6 @@ import shire.res.generated.resources.action_unpin
 @Composable
 fun ScopedRoomSummary.contextMenu(): ImmutableList<ContextMenuEntry> {
     return if (summary.isInvite()) {
-        val isInviteSeen = UiState.appStateStore.isInviteSeenFlow(key).collectAsState(false).value
         listOfNotNull(
             ContextMenuActionEntry(
                 Res.string.action_join.toStringHolder(),
@@ -48,19 +42,6 @@ fun ScopedRoomSummary.contextMenu(): ImmutableList<ContextMenuEntry> {
                 enabled = PendingAction.RoomJoin(summary.roomId).isAllowed(),
                 keyboardShortcut = Key.J,
             ),
-            ContextMenuActionEntry(
-                Res.string.action_mark_as_read.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Visibility),
-                Action.Room.MarkInviteSeen,
-                keyboardShortcut = Key.S,
-            ).takeIf { !isInviteSeen },
-            ContextMenuActionEntry(
-                Res.string.action_mark_as_unread.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Visibility),
-                Action.Room.MarkInviteSeen,
-                actionArgs = persistentListOf("false"),
-                keyboardShortcut = Key.U,
-            ).takeIf { isInviteSeen },
             ContextMenuActionEntry(
                 Res.string.action_reject_invite.toStringHolder(),
                 rememberVectorPainter(Icons.Default.MeetingRoom),
@@ -71,23 +52,10 @@ fun ScopedRoomSummary.contextMenu(): ImmutableList<ContextMenuEntry> {
             ),
         ).toPersistentList()
     } else {
-        val unreadCounts = summary.unreadCounts()
         val notificationMode = summary.info.userDefinedNotificationMode
         val isMuted = notificationMode == RoomNotificationMode.MENTIONS_AND_KEYWORDS_ONLY ||
                 notificationMode == RoomNotificationMode.MUTE
         listOfNotNull(
-            ContextMenuActionEntry(
-                Res.string.action_mark_as_read.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Visibility),
-                Action.Room.MarkRoomRead,
-                keyboardShortcut = Key.R,
-            ).takeIf { unreadCounts.hasUnread() },
-            ContextMenuActionEntry(
-                Res.string.action_mark_as_unread.toStringHolder(),
-                rememberVectorPainter(Icons.Default.Visibility),
-                Action.Room.MarkRoomUnread,
-                keyboardShortcut = Key.U,
-            ).takeIf { unreadCounts.canMarkUnread() },
             ContextMenuActionEntry(
                 if (summary.info.isFavorite) {
                     Res.string.action_unpin.toStringHolder()
