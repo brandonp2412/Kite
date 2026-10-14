@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -25,8 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import chat.schildi.lib.preferences.ScPrefs
@@ -146,12 +147,20 @@ fun ComposerRow(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+        val textMessageOnly =
+            draftState.rawBody.isNotEmpty() ||
+                    draftState.inReplyTo != null ||
+                    draftState.type == DraftType.EDIT ||
+                    draftState.type == DraftType.EDIT_CAPTION
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 2.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             val actionContext = currentActionContext()
             AnimatedVisibility(
-                draftState.canAddAttachment(),
+                draftState.canAddAttachment() && !textMessageOnly,
             ) {
                 WithTooltip(stringResource(Res.string.action_add_attachment)) {
                     ScIconButton(
@@ -169,6 +178,7 @@ fun ComposerRow(
                         Icon(
                             Icons.Default.Add,
                             stringResource(Res.string.action_add_attachment),
+                            modifier = Modifier.size(28.dp),
                             tint = color,
                         )
                     }
@@ -188,89 +198,89 @@ fun ComposerRow(
             var isFocused by remember { mutableStateOf(false) }
             val maxLinesFocused = ScPrefs.COMPOSER_MAX_LINES.value()
             val maxLinesUnfocused = ScPrefs.COMPOSER_MAX_LINES_UNFOCUSED.value()
-            TextField(
+            val composerHint = when (draftState.type) {
+                DraftType.TEXT -> stringResource(Res.string.hint_composer_text).appendComposerFormat(draftState)
+                DraftType.NOTICE -> stringResource(Res.string.hint_composer_notice).appendComposerFormat(draftState)
+                DraftType.EMOTE -> stringResource(Res.string.hint_composer_emote).appendComposerFormat(draftState)
+                DraftType.EDIT -> stringResource(Res.string.hint_composer_edit).appendComposerFormat(draftState)
+                DraftType.EDIT_CAPTION -> stringResource(Res.string.hint_composer_edit_caption).appendComposerFormat(draftState)
+                DraftType.REACTION -> stringResource(Res.string.hint_composer_reaction)
+                DraftType.STICKER -> stringResource(Res.string.hint_composer_sticker_shortcode)
+                DraftType.ATTACHMENT -> when (draftState.attachment) {
+                    is Attachment.Audio -> stringResource(Res.string.hint_composer_audio)
+                    is Attachment.Generic -> stringResource(Res.string.hint_composer_file)
+                    is Attachment.Image -> stringResource(Res.string.hint_composer_image)
+                    is Attachment.Video -> stringResource(Res.string.hint_composer_video)
+                    null -> stringResource(Res.string.hint_composer_caption)
+                }.appendComposerFormat(draftState)
+                DraftType.CUSTOM_EVENT -> draftState.customEventType ?: ""
+                DraftType.CUSTOM_STATE_EVENT -> {
+                    if (draftState.stateKey == null) {
+                        draftState.customEventType ?: ""
+                    } else {
+                        buildString {
+                            append(draftState.customEventType ?: "")
+                            append(" ")
+                            append(draftState.stateKey)
+                        }
+                    }
+                }
+            }
+            val composerHintColor = animateColorAsState(
+                when (draftState.type) {
+                    DraftType.TEXT,
+                    DraftType.EDIT,
+                    DraftType.EDIT_CAPTION,
+                    DraftType.ATTACHMENT -> MaterialTheme.colorScheme.onSurfaceVariant
+
+                    DraftType.STICKER,
+                    DraftType.REACTION -> MaterialTheme.scExposures.reactHint
+
+                    DraftType.NOTICE,
+                    DraftType.EMOTE,
+                    DraftType.CUSTOM_EVENT,
+                    DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
+                }
+            ).value
+            BasicTextField(
                 value = draftState.textFieldValue,
                 onValueChange = {
                     viewModel.onComposerUpdate(draftState.copy(textFieldValue = it))
                 },
-                label = {
-                    val hint = when (draftState.type) {
-                        DraftType.TEXT -> stringResource(Res.string.hint_composer_text).appendComposerFormat(draftState)
-                        DraftType.NOTICE -> stringResource(Res.string.hint_composer_notice).appendComposerFormat(draftState)
-                        DraftType.EMOTE -> stringResource(Res.string.hint_composer_emote).appendComposerFormat(draftState)
-                        DraftType.EDIT -> stringResource(Res.string.hint_composer_edit).appendComposerFormat(draftState)
-                        DraftType.EDIT_CAPTION -> stringResource(Res.string.hint_composer_edit_caption).appendComposerFormat(draftState)
-                        DraftType.REACTION -> stringResource(Res.string.hint_composer_reaction)
-                        DraftType.STICKER -> stringResource(Res.string.hint_composer_sticker_shortcode)
-                        DraftType.ATTACHMENT -> when (draftState.attachment) {
-                            is Attachment.Audio -> stringResource(Res.string.hint_composer_audio)
-                            is Attachment.Generic -> stringResource(Res.string.hint_composer_file)
-                            is Attachment.Image -> stringResource(Res.string.hint_composer_image)
-                            is Attachment.Video -> stringResource(Res.string.hint_composer_video)
-                            null -> stringResource(Res.string.hint_composer_caption)
-                        }.appendComposerFormat(draftState)
-                        DraftType.CUSTOM_EVENT -> draftState.customEventType ?: ""
-                        DraftType.CUSTOM_STATE_EVENT -> {
-                            if (draftState.stateKey == null) {
-                                draftState.customEventType ?: ""
-                            } else {
-                                buildString {
-                                    append(draftState.customEventType ?: "")
-                                    append(" ")
-                                    append(draftState.stateKey)
-                                }
-                            }
-                        }
-                    }
-                    val hintColor = animateColorAsState(
-                        when (draftState.type) {
-                            DraftType.TEXT,
-                            DraftType.EDIT,
-                            DraftType.EDIT_CAPTION,
-                            DraftType.ATTACHMENT -> Color.Unspecified
-                            DraftType.STICKER,
-                            DraftType.REACTION -> MaterialTheme.scExposures.reactHint
-                            DraftType.NOTICE,
-                            DraftType.EMOTE,
-                            DraftType.CUSTOM_EVENT,
-                            DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
-                        }
-                    ).value
-                    Row(
-                        horizontalArrangement = Dimens.horizontalArrangement,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        when (draftState.type) {
-                            DraftType.TEXT,
-                            DraftType.NOTICE,
-                            DraftType.EMOTE,
-                            DraftType.ATTACHMENT -> RoomPrivacyIndicator(composerInfo, hintColor)
-                            DraftType.EDIT,
-                            DraftType.EDIT_CAPTION,
-                            DraftType.REACTION,
-                            DraftType.STICKER,
-                            DraftType.CUSTOM_EVENT,
-                            DraftType.CUSTOM_STATE_EVENT -> {}
-                        }
-                        Text(hint, color = hintColor)
-                    }
-                },
                 modifier = Modifier
                     .weight(1f)
-                    .background(MaterialTheme.colorScheme.surface)
+                    .heightIn(min = 52.dp)
                     .keyFocusable(role = FocusRole.MESSAGE_COMPOSER)
                     .onFocusChanged {
                         isFocused = it.isFocused
                     },
-                colors = TextFieldDefaults.colors().copy(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
                 ),
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Sentences,
                 ),
                 maxLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
+                minLines = 1,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 6.dp, top = 3.dp, end = 6.dp, bottom = 6.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (draftState.textFieldValue.text.isEmpty()) {
+                            Text(
+                                composerHint,
+                                color = composerHintColor,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
             )
             AnimatedVisibility(
                 draftState.type == DraftType.STICKER ||
@@ -396,17 +406,33 @@ fun RoomPrivacyIndicator(
 
 @Composable
 fun SendButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val color = animateColorAsState(
-        if (enabled)
-            MaterialTheme.scExposures.accentColor
-        else
-            MaterialTheme.colorScheme.onSurfaceVariant
+    val bubbleColor = if (MaterialTheme.scExposures.isDarkTheme) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val onBubbleColor = if (MaterialTheme.scExposures.isDarkTheme) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onPrimary
+    }
+    val background = animateColorAsState(
+        if (enabled) bubbleColor else bubbleColor.copy(alpha = 0.38f)
     )
-    IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+    val foreground = animateColorAsState(
+        if (enabled) onBubbleColor else onBubbleColor.copy(alpha = 0.62f)
+    )
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .size(44.dp)
+            .background(background.value, RoundedCornerShape(12.dp)),
+    ) {
         Icon(
             Icons.AutoMirrored.Default.Send,
             stringResource(Res.string.action_send),
-            tint = color.value,
+            tint = foreground.value,
         )
     }
 }
