@@ -1010,3 +1010,17 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass desktop tests and Android/desktop compilation succeeded after fixing a draw-transform pixel conversion scope error. Glass ARM64 PerfDebug APK build succeeded.
 - Verified package app.kite.revenge.debug and existing signer. APK SHA-256 6e70d42e2c175619930662ff0eaa52d04180679f216ac53ce3ad3c2806c9501c. adb install -r on Samsung succeeded. Debug install time and dataDir persisted; production app.kite untouched.
 - Live modal/gesture interaction not performed because ChatGPT was foreground on Samsung. Existing hide-chat work remains untouched.
+
+
+## 2026-10-15 — Quiet attachment open and three-action message long-press menu
+
+### Implemented
+- The existing attachment tap handler already downloaded/reused the persistent cached file and launched Android's ACTION_VIEW via FileProvider. Suppressed the redundant "Attachment downloaded" success banner only on the DownloadFileAndOpen/tap path, so tapping simply opens it without a global bottom-app-message layout shift. Explicit Download/Save still confirms success; failures still surface. No storage, MIME or intent handling was changed.
+- Simplified the message long-press context menu to the existing quick reactions row (five emojis plus add reaction), followed only by **Copy**, **Select** (or Deselect when selected), and **Delete**. Removed reply/edit/forward/info/download/thread/dev tools/other options from this menu, without removing their underlying keyboard actions, other navigation flows or selection toolbar.
+- Copy still uses `Action.Event.CopyContent`; Delete still uses permission checks and the existing confirmation. Actions unavailable for the event are omitted. Quick-reaction toggle and selected state use the existing Matrix semantics.
+
+### Validation
+- Glass `:composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --quiet`: passed.
+- Glass `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --quiet`: passed.
+- ARM64 APK SHA-256 `4b26d5f853704f91af6b15007b77cd755d5d2e7b1266b07f4f04cffc97fc82fe`, package `app.kite.revenge.debug`, existing certificate verified. Installed via `adb -s 10.66.66.3:5555 install -r` (Success). DataDir and firstInstallTime retained; lastUpdateTime `2026-10-15 07:59:50`. Production `app.kite` untouched.
+- No live message interaction performed; visual behavior and actual open-intent result depend on the device's installed file handlers. Preserved unrelated in-progress hide-chat work in `InboxViewModel.kt`, `AppStateStore.kt`, and strings.

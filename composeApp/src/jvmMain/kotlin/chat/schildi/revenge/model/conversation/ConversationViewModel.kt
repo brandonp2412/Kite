@@ -2996,7 +2996,7 @@ class ConversationViewModel(
     fun downloadFileAndOpenExplorer(
         context: ActionContext,
         event: EventTimelineItem,
-    ) = context.downloadFile(event) { file ->
+    ) = context.downloadFile(event, showDownloadConfirmation = true) { file ->
         try {
             platformPersistDownload(
                 context.platformContext,
@@ -3013,7 +3013,7 @@ class ConversationViewModel(
     fun downloadFileAndOpen(
         context: ActionContext,
         event: EventTimelineItem,
-    ) = context.downloadFile(event) { file ->
+    ) = context.downloadFile(event, showDownloadConfirmation = false) { file ->
         try {
             platformOpenFile(context.platformContext, file, event.mediaMimetype())
         } catch (t: Throwable) {
@@ -3024,6 +3024,7 @@ class ConversationViewModel(
 
     private fun ActionContext.downloadFile(
         event: EventTimelineItem,
+        showDownloadConfirmation: Boolean,
         onSuccess: (File) -> ActionResult,
     ): ActionResult {
         val mediaSource = event.mediaSource() ?: return ActionResult.Inapplicable
@@ -3049,18 +3050,23 @@ class ConversationViewModel(
                         return@launchActionAsync it
                     }
                 }
-                publishMessage(
-                    AppMessage(
-                        if (platformHasUserFacingFilePaths) {
-                            Res.string.toast_attachment_download_path_success.toStringHolder(
-                                file.path.toStringHolder()
-                            )
-                        } else {
-                            Res.string.toast_attachment_download_success.toStringHolder()
-                        },
-                        uniqueId = appMessageId,
+                // A tap already opens the attachment; avoid showing a redundant
+                // "Attachment downloaded" message that also changes the chat viewport.
+                // Explicit Save/Download still confirms where the file was stored.
+                if (showDownloadConfirmation) {
+                    publishMessage(
+                        AppMessage(
+                            if (platformHasUserFacingFilePaths) {
+                                Res.string.toast_attachment_download_path_success.toStringHolder(
+                                    file.path.toStringHolder()
+                                )
+                            } else {
+                                Res.string.toast_attachment_download_success.toStringHolder()
+                            },
+                            uniqueId = appMessageId,
+                        )
                     )
-                )
+                }
             }
             result.toActionResult(notifySuccess = false)
         }

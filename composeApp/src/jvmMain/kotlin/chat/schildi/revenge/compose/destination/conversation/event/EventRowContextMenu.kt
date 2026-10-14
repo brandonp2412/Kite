@@ -1,135 +1,67 @@
 package chat.schildi.revenge.compose.destination.conversation.event
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Forward
-import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.AddReaction
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.EmojiPeople
-import androidx.compose.material.icons.filled.Gesture
-import androidx.compose.material.icons.filled.HowToVote
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material.icons.filled.OpenWith
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.PublicOff
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.platform.LocalInputModeManager
-import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.revenge.actions.ActionResult
-import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.components.ContextMenuActionEntry
 import chat.schildi.revenge.compose.components.ContextMenuActionRowEntry
 import chat.schildi.revenge.compose.components.ContextMenuCallbackEntry
 import chat.schildi.revenge.compose.components.ContextMenuDecoration
 import chat.schildi.revenge.compose.components.ContextMenuEntry
 import chat.schildi.revenge.compose.components.LocalSessionId
-import chat.schildi.revenge.compose.components.enterCommandModeContextMenuAction
-import chat.schildi.revenge.compose.components.keyboardShortcutFromIndex
-import chat.schildi.resources.toStringHolder
-import chat.schildi.revenge.compose.components.ContextMenuSubmenuEntry
-import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.config.keybindings.Action
-import chat.schildi.revenge.config.keybindings.DestinationEnum
 import chat.schildi.revenge.model.conversation.ConversationPermissions
-import chat.schildi.revenge.model.conversation.MessageMetadata
-import chat.schildi.revenge.preferences.value
-import io.element.android.libraries.matrix.api.core.RoomId
-import io.element.android.libraries.matrix.api.core.SessionId
-import io.element.android.libraries.matrix.api.core.ThreadId
-import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
+import chat.schildi.resources.toStringHolder
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
-import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
 import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
 import io.element.android.libraries.matrix.api.timeline.item.event.StickerContent
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import shire.res.generated.resources.Res
-import shire.res.generated.resources.action_copy_body
 import shire.res.generated.resources.action_deselect_message
-import shire.res.generated.resources.action_copy_event_source
-import shire.res.generated.resources.action_download
-import shire.res.generated.resources.action_download_and_open
-import shire.res.generated.resources.action_edit
-import shire.res.generated.resources.action_end_poll
-import shire.res.generated.resources.action_forward
-import shire.res.generated.resources.action_jump_to_replied_to_message
-import shire.res.generated.resources.kite_action_select_more
-import shire.res.generated.resources.action_mark_as_read
-import shire.res.generated.resources.action_mark_as_read_type_read_marker
-import shire.res.generated.resources.action_mark_as_read_type_read_receipt_private
-import shire.res.generated.resources.action_mark_as_read_type_read_receipt_public
-import shire.res.generated.resources.action_message_info
-import shire.res.generated.resources.action_pin
-import shire.res.generated.resources.action_react
+import shire.res.generated.resources.action_select_message
 import shire.res.generated.resources.action_redact
-import shire.res.generated.resources.action_reply
-import shire.res.generated.resources.action_thread
-import shire.res.generated.resources.action_unpin
-import shire.res.generated.resources.action_view_event_source
-import shire.res.generated.resources.action_view_reactions
-import shire.res.generated.resources.action_view_read_receipts
-import shire.res.generated.resources.action_view_user
-import shire.res.generated.resources.action_vote
+import shire.res.generated.resources.action_react
 
+/**
+ * Kite's deliberately minimal long-press surface: quick emoji reactions,
+ * then Copy, Select, Delete. Actions unavailable for a given event are omitted;
+ * Matrix permission checks and the existing delete confirmation remain in force.
+ */
 @Composable
 fun EventTimelineItem.contextMenu(
-    sessionId: SessionId,
-    roomId: RoomId,
     permissions: ConversationPermissions?,
-    messageMetadata: MessageMetadata?,
-    currentThreadId: ThreadId?,
     isSelected: Boolean = false,
-    isPinned: Boolean = false,
-    canPin: Boolean = false,
     onToggleSelection: (() -> Unit)? = null,
-    onForward: (() -> Unit)? = null,
-    onShowInfo: (() -> Unit)? = null,
 ): ImmutableList<ContextMenuEntry> {
-    val messageContent = content as? MessageContent
-    val stickerContent = content as? StickerContent
-    val pollContent = content as? PollContent
-    val isUserMessage = messageContent != null || stickerContent != null || pollContent != null
-    val showDevTools = ScPrefs.DEV_QUICK_OPTIONS.value()
-    if (!isUserMessage && !showDevTools) {
-        return persistentListOf()
-    }
-    val canRedact = if (isOwn) {
+    val isMessage = content is MessageContent
+    val isUserMessage = isMessage || content is StickerContent || content is PollContent
+    if (!isUserMessage) return persistentListOf()
+
+    val canReact = eventId != null && permissions?.canSendReactions == true
+    val canRedact = eventId != null && if (isOwn) {
         permissions?.canRedactOwn ?: true
     } else {
         permissions?.canRedactOther ?: false
     }
-    val canReact = isUserMessage && eventId != null && (permissions?.canSendReactions ?: false)
-    val usesKeyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
-    val keyboardPrimary = LocalKeyboardActionHandler.current.keyboardPrimary.collectAsState().value
-    val threadRootId = (threadInfo() as? EventThreadInfo.ThreadResponse)?.threadRootId?.value ?: eventId?.value
-
-    val quickReactions = ContextMenuActionRowEntry(
+    val ownUserId = LocalSessionId.current
+    val reactionsRow = ContextMenuActionRowEntry(
         title = "Quick reactions".toStringHolder(),
         showTitle = false,
         actions = (
             listOf("❤️", "👍", "😂", "😮", "😢").map { reaction ->
                 val selected = reactions.any { eventReaction ->
                     eventReaction.key == reaction &&
-                            eventReaction.senders.any { it.senderId == LocalSessionId.current }
+                        eventReaction.senders.any { it.senderId == ownUserId }
                 }
                 ContextMenuActionEntry(
                     title = "React $reaction".toStringHolder(),
@@ -144,190 +76,25 @@ fun EventTimelineItem.contextMenu(
                 title = Res.string.action_react.toStringHolder(),
                 icon = rememberVectorPainter(Icons.Default.AddReaction),
                 action = Action.Event.ComposeReaction,
+                autoCloseMenu = true,
                 dismissParentsOnAutoClose = true,
             )
         ).toPersistentList(),
     ).takeIf { canReact }
 
-    val overflowEntries = listOfNotNull<ContextMenuEntry>(
-        ContextMenuActionEntry(
-            Res.string.action_download_and_open.toStringHolder(),
-            rememberVectorPainter(Icons.Default.OpenWith),
-            Action.Event.DownloadFileAndOpen,
-            keyboardShortcut = Key.O,
-        ).takeIf { messageContent?.type is MessageTypeWithAttachment && usesKeyboard },
-        ContextMenuActionEntry(
-            Res.string.action_jump_to_replied_to_message.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Navigation),
-            Action.Event.JumpToRepliedTo,
-            keyboardShortcut = Key.J,
-        ).takeIf { messageContent?.inReplyTo != null },
-        ContextMenuActionEntry(
-            Res.string.action_thread.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Gesture),
-            Action.Navigation.NavigateAuto,
-            actionArgs = persistentListOf(
-                DestinationEnum.ConversationThread.destName,
-                sessionId.value,
-                roomId.value,
-                threadRootId ?: "",
-            ),
-            keyboardShortcut = Key.T,
-        ).takeIf { threadRootId != null && threadRootId != currentThreadId?.value && isUserMessage },
-        ContextMenuActionEntry(
-            Res.string.action_react.toStringHolder(),
-            rememberVectorPainter(Icons.Default.AddReaction),
-            Action.Event.ComposeReaction,
-            keyboardShortcut = Key.C,
-        ).takeIf { canReact },
-        ContextMenuActionEntry(
-            Res.string.action_view_reactions.toStringHolder(),
-            rememberVectorPainter(Icons.Default.EmojiPeople),
-            Action.Navigation.NavigateAuto,
-            actionArgs = persistentListOf(
-                DestinationEnum.MessageReactions.destName,
-                sessionId.value,
-                roomId.value,
-                eventId?.value ?: "",
-            ),
-            keyboardShortcut = Key.V,
-        ).takeIf { reactions.isNotEmpty() && eventId != null },
-        ContextMenuActionEntry(
-            Res.string.action_view_read_receipts.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Visibility),
-            Action.Navigation.NavigateAuto,
-            actionArgs = persistentListOf(
-                DestinationEnum.MessageReadReceipts.destName,
-                sessionId.value,
-                roomId.value,
-                eventId?.value ?: "",
-            ),
-            keyboardShortcut = Key.P,
-        ).takeIf { receipts.isNotEmpty() && eventId != null },
-        ContextMenuActionEntry(
-            Res.string.action_view_user.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Person),
-            Action.Navigation.NavigateAuto,
-            actionArgs = persistentListOf(
-                DestinationEnum.UserDetails.destName,
-                sessionId.value,
-                sender.value,
-                roomId.value,
-            ),
-            keyboardShortcut = Key.U,
-        ),
-        ContextMenuSubmenuEntry(
-            Res.string.action_mark_as_read.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Visibility),
-            rememberFocusId(),
-            persistentListOf(
-                ContextMenuActionEntry(
-                    Res.string.action_mark_as_read_type_read_receipt_public.toStringHolder(),
-                    rememberVectorPainter(Icons.Default.Public),
-                    Action.Event.MarkEventRead,
-                    keyboardShortcut = Key.R,
-                    dismissParentsOnAutoClose = true,
-                ),
-                ContextMenuActionEntry(
-                    Res.string.action_mark_as_read_type_read_receipt_private.toStringHolder(),
-                    rememberVectorPainter(Icons.Default.PublicOff),
-                    Action.Event.MarkEventReadPrivate,
-                    keyboardShortcut = Key.P,
-                    dismissParentsOnAutoClose = true,
-                ),
-                ContextMenuActionEntry(
-                    Res.string.action_mark_as_read_type_read_marker.toStringHolder(),
-                    rememberVectorPainter(Icons.Default.Checklist),
-                    Action.Event.MarkEventFullyRead,
-                    keyboardShortcut = Key.M,
-                    dismissParentsOnAutoClose = true,
-                ),
-            ),
-            keyboardShortcut = Key.M,
-        ),
-        ContextMenuSubmenuEntry(
-            Res.string.action_vote.toStringHolder(),
-            rememberVectorPainter(Icons.Default.HowToVote),
-            rememberFocusId(),
-            pollContent?.let { poll ->
-                val currentSelection = poll.answers.filter { answer ->
-                    poll.votes[answer.id]?.any { it == LocalSessionId.current } == true
-                }.map { it.id }.toSet()
-                val maxSelections = poll.maxSelections.toLong()
-                val atCap = currentSelection.size.toLong() >= maxSelections
-                poll.answers.mapIndexed { index, answer ->
-                    val isMyVote = answer.id in currentSelection
-                    val enabled = isMyVote || maxSelections == 1L || !atCap
-                    ContextMenuActionEntry(
-                        title = answer.text.toStringHolder(),
-                        action = Action.Event.TogglePollVote,
-                        actionArgs = persistentListOf(answer.id),
-                        enabled = enabled,
-                        decoration = if (isMyVote) ContextMenuDecoration.CheckMark else null,
-                        keyboardShortcut = index.keyboardShortcutFromIndex(),
-                        dismissParentsOnAutoClose = true,
-                        autoCloseMenu = maxSelections <= 1L,
-                    )
-                }.toPersistentList()
-            } ?: persistentListOf(),
-            keyboardShortcut = Key.A,
-        ).takeIf { pollContent != null && pollContent.endTime == null && keyboardPrimary },
-        ContextMenuActionEntry(
-            Res.string.action_end_poll.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Cancel),
-            Action.Event.PollEnd,
-            keyboardShortcut = Key.X,
-        ).takeIf { pollContent != null && pollContent.endTime == null && isOwn },
-    )
-        .plus(eventDevToolsOptions(showDevTools))
-        .plus(enterCommandModeContextMenuAction())
-        .toPersistentList()
-
     return listOfNotNull<ContextMenuEntry>(
-        quickReactions,
+        reactionsRow,
         ContextMenuActionEntry(
-            Res.string.action_reply.toStringHolder(),
-            rememberVectorPainter(Icons.AutoMirrored.Default.Reply),
-            Action.Event.ComposeReply,
-            keyboardShortcut = Key.R,
-        ).takeIf { isUserMessage && eventId != null && (permissions?.canSendMessages ?: false) },
-        ContextMenuActionEntry(
-            Res.string.action_edit.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Edit),
-            Action.Event.ComposeEdit,
-            keyboardShortcut = Key.E,
-        ).takeIf { messageContent != null && isOwn && (permissions?.canSendMessages ?: true) },
-        ContextMenuCallbackEntry(
-            Res.string.action_forward.toStringHolder(),
-            rememberVectorPainter(Icons.AutoMirrored.Default.Forward),
-            action = {
-                onForward?.invoke()
-                ActionResult.Success()
-            },
-        ).takeIf { isUserMessage && eventId != null && onForward != null },
-        ContextMenuActionEntry(
-            Res.string.action_copy_body.toStringHolder(),
+            "Copy".toStringHolder(),
             rememberVectorPainter(Icons.Default.ContentCopy),
             Action.Event.CopyContent,
             keyboardShortcut = Key.Y,
-        ).takeIf { messageMetadata?.preFormattedContent != null },
-        ContextMenuActionEntry(
-            if (isPinned) Res.string.action_unpin.toStringHolder() else Res.string.action_pin.toStringHolder(),
-            rememberVectorPainter(Icons.Default.PushPin),
-            if (isPinned) Action.Event.Unpin else Action.Event.Pin,
-        ).takeIf { eventId != null && canPin },
-        ContextMenuActionEntry(
-            Res.string.action_redact.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Delete),
-            Action.Event.Redact,
-            critical = true,
-            keyboardShortcut = Key.D,
-        ).takeIf { canRedact },
+        ).takeIf { isMessage },
         ContextMenuCallbackEntry(
             title = if (isSelected) {
                 Res.string.action_deselect_message.toStringHolder()
             } else {
-                Res.string.kite_action_select_more.toStringHolder()
+                Res.string.action_select_message.toStringHolder()
             },
             icon = rememberVectorPainter(
                 if (isSelected) Icons.Default.CheckCircle else Icons.Outlined.RadioButtonUnchecked
@@ -337,40 +104,12 @@ fun EventTimelineItem.contextMenu(
                 ActionResult.Success()
             },
         ).takeIf { onToggleSelection != null },
-        ContextMenuCallbackEntry(
-            Res.string.action_message_info.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Info),
-            action = {
-                onShowInfo?.invoke()
-                ActionResult.Success()
-            },
-        ).takeIf { eventId != null && onShowInfo != null },
         ContextMenuActionEntry(
-            Res.string.action_download.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Download),
-            Action.Event.DownloadFile,
-            keyboardShortcut = Key.L,
-        ).takeIf { messageContent?.type is MessageTypeWithAttachment },
-    ).plus(overflowEntries).toPersistentList()
-}
-
-@Composable
-private fun eventDevToolsOptions(
-    enabled: Boolean,
-) = if (enabled) {
-    persistentListOf(
-        ContextMenuActionEntry(
-            Res.string.action_view_event_source.toStringHolder(),
-            rememberVectorPainter(Icons.Default.Code),
-            Action.Event.ViewEventSource,
-            keyboardShortcut = Key.S,
-        ),
-        ContextMenuActionEntry(
-            Res.string.action_copy_event_source.toStringHolder(),
-            rememberVectorPainter(Icons.Default.CopyAll),
-            Action.Event.CopyEventSource,
-        ),
-    )
-} else {
-    persistentListOf()
+            Res.string.action_redact.toStringHolder(),
+            rememberVectorPainter(Icons.Default.Delete),
+            Action.Event.Redact,
+            critical = true,
+            keyboardShortcut = Key.D,
+        ).takeIf { canRedact },
+    ).toPersistentList()
 }

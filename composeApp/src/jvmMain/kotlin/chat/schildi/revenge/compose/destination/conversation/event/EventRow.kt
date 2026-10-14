@@ -115,17 +115,9 @@ fun EventRow(
     WithContextMenu(
         focusId,
         event.contextMenu(
-            viewModel.sessionId,
-            viewModel.roomId,
-            roomPermissions,
-            messageMetadata,
-            currentThreadId,
+            permissions = roomPermissions,
             isSelected = isSelected,
-            isPinned = isPinned,
-            canPin = canPin,
             onToggleSelection = toggleSelection.takeIf { selectable },
-            onForward = onForward.takeIf { selectable },
-            onShowInfo = onShowInfo.takeIf { selectable },
         ),
         presentation = ContextMenuPresentation.Message,
     ) { openContextMenu ->
