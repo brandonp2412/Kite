@@ -81,7 +81,7 @@ Use `git show 4c517c66b` in old Kite, and inspect `lib/pages/chat/events/message
 - [x] Native compact long-press quick-reaction row (❤️ 👍 😂 😮 😢) with active/toggle-off state, shared Kite-designed glyphs, and a sixth Add Reaction entry into Revenge's existing reaction composer.
 - [x] Message reaction browsing supports immediate standard emoji + room custom-emote suggestions, including selection from an initially empty reaction draft, without a parallel Matrix state stack. A dedicated tiled/category picker and the double-tap setting's arbitrary-emoji UI remain polish/parity work.
 - [ ] Selection-mode behavior: single tap selects only when selection is active, otherwise instant ripple; long press opens action surface with More, Select, Copy, Edit, Reply, reactions, etc. `test/message_more_menu_test.dart` validates details.
-- [ ] Swipe-to-reply and responsive message interactions, composer/input toolbar & attachment picker parity.
+- [ ] Swipe-to-reply and responsive message interactions, composer/input toolbar & attachment picker parity. Camera/File/Gallery attachment selection now matches Kite structurally and is compiled/installed; controlled live composer E2E plus remaining composer/recording parity are still pending.
 - [ ] Chat-list, search, room headers, message bubbles, spacing, settings, account switching, dark mode and edge-to-edge layout matching Kite without Revenge's default power-user complexity.
 - [ ] Notification quick reply, notification actions/copy code, unread state, search, room hide action, media, links, attachments, encryption, threading, profiles, account switching parity.
 - [ ] Dedicated debug/perf build with independent app state, on-device install and logged functional/performance evidence.
