@@ -20,6 +20,16 @@ class ComposerSuggestionsProvider(
     canPingRoomFlow: Flow<Boolean>,
     imagePackFlow: Flow<List<ImagePackWithSource>?>,
 ) {
+    private val standardEmojiSuggestions by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        Emoji.list().map { emoji ->
+            ComposerEmojiSuggestion(
+                emoji.details.string,
+                emoji.details.aliases,
+                emoji.details.description,
+            )
+        }
+    }
+
     private val rawSuggestions = combine(
         queryFlow,
         userIdSuggestionsProvider.userIdInRoomSuggestions,
@@ -36,8 +46,8 @@ class ComposerSuggestionsProvider(
             return@combine ComposerSuggestionsState()
         }
         when {
-            currentCompletionEntity == null -> ComposerSuggestionsState()
-            currentCompletionEntity.startsWith("@") && query.allowsMention -> {
+            currentCompletionEntity == null && query.type != DraftType.REACTION -> ComposerSuggestionsState()
+            currentCompletionEntity?.startsWith("@") == true && query.allowsMention -> {
                 val search = currentCompletionEntity.substring(1)
                 // Mentions
                 val userSuggestions = userIds
@@ -58,14 +68,19 @@ class ComposerSuggestionsProvider(
                     suggestions = (userSuggestions + roomSuggestions).toImmutableList(),
                 )
             }
-            currentCompletionEntity.startsWith(":") && query.allowsCustomEmote ||
+            currentCompletionEntity?.startsWith(":") == true && query.allowsCustomEmote ||
                 query.type == DraftType.STICKER ||
                 query.type == DraftType.REACTION -> {
-                val shortcodePrefix = currentCompletionEntity.removePrefix(":")
+                val shortcodePrefix = currentCompletionEntity?.removePrefix(":").orEmpty()
                 // Emojis
                 val emojiSuggestion = if (query.allowsCustomEmote) {
-                    Emoji.list().filter { it.details.aliases.any { it.contains(shortcodePrefix) } }
-                        .map { ComposerEmojiSuggestion(it.details.string, it.details.aliases, it.details.description) }
+                    if (shortcodePrefix.isEmpty()) {
+                        standardEmojiSuggestions
+                    } else {
+                        standardEmojiSuggestions.filter { suggestion ->
+                            suggestion.aliases.any { it.contains(shortcodePrefix) }
+                        }
+                    }
                 } else {
                     emptyList()
                 }
@@ -88,14 +103,19 @@ class ComposerSuggestionsProvider(
                     }
                 }.orEmpty()
                 // Combined
-                val suggestionsSorted = (emojiSuggestion + customEmoteSuggestions).sortedBy {
-                    val keys = when (it) {
-                        is ComposerCustomEmoteSuggestion -> listOfNotNull(it.shortcode, it.image.body)
-                        is ComposerEmojiSuggestion -> it.aliases
-                        else -> emptyList()
-                    }
-                    keys.minOf {
-                        it.indexOf(shortcodePrefix).takeIf { it >= 0 } ?: Int.MAX_VALUE
+                val combinedSuggestions = emojiSuggestion + customEmoteSuggestions
+                val suggestionsSorted = if (shortcodePrefix.isEmpty()) {
+                    combinedSuggestions
+                } else {
+                    combinedSuggestions.sortedBy {
+                        val keys = when (it) {
+                            is ComposerCustomEmoteSuggestion -> listOfNotNull(it.shortcode, it.image.body)
+                            is ComposerEmojiSuggestion -> it.aliases
+                            else -> emptyList()
+                        }
+                        keys.minOf {
+                            it.indexOf(shortcodePrefix).takeIf { it >= 0 } ?: Int.MAX_VALUE
+                        }
                     }
                 }
                 ComposerSuggestionsState(suggestionsSorted.toImmutableList())

@@ -37,7 +37,13 @@ fun ReactionContent(
     } else {
         baseStyle
     }
-    if (reaction.startsWith("mxc://")) {
+    if (isKiteDesignedReaction(reaction)) {
+        KiteReactionGlyph(
+            reaction = reaction,
+            size = LocalDensity.current.run { baseStyle.lineHeight.toDp() },
+            modifier = modifier,
+        )
+    } else if (reaction.startsWith("mxc://")) {
         SubcomposeAsyncImage(
             model = MediaRequestData(MediaSource(reaction), MediaRequestData.Kind.Content),
             modifier = modifier.height(

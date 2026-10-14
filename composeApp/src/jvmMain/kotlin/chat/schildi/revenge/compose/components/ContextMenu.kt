@@ -58,6 +58,7 @@ import chat.schildi.resources.ComposableStringHolder
 import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.displayName
+import chat.schildi.revenge.compose.destination.conversation.event.reaction.KiteReactionGlyph
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import shire.res.generated.resources.Res
@@ -345,11 +346,26 @@ private fun ContextMenuActionRowContent(
                     },
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = action.compactLabel ?: actionTitle,
-                            modifier = Modifier.clearAndSetSemantics { },
-                            fontSize = 22.sp,
-                        )
+                        val compactLabel = action.compactLabel
+                        when {
+                            compactLabel != null -> KiteReactionGlyph(
+                                reaction = compactLabel,
+                                size = 24.dp,
+                                modifier = Modifier.clearAndSetSemantics { },
+                            )
+                            action.icon != null -> Icon(
+                                painter = action.icon,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clearAndSetSemantics { },
+                            )
+                            else -> Text(
+                                text = actionTitle,
+                                modifier = Modifier.clearAndSetSemantics { },
+                                fontSize = 22.sp,
+                            )
+                        }
                     }
                 }
             }

@@ -141,21 +141,28 @@ fun EventTimelineItem.contextMenu(
         // activating it again follows ToggleReactionKey and therefore removes it.
         ContextMenuActionRowEntry(
             title = "Quick reactions".toStringHolder(),
-            actions = listOf("❤️", "👍", "😂", "😮", "😢").map { reaction ->
-                val selected = reactions.any { eventReaction ->
-                    eventReaction.key == reaction &&
-                            eventReaction.senders.any { it.senderId == LocalSessionId.current }
-                }
-                ContextMenuActionEntry(
-                    title = "React $reaction".toStringHolder(),
-                    action = Action.Event.ToggleReactionKey,
-                    actionArgs = persistentListOf(reaction),
-                    decoration = ContextMenuDecoration.Toggle(selected),
-                    autoCloseMenu = true,
+            actions = (
+                listOf("❤️", "👍", "😂", "😮", "😢").map { reaction ->
+                    val selected = reactions.any { eventReaction ->
+                        eventReaction.key == reaction &&
+                                eventReaction.senders.any { it.senderId == LocalSessionId.current }
+                    }
+                    ContextMenuActionEntry(
+                        title = "React $reaction".toStringHolder(),
+                        action = Action.Event.ToggleReactionKey,
+                        actionArgs = persistentListOf(reaction),
+                        decoration = ContextMenuDecoration.Toggle(selected),
+                        autoCloseMenu = true,
+                        dismissParentsOnAutoClose = true,
+                        compactLabel = reaction,
+                    )
+                } + ContextMenuActionEntry(
+                    title = Res.string.action_react.toStringHolder(),
+                    icon = rememberVectorPainter(Icons.Default.AddReaction),
+                    action = Action.Event.ComposeReaction,
                     dismissParentsOnAutoClose = true,
-                    compactLabel = reaction,
                 )
-            }.toPersistentList(),
+            ).toPersistentList(),
         ).takeIf { messageContent != null && permissions?.canSendReactions ?: false },
         ContextMenuActionEntry(
             Res.string.action_react.toStringHolder(),

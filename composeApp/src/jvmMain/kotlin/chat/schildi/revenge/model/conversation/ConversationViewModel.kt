@@ -60,6 +60,7 @@ import chat.schildi.revenge.model.ComposerRoomInfo
 import chat.schildi.revenge.model.ComposerSuggestion
 import chat.schildi.revenge.model.ComposerSuggestionsProvider
 import chat.schildi.revenge.model.ComposerSuggestionsState
+import chat.schildi.revenge.model.CompletionEntity
 import chat.schildi.revenge.model.ComposerViewModel
 import chat.schildi.revenge.model.DraftKey
 import chat.schildi.revenge.model.DraftRepo
@@ -1391,10 +1392,13 @@ class ConversationViewModel(
     override fun onConfirmSuggestion(suggestion: ComposerSuggestion): Boolean {
         draftKey ?: return false
         val draft = composerState.value as? DraftValue ?: return false
-        val completionEntity = draft.textFieldValue.getCurrentCompletionEntity() ?: run {
-            log.e { "Cannot confirm autosuggestion, mismatch with current composer state" }
-            return false
-        }
+        val completionEntity = draft.textFieldValue.getCurrentCompletionEntity()
+            ?: if (draft.type == DraftType.REACTION && draft.textFieldValue.text.isEmpty()) {
+                CompletionEntity(start = 0, end = 0, text = "")
+            } else {
+                log.e { "Cannot confirm autosuggestion, mismatch with current composer state" }
+                return false
+            }
 
         val oldText = draft.textFieldValue.text
         val newText = buildString {
@@ -1406,6 +1410,7 @@ class ConversationViewModel(
             append(oldText.substring(completionEntity.end))
         }
         val suggestionInsertEndIndex = completionEntity.start + suggestion.value.length
+        val cursorIndex = suggestionInsertEndIndex + if (suggestion.shouldAppendSpace) 1 else 0
 
         val newSpan = suggestion.buildDraftSpan(
             start = completionEntity.start,
@@ -1415,7 +1420,7 @@ class ConversationViewModel(
         val newDraft = draft.copy(
             textFieldValue = TextFieldValue(
                 text = newText,
-                selection = TextRange(suggestionInsertEndIndex + 1),
+                selection = TextRange(cursorIndex),
             ),
             spans = if (newSpan == null)
                 draft.spans
