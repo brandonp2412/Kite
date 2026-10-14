@@ -1,7 +1,7 @@
 package chat.schildi.revenge.compose.destination.conversation.userlist
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import chat.schildi.revenge.LocalDestinationState
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
@@ -30,7 +30,7 @@ fun ConversationDetailsTopNavigation(
         }
         additionalIcons()
         TopNavigationIcon(
-            Icons.Default.Close,
+            Icons.AutoMirrored.Default.ArrowBack,
             stringResource(Res.string.action_close),
         ) {
             destinationState?.closeScreen(keyHandler)

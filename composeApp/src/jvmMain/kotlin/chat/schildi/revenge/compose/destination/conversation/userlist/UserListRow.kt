@@ -3,13 +3,18 @@ package chat.schildi.revenge.compose.destination.conversation.userlist
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
@@ -44,42 +49,50 @@ fun <T : UserListItem>UserListRow(
     leadingContent: @Composable () -> Unit = {},
     trailingContent: @Composable () -> Unit = {},
 ) {
-    Row(
-        modifier
-            .keyFocusable(
-                FocusRole.LIST_ITEM,
-                actionProvider = actionProvider,
-            )
-            .padding(horizontal = Dimens.windowPadding, vertical = Dimens.listPadding),
-        horizontalArrangement = Dimens.horizontalArrangement,
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 0.dp,
     ) {
-        leadingContent()
-        AvatarImage(
-            source = item.avatarUrl?.let { MediaSource(it) },
-            size = Dimens.Inbox.avatar,
-            shape = Dimens.avatarShape,
-            displayName = item.displayName ?: item.userId.value,
-            modifier = modifier,
-        )
-        SelectionContainer(Modifier.weight(1f)) {
-            Column {
-                Text(
-                    item.displayName ?: item.userId.value,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 72.dp)
+                .keyFocusable(
+                    FocusRole.LIST_ITEM,
+                    actionProvider = actionProvider,
                 )
-                if (item.displayName != null) {
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Dimens.horizontalArrangement,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            leadingContent()
+            AvatarImage(
+                source = item.avatarUrl?.let { MediaSource(it) },
+                size = 48.dp,
+                shape = Dimens.avatarShape,
+                displayName = item.displayName ?: item.userId.value,
+            )
+            SelectionContainer(Modifier.weight(1f)) {
+                Column {
                     Text(
-                        item.userId.value,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        item.displayName ?: item.userId.value,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
+                    if (item.displayName != null) {
+                        Text(
+                            item.userId.value,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
-        }
-        Box {
-            trailingContent()
+            Box {
+                trailingContent()
+            }
         }
     }
 }

@@ -1,5 +1,7 @@
 package chat.schildi.revenge.compose.destination.conversation.userlist
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -9,16 +11,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.actions.FocusRole
@@ -65,39 +72,51 @@ fun MessageReadReceiptsScreen(
         LocalKeyboardActionProvider provides viewModel.actionProvider.hierarchicalKeyboardActionProvider(),
         LocalListActionProvider provides listAction,
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        ).fillMaxSize(),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            )
+            .fillMaxSize(),
     ) {
         val state = viewModel.entries.collectAsState(null).value
         val items = state?.items
-        Column(contentModifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
             ConversationDetailsTopNavigation(stringResource(Res.string.message_read_receipts_title))
-            if (items.isNullOrEmpty()) {
-                EmptyListScreen(
-                    title = Res.string.empty_screen_placeholder_message_read_receipts.toStringHolder(),
-                    icon = rememberVectorPainter(Icons.Default.Visibility),
-                    renderedSearchTerm = state?.searchTerm,
-                    isLoading = items == null,
-                    loadState = viewModel.loadState,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                )
-            } else {
-                LazyColumn(
-                    Modifier.fillMaxWidth().weight(1f),
-                    state = listState,
-                    contentPadding = WindowInsets.navigationBars
-                        .only(WindowInsetsSides.Bottom)
-                        .asPaddingValues(),
-                ) {
-                    items(
-                        items,
-                        key = { it.userId },
-                    ) { item ->
-                        ReadReceiptListRow(
-                            receiptItem = item,
-                            viewModel = viewModel,
-                        )
+            Surface(
+                modifier = contentModifier.fillMaxWidth().weight(1f),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+            ) {
+                if (items.isNullOrEmpty()) {
+                    EmptyListScreen(
+                        title = Res.string.empty_screen_placeholder_message_read_receipts.toStringHolder(),
+                        icon = rememberVectorPainter(Icons.Default.Visibility),
+                        renderedSearchTerm = state?.searchTerm,
+                        isLoading = items == null,
+                        loadState = viewModel.loadState,
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    )
+                } else {
+                    LazyColumn(
+                        Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = WindowInsets.navigationBars
+                            .only(WindowInsetsSides.Bottom)
+                            .asPaddingValues(),
+                    ) {
+                        items(
+                            items,
+                            key = { it.userId },
+                            contentType = { "message-read-receipt" },
+                        ) { item ->
+                            ReadReceiptListRow(
+                                receiptItem = item,
+                                viewModel = viewModel,
+                            )
+                        }
                     }
                 }
             }

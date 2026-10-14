@@ -1,6 +1,7 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -19,8 +20,9 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Lock
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.PublicOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -82,7 +85,6 @@ import chat.schildi.revenge.model.conversation.JOIN_RULE_ENTRIES
 import chat.schildi.revenge.plaintext.EventTextFormat
 import chat.schildi.revenge.publishTitle
 import chat.schildi.revenge.viewModelKey
-import chat.schildi.theme.scExposures
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.room.RoomInfo
 import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibility
@@ -134,17 +136,21 @@ fun RoomDetailsScreen(
         LocalMatrixBodyFormatter provides matrixBodyFormatter(),
         LocalMatrixBodyDrawStyle provides matrixBodyDrawStyle(),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-        ).fillMaxSize(),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            )
+            .fillMaxSize(),
     ) {
         val info = viewModel.roomInfo.collectAsState().value
         val topic = viewModel.topic.collectAsState().value
         val permissions = viewModel.roomSettingsPermissions.collectAsState().value ?: RoomSettingsPermissions()
         val predecessorRoom = viewModel.predecessorRoom.collectAsState().value
         val roomType = viewModel.roomType.collectAsState().value
+        val joinRuleRoomNames = viewModel.joinRuleRoomNames.collectAsState().value
         val destinationState = LocalDestinationState.current
-        Column(contentModifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
             ConversationDetailsTopNavigation(stringResource(Res.string.room_details_title)) {
                 TopNavigationIcon(
                     Icons.Default.Group,
@@ -153,27 +159,33 @@ fun RoomDetailsScreen(
                     destinationState?.navigate(Destination.RoomMembers(viewModel.sessionId, viewModel.roomId))
                 }
             }
-            if (info == null) {
-                EmptyListScreen(
-                    title = Res.string.empty_screen_placeholder_unexpected.toStringHolder(),
-                    icon = rememberVectorPainter(Icons.Default.Person),
-                    isSearching = false,
-                    isLoading = true,
-                    loadState = viewModel.loadState,
-                    modifier = Modifier.fillMaxSize().padding(Dimens.windowPadding),
-                )
-            } else {
-                Box(
-                    Modifier.fillMaxSize().padding(Dimens.windowPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    LazyColumn(
-                        state = listState,
-                        verticalArrangement = Dimens.verticalArrangement,
-                        contentPadding = WindowInsets.navigationBars
-                            .only(WindowInsetsSides.Bottom)
-                            .asPaddingValues(),
+            Surface(
+                modifier = contentModifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+            ) {
+                if (info == null) {
+                    EmptyListScreen(
+                        title = Res.string.empty_screen_placeholder_unexpected.toStringHolder(),
+                        icon = rememberVectorPainter(Icons.Default.Person),
+                        isSearching = false,
+                        isLoading = true,
+                        loadState = viewModel.loadState,
+                        modifier = Modifier.fillMaxSize().padding(Dimens.windowPadding),
+                    )
+                } else {
+                    Box(
+                        Modifier.fillMaxSize().padding(Dimens.windowPadding),
+                        contentAlignment = Alignment.Center,
                     ) {
+                        LazyColumn(
+                            state = listState,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = WindowInsets.navigationBars
+                                .only(WindowInsetsSides.Bottom)
+                                .asPaddingValues(),
+                        ) {
                         item {
                             Box(
                                 Modifier.fillMaxWidth().keyFocusable(
@@ -208,20 +220,27 @@ fun RoomDetailsScreen(
                             }
                             // Editable room name
                             item {
-                                EditableText(
-                                    "$viewModelKey/roomName",
-                                    currentValue = info.rawName?.let(EditTextValue::Plain),
-                                    role = FocusRole.LIST_ITEM_EDITABLE_SINGLE_LINE,
+                                Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    renderColor = MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    persist = viewModel::setRoomName,
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    textAlign = TextAlign.Center,
-                                    emptyFallbackText = stringResource(Res.string.hint_no_room_name),
-                                    canEdit = permissions.canEditName,
-                                    singleLine = true,
-                                )
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    tonalElevation = 0.dp,
+                                ) {
+                                    EditableText(
+                                        "$viewModelKey/roomName",
+                                        currentValue = info.rawName?.let(EditTextValue::Plain),
+                                        role = FocusRole.LIST_ITEM_EDITABLE_SINGLE_LINE,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                                        renderColor = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        persist = viewModel::setRoomName,
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        textAlign = TextAlign.Center,
+                                        emptyFallbackText = stringResource(Res.string.hint_no_room_name),
+                                        canEdit = permissions.canEditName,
+                                        singleLine = true,
+                                    )
+                                }
                             }
                         }
                         item {
@@ -232,42 +251,56 @@ fun RoomDetailsScreen(
                         }
                         if (topic != null || permissions.canEditTopic) {
                             item {
-                                EditableText(
-                                    "$viewModelKey/roomTopic",
-                                    currentValue = topic?.let {
-                                        EditTextValue.AutoFormatted(info.topic ?: topic.text.text, topic)
-                                    } ?: info.topic?.let(EditTextValue::Plain),
-                                    role = FocusRole.LIST_ITEM_EDITABLE_MULTI_LINE,
+                                Surface(
                                     modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    tonalElevation = 0.dp,
+                                ) {
+                                    EditableText(
+                                        "$viewModelKey/roomTopic",
+                                        currentValue = topic?.let {
+                                            EditTextValue.AutoFormatted(info.topic ?: topic.text.text, topic)
+                                        } ?: info.topic?.let(EditTextValue::Plain),
+                                        role = FocusRole.LIST_ITEM_EDITABLE_MULTI_LINE,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                                        renderColor = MaterialTheme.colorScheme.onSurface,
+                                        persist = viewModel::setRoomTopic,
+                                        canEdit = permissions.canEditTopic,
+                                        header = {
+                                            RoomDetailsSectionHeader(
+                                                stringResource(Res.string.hint_topic),
+                                                modifier = Modifier.padding(bottom = Dimens.listPaddingSmall),
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        // Editable private room name override
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                tonalElevation = 0.dp,
+                            ) {
+                                EditableText(
+                                    "$viewModelKey/roomNamePrivate",
+                                    currentValue = info.privateRoomName?.let(EditTextValue::Plain),
+                                    role = FocusRole.LIST_ITEM_EDITABLE_SINGLE_LINE,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                                     renderColor = MaterialTheme.colorScheme.onSurface,
-                                    persist = viewModel::setRoomTopic,
-                                    canEdit = permissions.canEditTopic,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    persist = viewModel::setPrivateRoomName,
                                     header = {
                                         RoomDetailsSectionHeader(
-                                            stringResource(Res.string.hint_topic),
+                                            stringResource(Res.string.hint_room_name_private),
                                             modifier = Modifier.padding(bottom = Dimens.listPaddingSmall),
                                         )
                                     }
                                 )
                             }
-                        }
-                        // Editable private room name override
-                        item {
-                            EditableText(
-                                "$viewModelKey/roomNamePrivate",
-                                currentValue = info.privateRoomName?.let(EditTextValue::Plain),
-                                role = FocusRole.LIST_ITEM_EDITABLE_SINGLE_LINE,
-                                modifier = Modifier.fillMaxWidth(),
-                                renderColor = MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.bodyLarge,
-                                persist = viewModel::setPrivateRoomName,
-                                header = {
-                                    RoomDetailsSectionHeader(
-                                        stringResource(Res.string.hint_room_name_private),
-                                        modifier = Modifier.padding(bottom = Dimens.listPaddingSmall),
-                                    )
-                                }
-                            )
                         }
                         info.canonicalAlias?.let { alias ->
                             item {
@@ -294,7 +327,6 @@ fun RoomDetailsScreen(
                         }
                         info.joinRule?.let { joinRule ->
                             item {
-                                val roomNames = viewModel.joinRuleRoomNames.collectAsState().value
                                 RoomDetailsDropDownSetting(
                                     stringResource(Res.string.hint_join_rule),
                                     joinRule,
@@ -302,7 +334,7 @@ fun RoomDetailsScreen(
                                     persist = { viewModel.setJoinRule(it) },
                                     renderValue = { value, entry ->
                                         entry?.title?.render() ?: value?.let {
-                                            EventTextFormat.joinRuleToText(value, roomNames.orEmpty())
+                                            EventTextFormat.joinRuleToText(value, joinRuleRoomNames.orEmpty())
                                         } ?: value.toString()
                                     },
                                     enabled = permissions.canSetJoinRule,
@@ -395,6 +427,7 @@ fun RoomDetailsScreen(
         }
     }
 }
+}
 
 @Composable
 private fun RoomDetailsSectionHeader(
@@ -422,20 +455,30 @@ private fun RoomDetailsSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SelectionContainer(modifier) {
-        Column(
-            Modifier.fillMaxWidth().keyFocusable(
-                role = FocusRole.LIST_ITEM,
-                actionProvider = actionProvider(
-                    primaryAction = primaryAction,
-                    copyActions = copyActions,
-                ),
-            ),
-            verticalArrangement = Dimens.verticalArrangementSmall,
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 0.dp,
         ) {
-            if (headerText != null) {
-                RoomDetailsSectionHeader(headerText, Modifier, color, style)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .keyFocusable(
+                        role = FocusRole.LIST_ITEM,
+                        actionProvider = actionProvider(
+                            primaryAction = primaryAction,
+                            copyActions = copyActions,
+                        ),
+                    )
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (headerText != null) {
+                    RoomDetailsSectionHeader(headerText, Modifier, color, style)
+                }
+                content()
             }
-            content()
         }
     }
 }
@@ -448,14 +491,21 @@ private fun RoomDetailsSection(
     style: TextStyle = MaterialTheme.typography.titleSmall,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier.fillMaxWidth(),
-        verticalArrangement = Dimens.verticalArrangementSmall,
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 0.dp,
     ) {
-        if (headerText != null) {
-            RoomDetailsSectionHeader(headerText, Modifier, color, style)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (headerText != null) {
+                RoomDetailsSectionHeader(headerText, Modifier, color, style)
+            }
+            content()
         }
-        content()
     }
 }
 
@@ -463,7 +513,7 @@ private fun RoomDetailsSection(
 private fun SectionText(
     text: String,
     modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.primary,
+    color: Color = MaterialTheme.colorScheme.onSurface,
     style: TextStyle = MaterialTheme.typography.bodyMedium,
 ) {
     Text(
@@ -516,8 +566,8 @@ private fun RoomInfoBadge(
 ) {
     Row(
         modifier
-            .background(MaterialTheme.scExposures.bubbleBgIncoming, Dimens.Conversation.messageBubbleShape)
-            .padding(Dimens.Conversation.messageBubbleInnerPadding),
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Dimens.horizontalArrangementSmall,
     ) {
         Icon(
