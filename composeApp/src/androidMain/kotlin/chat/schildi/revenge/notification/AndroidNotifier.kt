@@ -11,7 +11,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Canvas
 import android.graphics.ImageDecoder
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -163,8 +168,8 @@ object AndroidNotifier {
             log.w("Failed to inspect active notifications", it)
         }.getOrNull()
 
-        val roomAvatar = data.roomAvatarUrl?.let { loadMediaBitmap(id.sessionId, MediaSource(it)) }
-        val senderAvatar = data.senderAvatarUrl?.let { loadMediaBitmap(id.sessionId, MediaSource(it)) }
+        val roomAvatar = data.roomAvatarUrl?.let { loadMediaBitmap(id.sessionId, MediaSource(it))?.circularAvatar() }
+        val senderAvatar = data.senderAvatarUrl?.let { loadMediaBitmap(id.sessionId, MediaSource(it))?.circularAvatar() }
 
         // TODO look up
         val ownUser = Person.Builder()
@@ -878,6 +883,26 @@ object AndroidNotifier {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
+
+    private fun Bitmap.circularAvatar(): Bitmap {
+        // Large notification icons, MessagingStyle senders, and conversation shortcuts should
+        // all have the same circular silhouette, regardless of the source image's aspect ratio.
+        val diameter = minOf(width, height)
+        val bitmap = if (config == Bitmap.Config.HARDWARE) copy(Bitmap.Config.ARGB_8888, false) else this
+        val shader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+            setLocalMatrix(Matrix().apply {
+                setTranslate((diameter - width) / 2f, (diameter - height) / 2f)
+            })
+        }
+        return Bitmap.createBitmap(diameter, diameter, Bitmap.Config.ARGB_8888).also { output ->
+            Canvas(output).drawCircle(
+                diameter / 2f,
+                diameter / 2f,
+                diameter / 2f,
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.shader = shader },
+            )
+        }
+    }
 
     private suspend fun loadMediaBitmap(sessionId: SessionId?, source: MediaSource): Bitmap? {
         sessionId ?: return null
