@@ -1,6 +1,7 @@
 package chat.schildi.revenge.compose.destination.verification
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,17 +13,22 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -116,54 +122,66 @@ fun VerificationRequestScreen(
     val listAction = rememberListActions(listState)
     FocusContainer(
         LocalListActionProvider provides listAction,
-        modifier = modifier.safeDrawingPadding(),
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            )
+            .fillMaxSize(),
         role = FocusRole.DESTINATION_ROOT_CONTAINER,
     ) {
-        Column {
+        Column(Modifier.fillMaxSize()) {
             TopNavigation {
+                TopNavigationCloseOrNavigateToInboxIcon(backStyle = true)
                 TopNavigationTitle(stringResource(Res.string.verification_request_title))
-                TopNavigationCloseOrNavigateToInboxIcon()
             }
-            Box(contentModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                val request = viewModel.activeVerificationRequest.collectAsState().value
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.padding(Dimens.windowPadding),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Dimens.verticalArrangementBig,
-                    contentPadding = WindowInsets.navigationBars
-                        .only(WindowInsetsSides.Bottom)
-                        .asPaddingValues(),
-                ) {
-                    if (request == null) {
-                        item {
-                            VerificationNoActiveRequestContent(viewModel)
-                        }
-                    } else {
-                        when (verificationFlowState) {
-                            VerificationFlowState.Initial -> item {
-                                VerificationInitialContent(request, viewModel)
-                            }
-                            VerificationFlowState.DidAcceptVerificationRequest -> item {
-                                VerificationAcceptedContent(request, viewModel)
-                            }
-                            VerificationFlowState.DidStartSasVerification -> item {
-                                VerificationSasStartedContent(request, viewModel)
-                            }
-                            is VerificationFlowState.DidReceiveVerificationData -> item {
-                                VerificationDataContent(verificationFlowState, request, viewModel)
-                            }
-                            VerificationFlowState.DidFinish -> item {
-                                VerificationFinishedContent(request, viewModel)
-                            }
-                            VerificationFlowState.DidCancel -> item {
-                                VerificationCancelledContent(request, viewModel)
-                            }
-                            VerificationFlowState.DidFail -> item {
-                                VerificationFailedContent(request, viewModel)
-                            }
-                            null -> item {
+            Surface(
+                modifier = contentModifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    val request = viewModel.activeVerificationRequest.collectAsState().value
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize().padding(Dimens.windowPadding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = WindowInsets.navigationBars
+                            .only(WindowInsetsSides.Bottom)
+                            .asPaddingValues(),
+                    ) {
+                        if (request == null) {
+                            item(key = "no_request", contentType = "verification") {
                                 VerificationNoActiveRequestContent(viewModel)
+                            }
+                        } else {
+                            when (verificationFlowState) {
+                                VerificationFlowState.Initial -> item(key = "initial", contentType = "verification") {
+                                    VerificationInitialContent(request, viewModel)
+                                }
+                                VerificationFlowState.DidAcceptVerificationRequest -> item(key = "accepted", contentType = "verification") {
+                                    VerificationAcceptedContent(request, viewModel)
+                                }
+                                VerificationFlowState.DidStartSasVerification -> item(key = "sas_started", contentType = "verification") {
+                                    VerificationSasStartedContent(request, viewModel)
+                                }
+                                is VerificationFlowState.DidReceiveVerificationData -> item(key = "data", contentType = "verification") {
+                                    VerificationDataContent(verificationFlowState, request, viewModel)
+                                }
+                                VerificationFlowState.DidFinish -> item(key = "finished", contentType = "verification") {
+                                    VerificationFinishedContent(request, viewModel)
+                                }
+                                VerificationFlowState.DidCancel -> item(key = "cancelled", contentType = "verification") {
+                                    VerificationCancelledContent(request, viewModel)
+                                }
+                                VerificationFlowState.DidFail -> item(key = "failed", contentType = "verification") {
+                                    VerificationFailedContent(request, viewModel)
+                                }
+                                null -> item(key = "idle", contentType = "verification") {
+                                    VerificationNoActiveRequestContent(viewModel)
+                                }
                             }
                         }
                     }
@@ -179,9 +197,13 @@ private fun VerificationMetadataInfo(
     viewModel: VerificationRequestViewModel,
     modifier: Modifier = Modifier,
 ) {
-    when (request) {
-        is ScIncomingVerificationRequest -> IncomingVerificationMetadataInfo(request, viewModel, modifier)
-        is ScOutgoingVerificationRequest -> OutgoingVerificationMetadataInfo(request, viewModel, modifier)
+    VerificationCard(modifier) {
+        when (request) {
+            is ScIncomingVerificationRequest ->
+                IncomingVerificationMetadataInfo(request, viewModel, Modifier.fillMaxWidth())
+            is ScOutgoingVerificationRequest ->
+                OutgoingVerificationMetadataInfo(request, viewModel, Modifier.fillMaxWidth())
+        }
     }
 }
 
@@ -239,8 +261,9 @@ private fun IncomingVerificationMetadataInfo(
             details.senderProfile.avatarUrl?.let { avatarUrl ->
                 AvatarImage(
                     source = MediaSource(avatarUrl),
-                    size = 128.dp,
+                    size = 88.dp,
                     displayName = details.senderProfile.displayName ?: details.senderProfile.userId.value,
+                    shape = CircleShape,
                     modifier = Modifier.keyFocusable(
                         role = FocusRole.LIST_ITEM,
                         actionProvider = actionProvider(
@@ -287,24 +310,26 @@ private fun VerificationMetadataInfoRow(
     modifier: Modifier = Modifier,
 ) {
     value ?: return
-    Row(
-        modifier.keyFocusable(
-            role = FocusRole.LIST_ITEM,
-            actionProvider = actionProvider(
-                copyActions = plainTextCopyAction { value },
-            )
-        ),
-        horizontalArrangement = Dimens.horizontalArrangement,
+    Column(
+        modifier
+            .fillMaxWidth()
+            .keyFocusable(
+                role = FocusRole.LIST_ITEM,
+                actionProvider = actionProvider(
+                    copyActions = plainTextCopyAction { value },
+                )
+            ),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
             title,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.labelMedium,
         )
         Text(
             value,
             color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
         )
     }
 }
@@ -315,18 +340,35 @@ private fun VerificationStateText(
     critical: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Text(
-        text,
-        color = if (critical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-        style = MaterialTheme.typography.headlineMedium,
-        textAlign = TextAlign.Center,
-        modifier = modifier.fillMaxWidth().keyFocusable(
-            role = FocusRole.LIST_ITEM,
-            actionProvider = actionProvider(
-                copyActions = plainTextCopyAction { text },
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .keyFocusable(
+                role = FocusRole.LIST_ITEM,
+                actionProvider = actionProvider(
+                    copyActions = plainTextCopyAction { text },
+                ),
             ),
-        ),
-    )
+        shape = RoundedCornerShape(20.dp),
+        color = if (critical) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        tonalElevation = 0.dp,
+    ) {
+        Text(
+            text,
+            color = if (critical) {
+                MaterialTheme.colorScheme.onErrorContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+        )
+    }
 }
 
 @Composable
@@ -345,7 +387,10 @@ private fun VerificationButton(
             )
         else
             ButtonDefaults.buttonColors(),
-        modifier = modifier.fillMaxWidth()
+        shape = RoundedCornerShape(28.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
             .keyFocusable(
                 role = FocusRole.LIST_ITEM,
                 actionProvider = actionProvider(
@@ -363,8 +408,13 @@ private fun VerificationButton(
 
 @Composable
 private fun VerificationLoadingIndicator(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+    VerificationCard(modifier) {
+        Box(
+            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
     }
 }
 
@@ -375,9 +425,30 @@ private fun VerificationButtonSection(
 ) {
     Column(
         modifier,
-        verticalArrangement = Dimens.verticalArrangement,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )
+}
+
+
+
+@Composable
+private fun VerificationCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 0.dp,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content,
+        )
+    }
 }
 
 @Composable
@@ -492,8 +563,8 @@ private fun VerificationDataEmojiContent(
 ) {
     FlowRow(
         modifier,
-        horizontalArrangement = Arrangement.spacedBy(Dimens.horizontalItemPaddingBig, Alignment.CenterHorizontally),
-        verticalArrangement = Dimens.verticalArrangement,
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.Top,
     ) {
         data.emojis.forEach { emoji ->
@@ -507,18 +578,29 @@ private fun VerificationEmojiContent(
     emoji: VerificationEmoji,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Dimens.verticalArrangementSmall,
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        tonalElevation = 0.dp,
     ) {
-        val resource = emoji.number.toEmojiResource()
-        Image(
-            painterResource(resource.drawableRes),
-            stringResource(resource.nameRes),
-            modifier = Modifier.size(72.dp),
-        )
-        Text(stringResource(resource.nameRes))
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val resource = emoji.number.toEmojiResource()
+            Image(
+                painterResource(resource.drawableRes),
+                stringResource(resource.nameRes),
+                modifier = Modifier.size(56.dp),
+            )
+            Text(
+                stringResource(resource.nameRes),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
     }
 }
 
