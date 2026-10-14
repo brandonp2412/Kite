@@ -104,6 +104,7 @@ import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
+import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
@@ -179,12 +180,11 @@ fun ConversationScreen(
             { selectedMessagesState.value = persistentMapOf() }
         }
         var selectionMoreOpen by remember { mutableStateOf(false) }
-        var selectionInfoOpen by remember { mutableStateOf(false) }
+        var messageInfoEvent by remember { mutableStateOf<EventTimelineItem?>(null) }
         var selectionReportOpen by remember { mutableStateOf(false) }
         LaunchedEffect(selectionActive) {
             if (!selectionActive) {
                 selectionMoreOpen = false
-                selectionInfoOpen = false
                 selectionReportOpen = false
             }
         }
@@ -257,6 +257,19 @@ fun ConversationScreen(
         }
 
         val actionContext = currentActionContext()
+        val forwardEvents: (List<EventTimelineItem>) -> Unit = { events ->
+            val holder = actionContext.destinationStateHolder
+            val forward = MessageForward.prepare(
+                sessionId = viewModel.sessionId,
+                sourceRoomId = viewModel.roomId,
+                events = events.sortedBy { it.timestamp },
+            )
+            if (holder != null && forward != null) {
+                MessageForward.set(forward)
+                clearMessageSelection()
+                holder.navigate(Destination.Inbox, NavigationPreference.REPLACE)
+            }
+        }
         var isDragging by remember { mutableStateOf(false) }
         val dragAlpha = animateFloatAsState(if (isDragging) 0.4f else 1f)
         val fileDragTarget = remember {
@@ -402,6 +415,9 @@ fun ConversationScreen(
         ) {
             val roomMembersById = viewModel.roomMembersById.collectAsState()
             val roomPermissions = viewModel.roomPermissions.collectAsState().value
+            val pinnedEventIds = remember(roomInfo?.pinnedEventIds) {
+                roomInfo?.pinnedEventIds?.toSet() ?: emptySet()
+            }
             // Bots/bridges often live in two-member rooms without m.direct. Visually those
             // are still one-to-one conversations; only true multi-member rooms need labels.
             val showSenderDetails = shouldShowTimelineSenderDetails(roomInfo?.joinedMembersCount)
@@ -570,7 +586,11 @@ fun ConversationScreen(
                                 swipeConfig = messageSwipeConfig,
                                 selectionActive = selectionActive,
                                 isSelected = rowSelected,
+                                isPinned = rowEvent?.eventId?.let { it in pinnedEventIds } == true,
+                                canPin = roomPermissions?.canPinUnpin == true,
                                 onToggleSelection = toggleMessageSelection,
+                                onForward = { event -> forwardEvents(listOf(event)) },
+                                onShowInfo = { event -> messageInfoEvent = event },
                                 showBackwardPagingIndicator = showBackwardPagingIndicator,
                                 showForwardPagingIndicator = showForwardPagingIndicator,
                                 debugSeparatorLines = currentDebugLines.toPersistentList(),
@@ -733,17 +753,7 @@ fun ConversationScreen(
                             }
                         },
                         onForward = {
-                            val holder = actionContext.destinationStateHolder
-                            val forward = MessageForward.prepare(
-                                sessionId = viewModel.sessionId,
-                                sourceRoomId = viewModel.roomId,
-                                events = selectedEvents.sortedBy { it.timestamp },
-                            )
-                            if (holder != null && forward != null) {
-                                MessageForward.set(forward)
-                                clearSelection()
-                                holder.navigate(Destination.Inbox, NavigationPreference.REPLACE)
-                            }
+                            forwardEvents(selectedEvents)
                         },
                         onDelete = {
                             viewModel.redactEventsWithConfirmation(
@@ -797,7 +807,7 @@ fun ConversationScreen(
                                     clearSelection()
                                 }
                             },
-                            onInfo = { selectionInfoOpen = true },
+                            onInfo = { messageInfoEvent = selectedSingleEvent },
                             onReport = { selectionReportOpen = true },
                             onDelete = {
                                 viewModel.redactEventsWithConfirmation(
@@ -806,12 +816,6 @@ fun ConversationScreen(
                                     onConfirmed = clearSelection,
                                 )
                             },
-                        )
-                    }
-                    if (selectionInfoOpen && selectedSingleEvent != null) {
-                        MessageInfoSheet(
-                            event = selectedSingleEvent,
-                            onDismiss = { selectionInfoOpen = false },
                         )
                     }
                     val reportEvent = selectedSingleEvent
@@ -851,6 +855,12 @@ fun ConversationScreen(
                             Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow),
                         )
                     }
+                }
+                messageInfoEvent?.let { infoEvent ->
+                    MessageInfoSheet(
+                        event = infoEvent,
+                        onDismiss = { messageInfoEvent = null },
+                    )
                 }
             }
         }
