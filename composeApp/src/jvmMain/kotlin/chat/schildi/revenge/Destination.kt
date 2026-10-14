@@ -20,6 +20,7 @@ import shire.res.generated.resources.Res
 import shire.res.generated.resources.about
 import shire.res.generated.resources.account_dev_tools_title
 import shire.res.generated.resources.action_space_discovery
+import shire.res.generated.resources.action_start_chat
 import shire.res.generated.resources.app_title_short
 import shire.res.generated.resources.diagnostics
 import shire.res.generated.resources.create_room
@@ -142,6 +143,16 @@ sealed interface Destination {
         override val category = DestinationCategory.CONVERSATION
         @Transient
         override val title = StringResourceHolder(Res.string.create_room)
+    }
+
+    @Serializable
+    data class StartChat(
+        val initialSessionId: SessionId? = null,
+    ) : Destination {
+        override val destinationId = DestinationEnum.StartChat
+        override val category = DestinationCategory.CONVERSATION
+        @Transient
+        override val title = StringResourceHolder(Res.string.action_start_chat)
     }
 
     @Serializable

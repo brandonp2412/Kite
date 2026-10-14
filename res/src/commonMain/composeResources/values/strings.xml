@@ -191,6 +191,13 @@
     <string name="action_view_event_source">View event source</string>
     <string name="action_copy_event_source">Copy event source</string>
     <string name="action_create">Create</string>
+    <string name="action_start_chat">Start chat</string>
+    <string name="hint_search_people">Search people</string>
+    <string name="start_chat_account">From account</string>
+    <string name="start_chat_people">People</string>
+    <string name="start_chat_search_hint">Search by name or Matrix ID</string>
+    <string name="start_chat_no_results">No people found</string>
+    <string name="toast_start_chat_error">Could not start chat</string>
     <string name="action_none">None</string>
     <string name="action_close_unread">Close unread</string>
     <string name="action_space_discovery">Discover space</string>
@@ -722,6 +729,7 @@
     <string name="room_membership_leave">Left</string>
 
     <string name="empty_screen_placeholder_search">No search results</string>
+    <string name="search_results_conversations">Conversations</string>
     <string name="empty_screen_placeholder_search_in_progress">Searching...</string>
     <string name="empty_screen_placeholder_space">Selected space is empty</string>
     <string name="empty_screen_placeholder_inbox">No chats yet</string>

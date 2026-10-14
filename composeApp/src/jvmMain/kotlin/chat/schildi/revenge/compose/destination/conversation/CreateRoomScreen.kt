@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.destination.conversation
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -9,15 +10,18 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.resources.toStringHolder
@@ -135,15 +140,24 @@ fun CreateRoomScreen(
             val roomVersions = viewModel.availableRoomVersions.collectAsState(null).value
 
             val canEditSettings = state is CreateRoomState.Idle || state is CreateRoomState.Failure
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LazyColumn(
-                    state = listState,
-                    verticalArrangement = Dimens.verticalArrangement,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    contentPadding = WindowInsets.navigationBars
-                        .only(WindowInsetsSides.Bottom)
-                        .asPaddingValues(),
-                ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 0.dp,
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = Dimens.windowPadding),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        contentPadding = WindowInsets.navigationBars
+                            .only(WindowInsetsSides.Bottom)
+                            .asPaddingValues(),
+                    ) {
                     // Room creator
                     item {
                         val sessionIds = viewModel.availableSessionIds.collectAsState(null).value.orEmpty().map {
@@ -160,50 +174,54 @@ fun CreateRoomScreen(
 
                     // Room name
                     item {
-                        EditableText(
-                            "$viewModelKey/roomName",
-                            currentValue = params.name?.let(EditTextValue::Plain),
-                            role = FocusRole.LIST_ITEM_EDITABLE_SINGLE_LINE,
-                            modifier = Modifier.fillMaxWidth(),
-                            renderColor = MaterialTheme.colorScheme.onSurface,
-                            persist = viewModel::setRoomName,
-                            textAlign = TextAlign.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            canEdit = canEditSettings,
-                            singleLine = true,
-                            header = {
-                                CreateRoomSectionHeader(
-                                    stringResource(Res.string.hint_room_name),
-                                    modifier = Modifier.padding(bottom = Dimens.listPaddingSmall),
-                                )
-                            }
-                        )
+                        CreateRoomEditorCard {
+                            EditableText(
+                                "$viewModelKey/roomName",
+                                currentValue = params.name?.let(EditTextValue::Plain),
+                                role = FocusRole.LIST_ITEM_EDITABLE_SINGLE_LINE,
+                                modifier = Modifier.fillMaxWidth(),
+                                renderColor = MaterialTheme.colorScheme.onSurface,
+                                persist = viewModel::setRoomName,
+                                textAlign = TextAlign.Start,
+                                horizontalAlignment = Alignment.Start,
+                                canEdit = canEditSettings,
+                                singleLine = true,
+                                header = {
+                                    CreateRoomSectionHeader(
+                                        stringResource(Res.string.hint_room_name),
+                                        modifier = Modifier.padding(bottom = Dimens.listPaddingSmall),
+                                    )
+                                }
+                            )
+                        }
                     }
 
                     // Room topic
                     item {
-                        EditableText(
-                            "$viewModelKey/roomTopic",
-                            currentValue = renderedTopic?.let {
-                                EditTextValue.AutoFormatted(
-                                    params.topic ?: renderedTopic.text.text,
-                                    renderedTopic
-                                )
-                            } ?: params.topic?.let(EditTextValue::Plain),
-                            role = FocusRole.LIST_ITEM_EDITABLE_MULTI_LINE,
-                            modifier = Modifier.fillMaxWidth(),
-                            renderColor = MaterialTheme.colorScheme.onSurface,
-                            persist = viewModel::setRoomTopic,
-                            textAlign = TextAlign.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            canEdit = canEditSettings,
-                            header = {
-                                CreateRoomSectionHeader(
-                                    stringResource(Res.string.hint_topic),
-                                    modifier = Modifier.padding(bottom = Dimens.listPaddingSmall),
-                                )
-                            }
-                        )
+                        CreateRoomEditorCard {
+                            EditableText(
+                                "$viewModelKey/roomTopic",
+                                currentValue = renderedTopic?.let {
+                                    EditTextValue.AutoFormatted(
+                                        params.topic ?: renderedTopic.text.text,
+                                        renderedTopic
+                                    )
+                                } ?: params.topic?.let(EditTextValue::Plain),
+                                role = FocusRole.LIST_ITEM_EDITABLE_MULTI_LINE,
+                                modifier = Modifier.fillMaxWidth(),
+                                renderColor = MaterialTheme.colorScheme.onSurface,
+                                persist = viewModel::setRoomTopic,
+                                textAlign = TextAlign.Start,
+                                horizontalAlignment = Alignment.Start,
+                                canEdit = canEditSettings,
+                                header = {
+                                    CreateRoomSectionHeader(
+                                        stringResource(Res.string.hint_topic),
+                                        modifier = Modifier.padding(bottom = Dimens.listPaddingSmall),
+                                    )
+                                }
+                            )
+                        }
                     }
 
                     // Room preset
@@ -229,16 +247,18 @@ fun CreateRoomScreen(
 
                     item {
                         val scope = rememberCoroutineScope()
-                        ExpandButton(
-                            text = stringResource(Res.string.pref_category_advanced_room_settings),
-                            expanded = showAdvancedSettings,
-                            enabled = canEditSettings,
-                        ) {
-                            scope.launch {
-                                RevengePrefs.setSetting(
-                                    ScPrefs.SHOW_ADVANCED_ROOM_CREATION_PARAMETERS,
-                                    !showAdvancedSettings
-                                )
+                        CreateRoomSection {
+                            ExpandButton(
+                                text = stringResource(Res.string.pref_category_advanced_room_settings),
+                                expanded = showAdvancedSettings,
+                                enabled = canEditSettings,
+                            ) {
+                                scope.launch {
+                                    RevengePrefs.setSetting(
+                                        ScPrefs.SHOW_ADVANCED_ROOM_CREATION_PARAMETERS,
+                                        !showAdvancedSettings
+                                    )
+                                }
                             }
                         }
                     }
@@ -324,7 +344,10 @@ fun CreateRoomScreen(
                         Button(
                             enabled = canEditSettings,
                             onClick = { viewModel.createRoom(actionContext) },
+                            shape = RoundedCornerShape(20.dp),
                             modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp)
                                 // Extra padding to separate from edit fields
                                 .padding(top = Dimens.listPadding)
                                 .keyFocusable(
@@ -341,8 +364,27 @@ fun CreateRoomScreen(
                             Text(stringResource(Res.string.action_create))
                         }
                     }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CreateRoomEditorCard(
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            content()
         }
     }
 }
@@ -376,7 +418,8 @@ private fun CreateRoomToggle(
         },
     ) {
         Row(
-            horizontalArrangement = Dimens.horizontalArrangementBig,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SectionText(
@@ -467,18 +510,25 @@ private fun CreateRoomSection(
     headerText: String? = null,
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    style: TextStyle = MaterialTheme.typography.titleSmall,
+    style: TextStyle = MaterialTheme.typography.labelLarge,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier.fillMaxWidth(),
-        verticalArrangement = Dimens.verticalArrangementSmall,
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
     ) {
-        if (headerText != null) {
-            CreateRoomSectionHeader(headerText, Modifier, color, style)
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Dimens.verticalArrangementSmall,
+            horizontalAlignment = Alignment.Start,
+        ) {
+            if (headerText != null) {
+                CreateRoomSectionHeader(headerText, Modifier, color, style)
+            }
+            content()
         }
-        content()
     }
 }
 
@@ -487,14 +537,14 @@ private fun CreateRoomSectionHeader(
     text: String,
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    style: TextStyle = MaterialTheme.typography.titleSmall,
+    style: TextStyle = MaterialTheme.typography.labelLarge,
 ) {
     Text(
         text,
         color = color,
         style = style,
-        modifier = modifier,
-        textAlign = TextAlign.Center,
+        modifier = modifier.fillMaxWidth(),
+        textAlign = TextAlign.Start,
     )
 }
 
@@ -511,6 +561,6 @@ private fun SectionText(
         modifier = modifier,
         color = color,
         style = style,
-        textAlign = TextAlign.Center,
+        textAlign = TextAlign.Start,
     )
 }

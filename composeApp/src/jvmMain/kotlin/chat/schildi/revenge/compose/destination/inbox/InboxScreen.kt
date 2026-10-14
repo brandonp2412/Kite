@@ -4,12 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
@@ -18,11 +20,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.plus
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,6 +53,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
+import chat.schildi.revenge.LocalDestinationState
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.InteractionAction
 import chat.schildi.revenge.actions.LocalKeyboardActionHandler
@@ -77,9 +85,12 @@ import kotlinx.coroutines.flow.debounce
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_account_management
+import shire.res.generated.resources.action_start_chat
 import shire.res.generated.resources.empty_screen_placeholder_inbox
+import shire.res.generated.resources.search_results_conversations
 
-private val KiteCompactSearchBarReserve = 88.dp
+private val KiteSearchBarReserve = 88.dp
+private val KiteStartChatBottomGap = 12.dp
 
 @OptIn(FlowPreview::class)
 @Composable
@@ -153,20 +164,6 @@ fun InboxScreen(
                     .padding(top = if (compact) Dimens.listPadding else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (!compact) {
-                    KiteInboxSearchBar(
-                        viewModel = viewModel,
-                        query = searchQuery,
-                        account = preferredAccount,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                horizontal = Dimens.windowPadding,
-                                vertical = Dimens.listPadding,
-                            ),
-                    )
-                }
-
                 if (ScPrefs.SHOW_DEV_INFOS.value()) {
                     DiagnosticsRow(Modifier.fillMaxWidth())
                 }
@@ -243,7 +240,7 @@ fun InboxScreen(
                         val extraContentPadding = LocalDensity.current.run {
                             PaddingValues(
                                 top = pendingTransferHeight.intValue.toDp(),
-                                bottom = if (compact) KiteCompactSearchBarReserve else 0.dp,
+                                bottom = KiteSearchBarReserve,
                             )
                         }
                         LazyColumn(
@@ -255,6 +252,21 @@ fun InboxScreen(
                                     extraContentPadding +
                                     PaddingValues(vertical = Dimens.Inbox.listContentPadding),
                         ) {
+                            if (!roomsState.searchTerm.isNullOrBlank()) {
+                                item(key = "kite-search-results-header") {
+                                    Text(
+                                        text = stringResource(Res.string.search_results_conversations),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(
+                                            start = Dimens.windowPadding,
+                                            end = Dimens.windowPadding,
+                                            top = 8.dp,
+                                            bottom = 4.dp,
+                                        ),
+                                    )
+                                }
+                            }
                             items(
                                 rooms,
                                 key = { room -> Pair(room.sessionId, room.summary.roomId) },
@@ -316,21 +328,51 @@ fun InboxScreen(
                 }
             }
 
-            if (compact) {
-                KiteInboxSearchBar(
-                    viewModel = viewModel,
-                    query = searchQuery,
-                    account = preferredAccount,
+            val destinationState = LocalDestinationState.current
+            if (searchQuery == null && destinationState != null) {
+                Button(
+                    onClick = {
+                        destinationState.navigate(Destination.StartChat(preferredAccount?.sessionId))
+                    },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
+                        .align(Alignment.BottomEnd)
                         .padding(
-                            start = Dimens.windowPadding,
                             end = Dimens.windowPadding,
-                            bottom = compactSearchBottomPadding,
-                        ),
-                )
+                            bottom = compactSearchBottomPadding + KiteSearchBarReserve + KiteStartChatBottomGap,
+                        )
+                        .heightIn(min = 56.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.ChatBubbleOutline,
+                        contentDescription = null,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = stringResource(Res.string.action_start_chat),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
             }
+
+            KiteInboxSearchBar(
+                viewModel = viewModel,
+                query = searchQuery,
+                account = preferredAccount,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = Dimens.windowPadding,
+                        end = Dimens.windowPadding,
+                        bottom = compactSearchBottomPadding,
+                    ),
+            )
         }
     }
 }
