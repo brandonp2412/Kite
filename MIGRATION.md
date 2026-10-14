@@ -334,3 +334,50 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 8. Device safety/install proof: before and after installation, `app.kite` and redundant `app.kite.revenge` did not resolve via `pm path`; only `app.kite.revenge.debug` was targeted. The exact verified APK was installed with `adb install -r`, preserving `dataDir=/data/user/0/app.kite.revenge.debug` and `firstInstallTime=2026-10-14 11:55:12`; `lastUpdateTime` advanced to `2026-10-14 23:51:10`. The phone remained under secure keyguard with `INTERACTIVE_STATE_SLEEP`; Kite was not launched and no Messages conversation was opened.
 9. Preserved the original unfinished hide-room edits byte-for-byte: `InboxViewModel.kt` SHA-256 `cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7`, `AppStateStore.kt` `7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673`, and `strings.xml` `dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a`. A separate concurrent slice also dirtied `ComposerRow.kt` and `SearchBar.kt` after `ae6de665`; those post-checkpoint edits were deliberately left untouched and outside this session's commits.
 10. Device visual/performance QA remains intentionally unclaimed for this checkpoint: there is no fresh unlocked screenshot proof of the participant header, details/profile page, paging/skeleton loading, search IME geometry or dark mode, and no new 120Hz frame-time comparison. Next substantial slice should begin on an unlocked/idle Samsung with side-by-side header/profile/loading/search QA against the read-only Messages reference, fix measured mismatches in the same run, then finish dark-theme/accessibility/detail/action-surface consistency and collect a controlled large-history 120Hz comparison against the Revenge baseline.
+
+
+## 2026-10-15 — Messages-style search, composer, actions, and receipts
+
+### Visual reference
+- Re-read the pinned Google Messages baseline in `docs/design-reference/google-messages/README.md`, especially the conversation/composer and dark attachment references.
+- Cross-checked the current stable Google Messages long-press redesign (floating action menu with reactions kept above it) and the current/rolling read-receipt treatment. The Samsung reference device remained `Dozing`, so this slice deliberately did not wake or mutate Google Messages for reference capture.
+- Kept the intentional Kite exception: inbox search remains at the bottom.
+
+### Implemented
+- Replaced the stock Material `TextField` rendering used by the Messages-style search path with a lightweight `Surface + BasicTextField` capsule:
+  - fixed 56dp minimum height and 28dp radius,
+  - explicit search/clear icon sizing and padding,
+  - Material surface/on-surface roles,
+  - search IME action and existing `FocusRole.SEARCH_BAR` behavior preserved.
+  - Generic/non-Messages search keeps the existing stock `TextField` path.
+- Tightened the conversation composer:
+  - gallery shortcut now disappears when the field gains focus or contains text, matching the Google Messages text-field behavior,
+  - removed `AnimatedVisibility`/`AnimatedContent`/`animateColorAsState` from the frequently changing composer affordances,
+  - send progress now lives inside the composer capsule and uses the existing 350ms transient-loading grace period, avoiding a separate flashing spinner/layout slot for quick sends,
+  - the explicit send button remains absent; IME Send continues to submit.
+- Updated long-press message actions:
+  - retained Kite/Matrix-specific edit, pin, reactions, and other capabilities,
+  - moved media download/save after Info so the primary action ordering follows the current Google Messages floating menu more closely,
+  - removed an unnecessary menu-container color animation.
+- Compacted the already-last-own-message-only read receipt row:
+  - align receipts to the outgoing/right edge,
+  - show at most three overlapping receipt avatars plus `+N`,
+  - preserve the full Matrix receipt set in the existing tap popup.
+
+### Validation
+- `git diff --check`: pass.
+- `:composeApp:compileAndroidMain :composeApp:compileKotlinDesktop`: pass.
+- `:composeApp:desktopTest`: pass.
+- Clean detached exact-commit validation worktree at `8c6bf390`, Matrix Rust SDK pinned to `128049fd3b183f059fb76402c82ce56ba7ddcd37`.
+- `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a`: pass after clearing only raced generated `merged_native_libs/PerfDebug` / `stripped_native_libs/PerfDebug` intermediates. Final retry: `BUILD SUCCESSFUL in 1m 41s`.
+- Built output metadata verified `applicationId=app.kite.revenge.debug`, variant `PerfDebug`, `versionName=perfdebug-26.10.14`.
+- Installed with `adb install -r` on Samsung `10.66.66.3:5555`; package data/login preserved. Device remained dozing and the app was not launched or force-stopped.
+- Post-install package evidence: `app.kite.revenge.debug`, versionCode 1, versionName `perfdebug-26.10.14`, lastUpdateTime `2026-10-15 00:13:02`.
+- The pre-existing hide-room work remains unstaged and byte-for-byte unchanged:
+  - `InboxViewModel.kt` SHA-256 `cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7`
+  - `AppStateStore.kt` SHA-256 `7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673`
+  - `strings.xml` SHA-256 `dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a`
+
+### Next substantial slice
+- When the Samsung is naturally awake/unlocked, do side-by-side screenshot QA of the new bottom in-chat search, composer focus/typing states, long-press floating menu, and compact receipt treatment against installed Google Messages.
+- Continue with precise partial-text copy inside the long-press flow and the current Google Messages swipe model (right-to-reply / left-to-reveal timestamps) only after confirming those gestures do not conflict with Kite's existing Matrix quick-reply semantics and 120Hz performance target.
