@@ -82,6 +82,11 @@ sealed interface ContextMenuDecoration {
     data object DisabledCheckMark : ContextMenuDecoration
 }
 
+enum class ContextMenuPresentation {
+    Default,
+    Message,
+}
+
 data class ContextMenuActionEntry(
     override val title: ComposableStringHolder,
     override val icon: Painter? = null,
@@ -99,6 +104,7 @@ data class ContextMenuActionEntry(
 data class ContextMenuActionRowEntry(
     override val title: ComposableStringHolder,
     val actions: ImmutableList<ContextMenuActionEntry>,
+    val showTitle: Boolean = true,
     override val icon: Painter? = null,
     override val decoration: ContextMenuDecoration? = null,
     override val keyboardShortcut: Key? = null,
@@ -146,6 +152,7 @@ fun WithContextMenu(
     popupContent: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
     menuId: Uuid = focusId,
+    presentation: ContextMenuPresentation = ContextMenuPresentation.Default,
     content: @Composable () -> Unit,
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
@@ -157,10 +164,10 @@ fun WithContextMenu(
     val density = LocalDensity.current
 
     val containerColor = animateColorAsState(
-        if (hasChild) {
-            MaterialTheme.colorScheme.surfaceContainerLow
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHighest
+        when {
+            hasChild -> MaterialTheme.colorScheme.surfaceContainerLow
+            presentation == ContextMenuPresentation.Message -> MaterialTheme.colorScheme.surfaceContainerHigh
+            else -> MaterialTheme.colorScheme.surfaceContainerHighest
         }
     ).value
 
@@ -196,6 +203,11 @@ fun WithContextMenu(
                 onDismissRequest = { keyHandler.dismissContextMenu(menuId) },
                 containerColor = containerColor,
                 offset = offset,
+                shape = if (presentation == ContextMenuPresentation.Message) {
+                    MaterialTheme.shapes.extraLarge
+                } else {
+                    MaterialTheme.shapes.medium
+                },
                 content = popupContent,
             )
             content()
@@ -215,6 +227,7 @@ fun WithContextMenu(
     modifier: Modifier = Modifier,
     menuId: Uuid = focusId,
     parentMenuId: Uuid? = null,
+    presentation: ContextMenuPresentation = ContextMenuPresentation.Default,
     content: @Composable (InteractionAction.ContextMenu?) -> Unit,
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
@@ -222,6 +235,7 @@ fun WithContextMenu(
         focusId = focusId,
         menuId = menuId,
         modifier = modifier,
+        presentation = presentation,
         content = {
             content(
                 if (entries.isEmpty())
@@ -236,6 +250,7 @@ fun WithContextMenu(
                     entry = entry,
                     focusId = focusId,
                     menuId = menuId,
+                    presentation = presentation,
                     onClick = {
                         keyHandler.handleContextMenuEntry(focusId, menuId, entry)
                     }
@@ -258,6 +273,7 @@ private fun ContextMenuDropdownMenuItem(
     entry: ContextMenuEntry,
     focusId: Uuid,
     menuId: Uuid,
+    presentation: ContextMenuPresentation,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -270,6 +286,7 @@ private fun ContextMenuDropdownMenuItem(
                     keyHandler.handleContextMenuEntry(focusId, menuId, action)
                 },
                 modifier = modifier,
+                presentation = presentation,
             )
         }
         is ContextMenuSubmenuEntry -> {
@@ -279,6 +296,7 @@ private fun ContextMenuDropdownMenuItem(
                 parentMenuId = menuId,
                 entries = entry.submenu,
                 modifier = modifier,
+                presentation = presentation,
             ) {
                 ContextMenuDropdownMenuItemContent(
                     entry = entry,
@@ -301,22 +319,29 @@ private fun ContextMenuActionRowContent(
     entry: ContextMenuActionRowEntry,
     onActionClick: (ContextMenuActionEntry) -> Unit,
     modifier: Modifier = Modifier,
+    presentation: ContextMenuPresentation = ContextMenuPresentation.Default,
 ) {
     val labelColor = if (entry.enabled) {
         MaterialTheme.colorScheme.onSurfaceVariant
     } else {
         MaterialTheme.colorScheme.tertiary
     }
+    val compactMessageSurface = presentation == ContextMenuPresentation.Message
     Column(
-        modifier = modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.padding(
+            horizontal = if (compactMessageSurface) 8.dp else 12.dp,
+            vertical = if (compactMessageSurface) 8.dp else 10.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(if (compactMessageSurface) 4.dp else 8.dp),
     ) {
-        Text(
-            text = entry.title.render(),
-            color = labelColor,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (entry.showTitle) {
+            Text(
+                text = entry.title.render(),
+                color = labelColor,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(if (compactMessageSurface) 4.dp else 8.dp)) {
             entry.actions.forEach { action ->
                 val actionTitle = action.title.render()
                 val selected = when (val decoration = action.decoration) {
@@ -328,7 +353,7 @@ private fun ContextMenuActionRowContent(
                     onClick = { onActionClick(action) },
                     enabled = entry.enabled && action.enabled,
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(if (compactMessageSurface) 48.dp else 52.dp)
                         .semantics {
                             contentDescription = actionTitle
                             this.selected = selected
