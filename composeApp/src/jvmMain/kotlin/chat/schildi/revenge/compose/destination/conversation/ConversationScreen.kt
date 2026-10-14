@@ -632,7 +632,8 @@ fun ConversationScreen(
                     }
                     MessageSelectionBar(
                         selectedCount = selectedMessages.size,
-                        canReply = selectedSingleEvent?.eventId != null,
+                        canReply = selectedSingleEvent?.eventId != null &&
+                                (roomPermissions?.canSendMessages ?: false),
                         canEdit = selectedSingleEvent?.isOwn == true &&
                                 selectedSingleEvent.content is MessageContent &&
                                 (roomPermissions?.canSendMessages ?: true),
