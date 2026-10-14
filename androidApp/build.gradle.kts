@@ -154,7 +154,16 @@ val verifyKiteLongPressMenu = tasks.register("verifyKiteLongPressMenu") {
     val inboxMenu = rootProject.file(
         "composeApp/src/jvmMain/kotlin/chat/schildi/revenge/compose/destination/inbox/InboxRowContextMenu.kt"
     )
-    inputs.files(messageMenu, inboxMenu)
+    val timelineVisibility = rootProject.file(
+        "composeApp/src/jvmMain/kotlin/chat/schildi/revenge/model/conversation/KiteTimelineVisibility.kt"
+    )
+    val timelineViewModel = rootProject.file(
+        "composeApp/src/jvmMain/kotlin/chat/schildi/revenge/model/conversation/ConversationViewModel.kt"
+    )
+    val conversationScreen = rootProject.file(
+        "composeApp/src/jvmMain/kotlin/chat/schildi/revenge/compose/destination/conversation/ConversationScreen.kt"
+    )
+    inputs.files(messageMenu, inboxMenu, timelineVisibility, timelineViewModel, conversationScreen)
     doLast {
         val messageSource = messageMenu.readText()
         check(
@@ -174,9 +183,20 @@ val verifyKiteLongPressMenu = tasks.register("verifyKiteLongPressMenu") {
             inboxSource.contains("Action.Room.MarkLowPriority") &&
                 inboxSource.contains("Res.string.action_context_low_priority_toggle") &&
                 !inboxSource.contains("ContextMenuSubmenuEntry") &&
-                !inboxSource.contains("action_show_more")
+                !inboxSource.contains("action_show_more") &&
+                !inboxSource.contains("Action.Room.MarkRoomRead") &&
+                !inboxSource.contains("Action.Room.MarkRoomUnread") &&
+                !inboxSource.contains("Action.Room.MarkInviteSeen")
         ) {
-            "Kite inbox long-press contract regressed: show Low priority directly, not inside Show more."
+            "Kite inbox long-press contract regressed: show Low priority directly, with no read/unread entries."
+        }
+        check(
+            timelineVisibility.readText().contains("virtual !is VirtualTimelineItem.DayDivider") &&
+                timelineViewModel.readText().contains("it.isKiteVisibleConversationItem()") &&
+                !timelineViewModel.readText().contains("search_date_") &&
+                !conversationScreen.readText().contains("FloatingDateHeader(listState, renderedItems)")
+        ) {
+            "Kite messages-only timeline regressed: do not render state events or date separators."
         }
     }
 }
