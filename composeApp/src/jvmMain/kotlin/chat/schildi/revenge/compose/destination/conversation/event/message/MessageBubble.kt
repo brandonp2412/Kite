@@ -160,6 +160,16 @@ private fun TimestampContent(
     modifier: Modifier = Modifier,
 ) {
     if (content == null) return
+
+    // Google Messages keeps successful message bubbles free of an always-visible time stamp.
+    // Preserve Matrix state that actually needs attention (edited/sending/failed/security)
+    // and include the time alongside that state.
+    val hasStatusDecoration = content.isEdited ||
+            content.isSending ||
+            content.sendError != null ||
+            content.messageShield != null
+    if (!hasStatusDecoration) return
+
     val overlayBgColor = MaterialTheme.scExposures.timestampOverlayBg
     Row(
         modifier.thenIf(withBackground) {

@@ -127,11 +127,20 @@ fun TimestampOverlayLayout(
             overlay()
         }
     ) { measurables, constraints ->
-        val textMeasurable = measurables[0]
-        val overlayMeasurable = measurables[1]
+        val textMeasurable = measurables.firstOrNull()
+        if (textMeasurable == null) {
+            return@Layout layout(0, 0) {}
+        }
 
-        // Measure main text
+        // A routine message may intentionally emit no timestamp/status overlay. Keep the
+        // smart layout robust to that case instead of requiring an invisible placeholder.
         val textPlaceable = textMeasurable.measure(constraints)
+        val overlayMeasurable = measurables.getOrNull(1)
+        if (overlayMeasurable == null) {
+            return@Layout layout(textPlaceable.width, textPlaceable.height) {
+                textPlaceable.place(0, 0)
+            }
+        }
         val overlayPlaceable = overlayMeasurable.measure(constraints)
 
         val lastLineWidth = textLayoutResult.lastLineRightIncludingPlaceholders()
