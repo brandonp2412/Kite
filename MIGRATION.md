@@ -430,3 +430,49 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
   - dark theme and keyboard/inset behavior remain stable.
 - Capture gfxinfo/frame evidence during repeated swipes on a long room at 120 Hz. If the shared reveal still causes avoidable layout work, move more of the translation to graphics-layer-only placement before continuing.
 - After that QA, continue the next nearby Google-Messages-style conversation slice rather than adding another parallel state system.
+
+## 2026-10-15 01:20 NZDT — In-place mobile conversation navigation + selection/loading polish
+
+### Visual / interaction reference
+- Re-read the pinned Google Messages baseline in docs/design-reference/google-messages/README.md before changing the conversation surface.
+- Kept the intentional Kite exception unchanged: inbox search remains at the bottom.
+- The Samsung stayed Dozing / non-interactive for this checkpoint, so neither Google Messages nor Kite was woken merely for screenshot QA. No fresh visual-parity or 120 Hz frame-time claim is made.
+
+### Implemented
+- Removed the normal Android Inbox -> Conversation Activity hop that was a concrete source of the reported open/close end-jolt:
+  - NavigationPreference.AUTO now keeps the mobile Inbox -> Conversation pair in the current Activity only when platformWindowManager.appOwnsWindows == false.
+  - Desktop category/window behavior is unchanged, and explicit new-window/new-task navigation remains available.
+  - The compact conversation toolbar Back button now replaces the conversation with Inbox on Android instead of closing the Activity.
+  - Android system Back does the same while a conversation is active; non-conversation back behavior still follows the existing Activity finish/remove-task path.
+- Added DestinationNavigationPolicyTest coverage proving mobile Inbox -> Conversation stays in-place, desktop preserves separate-window behavior, and same-category navigation remains in-place.
+- Reduced single-message selection-bar crowding:
+  - single selection now keeps Reply/Retry, Copy, and More as the primary compact actions,
+  - Forward remains available in the existing Messages-style More sheet,
+  - multi-select keeps the bulk Forward action in the top bar.
+- Increased the existing transient-loading grace period from 350 ms to 650 ms so short timeline/send transitions are less likely to paint a one-frame circular spinner; failure states still force the loading/error surface immediately.
+- No new Matrix collectors or parallel timeline state systems were added.
+- Investigated partial-text selection and confirmed the current plumbing is structurally unreliable because touch selection is tied to the open custom popup while the platform text context menu is suppressed. An explicit-selection-mode experiment was discarded cleanly after edit-tool blocking; partial text selection is therefore not claimed fixed in this checkpoint.
+
+### Validation
+- Source checkpoint: 1cac98ed74eb2cb1e921a84b16b6953837e4c3a9 (Smooth mobile conversation navigation and selection).
+- git diff --check: pass before checkpoint.
+- :composeApp:compileAndroidMain :composeApp:compileKotlinDesktop --no-daemon --max-workers=1: pass with JDK 25.
+- Focused DestinationNavigationPolicyTest + SplashScreenContentTest: pass.
+- Full :composeApp:desktopTest --no-daemon --max-workers=1 --console=plain: pass (BUILD SUCCESSFUL).
+- Release-like validation used isolated clean clone /home/brandon/worktrees/kite-revenge-validate-1cac98ed at exact superproject 1cac98ed74eb2cb1e921a84b16b6953837e4c3a9 and Matrix Rust SDK 128049fd3b183f059fb76402c82ce56ba7ddcd37.
+- :androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --console=plain: pass (BUILD SUCCESSFUL in 4m 52s). A timeout replay briefly created a duplicate Gradle writer; the duplicate was stopped before packaging and the original single writer completed successfully.
+- Final APK: androidApp/build/outputs/apk/PerfDebug/androidApp-PerfDebug.apk, 107,853,468 bytes, SHA-256 654eecf32a49dc35a2761a1996614013a0456a69d5c9880cd59336fe57dd5ebb.
+- AAPT: package app.kite.revenge.debug, label Kite, version perfdebug-26.10.14, target SDK 37, native code arm64-v8a.
+- APK signature verified with existing V2 signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd.
+- Samsung preflight found neither app.kite nor redundant app.kite.revenge; only app.kite.revenge.debug was present and targeted. Installed the exact verified APK with adb install -r.
+- Debug app state was preserved: dataDir=/data/user/0/app.kite.revenge.debug, firstInstallTime=2026-10-14 11:55:12, lastUpdateTime=2026-10-15 01:20:16.
+- Device remained mWakefulness=Dozing and mHalInteractiveModeEnabled=false after installation; the app was not launched.
+- The unrelated hide-room work remains unstaged and byte-for-byte unchanged:
+  - InboxViewModel.kt SHA-256 cdaf2fb2a102299080109a6e7175925aed348fa92a7c1edd7679d8f6367394d7
+  - AppStateStore.kt SHA-256 7571871842868354b4f23e8f63d6e2e8317d8eef461bc565e14660ecf3347673
+  - strings.xml SHA-256 dafd5af2280836f57325a5dc11b099be8045d0705001ef08839b5a59a1330b4a
+
+### Next substantial slice
+- On a naturally awake/unlocked Samsung, compare the installed Kite build side-by-side with installed Google Messages and verify repeated Inbox <-> Conversation navigation has no end-jolt, the single-selection header/overflow density matches the reference better, and short loads no longer flash a spinner.
+- Re-test the already-installed Messages-style right-swipe reply / left-swipe timestamp reveal on long histories, attachment/reaction/read-receipt rows, dark theme, keyboard/insets, and capture controlled gfxinfo/frame evidence at 120 Hz.
+- Finish partial-text selection as an explicit message-scoped mode only after observing the actual native handle/context-menu interaction on device; do not reintroduce per-row Matrix collectors or broad timeline state.
