@@ -39,6 +39,7 @@ fun ColumnScope.ThreadRootInfoRow(
     roomId: RoomId,
     eventId: EventId?,
     messageIsOwn: Boolean,
+    showSenderDetails: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val alignment = if (messageIsOwn) Alignment.End else Alignment.Start
@@ -48,8 +49,10 @@ fun ColumnScope.ThreadRootInfoRow(
                 top = Dimens.Conversation.threadInfoPaddingVertical,
                 start = if (messageIsOwn)
                     LocalMessageStyle.current.otherSideMarginOutgoing
+                else if (showSenderDetails)
+                    LocalMessageStyle.current.avatarReservation
                 else
-                    LocalMessageStyle.current.avatarReservation,
+                    0.dp,
                 end = if (messageIsOwn)
                     0.dp
                 else

@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -29,6 +30,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.lib.preferences.ScPrefs
@@ -399,6 +402,9 @@ fun ConversationScreen(
         ) {
             val roomMembersById = viewModel.roomMembersById.collectAsState()
             val roomPermissions = viewModel.roomPermissions.collectAsState().value
+            // Bots/bridges often live in two-member rooms without m.direct. Visually those
+            // are still one-to-one conversations; only true multi-member rooms need labels.
+            val showSenderDetails = shouldShowTimelineSenderDetails(roomInfo?.joinedMembersCount)
             val highlightedJumpTargetEventId = (targetEvent as? EventJumpTarget.Event)?.let {
                 if (it.highlight) {
                     it.eventId
@@ -429,7 +435,11 @@ fun ConversationScreen(
 
                 // Box for list + floating header overlay
                 Box(
-                    Modifier.fillMaxWidth().weight(1f),
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(Dimens.Conversation.timelineSurfaceShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow),
                 ) {
                     // Reverse layout helps with stick-to-bottom while paging backwards or receiving messages
                     val renderedItems = remember(timelineItems) {
@@ -550,6 +560,7 @@ fun ConversationScreen(
                                 roomMembersById = roomMembersById.value,
                                 fullyReadEvent = fullyReadEvent,
                                 currentThreadId = currentThreadId,
+                                showSenderDetails = showSenderDetails,
                                 targetEvent = targetEvent,
                                 roomPermissions = roomPermissions,
                                 highlight = highlight,
@@ -835,13 +846,19 @@ fun ConversationScreen(
                         exit = slideOutVertically(tween(Anim.DURATION)) { it } +
                                 shrinkVertically(tween(Anim.DURATION), shrinkTowards = Alignment.Bottom),
                     ) {
-                        ComposerRow(viewModel)
+                        ComposerRow(
+                            viewModel,
+                            Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow),
+                        )
                     }
                 }
             }
         }
     }
 }
+
+internal fun shouldShowTimelineSenderDetails(joinedMembersCount: Long?): Boolean =
+    (joinedMembersCount ?: 0L) > 2L
 
 private inline fun <T>getNextItem(
     currentIndex: Int,

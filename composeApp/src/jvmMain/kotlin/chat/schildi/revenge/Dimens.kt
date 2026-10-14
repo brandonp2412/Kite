@@ -70,6 +70,7 @@ object Dimens {
         val messageBubbleInnerPadding = 8.dp
         val messageBubblePadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)
         val timelineHorizontalPadding = 8.dp
+        val timelineSurfaceShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         val imageBubbleInnerPadding = 2.dp
         val messageSameSenderPadding = 3.dp
         val messageOtherSenderPadding = 10.dp

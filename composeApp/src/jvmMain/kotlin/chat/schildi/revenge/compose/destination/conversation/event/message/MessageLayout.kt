@@ -19,6 +19,7 @@ import chat.schildi.theme.LocalMessageStyle
 @Composable
 fun MessageLayout(
     isOwn: Boolean,
+    showSenderDetails: Boolean,
     modifier: Modifier = Modifier,
     messageContentModifier: Modifier = Modifier,
     senderAvatar: @Composable () -> Unit,
@@ -29,6 +30,7 @@ fun MessageLayout(
         MessageRenderContext.NORMAL -> {
             MessageLayoutNormal(
                 isOwn = isOwn,
+                showSenderDetails = showSenderDetails,
                 modifier = modifier,
                 messageContentModifier = messageContentModifier,
                 senderAvatar = senderAvatar,
@@ -50,6 +52,7 @@ fun MessageLayout(
 @Composable
 fun MessageLayoutNormal(
     isOwn: Boolean,
+    showSenderDetails: Boolean,
     modifier: Modifier = Modifier,
     messageContentModifier: Modifier = Modifier,
     senderAvatar: @Composable () -> Unit,
@@ -72,7 +75,7 @@ fun MessageLayoutNormal(
             modifier.fillMaxWidth()
         ) {
             val messageStyle = LocalMessageStyle.current
-            if (!isOwn) {
+            if (!isOwn && showSenderDetails) {
                 BoxWithDirection(
                     mainLayoutDirection,
                     Modifier
@@ -84,11 +87,11 @@ fun MessageLayoutNormal(
             }
             Column(
                 Modifier
-                    .padding(end = messageStyle.otherSideMargin(isOwn))
+                    .padding(end = messageStyle.otherSideMargin)
                     .widthIn(max = messageStyle.maxWidth),
             ) {
                 Column(Modifier.fillMaxWidth()) {
-                    if (!isOwn) {
+                    if (!isOwn && showSenderDetails) {
                         BoxWithDirection(mainLayoutDirection) {
                             senderName()
                         }

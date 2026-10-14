@@ -75,6 +75,7 @@ fun ReplyContent(
                         inReplyTo = null, // No recursive reply lookups please
                         threadInfo = null, // Again no recursion here
                         isOwn = inReplyTo.senderId.value == LocalSessionId.current?.value,
+                        showSenderDetails = true,
                         roomMembersById = persistentMapOf(),
                         timestamp = null,
                         isSameAsPreviousSender = false,

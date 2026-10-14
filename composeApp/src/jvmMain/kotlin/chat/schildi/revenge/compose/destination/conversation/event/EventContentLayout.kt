@@ -84,6 +84,7 @@ fun EventContentLayout(
     senderId: UserId,
     senderProfile: ProfileDetails,
     isOwn: Boolean,
+    showSenderDetails: Boolean,
     timestamp: TimestampOverlayContent?,
     isSameAsPreviousSender: Boolean,
     inReplyTo: InReplyTo?,
@@ -100,6 +101,7 @@ fun EventContentLayout(
             modifier = modifier,
             messageContentModifier = messageContentModifier,
             isOwn = isOwn,
+            showSenderDetails = showSenderDetails,
             senderAvatar = {
                 if (!isSameAsPreviousSender) {
                     SenderAvatar(

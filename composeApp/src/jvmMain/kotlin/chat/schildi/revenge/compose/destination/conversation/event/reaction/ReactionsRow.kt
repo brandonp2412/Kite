@@ -26,6 +26,7 @@ fun ColumnScope.ReactionsRow(
     reactions: ImmutableList<EventReaction>,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     messageIsOwn: Boolean,
+    showSenderDetails: Boolean,
     modifier: Modifier = Modifier,
 ) {
     if (reactions.isEmpty()) return
@@ -36,8 +37,10 @@ fun ColumnScope.ReactionsRow(
                 top = Dimens.Conversation.reactionPaddingVertical,
                 start = if (messageIsOwn)
                     LocalMessageStyle.current.otherSideMarginOutgoing
+                else if (showSenderDetails)
+                    LocalMessageStyle.current.avatarReservation
                 else
-                    LocalMessageStyle.current.avatarReservation,
+                    0.dp,
                 end = if (messageIsOwn)
                     0.dp
                 else

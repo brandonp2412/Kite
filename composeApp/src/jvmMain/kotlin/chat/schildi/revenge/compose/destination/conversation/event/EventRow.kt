@@ -64,6 +64,7 @@ fun EventRow(
     roomPermissions: ConversationPermissions?,
     currentThreadId: ThreadId?,
     isSameAsPreviousSender: Boolean,
+    showSenderDetails: Boolean,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     highlight: EventHighlight,
     timestampSettings: TimestampSettings,
@@ -166,6 +167,7 @@ fun EventRow(
                             senderId = event.sender,
                             senderProfile = event.senderProfile,
                             isOwn = event.isOwn,
+                            showSenderDetails = showSenderDetails,
                             timestamp = remember(event, timestampSettings) {
                                 event.timestampOverlayContent(timestampSettings)
                             },
@@ -188,6 +190,7 @@ fun EventRow(
                         reactions = event.reactions,
                         roomMembersById = roomMembersById,
                         messageIsOwn = event.isOwn,
+                        showSenderDetails = showSenderDetails,
                     )
                     if (threadInfo is EventThreadInfo.ThreadRoot && event.eventId?.value != currentThreadId?.value) {
                         ThreadRootInfoRow(
@@ -196,6 +199,7 @@ fun EventRow(
                             roomId = viewModel.roomId,
                             eventId = event.eventId,
                             messageIsOwn = event.isOwn,
+                            showSenderDetails = showSenderDetails,
                         )
                     }
                     ReadReceiptsRow(
