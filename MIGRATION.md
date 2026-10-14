@@ -154,3 +154,11 @@ Use `git show 4c517c66b` in old Kite, and inspect `lib/pages/chat/events/message
 - Wide/desktop conversation navigation remains unchanged.
 - Samsung test target is now original app.kite plus native app.kite.revenge.debug using the release-optimized PerfDebug variant.
 - The separate app.kite.revenge install is no longer present on the device.
+
+### Matrix send-queue encryption compatibility — 2026-10-14
+
+- Fixed encrypted-room sends getting wedged when a verified Matrix account still has unsigned/legacy devices.
+- Normal mode now uses the Rust SDK \`ALL_DEVICES\` room-key recipient strategy; explicit signed-device isolation still uses \`IDENTITY_BASED_STRATEGY\`.
+- Root cause was confirmed from the Rust SDK send queue in the Tyla Meta-bridged room: \`VerifiedUserHasUnsignedDevice\` prevented the event from reaching Synapse, so the Facebook bridge was not at fault.
+- Verified Matrix-to-Meta forwarding separately with a real test event and bridge message mapping on Nox.
+\n

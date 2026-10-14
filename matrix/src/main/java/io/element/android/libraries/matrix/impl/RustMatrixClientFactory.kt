@@ -175,7 +175,11 @@ class RustMatrixClientFactory(
                 strategy = if (featureFlagService.isFeatureEnabled(FeatureFlags.OnlySignedDeviceIsolationMode)) {
                     CollectStrategy.IDENTITY_BASED_STRATEGY
                 } else {
-                    CollectStrategy.ERROR_ON_VERIFIED_USER_PROBLEM
+                    // Normal mode must not wedge the send queue just because a verified user
+                    // still has legacy/unsigned devices. This matches the non-isolation behaviour:
+                    // deliver to all eligible devices unless the user explicitly opts into
+                    // signed-device isolation above.
+                    CollectStrategy.ALL_DEVICES
                 }
             )
             .decryptionSettings(
