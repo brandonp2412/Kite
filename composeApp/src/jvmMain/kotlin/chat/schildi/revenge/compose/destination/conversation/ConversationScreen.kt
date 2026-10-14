@@ -101,6 +101,7 @@ import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -162,7 +163,7 @@ fun ConversationScreen(
         val timelineItems = viewModel.timelineItems.collectAsState().value
         // Keep selected timeline objects directly so toggling selection stays O(1) with
         // respect to loaded room history. Re-scanning every event here can hitch large rooms.
-        val selectedMessagesState = remember { mutableStateOf<Map<String, ScTimelineItem>>(emptyMap()) }
+        val selectedMessagesState = remember { mutableStateOf(persistentMapOf<String, ScTimelineItem>()) }
         val selectedMessages = selectedMessagesState.value
         val selectionActive = selectedMessages.isNotEmpty()
         val toggleMessageSelection: (ScTimelineItem) -> Unit = remember {
@@ -172,16 +173,16 @@ fun ConversationScreen(
                     event.kiteSelectionKey()?.let { key ->
                         val current = selectedMessagesState.value
                         selectedMessagesState.value = if (key in current) {
-                            current - key
+                            current.remove(key)
                         } else {
-                            current + (key to item)
+                            current.put(key, item)
                         }
                     }
                 }
             }
         }
         PlatformBackHandler(enabled = selectionActive) {
-            selectedMessagesState.value = emptyMap()
+            selectedMessagesState.value = persistentMapOf()
         }
         val debugLines = if (ScPrefs.SHOW_DEV_INFOS.value()) {
             viewModel.debugLines.collectAsState().value
@@ -627,7 +628,7 @@ fun ConversationScreen(
                         ).handleAction(actionContext, action, emptyList())
                     }
                     val clearSelection = {
-                        selectedMessagesState.value = emptyMap()
+                        selectedMessagesState.value = persistentMapOf()
                     }
                     MessageSelectionBar(
                         selectedCount = selectedMessages.size,
