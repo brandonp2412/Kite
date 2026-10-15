@@ -110,6 +110,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
@@ -581,6 +582,22 @@ fun ConversationScreen(
                     // Reverse layout helps with stick-to-bottom while paging backwards or receiving messages
                     val renderedItems = remember(timelineItems) {
                         timelineItems.reversed().toPersistentList()
+                    }
+                    // A visible room opened at its newest message must not stay unread
+                    // because the SDK's per-event receipt tracker missed an event.
+                    val roomHasUnread = roomInfo?.let {
+                        it.isMarkedUnread || it.numUnreadMessages > 0L ||
+                            it.numUnreadNotifications > 0L || it.unreadCount > 0L
+                    } == true
+                    if (viewModel.timelineParams == null && roomHasUnread &&
+                        allowPaginateAfterInitialLoad && renderedItems.isNotEmpty()
+                    ) {
+                        LaunchedEffect(viewModel, listState, renderedItems, roomInfo) {
+                            snapshotFlow {
+                                listState.layoutInfo.visibleItemsInfo.any { it.index == 0 }
+                            }.first { it }
+                            viewModel.markVisibleRoomReadOnOpen()
+                        }
                     }
                     val latestOwnMessageKey = remember(renderedItems) {
                         renderedItems.firstNotNullOfOrNull { timelineItem ->

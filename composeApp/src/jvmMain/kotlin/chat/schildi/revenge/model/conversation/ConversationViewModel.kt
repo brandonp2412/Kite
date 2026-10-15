@@ -693,6 +693,30 @@ class ConversationViewModel(
         }
     }
 
+    /** Clear SDK unread state when the live room's newest message is actually on screen. */
+    suspend fun markVisibleRoomReadOnOpen(): Boolean {
+        if (scPreferencesStore.getCachedOrDefaultValue(ScPrefs.AUTO_MARK_AS_READ_TRIGGER) !=
+            ScPrefs.AutoMarkAsReadTrigger.LIVE.name
+        ) return true
+        val info = roomInfo.value ?: return false
+        if (!info.isMarkedUnread && info.numUnreadMessages == 0L &&
+            info.numUnreadNotifications == 0L && info.unreadCount == 0L
+        ) return true
+        val room = joinedRoom.value ?: return false
+        val receiptType = getAutoReadReceiptType(
+            scPreferencesStore.getCachedOrDefaultValue(ScPrefs.AUTO_MARK_AS_READ_READ_RECEIPT_TYPE),
+            info,
+        ) ?: return false
+        if (room.markAsRead(receiptType)
+                .onFailure { log.e("Failed to mark visible room read", it) }.isFailure
+        ) return false
+        if (info.isMarkedUnread && room.setUnreadFlag(false)
+                .onFailure { log.e("Failed to clear room unread flag", it) }.isFailure
+        ) return false
+        platformDismissNotification(sessionId, roomId)
+        return true
+    }
+
     private val _latestSeenMessage = MutableStateFlow<EventId?>(null)
     val latestSeenMessage = _latestSeenMessage.asStateFlow()
     private val latestSentReadReceipt = MutableStateFlow<EventId?>(null)

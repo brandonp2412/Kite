@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -119,6 +120,7 @@ fun MessageBubble(
                 overlay = {
                     TimestampContent(
                         content = timestamp,
+                        reserveSendingSpace = isOwn,
                         withBackground = contentTextLayoutResult == null && isMediaOverlay,
                         modifier = Modifier.thenIf(isMediaOverlay && contentTextLayoutResult != null) {
                             padding(Dimens.Conversation.messageBubbleInnerPadding)
@@ -133,6 +135,7 @@ fun MessageBubble(
 @Composable
 private fun TimestampContent(
     content: TimestampOverlayContent?,
+    reserveSendingSpace: Boolean,
     withBackground: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -144,7 +147,7 @@ private fun TimestampContent(
     val hasStatusDecoration = content.isEdited ||
             content.isSending ||
             content.sendError != null
-    if (!hasStatusDecoration) return
+    if (!hasStatusDecoration && !reserveSendingSpace) return
 
     val overlayBgColor = MaterialTheme.scExposures.timestampOverlayBg
     Row(
@@ -153,7 +156,7 @@ private fun TimestampContent(
                 overlayBgColor,
                 Dimens.Conversation.timestampOverlayShape,
             ).padding(Dimens.Conversation.timestampPaddingWithOverlayBg)
-        },
+        }.alpha(if (hasStatusDecoration) 1f else 0f),
         horizontalArrangement = Dimens.horizontalArrangementSmall,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -169,12 +172,15 @@ private fun TimestampContent(
                 modifier = Modifier.alignByBaseline(),
             )
         }
-        if (content.isSending) {
+        // Keep status geometry stable across local-echo -> sent transitions.
+        // An invisible clock retains its slot so the text never rewraps.
+        if (reserveSendingSpace || content.isSending) {
             Icon(
                 Icons.Default.AccessTime,
                 stringResource(Res.string.hint_sending),
                 tint = textColor,
                 modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon)
+                    .alpha(if (content.isSending) 1f else 0f),
             )
         }
         if (content.sendError != null) {

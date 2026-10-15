@@ -1068,3 +1068,13 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Updated `AGENTS.md` to require **installing successfully changed code on Samsung in release mode**, and updated `ANDROID.md` to show the single-ID release installation procedure.
 - Glass: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a --no-daemon` **BUILD SUCCESSFUL** (280 tasks, 1m 9s). Final release APK `androidApp/build/outputs/apk/release/androidApp-release.apk`: package `app.kite.revenge.debug`, versionCode `26101500`, versionName `26.10.15`, `arm64-v8a`, non-debuggable, signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` (same existing key), APK SHA-256 `3d4992f5c0d007914ec1d6a0d436b795a4a59892d705cd1ffe7ea89ffd774c09`.
 - Samsung SM-S931B via `adb -s 10.66.66.3:5555 install -r` returned **Success**. Device subsequently reports exactly one Kite Revenge package `app.kite.revenge.debug`, versionCode `26101500`, `lastUpdateTime=2026-10-15 16:40:23`, preserved `firstInstallTime=2026-10-14 11:55:12` and `dataDir=/data/user/0/app.kite.revenge.debug`. Original Kite project and unrelated pending inbox changes untouched. No intrusive live chat UI test performed.
+
+## 2026-10-15 22:49 NZDT — sending, unread and inbox ordering
+
+- Reserve a stable, invisible timestamp/status footprint for own messages so local sending → sent does not reflow the message bubble.
+- When the newest event in a live room is visibly at the bottom, mark the room read via SDK and clear any explicit unread flag; honour the configured auto-read trigger, including Never/Room close.
+- Honor PIN_FAVORITES when sorting the Kite inbox; previously old favourited rooms were promoted despite the preference being off. Keep the separate low-priority grouping. Regression case added for pinning disabled.
+- Glass: `:composeApp:desktopTest :androidApp:assembleRelease -PandroidAbi=arm64-v8a --no-daemon --max-workers=1` successful (1m 19s); `git diff --check` clean.
+- Release APK package `app.kite.revenge.debug`, versionCode `26101500`, V2 signing SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`, matches previously verified Samsung signer. ADB install -r on Samsung returned Success, firstInstallTime remained `2026-10-14 11:55:12`, lastUpdateTime became `2026-10-15 22:49:13`, dataDir preserved.
+- The unread race has not yet been manually reproduced on the device; actual bridge backfill origin-timestamp behaviour also remains unverified.
+- Preserved separate pre-existing unstaged hide-room edits in InboxViewModel, AppStateStore, and strings.xml; only the pin-order correction hunk of InboxViewModel staged.

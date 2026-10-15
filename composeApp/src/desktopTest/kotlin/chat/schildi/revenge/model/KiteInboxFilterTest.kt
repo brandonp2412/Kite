@@ -46,8 +46,17 @@ class KiteInboxFilterTest {
 
         assertEquals(
             listOf("pinned-new", "pinned-old", "unread-recent", "normal-recent"),
-            filter(items, null).map(Item::id),
+            filter(items, null, pinFavorites = true).map(Item::id),
         )
+    }
+
+    @Test
+    fun favouritesDoNotPromoteOldRoomsWhenPinningIsOff() {
+        val items = listOf(
+            Item("old-favourite", "Old favourite", isPinned = true, latestEventTimestamp = 100),
+            Item("active", "Active conversation", latestEventTimestamp = 200),
+        )
+        assertEquals(listOf("active", "old-favourite"), filter(items, null).map(Item::id))
     }
 
     @Test
@@ -127,7 +136,7 @@ class KiteInboxFilterTest {
 
         assertEquals(
             listOf("normal-pinned", "low-pinned", "normal-new", "low-new"),
-            filter(items, null).map(Item::id),
+            filter(items, null, pinFavorites = true).map(Item::id),
         )
     }
 
@@ -144,9 +153,10 @@ class KiteInboxFilterTest {
         )
     }
 
-    private fun filter(items: List<Item>, query: String?) = filterKiteInboxItems(
+    private fun filter(items: List<Item>, query: String?, pinFavorites: Boolean = false) = filterKiteInboxItems(
         items = items,
         searchTerm = query,
+        pinFavorites = pinFavorites,
         isSpace = Item::isSpace,
         isPinned = Item::isPinned,
         isLowPriority = Item::isLowPriority,
