@@ -111,6 +111,7 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
@@ -314,6 +315,9 @@ fun ConversationScreen(
         var initialListOffset by remember { mutableStateOf(Triple(0, 0, -1)) }
         var scrolledToEvent by remember { mutableStateOf<EventJumpTarget?>(null) }
         val targetEvent = viewModel.targetEvent.collectAsState().value
+        val fullyReadEvent = viewModel.cachedFullyRead.collectAsState().value
+        val isUnreadJump = targetEvent is EventJumpTarget.Event &&
+                (!targetEvent.highlight || fullyReadEvent?.has(targetEvent.eventId) == true)
         var allowPaginateAfterInitialLoad by remember(targetEvent) {
             Logger.withTag("ConversationScreen").w("Loading for $targetEvent ($scrolledToEvent)")
             mutableStateOf(
@@ -333,13 +337,16 @@ fun ConversationScreen(
             val index = when(targetEvent) {
                 is EventJumpTarget.Event -> timelineItems.indexOfFirst { item ->
                     (item.item as? MatrixTimelineItem.Event)?.eventId == targetEvent.eventId
-                }.let {
-                    if (it >= 0) {
-                        // Reverse list not applied here yet
-                        timelineItems.size - it - 1
+                }.takeIf { it >= 0 }?.let { markerIndex ->
+                    val targetIndex = if (isUnreadJump) {
+                        firstUnreadTimelineIndex(markerIndex, timelineItems.size) { itemIndex ->
+                            timelineItems[itemIndex].item is MatrixTimelineItem.Event
+                        }
                     } else {
-                        null
+                        markerIndex
                     }
+                    // Reverse layout is applied by LazyColumn, not by timelineItems.
+                    timelineItems.size - targetIndex - 1
                 }
                 is EventJumpTarget.Index -> targetEvent.index.takeIf {
                     forwardPaginationStatus?.hasMoreToLoad == false && it in 0..<timelineItems.size
@@ -352,7 +359,7 @@ fun ConversationScreen(
                 val offset = density.run { contentHeight.roundToPx() } / 2
                 initialListOffset = Triple(
                     index,
-                    if (targetEvent is EventJumpTarget.Index && index == 0) 0 else -offset,
+                    if (isUnreadJump || targetEvent is EventJumpTarget.Index && index == 0) 0 else -offset,
                     targetEvent.renavigationCount,
                 )
                 scrolledToEvent = targetEvent
@@ -587,6 +594,24 @@ fun ConversationScreen(
                     val renderedItems = remember(timelineItems) {
                         timelineItems.reversed().toPersistentList()
                     }
+                    // Position the FIRST unread event using the measured timeline viewport and
+                    // row height. The old half-of-the-window offset could leave it hidden
+                    // behind the composer or clipped, especially for long messages.
+                    if (isUnreadJump && initialListOffset.first in renderedItems.indices) {
+                        LaunchedEffect(listState) {
+                            val (viewportHeight, rowHeight) = snapshotFlow {
+                                val layout = listState.layoutInfo
+                                val item = layout.visibleItemsInfo.firstOrNull {
+                                    it.index == initialListOffset.first
+                                }
+                                item?.let { (layout.viewportEndOffset - layout.viewportStartOffset) to it.size }
+                            }.filterNotNull().first()
+                            listState.scrollToItem(
+                                initialListOffset.first,
+                                unreadTopScrollOffset(viewportHeight, rowHeight, density.run { 12.dp.roundToPx() }),
+                            )
+                        }
+                    }
                     // A visible room opened at its newest message must not stay unread
                     // because the SDK's per-event receipt tracker missed an event.
                     val roomHasUnread = roomInfo?.let {
@@ -638,7 +663,6 @@ fun ConversationScreen(
                     }
 
                     // Track whether we see bottom or latest read message for jump-to-message FABs
-                    val fullyReadEvent = viewModel.cachedFullyRead.collectAsState().value
                     val currentThreadId = viewModel.threadId.collectAsState().value
                     LaunchedEffect(listState, fullyReadEvent, renderedItems) {
                         snapshotFlow {
@@ -969,3 +993,11 @@ private inline fun <T>getNextItem(
     }
     return Pair(null, null)
 }
+
+/** Choose the first real message after the last-read marker, skipping day dividers. */
+internal fun firstUnreadTimelineIndex(markerIndex: Int, itemCount: Int, isMessage: (Int) -> Boolean): Int =
+    ((markerIndex + 1) until itemCount).firstOrNull(isMessage) ?: markerIndex
+
+/** For a reverse-layout list, align the older (top) edge of the unread row near the viewport top. */
+internal fun unreadTopScrollOffset(viewportHeight: Int, rowHeight: Int, topPadding: Int): Int =
+    rowHeight - viewportHeight + topPadding
