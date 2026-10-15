@@ -38,10 +38,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
@@ -316,8 +321,11 @@ fun ConversationScreen(
         var scrolledToEvent by remember { mutableStateOf<EventJumpTarget?>(null) }
         val targetEvent = viewModel.targetEvent.collectAsState().value
         val fullyReadEvent = viewModel.cachedFullyRead.collectAsState().value
-        val isUnreadJump = targetEvent is EventJumpTarget.Event &&
-                (!targetEvent.highlight || fullyReadEvent?.has(targetEvent.eventId) == true)
+        // Opening an unread room should land on its newest message. The explicit
+        // "jump to unread" action still goes to the beginning of unread history.
+        val isOpeningUnread = targetEvent is EventJumpTarget.Event && !targetEvent.highlight
+        val isUnreadJump = targetEvent is EventJumpTarget.Event && !isOpeningUnread &&
+                fullyReadEvent?.has(targetEvent.eventId) == true
         var allowPaginateAfterInitialLoad by remember(targetEvent) {
             Logger.withTag("ConversationScreen").w("Loading for $targetEvent ($scrolledToEvent)")
             mutableStateOf(
@@ -338,12 +346,14 @@ fun ConversationScreen(
                 is EventJumpTarget.Event -> timelineItems.indexOfFirst { item ->
                     (item.item as? MatrixTimelineItem.Event)?.eventId == targetEvent.eventId
                 }.takeIf { it >= 0 }?.let { markerIndex ->
-                    val targetIndex = if (isUnreadJump) {
-                        firstUnreadTimelineIndex(markerIndex, timelineItems.size) { itemIndex ->
+                    val targetIndex = when {
+                        isOpeningUnread -> latestTimelineIndex(timelineItems.size) { itemIndex ->
                             timelineItems[itemIndex].item is MatrixTimelineItem.Event
                         }
-                    } else {
-                        markerIndex
+                        isUnreadJump -> firstUnreadTimelineIndex(markerIndex, timelineItems.size) { itemIndex ->
+                            timelineItems[itemIndex].item is MatrixTimelineItem.Event
+                        }
+                        else -> markerIndex
                     }
                     // Reverse layout is applied by LazyColumn, not by timelineItems.
                     timelineItems.size - targetIndex - 1
@@ -359,7 +369,7 @@ fun ConversationScreen(
                 val offset = density.run { contentHeight.roundToPx() } / 2
                 initialListOffset = Triple(
                     index,
-                    if (isUnreadJump || targetEvent is EventJumpTarget.Index && index == 0) 0 else -offset,
+                    if (isUnreadJump || isOpeningUnread || targetEvent is EventJumpTarget.Index && index == 0) 0 else -offset,
                     targetEvent.renavigationCount,
                 )
                 scrolledToEvent = targetEvent
@@ -628,15 +638,40 @@ fun ConversationScreen(
                             viewModel.markVisibleRoomReadOnOpen()
                         }
                     }
-                    // LazyColumn anchors items by key: an incoming event inserted at
-                    // index 0 otherwise shifts the old bottom row to index 1. Follow
-                    // the newest message only while the user has not scrolled away.
+                    // A programmatic scroll is also "isScrollInProgress". Do not mistake
+                    // initial positioning or a new message for the user scrolling away.
                     val followLatest = remember(listState) { mutableStateOf(true) }
+                    val userHasScrolled = remember(listState) { mutableStateOf(false) }
+                    val userScrollObserver = remember(listState) {
+                        object : NestedScrollConnection {
+                            override fun onPostScroll(
+                                consumed: Offset,
+                                available: Offset,
+                                source: NestedScrollSource,
+                            ): Offset {
+                                if (source == NestedScrollSource.UserInput && consumed != Offset.Zero) {
+                                    userHasScrolled.value = true
+                                    followLatest.value = isLatestPosition(
+                                        listState.firstVisibleItemIndex,
+                                        listState.firstVisibleItemScrollOffset,
+                                    )
+                                }
+                                return Offset.Zero
+                            }
+                        }
+                    }
                     LaunchedEffect(listState) {
                         snapshotFlow {
-                            listState.isScrollInProgress to listState.firstVisibleItemIndex
-                        }.collect { (scrolling, index) ->
-                            if (scrolling) followLatest.value = index == 0
+                            listState.isScrollInProgress to isLatestPosition(
+                                listState.firstVisibleItemIndex,
+                                listState.firstVisibleItemScrollOffset,
+                            )
+                        }.collect { (scrolling, atLatest) ->
+                            // After a user fling settles, restore follow mode at the bottom.
+                            if (!scrolling && userHasScrolled.value) {
+                                followLatest.value = atLatest
+                                userHasScrolled.value = false
+                            }
                         }
                     }
                     val newestEventKey = remember(renderedItems) {
@@ -645,11 +680,14 @@ fun ConversationScreen(
                         }
                     }
                     if (viewModel.timelineParams == null &&
-                        targetEvent is EventJumpTarget.Index && targetEvent.index == 0
+                        (isOpeningUnread || targetEvent is EventJumpTarget.Index && targetEvent.index == 0)
                     ) {
                         LaunchedEffect(listState, newestEventKey) {
                             if (newestEventKey != null && followLatest.value) {
-                                listState.scrollToItem(0)
+                                // Let LazyColumn measure the newly inserted row before
+                                // overriding its key-based anchor with the real bottom.
+                                withFrameNanos { }
+                                if (followLatest.value) listState.scrollToItem(0)
                             }
                         }
                     }
@@ -720,7 +758,7 @@ fun ConversationScreen(
                     val timestampRevealState = remember { MessageTimestampRevealState() }
 
                     LazyColumn(
-                        Modifier.fillMaxSize(),
+                        Modifier.fillMaxSize().nestedScroll(userScrollObserver),
                         reverseLayout = true,
                         state = listState,
                         contentPadding = if (viewModel.modeSupportsComposer) {
@@ -1001,3 +1039,11 @@ internal fun firstUnreadTimelineIndex(markerIndex: Int, itemCount: Int, isMessag
 /** For a reverse-layout list, align the older (top) edge of the unread row near the viewport top. */
 internal fun unreadTopScrollOffset(viewportHeight: Int, rowHeight: Int, topPadding: Int): Int =
     rowHeight - viewportHeight + topPadding
+
+/** The reversed list's newest event is at index 0 with zero scroll offset. */
+internal fun isLatestPosition(firstVisibleIndex: Int, firstVisibleOffset: Int): Boolean =
+    firstVisibleIndex == 0 && firstVisibleOffset == 0
+
+/** Find the newest real event, ignoring trailing typing and other virtual rows. */
+internal fun latestTimelineIndex(itemCount: Int, isMessage: (Int) -> Boolean): Int =
+    (itemCount - 1 downTo 0).firstOrNull(isMessage) ?: 0
