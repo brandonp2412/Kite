@@ -58,7 +58,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "app.kite.revenge"
+        applicationId = "app.kite.revenge.debug"
         minSdk = 26
         targetSdk = 37
         versionCode = androidVersionCode
@@ -66,13 +66,11 @@ android {
     }
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
             ndk.abiFilters += selectedAndroidAbis ?: listOf("arm64-v8a")
         }
         release {
-            // Keep optimized builds on the existing native Kite identity.
-            // app.kite.revenge is NOT a separate installable production package.
-            applicationIdSuffix = ".debug"
+            // Release optimization with the same package ID and signing identity as the Samsung installation.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -84,7 +82,6 @@ android {
         // Optimizations like release, package and signing like debug
         create("PerfDebug") {
             initWith(getByName("release"))
-            applicationIdSuffix = ".debug"
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
             ndk.abiFilters.clear()
@@ -94,9 +91,9 @@ android {
         }
     }
     check(
-        defaultConfig.applicationId == "app.kite.revenge" &&
-            listOf("debug", "release", "PerfDebug").all { buildTypes.getByName(it).applicationIdSuffix == ".debug" }
-    ) { "Kite Android build types must all use app.kite.revenge.debug; do not recreate app.kite.revenge." }
+        defaultConfig.applicationId == "app.kite.revenge.debug" &&
+            listOf("debug", "release", "PerfDebug").all { buildTypes.getByName(it).applicationIdSuffix.isNullOrEmpty() }
+    ) { "Every Kite Android variant must use app.kite.revenge.debug without an application ID suffix." }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

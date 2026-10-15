@@ -6,7 +6,7 @@ The user reports that SchildiChat Revenge has essentially zero perceptible UI la
 
 - This repo: `/home/brandon/kite-revenge` on **Glass**; upstream `https://github.com/SchildiChat/schildi-revenge` at original clone `cdc162f` (GPL-3.0). Preserve upstream attribution and COPYING/LICENSE terms.
 - Existing Flutter Kite: `/home/brandon/kite`, app ID `app.kite`, source version `6bdb9823f`. **Read only**; do not edit, reset or uninstall.
-- New native Kite app ID: `app.kite.revenge` (debug variant `app.kite.revenge.debug`). **Never install an APK under `app.kite` until intentional, safe migration**. Preserve production Matrix app data.
+- New native Kite sole app ID: `app.kite.revenge.debug` across debug, release, and performance builds. **Never install an APK under another package identity or reset the existing Samsung installation.** Preserve production Matrix app data.
 - Recurring Prompta job `kite-revenge-native` is configured on Nox every **45 minutes**, starting 2026-10-14 12:06 NZDT. Prompta launches fresh ChatGPT sessions. Work on Glass and update this file every session.
 - Performance acceptance: improve upon user's initial perception of Revenge without a regression in scroll smoothness, opening rooms, gesture input, search, chat-list navigation, message sending, or sync. Capture reproducible latency/JankStats frame-time data on debug/perf builds where possible, especially on the Samsung S25 at 120 Hz (8.33 ms frame budget). Avoid heavy per-row allocations or broad per-event recomposition.
 
@@ -1061,3 +1061,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass `:androidApp:assembleDebug -PandroidAbi=arm64-v8a --no-daemon` passed (188 tasks; 32 s). `git diff --check` passed.
 - Built ARM64 debug APK SHA-256 `5bb49e2d1b4dcb975fda11f2e719d773bb6873a2c28986ef7645328eb8501d91`. Installed over `app.kite.revenge.debug` on Samsung SM-S931B with `adb install -r` (Success); original firstInstallTime `2026-10-14 11:55:12`, new lastUpdateTime `2026-10-15 16:34:10`, and data directory `/data/user/0/app.kite.revenge.debug` preserved. Production `app.kite` untouched.
 - Live chat visual comparison was not performed. Preserved unrelated in-progress local inbox edits in InboxViewModel, AppStateStore, and strings.
+
+## 2026-10-15 — One Kite Revenge package ID and Samsung release-install policy
+
+- Standardized `androidApp/build.gradle.kts` to use `app.kite.revenge.debug` directly as `defaultConfig.applicationId` for every build type. Removed all `applicationIdSuffix` assignments, tightened the configuration guard, and configured optimized release builds to use the same existing signing certificate as Samsung's installed package. Earlier mentions of a second package ID elsewhere in this historical ledger record past configurations, not current build instructions.
+- Updated `AGENTS.md` to require **installing successfully changed code on Samsung in release mode**, and updated `ANDROID.md` to show the single-ID release installation procedure.
+- Glass: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a --no-daemon` **BUILD SUCCESSFUL** (280 tasks, 1m 9s). Final release APK `androidApp/build/outputs/apk/release/androidApp-release.apk`: package `app.kite.revenge.debug`, versionCode `26101500`, versionName `26.10.15`, `arm64-v8a`, non-debuggable, signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` (same existing key), APK SHA-256 `3d4992f5c0d007914ec1d6a0d436b795a4a59892d705cd1ffe7ea89ffd774c09`.
+- Samsung SM-S931B via `adb -s 10.66.66.3:5555 install -r` returned **Success**. Device subsequently reports exactly one Kite Revenge package `app.kite.revenge.debug`, versionCode `26101500`, `lastUpdateTime=2026-10-15 16:40:23`, preserved `firstInstallTime=2026-10-14 11:55:12` and `dataDir=/data/user/0/app.kite.revenge.debug`. Original Kite project and unrelated pending inbox changes untouched. No intrusive live chat UI test performed.
