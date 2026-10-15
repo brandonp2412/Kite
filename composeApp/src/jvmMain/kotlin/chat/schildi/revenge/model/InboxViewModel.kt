@@ -273,6 +273,7 @@ class InboxViewModel(
                 searchTerm = searchTerm,
                 isSpace = { it.summary.info.isSpace },
                 isPinned = { it.summary.info.isFavorite },
+                isLowPriority = { it.summary.info.isLowPriority },
                 primaryName = { it.summary.info.name },
                 secondaryName = { it.summary.info.privateRoomName },
                 latestEventTimestamp = { it.summary.latestEventTimestamp },

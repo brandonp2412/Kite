@@ -9,7 +9,7 @@ private data class KiteInboxSearchMatch<T>(
 
 /**
  * Keeps Kite's personal inbox space-free, with pinned rooms first and other rooms
- * newest-first, independent of Revenge's SDK-level unread grouping. Search matches
+ * newest-first within priority groups, independent of Revenge's SDK-level unread grouping. Search matches
  * still rank by name position, then recency, without introducing UI-owned state.
  */
 internal fun <T> filterKiteInboxItems(
@@ -17,6 +17,7 @@ internal fun <T> filterKiteInboxItems(
     searchTerm: String?,
     isSpace: (T) -> Boolean,
     isPinned: (T) -> Boolean,
+    isLowPriority: (T) -> Boolean,
     primaryName: (T) -> String?,
     secondaryName: (T) -> String?,
     latestEventTimestamp: (T) -> Long?,
@@ -25,6 +26,7 @@ internal fun <T> filterKiteInboxItems(
     if (searchTerm.isNullOrBlank()) {
         return items.filterNot(isSpace).sortedWith(
             compareByDescending<T>(isPinned)
+                .thenBy(isLowPriority)
                 .thenByDescending { latestEventTimestamp(it) ?: Long.MIN_VALUE }
                 .thenBy(sessionOrder),
         )

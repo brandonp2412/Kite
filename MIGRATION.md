@@ -1044,3 +1044,13 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass validation: `:composeApp:compileAndroidMain :composeApp:compileKotlinDesktop :composeApp:desktopTest --no-daemon --max-workers=1 --quiet` passed after closing the inner Column correctly and removing an invalid `matchParentSize` import. `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --quiet` passed.
 - ARM64 APK SHA-256 `d0ae905f7684c8d92c735ec38e4aaf097c477832ceb6f5f6b48759a9cbc9227e`, package `app.kite.revenge.debug`, prior signer verified. Samsung `adb install -r` returned Success; dataDir `/data/user/0/app.kite.revenge.debug` and original install date retained, lastUpdateTime `2026-10-15 08:25:43`. Did not touch production `app.kite` or live Matrix state.
 - No live tap test/visual proof; handset was running ChatGPT. Existing unrelated hide-chat work in InboxViewModel, AppStateStore and strings was kept untouched and excluded from commit.
+
+
+## 2026-10-15 — Bury low-priority rooms below normal activity in Kite Revenge
+
+- Fixed the personal inbox's local sorting layer (`filterKiteInboxItems`), which previously only considered favourites and latest event timestamps. Rooms marked `isLowPriority` now stay below normal rooms regardless of how recently they received a message; newest-first order is retained inside each group. Favourites remain first, including favourites that are themselves low priority, matching original Flutter Kite precedence without restoring its unconditional invite-first policy.
+- Matrix Rust SDK sorting, unread handling, and persisted room tags are unchanged. Search results still sort by text match and recency, so low-priority rooms remain searchable.
+- Added three Kotlin regression tests: low-priority activity cannot overtake normal rooms, explicit favourites still win, and low-priority search matches remain visible. Existing room-list tests also passed.
+- On Glass: focused `:composeApp:desktopTest --tests chat.schildi.revenge.model.KiteInboxFilterTest` passed; `:composeApp:compileAndroidMain` passed; ARM64 `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a` passed.
+- Verified APK package `app.kite.revenge.debug`, version code 1, existing signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`. Installed in place via `adb -s 10.66.66.3:5555 install -r` (Success), last update 2026-10-15 14:59 NZDT; firstInstallTime remained 2026-10-14 11:55:12. No production app or Matrix account state reset. Live UI sorting not verified due to foreground handset use.
+- Preserved unrelated in-progress local hide-chat edits in InboxViewModel.kt, AppStateStore.kt, and strings; do not include those in this commit.

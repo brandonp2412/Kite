@@ -10,6 +10,7 @@ class KiteInboxFilterTest {
         val privateName: String? = null,
         val isSpace: Boolean = false,
         val isPinned: Boolean = false,
+        val isLowPriority: Boolean = false,
         val latestEventTimestamp: Long? = null,
         val sessionOrder: Int = 0,
     )
@@ -100,11 +101,55 @@ class KiteInboxFilterTest {
         )
     }
 
+    @Test
+    fun lowPriorityRoomsStayBelowNormalRoomsEvenWhenMoreRecent() {
+        val items = listOf(
+            Item("low-newest", "Low newest", isLowPriority = true, latestEventTimestamp = 900),
+            Item("normal-old", "Normal old", latestEventTimestamp = 100),
+            Item("low-older", "Low older", isLowPriority = true, latestEventTimestamp = 500),
+            Item("normal-new", "Normal new", latestEventTimestamp = 700),
+        )
+
+        assertEquals(
+            listOf("normal-new", "normal-old", "low-newest", "low-older"),
+            filter(items, null).map(Item::id),
+        )
+    }
+
+    @Test
+    fun favouritesStayPinnedEvenWhenMarkedLowPriority() {
+        val items = listOf(
+            Item("low-pinned", "Low pinned", isPinned = true, isLowPriority = true, latestEventTimestamp = 50),
+            Item("normal-pinned", "Normal pinned", isPinned = true, latestEventTimestamp = 100),
+            Item("normal-new", "Normal new", latestEventTimestamp = 900),
+            Item("low-new", "Low new", isLowPriority = true, latestEventTimestamp = 1000),
+        )
+
+        assertEquals(
+            listOf("normal-pinned", "low-pinned", "normal-new", "low-new"),
+            filter(items, null).map(Item::id),
+        )
+    }
+
+    @Test
+    fun lowPriorityDoesNotHideMatchingSearchResults() {
+        val items = listOf(
+            Item("low-match", "Kite recent", isLowPriority = true, latestEventTimestamp = 900),
+            Item("normal-match", "Kite older", latestEventTimestamp = 100),
+        )
+
+        assertEquals(
+            listOf("low-match", "normal-match"),
+            filter(items, "kite").map(Item::id),
+        )
+    }
+
     private fun filter(items: List<Item>, query: String?) = filterKiteInboxItems(
         items = items,
         searchTerm = query,
         isSpace = Item::isSpace,
         isPinned = Item::isPinned,
+        isLowPriority = Item::isLowPriority,
         primaryName = Item::name,
         secondaryName = Item::privateName,
         latestEventTimestamp = Item::latestEventTimestamp,
