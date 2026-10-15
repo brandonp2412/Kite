@@ -547,13 +547,6 @@ fun ConversationScreen(
             // Bots/bridges often live in two-member rooms without m.direct. Visually those
             // are still one-to-one conversations; only true multi-member rooms need labels.
             val showSenderDetails = shouldShowTimelineSenderDetails(roomInfo?.joinedMembersCount)
-            val highlightedJumpTargetEventId = (targetEvent as? EventJumpTarget.Event)?.let {
-                if (it.highlight) {
-                    it.eventId
-                } else {
-                    null
-                }
-            }
             val highlightedActionEventId = viewModel.highlightedActionEventId.collectAsState().value
             Column(contentModifier
                 .fillMaxSize()
@@ -689,7 +682,6 @@ fun ConversationScreen(
                                 highlightedActionEventId is EventOrTransactionId.Transaction &&
                                         item.item.transactionId == highlightedActionEventId.id -> EventHighlight.ACTION_TARGET
 
-                                highlightedJumpTargetEventId != null && item.item.eventId == highlightedJumpTargetEventId -> EventHighlight.JUMP_TARGET
                                 else -> EventHighlight.NONE
                             }
                             // Reverse list causes reverses indices

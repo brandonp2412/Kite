@@ -16,9 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -61,12 +59,10 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_deselect_message
 import shire.res.generated.resources.action_select_message
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 enum class EventHighlight {
     NONE,
-    JUMP_TARGET,
     ACTION_TARGET,
 }
 
@@ -172,7 +168,6 @@ fun EventRow(
                     },
                     Dimens.Conversation.messageBubbleShape,
                 )
-                .drawJumpTargetDecoration(enabled = highlight == EventHighlight.JUMP_TARGET)
                 .padding(horizontal = Dimens.Conversation.timelineHorizontalPadding)
         ) {
             val threadInfo = event.threadInfo()
@@ -352,25 +347,4 @@ private fun EventContent.isPlaintextCopyable() = when (this) {
     // There's literally no content attached to UnknownContent right now, copying doesn't make much sense.
     UnknownContent -> false
     else -> true
-}
-
-@Composable
-fun Modifier.drawJumpTargetDecoration(
-    enabled: Boolean,
-): Modifier = if (enabled) {
-    val color = MaterialTheme.colorScheme.error
-    val paddingPx = LocalDensity.current.run { Dimens.windowPadding.toPx() / 2 }
-    val widthPx = LocalDensity.current.run { Dimens.Conversation.newMessagesLineHeight.toPx() }
-
-    drawBehind {
-        val x = min(size.width/2, paddingPx)
-        drawLine(
-            color = color,
-            start = Offset(x, 0f),
-            end = Offset(x, size.height),
-            strokeWidth = min(widthPx, size.width),
-        )
-    }
-} else {
-    this
 }

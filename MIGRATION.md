@@ -1054,3 +1054,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - On Glass: focused `:composeApp:desktopTest --tests chat.schildi.revenge.model.KiteInboxFilterTest` passed; `:composeApp:compileAndroidMain` passed; ARM64 `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a` passed.
 - Verified APK package `app.kite.revenge.debug`, version code 1, existing signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`. Installed in place via `adb -s 10.66.66.3:5555 install -r` (Success), last update 2026-10-15 14:59 NZDT; firstInstallTime remained 2026-10-14 11:55:12. No production app or Matrix account state reset. Live UI sorting not verified due to foreground handset use.
 - Preserved unrelated in-progress local hide-chat edits in InboxViewModel.kt, AppStateStore.kt, and strings; do not include those in this commit.
+
+## 2026-10-15 — Remove unwanted red jump-target stripe from Kite Revenge chats
+
+- Removed `drawJumpTargetDecoration()` from conversation event rendering, including the red `MaterialTheme.colorScheme.error` line, the unused `JUMP_TARGET` highlight enum branch, and its derived state. Kept jump-to-message navigation, target resolution, and the separate action-target background highlight intact.
+- Glass `:androidApp:assembleDebug -PandroidAbi=arm64-v8a --no-daemon` passed (188 tasks; 32 s). `git diff --check` passed.
+- Built ARM64 debug APK SHA-256 `5bb49e2d1b4dcb975fda11f2e719d773bb6873a2c28986ef7645328eb8501d91`. Installed over `app.kite.revenge.debug` on Samsung SM-S931B with `adb install -r` (Success); original firstInstallTime `2026-10-14 11:55:12`, new lastUpdateTime `2026-10-15 16:34:10`, and data directory `/data/user/0/app.kite.revenge.debug` preserved. Production `app.kite` untouched.
+- Live chat visual comparison was not performed. Preserved unrelated in-progress local inbox edits in InboxViewModel, AppStateStore, and strings.
