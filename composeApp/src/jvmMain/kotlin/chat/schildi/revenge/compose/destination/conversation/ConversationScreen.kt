@@ -350,7 +350,11 @@ fun ConversationScreen(
             } else {
                 Logger.withTag("ConversationScreen").d("Targetting $index for $targetEvent")
                 val offset = density.run { contentHeight.roundToPx() } / 2
-                initialListOffset = Triple(index, -offset, targetEvent.renavigationCount)
+                initialListOffset = Triple(
+                    index,
+                    if (targetEvent is EventJumpTarget.Index && index == 0) 0 else -offset,
+                    targetEvent.renavigationCount,
+                )
                 scrolledToEvent = targetEvent
             }
             allowPaginateAfterInitialLoad = true
@@ -599,6 +603,31 @@ fun ConversationScreen(
                             viewModel.markVisibleRoomReadOnOpen()
                         }
                     }
+                    // LazyColumn anchors items by key: an incoming event inserted at
+                    // index 0 otherwise shifts the old bottom row to index 1. Follow
+                    // the newest message only while the user has not scrolled away.
+                    val followLatest = remember(listState) { mutableStateOf(true) }
+                    LaunchedEffect(listState) {
+                        snapshotFlow {
+                            listState.isScrollInProgress to listState.firstVisibleItemIndex
+                        }.collect { (scrolling, index) ->
+                            if (scrolling) followLatest.value = index == 0
+                        }
+                    }
+                    val newestEventKey = remember(renderedItems) {
+                        renderedItems.firstNotNullOfOrNull {
+                            (it.item as? MatrixTimelineItem.Event)?.uniqueId
+                        }
+                    }
+                    if (viewModel.timelineParams == null &&
+                        targetEvent is EventJumpTarget.Index && targetEvent.index == 0
+                    ) {
+                        LaunchedEffect(listState, newestEventKey) {
+                            if (newestEventKey != null && followLatest.value) {
+                                listState.scrollToItem(0)
+                            }
+                        }
+                    }
                     val latestOwnMessageKey = remember(renderedItems) {
                         renderedItems.firstNotNullOfOrNull { timelineItem ->
                             val event = (timelineItem.item as? MatrixTimelineItem.Event)?.event
@@ -681,10 +710,13 @@ fun ConversationScreen(
                         itemsIndexed(
                             renderedItems,
                             key = { index, item ->
-                                when (item.item) {
-                                    is MatrixTimelineItem.Event -> item.item.eventId ?: item.item.transactionId ?: index
+                                when (val timelineItem = item.item) {
+                                    // The SDK uniqueId is stable while a local echo becomes a
+                                    // remote event. Event/transaction IDs are not, and re-keying
+                                    // the row makes the reversed list jump on every send.
+                                    is MatrixTimelineItem.Event -> timelineItem.uniqueId
                                     MatrixTimelineItem.Other -> index
-                                    is MatrixTimelineItem.Virtual -> item.item.uniqueId
+                                    is MatrixTimelineItem.Virtual -> timelineItem.uniqueId
                                 }
                             },
                         ) { index, item ->

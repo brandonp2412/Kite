@@ -15,7 +15,6 @@ private data class KiteInboxSearchMatch<T>(
 internal fun <T> filterKiteInboxItems(
     items: Iterable<T>,
     searchTerm: String?,
-    pinFavorites: Boolean = false,
     isSpace: (T) -> Boolean,
     isPinned: (T) -> Boolean,
     isLowPriority: (T) -> Boolean,
@@ -26,7 +25,7 @@ internal fun <T> filterKiteInboxItems(
 ): List<T> {
     if (searchTerm.isNullOrBlank()) {
         return items.filterNot(isSpace).sortedWith(
-            compareByDescending<T> { pinFavorites && isPinned(it) }
+            compareByDescending<T>(isPinned)
                 .thenBy(isLowPriority)
                 .thenByDescending { latestEventTimestamp(it) ?: Long.MIN_VALUE }
                 .thenBy(sessionOrder),

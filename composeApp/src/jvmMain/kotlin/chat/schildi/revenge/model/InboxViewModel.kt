@@ -266,13 +266,11 @@ class InboxViewModel(
         allRooms,
         searchTerm,
         UiState.sessionIdOrder,
-        scPreferencesStore.settingFlow(ScPrefs.PIN_FAVORITES),
-    ) { rooms, searchTerm, sessionIdOrder, pinFavorites ->
+    ) { rooms, searchTerm, sessionIdOrder ->
         RoomListState(
             rooms = filterKiteInboxItems(
                 items = rooms,
                 searchTerm = searchTerm,
-                pinFavorites = pinFavorites,
                 isSpace = { it.summary.info.isSpace },
                 isPinned = { it.summary.info.isFavorite },
                 isLowPriority = { it.summary.info.isLowPriority },

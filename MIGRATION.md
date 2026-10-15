@@ -1078,3 +1078,12 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Release APK package `app.kite.revenge.debug`, versionCode `26101500`, V2 signing SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`, matches previously verified Samsung signer. ADB install -r on Samsung returned Success, firstInstallTime remained `2026-10-14 11:55:12`, lastUpdateTime became `2026-10-15 22:49:13`, dataDir preserved.
 - The unread race has not yet been manually reproduced on the device; actual bridge backfill origin-timestamp behaviour also remains unverified.
 - Preserved separate pre-existing unstaged hide-room edits in InboxViewModel, AppStateStore, and strings.xml; only the pin-order correction hunk of InboxViewModel staged.
+
+## 2026-10-15 23:16 NZDT — send-state identity and bottom anchoring follow-up
+
+- Fixed reversed conversation LazyColumn keying. Use the Rust timeline item `uniqueId` for both local echoes and sent events instead of switching from transaction ID to event ID. The Matrix Rust SDK explicitly documents `TimelineUniqueId` as preserved on updates (`matrix-rust-sdk/crates/matrix-sdk-ui/src/timeline/item.rs`). This avoids full row disposal/re-measure on send-state transition.
+- Removed the half-screen negative scroll offset for `EventJumpTarget.Index(0)`, which was applied when aiming for the newest messages. Added bottom-follow when a new event arrives, but disable it once the user intentionally scrolls back. Explicit focused-event navigation remains unchanged.
+- Restored Kite's pinned-first inbox ordering independently of the unrelated SDK `PIN_FAVORITES` preference; adjusted regression expectations. Historic bridge backfill timestamps remain a separate known root cause for older chats ranking too recently, not fixed by reordering alone.
+- Glass validation: `:composeApp:desktopTest :androidApp:assembleRelease -PandroidAbi=arm64-v8a --no-daemon --max-workers=1` PASS (`BUILD SUCCESSFUL in 1m 17s`); `git diff --check` PASS.
+- Verified APK package `app.kite.revenge.debug`, versionCode `26101500`, release signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`. Samsung `adb install -r` PASS, firstInstallTime remained `2026-10-14 11:55:12`, lastUpdateTime `2026-10-15 23:16:11`. Data preserved.
+- Live sending/scroll gestures not executed on the user's active phone; only build and desktop regression tests pass. Unrelated unfinished hide-room changes remain unstaged.
