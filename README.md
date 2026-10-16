@@ -179,7 +179,7 @@ intentionally not* clean a previous SDK build.
 For Linux releases (requires to have `nfpm` and `appimagetool` installed):
 
 ```
-./package_linux_releases.sh
+~/scripts/package-kite-revenge-linux.sh
 ```
 
 For Windows releases:
@@ -197,12 +197,12 @@ For macOS releases:
 ## Running as Flatpak
 
 While there is no plan to release SchildiChat on Flathub for the moment, if you prefer to run it as a Flatpak you can use the
-`install_flatpak.sh` script:
+`~/scripts/install-kite-revenge-flatpak.sh` script:
 
 ```
 sudo apt install magick flatpak-builder # or your distro equivalent
 flatpak install flathub org.freedesktop.Sdk//25.08 org.freedesktop.Platform//25.08 org.freedesktop.Sdk.Extension.openjdk//25.08
-./install_flatpak.sh
+~/scripts/install-kite-revenge-flatpak.sh
 ```
 
 This will build the Flatpak and install it locally.
