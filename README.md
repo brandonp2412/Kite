@@ -8,7 +8,7 @@ Kite is a fork of [SchildiChat Revenge](https://github.com/SchildiChat/schildi-r
 
 | Inbox | Conversation |
 | --- | --- |
-| ![Kite inbox with example conversations](screenshots/kite-inbox.png) | ![Kite conversation with example messages](screenshots/kite-conversation.png) |
+| ![Kite inbox with example conversations](fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.png) | ![Kite conversation with example messages](fastlane/metadata/android/en-US/images/phoneScreenshots/2_en-US.png) |
 
 Screenshots use anonymized example content, based on the current Android UI.
 
