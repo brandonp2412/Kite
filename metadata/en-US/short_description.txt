@@ -1,1 +1,1 @@
-Multi-account Matrix client
+A fast, native Matrix messenger

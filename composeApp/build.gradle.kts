@@ -400,8 +400,8 @@ tasks.matching {
 
 val calVer: String = ZonedDateTime.now(ZoneOffset.UTC)
     .format(DateTimeFormatter.ofPattern("yy.MM.dd"))
-val composePackageName = "SchildiChatRevenge"
-val linuxPackageName = "schildichat-revenge"
+val composePackageName = "Kite"
+val linuxPackageName = "kite"
 val linuxXWaylandDesktopId = "chat-schildi-revenge-MainKt"
 val nativePackageName = if (org.gradle.internal.os.OperatingSystem.current().isLinux) {
     linuxPackageName
@@ -431,19 +431,13 @@ compose.desktop {
             )
             packageName = nativePackageName
             packageVersion = calVer
-            vendor = "SchildiChat"
-            description = "SchildiChat Revenge"
+            vendor = "Kite"
+            description = "Kite"
 
             fileAssociation(
                 mimeType = "x-scheme-handler/matrix",
                 extension = "matrix",
                 description = "Matrix URI",
-            )
-
-            fileAssociation(
-                mimeType = "x-scheme-handler/schildichat",
-                extension = "schildichat",
-                description = "SchildiChat Legacy URI",
             )
 
             appResourcesRootDir.set(distributionResourcesDir)
@@ -463,7 +457,7 @@ compose.desktop {
 
                 iconFile.set(rootProject.file("res/src/commonMain/composeResources/drawable-xxxhdpi/ic_launcher.png"))
 
-                debMaintainer = "SpiritCroc <shire@spiritcroc.de>"
+                debMaintainer = "Kite contributors"
                 rpmLicenseType = "AGPL-3.0-only"
             }
 
@@ -474,7 +468,7 @@ compose.desktop {
                 infoPlist {
                     extraKeysRawXml = """
                         <key>NSLocalNetworkUsageDescription</key>
-                        <string>SchildiChat Revenge can connect to Matrix homeservers on your local network.</string>
+                        <string>Kite can connect to Matrix homeservers on your local network.</string>
                     """.trimIndent()
                 }
             }

@@ -8,7 +8,7 @@ import shire.res.generated.resources.about_privacy_policy
 import shire.res.generated.resources.about_source_code
 import shire.res.generated.resources.about_website
 
-const val REVENGE_SOURCE_URL = "https://github.com/SchildiChat/schildi-revenge"
+const val REVENGE_SOURCE_URL = "https://github.com/brandonp2412/Kite"
 const val REVENGE_SDK_SOURCE_URL = "https://github.com/SchildiChat/matrix-rust-sdk"
 const val REVENGE_MATRIX_ROOM_ALIAS = "#revenge:schildi.chat"
 val REVENGE_MATRIX_ROOM_URI = "matrix:r/${REVENGE_MATRIX_ROOM_ALIAS.removePrefix("#")}"
@@ -107,18 +107,14 @@ val ThirdPartyAcknowledgements = persistentListOf(
 val AppLinks = persistentListOf(
     AppLink(
         name = Res.string.about_website.toStringHolder(),
-        url = "https://schildi.chat/revenge",
+        url = "https://github.com/brandonp2412/Kite",
     ),
     AppLink(
         name = Res.string.about_privacy_policy.toStringHolder(),
-        url = "https://schildi.chat/revenge/privacy/",
+        url = "https://github.com/brandonp2412/Kite/blob/main/PRIVACY.md",
     ),
     AppLink(
         name = Res.string.about_source_code.toStringHolder(),
         url = REVENGE_SOURCE_URL,
-    ),
-    AppLink(
-        name = REVENGE_MATRIX_ROOM_ALIAS.toStringHolder(),
-        url = REVENGE_MATRIX_ROOM_URI,
     ),
 )

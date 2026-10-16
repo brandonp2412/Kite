@@ -46,6 +46,11 @@ require(unknownAndroidAbis.isEmpty()) {
     "Unsupported Android ABI(s): ${unknownAndroidAbis.joinToString()}. Supported ABIs: ${supportedAndroidAbis.joinToString()}"
 }
 
+val kiteKeystorePath = providers.environmentVariable("KITE_RELEASE_KEYSTORE").orNull
+val kiteKeystorePassword = providers.environmentVariable("KITE_RELEASE_STORE_PASSWORD").orNull
+val kiteKeyAlias = providers.environmentVariable("KITE_RELEASE_KEY_ALIAS").orNull
+val kiteKeyPassword = providers.environmentVariable("KITE_RELEASE_KEY_PASSWORD").orNull
+
 val calVer = ZonedDateTime.now(ZoneOffset.UTC)
     .format(DateTimeFormatter.ofPattern("yy.MM.dd"))
 val androidVersionNameOverride = providers.gradleProperty("androidVersionName")
@@ -58,19 +63,30 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "app.kite.revenge.debug"
+        applicationId = "app.kite"
         minSdk = 26
         targetSdk = 37
         versionCode = androidVersionCode
         versionName = androidVersionName
+    }
+    signingConfigs {
+        if (listOf(kiteKeystorePath, kiteKeystorePassword, kiteKeyAlias, kiteKeyPassword).all { it != null }) {
+            create("kiteRelease") {
+                storeFile = file(requireNotNull(kiteKeystorePath))
+                storePassword = kiteKeystorePassword
+                keyAlias = kiteKeyAlias
+                keyPassword = kiteKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             ndk.abiFilters += selectedAndroidAbis ?: listOf("arm64-v8a")
         }
         release {
-            // Release optimization with the same package ID and signing identity as the Samsung installation.
-            signingConfig = signingConfigs.getByName("debug")
+            // Release optimization. Configure a private signing key for distribution.
+            // F-Droid signs unsigned builds; standalone releases require a private release key.
+            signingConfig = signingConfigs.findByName("kiteRelease")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -91,9 +107,9 @@ android {
         }
     }
     check(
-        defaultConfig.applicationId == "app.kite.revenge.debug" &&
+        defaultConfig.applicationId == "app.kite" &&
             listOf("debug", "release", "PerfDebug").all { buildTypes.getByName(it).applicationIdSuffix.isNullOrEmpty() }
-    ) { "Every Kite Android variant must use app.kite.revenge.debug without an application ID suffix." }
+    ) { "Every Kite Android variant must use app.kite without an application ID suffix." }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

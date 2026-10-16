@@ -771,9 +771,9 @@
     <string name="login_continue_in_browser_message">Please continue login in the browser window that just opened.</string>
     <string name="login_cancelled">Login cancelled</string>
     <string name="oauth_login_success_title">Login successful</string>
-    <string name="oauth_login_success_message">You can close this browser tab and return to SchildiChat.</string>
+    <string name="oauth_login_success_message">You can close this browser tab and return to Kite.</string>
     <string name="oauth_login_failure_title">Login failed</string>
-    <string name="oauth_login_failure_message">SchildiChat could not complete your login. Please close this tab and launch a new login from the app.</string>
+    <string name="oauth_login_failure_message">Kite could not complete your login. Please close this tab and launch a new login from the app.</string>
     <string name="oauth_login_failure_details_title">Technical details:</string>
 
     <string name="history_visibility_invited">Room members since invited</string>

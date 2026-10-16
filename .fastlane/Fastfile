@@ -16,10 +16,10 @@
 default_platform(:android)
 
 platform :android do
-  keystore = ENV["keystore"]
-  keystore_pass = ENV["keystorepass"]
-  key_alias = ENV["keyalias"]
-  key_pass = ENV["keypass"]
+  keystore = ENV["KITE_RELEASE_KEYSTORE"]
+  keystore_pass = ENV["KITE_RELEASE_STORE_PASSWORD"]
+  key_alias = ENV["KITE_RELEASE_KEY_ALIAS"]
+  key_pass = ENV["KITE_RELEASE_KEY_PASSWORD"]
 
   desc "Runs all the tests"
   lane :test do

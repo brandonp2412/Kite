@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=SchildiChat Revenge
+Name=Kite
 Comment=Matrix chat client
-Exec=schildichat-revenge %u
-Icon=schildichat-revenge
+Exec=kite %u
+Icon=kite
 Categories=Network;Chat;InstantMessaging;
-MimeType=x-scheme-handler/matrix;x-scheme-handler/schildichat;
+MimeType=x-scheme-handler/matrix;
 Terminal=false
 StartupWMClass=chat-schildi-revenge-MainKt

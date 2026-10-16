@@ -1,25 +1,9 @@
-# Android builds
+# Kite Android builds
 
-## Build requirements
+Requirements: Android SDK 37, JDK 25, NDK, cargo-ndk, Android Rust targets and initialized Rust SDK submodule.
 
-- Common dependencies mentioned in [README.md](README.md)
-- Android SDK platform 37
-- Android NDK
-- `cargo-ndk`
-- Rust targets `aarch64-linux-android`, `armv7-linux-androideabi`, `i686-linux-android`, `x86_64-linux-android`
+Build APKs using `./gradlew :androidApp:assembleDebug -PandroidAbi=arm64-v8a` or `./gradlew :androidApp:assembleRelease -PandroidAbi=arm64-v8a`.
 
-## Build and install on Samsung
+All variants use `app.kite`. Release builds are unsigned unless the environment specifies `KITE_RELEASE_KEYSTORE`, `KITE_RELEASE_STORE_PASSWORD`, `KITE_RELEASE_KEY_ALIAS`, and `KITE_RELEASE_KEY_PASSWORD`. F-Droid can sign the unsigned result.
 
-```shell
-./gradlew :androidApp:assembleRelease -PandroidAbi=arm64-v8a
-adb -s 10.66.66.3:5555 install -r androidApp/build/outputs/apk/release/androidApp-release.apk
-```
-
-All build types use the single application ID `app.kite.revenge.debug`. The release variant is optimized and signed with the same local certificate as the existing Samsung installation; verify package identity and signature before installation. Do not uninstall or clear app data. Debug builds default to `arm64-v8a`, while releases without an ABI override include all supported Android ABIs.
-Android Studio should detect the ABI of your target device automatically and adjust the call accordingly.
-
-To control build ABIs manually:
-
-```shell
-./gradlew :androidApp:assembleRelease -PandroidAbi=x86_64
-```
+Existing private `app.kite.revenge.debug` data does not migrate automatically to `app.kite`. Preserve it; never uninstall either package to resolve a signature mismatch.

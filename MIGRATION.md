@@ -1,3 +1,5 @@
+> Kite is the public app name and `app.kite` is its Android ID as of 2026-10-16. Older references to `app.kite.revenge.debug` below describe the previous test build.
+
 # Kite Native (SchildiChat Revenge) migration
 
 ## Goal and constraints
