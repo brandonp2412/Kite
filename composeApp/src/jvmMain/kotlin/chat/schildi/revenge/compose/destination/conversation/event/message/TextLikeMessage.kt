@@ -139,6 +139,7 @@ fun TextLikeMessage(
         modifier = modifier,
         outlined = outlined,
         stableTextHeight = true,
+        stableTextLayoutKey = text.text,
         allowTimestampOverlay = text.allowTimestampOverlay(),
     ) {
         inReplyTo?.let { ReplyContent(it, threadInfo) }
@@ -225,6 +226,11 @@ fun TextLikeMessageContent(
     val blockQuotes = remember(text) {
         text.text.getStringAnnotations("mx:BLOCK_QUOTE", 0, text.text.length)
     }
+    val stableTextObserver = LocalStableTextLayoutObserver.current
+    val combinedOnTextLayout: (TextLayoutResult) -> Unit = { result ->
+        onTextLayout(result)
+        stableTextObserver?.invoke(result)
+    }
     if (blockQuotes.isNotEmpty()) {
         // HACK - blockquotes are dumb on JVM, they tend to forget the indent if there's no soft wrap
         IndentionHackFormattedText(
@@ -233,7 +239,7 @@ fun TextLikeMessageContent(
             textStyle = textStyle,
             modifier = modifier,
             textColor = textColor,
-            onTextLayout = onTextLayout,
+            onTextLayout = combinedOnTextLayout,
             textAlign = textAlign,
             maxLines = maxLines,
             overflow = overflow,
@@ -248,7 +254,7 @@ fun TextLikeMessageContent(
         formatter = LocalMatrixBodyFormatter.current,
         drawStyle = LocalMatrixBodyDrawStyle.current,
         interactionState = interactionState,
-        onTextLayout = onTextLayout,
+        onTextLayout = combinedOnTextLayout,
         maxLines = maxLines,
         overflow = overflow,
         inlineContent = { result ->

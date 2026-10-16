@@ -18,11 +18,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -45,10 +49,15 @@ import shire.res.generated.resources.send_error_sending_from_unverified_device
 import shire.res.generated.resources.send_error_unknown
 import shire.res.generated.resources.send_error_verified_user_changed_identity
 import shire.res.generated.resources.send_error_verified_user_has_unsigned_device
+import kotlin.math.max
 
 internal val LocalMessageBubbleShape = staticCompositionLocalOf<Shape> {
     Dimens.Conversation.messageBubbleShape
 }
+
+internal val LocalStableTextLayoutObserver = staticCompositionLocalOf<((TextLayoutResult) -> Unit)?> { null }
+
+private class StableTextLayoutHolder(var result: TextLayoutResult? = null)
 
 data class TimestampOverlayContent(
     val timestamp: String,
@@ -78,6 +87,7 @@ fun MessageBubble(
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     nonTextWidth: Dp = 0.dp,
     stableTextHeight: Boolean = false,
+    stableTextLayoutKey: Any? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     // Bypass double message bubble when nested in a reply
@@ -110,26 +120,42 @@ fun MessageBubble(
                 .padding(padding),
         ) {
             if (stableTextHeight) {
-                // The old text path switched from a Box to a different custom
-                // Layout after onTextLayout. That could add a new timestamp line
-                // *after* the first frame, moving neighboring timeline items.
-                // Allocate the timestamp/status area before measuring text so
-                // wrapping and height are correct on the very first layout.
-                val timestampInset = reservedTextTimestampInset(isOwn, timestamp)
-                val reserveTimestamp = timestampInset > 0.dp
-                Box {
-                    Column(
-                        modifier = Modifier.padding(end = timestampInset),
-                        verticalArrangement = verticalArrangement,
-                        content = content,
-                    )
+                // Measure the body at full width. Capture its final line during the
+                // same measure pass, before placing the always-reserved status slot.
+                val reserveTimestamp = reservedTextTimestampInset(isOwn, timestamp) > 0.dp
+                val density = LocalDensity.current
+                val horizontalGap = with(density) { Dimens.Conversation.timestampHorizontalPaddingToText.roundToPx() }
+                val verticalGap = with(density) { Dimens.Conversation.timestampVerticalMarginToText.roundToPx() }
+                val measuredText = remember(stableTextLayoutKey) { StableTextLayoutHolder() }
+                val textObserver = remember(measuredText) {
+                    { result: TextLayoutResult -> measuredText.result = result }
+                }
+                Layout(content = {
+                    CompositionLocalProvider(LocalStableTextLayoutObserver provides textObserver) {
+                        Column(verticalArrangement = verticalArrangement, content = content)
+                    }
                     if (reserveTimestamp) {
-                        Box(Modifier.align(Alignment.BottomEnd)) {
-                            TimestampContent(
-                                content = timestamp,
-                                reserveSendingSpace = isOwn,
-                                withBackground = false,
-                            )
+                        TimestampContent(timestamp, reserveSendingSpace = isOwn, withBackground = false)
+                    }
+                }) { children, constraints ->
+                    val body = children.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    val status = children.getOrNull(1)?.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    if (status == null) {
+                        layout(body.width, body.height) { body.place(0, 0) }
+                    } else {
+                        val position = stableTextTimestampPlacement(
+                            contentWidth = body.width,
+                            contentHeight = body.height,
+                            lastLineRight = measuredText.result?.lastLineRightIncludingPlaceholders(),
+                            statusWidth = status.width,
+                            statusHeight = status.height,
+                            maxWidth = constraints.maxWidth,
+                            horizontalGap = horizontalGap,
+                            verticalGap = verticalGap,
+                        )
+                        layout(position.width, position.height) {
+                            body.place(0, 0)
+                            status.place(position.statusX, position.statusY)
                         }
                     }
                 }
@@ -155,6 +181,38 @@ fun MessageBubble(
             )
         }
     }
+}
+
+internal data class StableTextTimestampPlacement(
+    val width: Int,
+    val height: Int,
+    val statusX: Int,
+    val statusY: Int,
+)
+
+internal fun stableTextTimestampPlacement(
+    contentWidth: Int,
+    contentHeight: Int,
+    lastLineRight: Int?,
+    statusWidth: Int,
+    statusHeight: Int,
+    maxWidth: Int,
+    horizontalGap: Int,
+    verticalGap: Int,
+): StableTextTimestampPlacement {
+    val requiredWidth = lastLineRight?.plus(statusWidth + horizontalGap)
+    if (requiredWidth != null && requiredWidth <= maxWidth) {
+        val width = max(contentWidth, requiredWidth)
+        return StableTextTimestampPlacement(
+            width, max(contentHeight, statusHeight), width - statusWidth,
+            (contentHeight - statusHeight).coerceAtLeast(0),
+        )
+    }
+    val width = max(contentWidth, statusWidth)
+    return StableTextTimestampPlacement(
+        width, contentHeight + verticalGap + statusHeight,
+        width - statusWidth, contentHeight + verticalGap,
+    )
 }
 
 /**

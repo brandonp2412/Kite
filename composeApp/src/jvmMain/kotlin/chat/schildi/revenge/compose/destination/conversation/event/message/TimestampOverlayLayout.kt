@@ -174,7 +174,7 @@ fun TimestampOverlayLayout(
     }
 }
 
-private fun TextLayoutResult.lastLineRightIncludingPlaceholders(): Int {
+internal fun TextLayoutResult.lastLineRightIncludingPlaceholders(): Int {
     if (lineCount == 0) return 0
 
     val lastLine = lineCount - 1
