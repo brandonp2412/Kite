@@ -57,7 +57,6 @@ import chat.schildi.resources.StringResourceHolder
 import chat.schildi.resources.toStringHolder
 import chat.schildi.revenge.HEADLESS_WINDOW_ID
 import chat.schildi.revenge.WindowId
-import chat.schildi.revenge.bugreport.RevengeBugReporter
 import chat.schildi.revenge.config.keybindings.ALLOWED_DESTINATION_STRINGS
 import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.ActionArgument
@@ -2202,36 +2201,9 @@ class KeyboardActionHandler(
                     throw RuntimeException("Crash requested by user")
                 }
                 Action.Global.ReportBugWithLogs -> {
-                    val description = args.joinToString(" ")
-                    withCriticalActionConfirmation(
-                        context as? InternalActionContext,
-                        prompt = Res.string.action_send_bug_report_prompt.toStringHolder(),
-                        confirmText = Res.string.action_send.toStringHolder(),
-                        canBypassConfirmation = false,
-                    ) {
-                        context.launchActionAsync(
-                            "bugReport",
-                            GlobalActionsScope,
-                            Dispatchers.IO,
-                            "bugReport",
-                            notifyProcessing = true,
-                        ) {
-                            RevengeBugReporter.sendBugReport(
-                                description,
-                                context.implicitArgs,
-                            ) { progress ->
-                                publishMessage(
-                                    AppMessage(
-                                        message = Res.string.toast_bug_report_progress.toStringHolder(
-                                            progress.toString().toStringHolder()
-                                        ),
-                                        uniqueId = "bugReport",
-                                        autoDismissDuration = null,
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    // The upstream Rageshake server is not operated by Kite.
+                    // Open an empty issue instead of transmitting logs or message content.
+                    openLink("https://github.com/brandonp2412/Kite/issues/new")
                 }
                 Action.Global.ForgetPushRegistrations -> {
                     context.launchActionAsync(
