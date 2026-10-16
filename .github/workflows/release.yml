@@ -50,6 +50,20 @@ jobs:
           (( major < 1900 && minor < 1000 && patch < 1000 )) || exit 1
           echo "code=$((100000000 + major * 1000000 + minor * 1000 + patch))" >> "$GITHUB_OUTPUT"
 
+      - name: Require signing secrets
+        env:
+          STORE: ${{ secrets.KITE_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KITE_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KITE_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KITE_RELEASE_KEY_PASSWORD }}
+        run: |
+          for value in "$STORE" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD"; do
+            if [[ -z "$value" ]]; then
+              echo 'Configure the four KITE_RELEASE_* signing secrets before tagging.' >&2
+              exit 1
+            fi
+          done
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,12 +71,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - uses: android-actions/setup-android@v3
-
       - name: Install Android SDK and native build dependencies
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager 'platforms;android-37' 'build-tools;37.0.0' 'ndk;28.2.13676358'
+          sdkmanager="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          test -x "$sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" 'platforms;android-37' 'build-tools;37.0.0' 'ndk;28.2.13676358'
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends clang cmake libclang-dev libssl-dev ninja-build pkg-config protobuf-compiler
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
