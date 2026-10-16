@@ -5,6 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -24,6 +29,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +49,8 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -215,7 +224,9 @@ fun InboxScreen(
                         Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                    if (rooms.isNullOrEmpty()) {
+                    if (roomsState == null) {
+                        InboxLoadingRows()
+                    } else if (rooms.isNullOrEmpty()) {
                         EmptyListScreen(
                             title = Res.string.empty_screen_placeholder_inbox.toStringHolder(),
                             icon = rememberVectorPainter(Icons.Default.Inbox),
@@ -347,6 +358,29 @@ fun InboxScreen(
                         bottom = compactSearchBottomPadding,
                     ),
             )
+        }
+    }
+}
+
+// Static placeholders match the 80 dp inbox rows until the local SDK room list
+// is ready. No shimmer, image loading, polling, or retained hidden conversations.
+@Composable
+private fun InboxLoadingRows() {
+    val shade = MaterialTheme.colorScheme.surfaceContainerHigh
+    Column(Modifier.fillMaxSize().clearAndSetSemantics { }) {
+        repeat(8) {
+            Row(
+                Modifier.fillMaxWidth().height(Dimens.Inbox.rowMinHeight)
+                    .padding(horizontal = Dimens.windowPadding, vertical = Dimens.Inbox.rowVerticalPadding),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(Dimens.Inbox.avatar).clip(CircleShape).background(shade))
+                Column(Modifier.padding(start = Dimens.Inbox.avatarItemPadding)) {
+                    Box(Modifier.width(164.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).background(shade))
+                    Spacer(Modifier.height(10.dp))
+                    Box(Modifier.width(224.dp).height(12.dp).clip(RoundedCornerShape(4.dp)).background(shade))
+                }
+            }
         }
     }
 }
