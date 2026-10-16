@@ -4,7 +4,13 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -33,6 +40,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import chat.schildi.matrixsdk.urlpreview.UrlPreviewInfo
+import chat.schildi.lib.preferences.ScPrefs
+import chat.schildi.revenge.preferences.value
+import chat.schildi.revenge.model.conversation.firstPreviewUrl
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.LocalMatrixBodyDrawStyle
 import chat.schildi.revenge.LocalMatrixBodyFormatter
@@ -100,6 +110,8 @@ fun TextLikeMessage(
         threadInfo = threadInfo,
         modifier = modifier.alpha(alpha),
         urlPreview = resolveUrlPreview(text),
+        reserveUrlPreviewSlot = LocalUrlPreviewStateProvider.current != null &&
+                text.firstPreviewUrl(ScPrefs.URL_PREVIEWS_REQUIRE_EXPLICIT_LINKS.value()) != null,
         allowBigEmojiOnly = allowBigEmojiOnly,
         outlined = message is EmoteMessageType,
         interactionState = interactionState ?: rememberMatrixFormatInteractionState(text),
@@ -115,26 +127,46 @@ fun TextLikeMessage(
     threadInfo: EventThreadInfo?,
     modifier: Modifier = Modifier,
     urlPreview: UrlPreviewInfo? = null,
+    reserveUrlPreviewSlot: Boolean = false,
     allowBigEmojiOnly: Boolean = true,
     outlined: Boolean = false,
     textColor: Color = MaterialTheme.colorScheme.primary,
     interactionState: MatrixFormatInteractionState = rememberMatrixFormatInteractionState(text),
 ) {
-    val textLayoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
     MessageBubble(
         isOwn = isOwn,
         timestamp = timestamp,
         modifier = modifier,
         outlined = outlined,
-        contentTextLayoutResult = textLayoutResult.value,
+        stableTextHeight = true,
         allowTimestampOverlay = text.allowTimestampOverlay(),
     ) {
         inReplyTo?.let { ReplyContent(it, threadInfo) }
-        urlPreview?.let {
-            val keyHandler = LocalKeyboardActionHandler.current
-            UrlPreviewView(urlPreview.preview) {
-                keyHandler.openLink(urlPreview.url)
+        if (reserveUrlPreviewSlot) {
+            // A fetched link preview is an asynchronous card, not an extra line
+            // of message text. Reserve its entire footprint from the first frame
+            // instead of inserting the card later and shifting the timeline.
+            Box(
+                Modifier
+                    .padding(bottom = Dimens.Conversation.replyItemPadding)
+                    .width(244.dp)
+                    .height(148.dp)
+                    .clip(Dimens.Conversation.UrlPreview.cardShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                if (urlPreview != null) {
+                    val keyHandler = LocalKeyboardActionHandler.current
+                    UrlPreviewView(
+                        urlPreview = urlPreview.preview,
+                        paddingValues = PaddingValues(0.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) { keyHandler.openLink(urlPreview.url) }
+                }
             }
+        } else urlPreview?.let {
+            // Explicit previews used outside the timeline keep their own sizing.
+            val keyHandler = LocalKeyboardActionHandler.current
+            UrlPreviewView(urlPreview.preview) { keyHandler.openLink(urlPreview.url) }
         }
         // Text selection only allowed if it doesn't interfere with other longpress context menu handling
         SelectionContainerUnlessTouch {
@@ -143,9 +175,7 @@ fun TextLikeMessage(
                 textColor = textColor,
                 allowBigEmojiOnly = allowBigEmojiOnly,
                 interactionState = interactionState,
-            ) {
-                textLayoutResult.value = it
-            }
+            )
         }
     }
 }

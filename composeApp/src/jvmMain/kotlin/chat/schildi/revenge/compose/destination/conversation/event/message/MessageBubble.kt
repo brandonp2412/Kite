@@ -77,6 +77,7 @@ fun MessageBubble(
     transparent: Boolean = false,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     nonTextWidth: Dp = 0.dp,
+    stableTextHeight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     // Bypass double message bubble when nested in a reply
@@ -108,7 +109,31 @@ fun MessageBubble(
                 )
                 .padding(padding),
         ) {
-            TimestampOverlayLayout(
+            if (stableTextHeight) {
+                // The old text path switched from a Box to a different custom
+                // Layout after onTextLayout. That could add a new timestamp line
+                // *after* the first frame, moving neighboring timeline items.
+                // Allocate the timestamp/status area before measuring text so
+                // wrapping and height are correct on the very first layout.
+                val timestampInset = reservedTextTimestampInset(isOwn, timestamp)
+                val reserveTimestamp = timestampInset > 0.dp
+                Box {
+                    Column(
+                        modifier = Modifier.padding(end = timestampInset),
+                        verticalArrangement = verticalArrangement,
+                        content = content,
+                    )
+                    if (reserveTimestamp) {
+                        Box(Modifier.align(Alignment.BottomEnd)) {
+                            TimestampContent(
+                                content = timestamp,
+                                reserveSendingSpace = isOwn,
+                                withBackground = false,
+                            )
+                        }
+                    }
+                }
+            } else TimestampOverlayLayout(
                 contentTextLayoutResult = contentTextLayoutResult,
                 allowTimestampOverlay = allowTimestampOverlay,
                 horizontalPadding = Dimens.Conversation.timestampHorizontalPaddingToText,
@@ -130,6 +155,20 @@ fun MessageBubble(
             )
         }
     }
+}
+
+/**
+ * Fixed before measuring body text. A delivery-state update may change the
+ * decoration inside the slot, but cannot change line wrapping or row height.
+ */
+internal fun reservedTextTimestampInset(
+    isOwn: Boolean,
+    timestamp: TimestampOverlayContent?,
+): Dp = when {
+    timestamp == null -> 0.dp
+    timestamp.isEdited -> 116.dp
+    isOwn || timestamp.isSending || timestamp.sendError != null -> 76.dp
+    else -> 0.dp
 }
 
 @Composable
