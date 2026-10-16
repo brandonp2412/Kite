@@ -172,33 +172,36 @@ private fun TimestampContent(
                 modifier = Modifier.alignByBaseline(),
             )
         }
-        // Keep status geometry stable across local-echo -> sent transitions.
-        // An invisible clock retains its slot so the text never rewraps.
-        if (reserveSendingSpace || content.isSending) {
-            Icon(
-                Icons.Default.AccessTime,
-                stringResource(Res.string.hint_sending),
-                tint = textColor,
-                modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon)
-                    .alpha(if (content.isSending) 1f else 0f),
-            )
-        }
-        if (content.sendError != null) {
-            val errorText: String = when (content.sendError) {
-                is LocalEventSendState.Failed.InvalidMimeType -> stringResource(Res.string.send_error_invalid_mime_type)
-                LocalEventSendState.Failed.MissingMediaContent -> stringResource(Res.string.send_error_missing_media_content)
-                LocalEventSendState.Failed.SendingFromUnverifiedDevice -> stringResource(Res.string.send_error_sending_from_unverified_device)
-                is LocalEventSendState.Failed.Unknown -> stringResource(Res.string.send_error_unknown)
-                is LocalEventSendState.Failed.VerifiedUserChangedIdentity -> stringResource(Res.string.send_error_verified_user_changed_identity)
-                is LocalEventSendState.Failed.VerifiedUserHasUnsignedDevice -> stringResource(Res.string.send_error_verified_user_has_unsigned_device)
-            }
-            WithTooltip(errorText) {
-                Icon(
-                    Icons.Default.ErrorOutline,
-                    stringResource(Res.string.hint_sending),
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon)
-                )
+        // A single predetermined slot handles sending, failed and sent states.
+        // The failed icon must never append extra width and rewrap the bubble.
+        if (reserveSendingSpace || content.isSending || content.sendError != null) {
+            Box(Modifier.size(Dimens.Conversation.timestampDecorationIcon)) {
+                if (content.sendError != null) {
+                    val errorText: String = when (content.sendError) {
+                        is LocalEventSendState.Failed.InvalidMimeType -> stringResource(Res.string.send_error_invalid_mime_type)
+                        LocalEventSendState.Failed.MissingMediaContent -> stringResource(Res.string.send_error_missing_media_content)
+                        LocalEventSendState.Failed.SendingFromUnverifiedDevice -> stringResource(Res.string.send_error_sending_from_unverified_device)
+                        is LocalEventSendState.Failed.Unknown -> stringResource(Res.string.send_error_unknown)
+                        is LocalEventSendState.Failed.VerifiedUserChangedIdentity -> stringResource(Res.string.send_error_verified_user_changed_identity)
+                        is LocalEventSendState.Failed.VerifiedUserHasUnsignedDevice -> stringResource(Res.string.send_error_verified_user_has_unsigned_device)
+                    }
+                    WithTooltip(errorText) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            errorText,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon),
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.Default.AccessTime,
+                        stringResource(Res.string.hint_sending),
+                        tint = textColor,
+                        modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon)
+                            .alpha(if (content.isSending) 1f else 0f),
+                    )
+                }
             }
         }
         Text(

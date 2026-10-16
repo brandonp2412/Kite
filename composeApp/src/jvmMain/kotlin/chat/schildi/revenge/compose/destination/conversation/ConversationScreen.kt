@@ -38,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
@@ -682,12 +681,13 @@ fun ConversationScreen(
                     if (viewModel.timelineParams == null &&
                         (isOpeningUnread || targetEvent is EventJumpTarget.Index && targetEvent.index == 0)
                     ) {
-                        LaunchedEffect(listState, newestEventKey) {
-                            if (newestEventKey != null && followLatest.value) {
-                                // Let LazyColumn measure the newly inserted row before
-                                // overriding its key-based anchor with the real bottom.
-                                withFrameNanos { }
-                                if (followLatest.value) listState.scrollToItem(0)
+                        var lastAnchoredEventKey by remember(listState) { mutableStateOf(newestEventKey) }
+                        if (newestEventKey != null && newestEventKey != lastAnchoredEventKey) {
+                            SideEffect {
+                                // Apply the position before the next layout, so LazyColumn
+                                // cannot render an old keyed anchor then snap to the bottom.
+                                if (followLatest.value) listState.requestScrollToItem(0)
+                                lastAnchoredEventKey = newestEventKey
                             }
                         }
                     }

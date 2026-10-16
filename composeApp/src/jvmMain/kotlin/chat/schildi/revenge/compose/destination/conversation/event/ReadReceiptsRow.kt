@@ -3,6 +3,8 @@ package chat.schildi.revenge.compose.destination.conversation.event
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +45,12 @@ fun ColumnScope.ReadReceiptsRow(
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     modifier: Modifier = Modifier,
 ) {
-    if (receipts.isEmpty()) return
+    // This slot is reserved on the newest outgoing message even before a
+    // delivery/read receipt exists. Arriving receipts never change its height.
+    if (receipts.isEmpty()) {
+        Spacer(Modifier.height(Dimens.Conversation.receiptSize + Dimens.Conversation.receiptPaddingVertical))
+        return
+    }
     val focusId = rememberFocusId()
     val userTimestamps = remember(receipts, roomMembersById) {
         receipts.map { receipt ->
