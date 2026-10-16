@@ -1087,3 +1087,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass validation: `:composeApp:desktopTest :androidApp:assembleRelease -PandroidAbi=arm64-v8a --no-daemon --max-workers=1` PASS (`BUILD SUCCESSFUL in 1m 17s`); `git diff --check` PASS.
 - Verified APK package `app.kite.revenge.debug`, versionCode `26101500`, release signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`. Samsung `adb install -r` PASS, firstInstallTime remained `2026-10-14 11:55:12`, lastUpdateTime `2026-10-15 23:16:11`. Data preserved.
 - Live sending/scroll gestures not executed on the user's active phone; only build and desktop regression tests pass. Unrelated unfinished hide-room changes remain unstaged.
+
+## 2026-10-16 — Send action inside the message field
+
+- Moved the existing send/clear action from outside the composer pill into its trailing Row, keeping the 48 dp circular send target, send validation and disabled in-progress state. Removed the extra outside gap and obsolete sending placeholder; text stays in its own weighted slot.
+- Glass `:composeApp:desktopTest :androidApp:assembleRelease -PandroidAbi=arm64-v8a --no-daemon --max-workers=1` passed. Release APK SHA-256 `d9ca7fdfa68ef5601a83d3fd9840777fd8c7256903355dbae252cb1c6233cf39`; package `app.kite.revenge.debug`, v26101600, release signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` confirmed.
+- Samsung `adb install -r` succeeded; firstInstallTime remained `2026-10-14 11:55:12`, dataDir remained `/data/user/0/app.kite.revenge.debug`, lastUpdateTime `2026-10-16 16:34:05`. Production Kite unaffected. Visual chat interaction not exercised to avoid disrupting the active phone session. Other in-progress inbox/notification changes left untouched.

@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -420,26 +419,16 @@ fun ComposerRow(
                         }
                     }
                 }
-                if (isSendInProgress) {
-                    // Keep the trailing slot stable while the Matrix send completes, but avoid
-                    // turning it into a transient faux send-button/spinner. The local echo is
-                    // the message-level send feedback and the keyboard remains the send action.
-                    Spacer(Modifier.minimumInteractiveComponentSize())
+                val canSendNow = draftState.canSend() && bodyValidationError == null
+                if (canSendNow || isSendInProgress) {
+                    ComposerSendButton(
+                        enabled = canSendNow && !isSendInProgress,
+                    ) {
+                        viewModel.sendMessage(actionContext)
+                    }
+                } else if (draftState.type.needsClearButton() && draftState.isEmpty()) {
+                    ClearButton { viewModel.onComposerUpdate(DraftValue()) }
                 }
-                }
-            }
-            val canSendNow = draftState.canSend() && bodyValidationError == null
-            if (canSendNow || isSendInProgress) {
-                Spacer(Modifier.width(6.dp))
-                ComposerSendButton(
-                    enabled = canSendNow && !isSendInProgress,
-                ) {
-                    viewModel.sendMessage(actionContext)
-                }
-            } else if (draftState.type.needsClearButton() && draftState.isEmpty()) {
-                Spacer(Modifier.width(6.dp))
-                ClearButton {
-                    viewModel.onComposerUpdate(DraftValue())
                 }
             }
         }
@@ -500,6 +489,7 @@ private fun ComposerSendButton(
             onClick = onClick,
             enabled = enabled,
             modifier = Modifier
+                .padding(end = 4.dp)
                 .size(48.dp)
                 .background(containerColor, CircleShape),
         ) {
