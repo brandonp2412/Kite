@@ -49,6 +49,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.lib.preferences.ScPrefs
@@ -130,7 +131,13 @@ fun ConversationScreen(
     modifier: Modifier = Modifier,
     contentModifier: Modifier = Modifier,
 ) {
-    if (!destination.preferDetailsPane && requireSinglePaneLayout(DestinationEnum.ConversationDetailsSplit, ScPrefs.PREFER_CONVERSATION_DETAILS_SPLIT) { conversation ->
+    // A phone cannot show the details split. Avoid composing an empty intermediate
+    // multi-pane destination before the conversation itself is shown.
+    val supportsDetailsSplit = with(LocalDensity.current) {
+        LocalWindowInfo.current.containerSize.width.toDp() >=
+            ScPrefs.CONVERSATION_DETAILS_SPLIT_MIN_WIDTH.value().dp
+    }
+    if (!destination.preferDetailsPane && supportsDetailsSplit && requireSinglePaneLayout(DestinationEnum.ConversationDetailsSplit, ScPrefs.PREFER_CONVERSATION_DETAILS_SPLIT) { conversation ->
             Destination.ConversationDetailsMultiPane(
                 conversation = conversation,
             )
@@ -272,7 +279,21 @@ fun ConversationScreen(
             if (isRoomPreview) {
                 RoomPreviewScreen(roomInfo, roomPreview, viewModel, Modifier.fillMaxSize(), contentModifier)
             } else {
-                SplashScreenContent(contentModifier, viewModel.loadState)
+                // Keep the native conversation header visible while the SDK exposes
+                // its already-synced timeline. A blank 650 ms splash makes even warm
+                // room opens look stalled. No background room composables are retained.
+                Column(contentModifier.fillMaxSize()) {
+                    ConversationTopNavigation(
+                        viewModel,
+                        hasTimeline = false,
+                        compact = this@BoxWithConstraints.maxWidth < Dimens.compactActionBarThreshold,
+                    )
+                    SplashScreenContent(
+                        Modifier.fillMaxWidth().weight(1f),
+                        viewModel.loadState,
+                        delayMillis = 100L,
+                    )
+                }
             }
             return@BoxWithConstraints
         }

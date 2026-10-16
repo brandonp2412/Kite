@@ -16,6 +16,7 @@ import chat.schildi.revenge.UiState
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.compose.components.ScreenLoadProgressDetails
 import chat.schildi.revenge.compose.components.rememberTransientLoadingVisible
+import chat.schildi.revenge.compose.components.TransientLoadingGracePeriodMillis
 import chat.schildi.revenge.compose.focus.FocusContainer
 import chat.schildi.revenge.model.CheckpointLoadState
 import chat.schildi.revenge.model.LoadState
@@ -38,13 +39,14 @@ fun SplashScreen(
 fun SplashScreenContent(
     modifier: Modifier = Modifier,
     loadState: StateFlow<LoadState>? = null,
+    delayMillis: Long = TransientLoadingGracePeriodMillis,
 ) {
     // Room and inbox data frequently arrives within a frame or two. Keep those fast
     // transitions visually silent. Sustained work uses a restrained linear indicator instead
     // of a circular spinner, while failures still surface immediately with their details.
     val currentLoadState = loadState?.collectAsState()?.value
     val hasFailure = currentLoadState?.any { it.state == CheckpointLoadState.FAILED } == true
-    val showLoadingChrome = rememberTransientLoadingVisible(forceVisible = hasFailure)
+    val showLoadingChrome = rememberTransientLoadingVisible(forceVisible = hasFailure, delayMillis = delayMillis)
     if (showLoadingChrome) {
         Column(
             modifier,
