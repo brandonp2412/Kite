@@ -55,7 +55,11 @@ class MainActivity : ComponentActivity() {
 
     private val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
-            if (destinationStateHolder?.state?.value?.destination is Destination.Conversation) {
+            val destination = destinationStateHolder?.state?.value?.destination
+            if (destination != null && destination != Destination.Inbox &&
+                destination != Destination.Splash &&
+                !(destination is Destination.AccountManagement && destination.isInitialSetup)
+            ) {
                 destinationStateHolder?.navigate(Destination.Inbox, NavigationPreference.REPLACE)
                 return
             }

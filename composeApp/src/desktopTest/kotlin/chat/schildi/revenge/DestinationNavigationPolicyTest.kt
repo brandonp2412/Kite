@@ -17,6 +17,17 @@ class DestinationNavigationPolicyTest {
     }
 
     @Test
+    fun androidChatBackAndOtherNormalNavigationNeverLaunchAnotherActivity() {
+        for ((from, to) in listOf(
+            DestinationCategory.CONVERSATION to DestinationCategory.INBOX,
+            DestinationCategory.CONVERSATION to DestinationCategory.SETTINGS,
+            DestinationCategory.SETTINGS to DestinationCategory.INBOX,
+        )) {
+            assertTrue(shouldNavigateInCurrentWindow(from, to, appOwnsWindows = false))
+        }
+    }
+
+    @Test
     fun desktopInboxConversationNavigationKeepsSeparateWindowBehavior() {
         assertFalse(
             shouldNavigateInCurrentWindow(

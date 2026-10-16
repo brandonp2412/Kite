@@ -144,13 +144,12 @@ internal fun shouldNavigateInCurrentWindow(
     destinationCategory: DestinationCategory,
     appOwnsWindows: Boolean,
 ): Boolean =
-    currentCategory == DestinationCategory.WILDCARD ||
-            currentCategory == destinationCategory ||
-            (
-                !appOwnsWindows &&
-                        currentCategory == DestinationCategory.INBOX &&
-                        destinationCategory == DestinationCategory.CONVERSATION
-            )
+    // On Android a new MainActivity displays the system launcher splash, even
+    // when navigating between already-loaded screens. Keep ordinary in-app
+    // navigation in the same activity; explicit NEW_WINDOW still opens one.
+    !appOwnsWindows ||
+            currentCategory == DestinationCategory.WILDCARD ||
+            currentCategory == destinationCategory
 
 val LocalDestinationState = compositionLocalOf<DestinationStateHolder?> { null }
 
