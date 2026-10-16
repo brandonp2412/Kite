@@ -1125,3 +1125,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Active native Kotlin/Compose repository moved from `~/kite-revenge` to `~/kite` on Glass; Git worktree links repaired. The legacy Flutter repository remains read-only at `~/.archived/kite`. Older paths recorded above are historical.
 - Settings screen now intercepts Android Back even at the root. Detail pane Back returns to settings root; subsequent Back navigates to inbox rather than delegating to activity exit.
 - `SettingsBackNavigationTest` (two regression tests): PASS with `:composeApp:desktopTest --tests chat.schildi.revenge.SettingsBackNavigationTest` (JDK 25); Android ARM64 `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a` PASS. Not yet tested interactively on Samsung; no installation or account state modified.
+
+## 2026-10-17 — Fix profile/settings toolbar Back exiting Android app
+
+- The root cause was `TopNavigationCloseOrNavigateToInboxIcon`: on Android it offered `closeScreen` (which finishes the activity) instead of inbox navigation because the single-window branch was inverted.
+- For Android, normal settings/account toolbar Back now navigates to the inbox; initial account setup retains its special case. Desktop multi-window behavior unchanged.
+- Three `TopNavigationBackTest` regressions PASS; Android signed ARM64 release `:androidApp:assembleRelease -PandroidAbi=arm64-v8a` PASS. Installed on Samsung Galaxy S25 with `app.kite` app data preserved; device lock prevented live UI navigation verification.

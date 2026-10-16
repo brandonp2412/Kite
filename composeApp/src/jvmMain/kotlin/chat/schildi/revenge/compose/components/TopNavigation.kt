@@ -127,7 +127,7 @@ fun TopNavigationCloseOrNavigateToInboxIcon(
         // Can we reliably tell if there's an inbox open, or may it be hidden in some system backstack?
         // Except when we're in initial account management setup, then there might be none in backstack.
         !platformWindowManager.appOwnsWindows -> {
-            (destinationState.state.collectAsState().value.destination as? Destination.AccountManagement)?.isInitialSetup == true
+            shouldNavigateToInboxOnMobile(destinationState.state.collectAsState().value.destination)
         }
         // Inbox already open in a different window, prefer closing this one than navigating back
         UiState.hasInboxOpen.collectAsState().value -> false
@@ -217,3 +217,6 @@ fun RowScope.TopNavigationSearchOrTitle(
         }
     }
 }
+
+internal fun shouldNavigateToInboxOnMobile(destination: Destination): Boolean =
+    (destination as? Destination.AccountManagement)?.isInitialSetup != true
