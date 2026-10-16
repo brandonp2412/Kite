@@ -7,6 +7,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +33,7 @@ import chat.schildi.revenge.actions.LocalKeyboardActionHandler
 import chat.schildi.revenge.compose.command.CommandBar
 import chat.schildi.revenge.compose.components.AppMessages
 import chat.schildi.revenge.compose.components.thenIf
+import chat.schildi.revenge.compose.destination.inbox.LocalInboxListState
 import chat.schildi.revenge.compose.focus.windowFocusContainer
 import chat.schildi.revenge.compose.search.SearchBar
 import chat.schildi.revenge.compose.util.rememberInvalidating
@@ -44,6 +47,7 @@ fun WindowContent(
     modifier: Modifier = Modifier,
 ) {
     ScTheme {
+        val retainedInboxListState = rememberLazyListState()
         val backgroundAlpha = if (MaterialTheme.scExposures.isDarkTheme) {
             ScPrefs.BACKGROUND_ALPHA_DARK.value()
         } else {
@@ -83,7 +87,9 @@ fun WindowContent(
                 // Actual destination content
 
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                    DestinationContent(destinationHolder, Modifier.fillMaxSize())
+                    CompositionLocalProvider(LocalInboxListState provides retainedInboxListState) {
+                        DestinationContent(destinationHolder, Modifier.fillMaxSize())
+                    }
                 }
 
                 // Conditional global bottom content

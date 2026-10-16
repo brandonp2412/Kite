@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
@@ -27,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -81,6 +83,8 @@ import shire.res.generated.resources.action_account_management
 import shire.res.generated.resources.empty_screen_placeholder_inbox
 import shire.res.generated.resources.search_results_conversations
 
+val LocalInboxListState = compositionLocalOf<LazyListState?> { null }
+
 private val KiteSearchBarReserve = 88.dp
 
 @OptIn(FlowPreview::class)
@@ -112,8 +116,13 @@ fun InboxScreen(
         ?.firstOrNull { it.isCurrentlyVisible }
         ?: accountsSorted?.firstOrNull()
 
-    val listState = key(searchQuery) {
-        rememberLazyListState()
+    // Searches scroll independently; the normal inbox anchor survives compact
+    // split-pane navigation because it is owned by the persistent window root.
+    val retainedListState = LocalInboxListState.current
+    val listState = if (searchQuery.isNullOrBlank() && retainedListState != null) {
+        retainedListState
+    } else {
+        key(searchQuery) { rememberLazyListState() }
     }
     val drafts = DraftRepo.roomsWithDrafts.collectAsState(persistentSetOf())
     val pendingForward = MessageForward.pending.collectAsState(null).value

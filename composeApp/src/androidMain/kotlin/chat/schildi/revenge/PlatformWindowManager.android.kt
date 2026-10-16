@@ -54,11 +54,11 @@ class AndroidWindowManager : PlatformWindowManager {
         val context = currentActivity ?: RevengeApplication.instance
         val intent = Intent(context, MainActivity::class.java)
             .putExtra(MainActivity.EXTRA_DESTINATION, destination.serializedToString())
-        if (preferNewTask || currentActivity == null) {
-            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
-        } else {
-            context.startActivity(intent)
-        }
+        // Android uses one task/activity for chats, including explicit new-window actions.
+        // Reuse its existing Compose navigation state instead of creating Recents entries.
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (currentActivity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
 
     override fun closeWindow(

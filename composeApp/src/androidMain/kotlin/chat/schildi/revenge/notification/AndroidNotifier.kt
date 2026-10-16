@@ -567,7 +567,7 @@ object AndroidNotifier {
 
     private fun NotificationId.createIntent(context: Context): Intent? {
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         conversationDestination()?.let { destination ->
             intent.putExtra(MainActivity.EXTRA_DESTINATION, destination.serializedToString())
         }
