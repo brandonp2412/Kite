@@ -4,12 +4,12 @@
 
 ## Goal and constraints
 
-The user reports that SchildiChat Revenge has essentially zero perceptible UI lag on Samsung Galaxy S25, but finds its interface ugly/confusing. Use Revenge's native Kotlin/Jetpack Compose + Matrix Rust SDK architecture as the foundation for Kite. Reproduce **Kite's existing icon, visual style, and custom chat/reaction features**, and simplify navigation without slowing frame rendering. The original Flutter Kite app at `~/kite` is the source of truth for feature details and must remain installed/unaltered until the replacement is ready.
+The user reports that SchildiChat Revenge has essentially zero perceptible UI lag on Samsung Galaxy S25, but finds its interface ugly/confusing. Use Revenge's native Kotlin/Jetpack Compose + Matrix Rust SDK architecture as the foundation for Kite. Reproduce **Kite's existing icon, visual style, and custom chat/reaction features**, and simplify navigation without slowing frame rendering. The original Flutter Kite source at `~/.archived/kite` is retained read-only for feature reference.
 
-- This repo: `~/kite-revenge` on **Glass**; upstream `https://github.com/SchildiChat/schildi-revenge` at original clone `cdc162f` (GPL-3.0). Preserve upstream attribution and COPYING/LICENSE terms.
-- Existing Flutter Kite: `~/kite`, app ID `app.kite`, source version `6bdb9823f`. **Read only**; do not edit, reset or uninstall.
-- New native Kite sole app ID: `app.kite.revenge.debug` across debug, release, and performance builds. **Never install an APK under another package identity or reset the existing Samsung installation.** Preserve production Matrix app data.
-- Recurring Prompta job `kite-revenge-native` is configured on Nox every **45 minutes**, starting 2026-10-14 12:06 NZDT. Prompta launches fresh ChatGPT sessions. Work on Glass and update this file every session.
+- This repo: `~/kite` on **Glass**; upstream `https://github.com/SchildiChat/schildi-revenge` at original clone `cdc162f` (GPL-3.0). Preserve upstream attribution and COPYING/LICENSE terms.
+- Archived Flutter Kite: `~/.archived/kite`, historical app ID `app.kite`, source version `6bdb9823f`. **Read only**; do not edit, reset or uninstall any installed legacy app.
+- Public native Kite app ID: `app.kite`. Older local PerfDebug installations use `app.kite.revenge.debug` with separate data. **Do not uninstall or reset either installation.** Preserve Matrix sessions.
+- Historical note: a `kite-revenge-native` Prompta job was configured on Nox on 2026-10-14. No matching job is currently registered; do not assume it is running.
 - Performance acceptance: improve upon user's initial perception of Revenge without a regression in scroll smoothness, opening rooms, gesture input, search, chat-list navigation, message sending, or sync. Capture reproducible latency/JankStats frame-time data on debug/perf builds where possible, especially on the Samsung S25 at 120 Hz (8.33 ms frame budget). Avoid heavy per-row allocations or broad per-event recomposition.
 
 ## Changes so far — first implementation session, 2026-10-14
@@ -1119,3 +1119,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Render eight fixed, 80 dp, non-interactive skeleton rows during the null-room-state interval instead of a blank surface. Avatar size and row height match real inbox rows; use no animations/shimmer, network prefetch, extra subscriptions, or hidden conversation components. Preserve genuine empty/search states, scroll anchor, and existing SDK flow behavior.
 - Glass `:composeApp:desktopTest :androidApp:assembleRelease -PandroidAbi=arm64-v8a --no-daemon --max-workers=1 --no-build-cache` PASS; `git diff --check` PASS. Android release `app.kite.revenge.debug` signed with existing cert SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; Samsung `adb install -r` SUCCESS (no uninstall/data reset). Foreground was NotificationShade, so did not launch the app for video comparison; rendering measurement remains unverified on final build.
 - Leave unrelated active InboxViewModel/AppStateStore/strings.xml edits unstaged.
+
+## 2026-10-17 — Settings back navigation and repository location
+
+- Active native Kotlin/Compose repository moved from `~/kite-revenge` to `~/kite` on Glass; Git worktree links repaired. The legacy Flutter repository remains read-only at `~/.archived/kite`. Older paths recorded above are historical.
+- Settings screen now intercepts Android Back even at the root. Detail pane Back returns to settings root; subsequent Back navigates to inbox rather than delegating to activity exit.
+- `SettingsBackNavigationTest` (two regression tests): PASS with `:composeApp:desktopTest --tests chat.schildi.revenge.SettingsBackNavigationTest` (JDK 25); Android ARM64 `:androidApp:assemblePerfDebug -PandroidAbi=arm64-v8a` PASS. Not yet tested interactively on Samsung; no installation or account state modified.

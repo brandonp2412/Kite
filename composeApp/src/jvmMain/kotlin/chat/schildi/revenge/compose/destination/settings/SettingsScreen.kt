@@ -101,8 +101,9 @@ fun SettingsScreen(
                 LocalKeyboardActionHandler.current.searchQueryForDestination(rootViewModel)
                     .collectAsState(null).value != null
             }
-            PlatformBackHandler(enabled = hasDetails) {
-                destination.details.navigate(Destination.MultiPaneSettingsPlaceholder, NavigationPreference.REPLACE)
+            val parent = LocalDestinationState.current
+            PlatformBackHandler {
+                navigateBackFromSettings(destination, parent)
             }
             MultiPaneLayout(
                 outerDestination = destination.destinationId,
@@ -250,4 +251,15 @@ private fun DestinationStateHolder.wrapped(
         ),
         allowedDetailsCategories = listOf(),
     )
+}
+
+internal fun navigateBackFromSettings(
+    destination: Destination.Settings,
+    parent: DestinationStateHolder?,
+) {
+    if (destination.details.state.value.destination !is Destination.MultiPaneSettingsPlaceholder) {
+        destination.details.navigate(Destination.MultiPaneSettingsPlaceholder, NavigationPreference.REPLACE)
+    } else {
+        parent?.navigate(Destination.Inbox, NavigationPreference.REPLACE)
+    }
 }
