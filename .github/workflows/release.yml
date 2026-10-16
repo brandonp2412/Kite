@@ -1,0 +1,153 @@
+name: Android release
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: APK (${{ matrix.abi }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            target: aarch64-linux-android
+          - abi: armeabi-v7a
+            target: armv7-linux-androideabi
+          - abi: x86
+            target: i686-linux-android
+          - abi: x86_64
+            target: x86_64-linux-android
+    env:
+      CARGO_BUILD_JOBS: 2
+      GRADLE_OPTS: -Dorg.gradle.workers.max=2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Validate release version
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || exit 1
+          major=$((10#${BASH_REMATCH[1]}))
+          minor=$((10#${BASH_REMATCH[2]}))
+          patch=$((10#${BASH_REMATCH[3]}))
+          (( major < 1900 && minor < 1000 && patch < 1000 )) || exit 1
+          echo "code=$((100000000 + major * 1000000 + minor * 1000 + patch))" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK and native build dependencies
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager 'platforms;android-37' 'build-tools;37.0.0' 'ndk;28.2.13676358'
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang cmake libclang-dev libssl-dev ninja-build pkg-config protobuf-compiler
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Restore signing certificate
+        env:
+          KITE_RELEASE_KEYSTORE_BASE64: ${{ secrets.KITE_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KITE_RELEASE_KEYSTORE_BASE64"
+          printf '%s' "$KITE_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/kite-release.jks"
+          chmod 600 "$RUNNER_TEMP/kite-release.jks"
+          echo "KITE_RELEASE_KEYSTORE=$RUNNER_TEMP/kite-release.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed ABI APK
+        env:
+          KITE_RELEASE_STORE_PASSWORD: ${{ secrets.KITE_RELEASE_STORE_PASSWORD }}
+          KITE_RELEASE_KEY_ALIAS: ${{ secrets.KITE_RELEASE_KEY_ALIAS }}
+          KITE_RELEASE_KEY_PASSWORD: ${{ secrets.KITE_RELEASE_KEY_PASSWORD }}
+          TAG: ${{ github.ref_name }}
+          ABI: ${{ matrix.abi }}
+          CODE: ${{ steps.version.outputs.code }}
+        run: |
+          ./gradlew :androidApp:assembleRelease \
+            -PandroidAbi="$ABI" -PandroidVersionName="$TAG" \
+            -PandroidVersionCode="$CODE" --no-daemon --stacktrace
+
+      - name: Verify and package APK
+        env:
+          TAG: ${{ github.ref_name }}
+          ABI: ${{ matrix.abi }}
+        run: |
+          apk=androidApp/build/outputs/apk/release/androidApp-release.apk
+          test -s "$apk"
+          test "$("$ANDROID_HOME/build-tools/37.0.0/aapt2" dump packagename "$apk")" = app.kite
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs "$apk" | grep -qi '011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd'
+          unzip -Z1 "$apk" | grep -Fx "lib/$ABI/libmatrix_sdk_ffi.so"
+          if unzip -Z1 "$apk" | grep -E '^lib/[^/]+/libmatrix_sdk_ffi\.so$' | grep -Fv "lib/$ABI/libmatrix_sdk_ffi.so"; then
+            echo 'Unexpected native ABI in release' >&2
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$apk" "dist/Kite-${TAG}-${ABI}.apk"
+          cd dist
+          sha256sum "Kite-${TAG}-${ABI}.apk" > "Kite-${TAG}-${ABI}.apk.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kite-${{ matrix.abi }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: kite-*
+          path: dist
+          merge-multiple: true
+      - name: Verify all four APKs
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            test -s "dist/Kite-${TAG}-${abi}.apk"
+            (cd dist && sha256sum -c "Kite-${TAG}-${abi}.apk.sha256")
+          done
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Kite ${{ github.ref_name }}
+          generate_release_notes: true
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.apk
+            dist/*.sha256

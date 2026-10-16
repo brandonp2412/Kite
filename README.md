@@ -22,6 +22,10 @@ Screenshots use anonymized example content, based on the current Android UI.
 
 Kite is under active development; not every Matrix feature is supported yet.
 
+## Downloads
+
+[GitHub releases](https://github.com/brandonp2412/Kite/releases) contain signed, architecture-specific Android APKs. Select the APK for your device (most current phones use `arm64-v8a`).
+
 ## Build
 
 See [Android build instructions](ANDROID.md) and [upstream documentation](https://github.com/SchildiChat/schildi-revenge) for the native Rust SDK toolchain. Clone recursively to include the Matrix Rust SDK submodule.
