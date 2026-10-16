@@ -1,5 +1,8 @@
 package chat.schildi.revenge.compose
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -11,6 +14,7 @@ import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.DestinationStateHolder
 import chat.schildi.revenge.LocalDestinationState
+import chat.schildi.revenge.platformWindowManager
 import chat.schildi.revenge.compose.components.AdaptiveSplitLayoutModifierPair
 import chat.schildi.revenge.compose.components.ComposeSessionScope
 import chat.schildi.revenge.compose.components.WEIGHT_DEFAULT
@@ -54,38 +58,57 @@ fun DestinationContent(
         LocalDestinationDepth provides LocalDestinationDepth.current + 1,
     ) {
         val destination = destinationHolder.state.collectAsState().value.destination
-        val (baseModifier, contentModifier) = modifier.forDestination(destination)
-        DestinationWrapper(destination) {
-            when (destination) {
-                is Destination.AccountManagement -> AccountManagementScreen(destination, baseModifier, contentModifier)
-                is Destination.Inbox -> InboxScreen(destination, baseModifier, contentModifier)
-                is Destination.Splash -> SplashScreen(baseModifier, contentModifier)
-                is Destination.Conversation -> ConversationScreen(destination, baseModifier, contentModifier)
-                is Destination.CreateRoom -> CreateRoomScreen(destination, baseModifier, contentModifier)
-                is Destination.StartChat -> StartChatScreen(destination, baseModifier, contentModifier)
-                is Destination.RoomDetails -> RoomDetailsScreen(destination, baseModifier, contentModifier)
-                is Destination.RoomMembers -> RoomMembersScreen(destination, baseModifier, contentModifier)
-                is Destination.MessageReactions -> MessageReactionsScreen(destination, baseModifier, contentModifier)
-                is Destination.MessageReadReceipts -> MessageReadReceiptsScreen(destination, baseModifier, contentModifier)
-                is Destination.UserDetails -> UserDetailsScreen(destination, baseModifier, contentModifier)
-                is Destination.SpaceDiscovery -> SpaceDiscoveryScreen(destination, baseModifier, contentModifier)
-                is Destination.AccountDevTools -> AccountDevToolsScreen(destination, baseModifier, contentModifier)
-                is Destination.RoomDevTools -> RoomDevToolsScreen(destination, baseModifier, contentModifier)
-                is Destination.SplitHorizontal -> SplitHorizontal(destination, baseModifier, contentModifier)
-                is Destination.SplitVertical -> SplitVertical(destination, baseModifier, contentModifier)
-                is Destination.About -> AboutScreen(destination, baseModifier, contentModifier)
-                is Destination.Diagnostics -> DiagnosticsScreen(destination, baseModifier, contentModifier)
-                is Destination.VerificationRequest -> VerificationRequestScreen(destination, baseModifier, contentModifier)
-                is Destination.SessionSelector -> SessionSelectorScreen(destination, baseModifier, contentModifier)
-                is Destination.Settings -> SettingsScreen(destination, baseModifier, contentModifier)
-                is Destination.SettingsPane -> SettingsScreen(destination, baseModifier, contentModifier)
-                is Destination.InboxConversationMultiPane -> InboxConversationMultiPaneScreen(destination, baseModifier, contentModifier)
-                is Destination.ConversationDetailsMultiPane -> ConversationDetailsMultiPaneScreen(destination, baseModifier, contentModifier)
-                is Destination.SpaceDiscoveryDetailsMultiPane -> SpaceDiscoveryDetailsMultiPaneScreen(destination, baseModifier, contentModifier)
-                is Destination.MultiPaneConversationPlaceholder,
-                is Destination.MultiPaneRoomInfoPlaceholder,
-                is Destination.MultiPaneSettingsPlaceholder -> EmptyPaneScreen(baseModifier, contentModifier)
+        if (platformWindowManager.appOwnsWindows) {
+            DestinationFrame(destination, modifier)
+        } else {
+            // Android occasionally exposes the task's cached launch surface when a
+            // conversation is replaced by a freshly composed inbox. Retain the
+            // outgoing frame until the new destination has been composed and drawn.
+            Crossfade(
+                targetState = destination,
+                animationSpec = tween(durationMillis = 120),
+                modifier = modifier.fillMaxSize(),
+                label = "Android destination",
+            ) { visibleDestination ->
+                DestinationFrame(visibleDestination, Modifier.fillMaxSize())
             }
+        }
+    }
+}
+
+@Composable
+private fun DestinationFrame(destination: Destination, modifier: Modifier) {
+    val (baseModifier, contentModifier) = modifier.forDestination(destination)
+    DestinationWrapper(destination) {
+        when (destination) {
+            is Destination.AccountManagement -> AccountManagementScreen(destination, baseModifier, contentModifier)
+            is Destination.Inbox -> InboxScreen(destination, baseModifier, contentModifier)
+            is Destination.Splash -> SplashScreen(baseModifier, contentModifier)
+            is Destination.Conversation -> ConversationScreen(destination, baseModifier, contentModifier)
+            is Destination.CreateRoom -> CreateRoomScreen(destination, baseModifier, contentModifier)
+            is Destination.StartChat -> StartChatScreen(destination, baseModifier, contentModifier)
+            is Destination.RoomDetails -> RoomDetailsScreen(destination, baseModifier, contentModifier)
+            is Destination.RoomMembers -> RoomMembersScreen(destination, baseModifier, contentModifier)
+            is Destination.MessageReactions -> MessageReactionsScreen(destination, baseModifier, contentModifier)
+            is Destination.MessageReadReceipts -> MessageReadReceiptsScreen(destination, baseModifier, contentModifier)
+            is Destination.UserDetails -> UserDetailsScreen(destination, baseModifier, contentModifier)
+            is Destination.SpaceDiscovery -> SpaceDiscoveryScreen(destination, baseModifier, contentModifier)
+            is Destination.AccountDevTools -> AccountDevToolsScreen(destination, baseModifier, contentModifier)
+            is Destination.RoomDevTools -> RoomDevToolsScreen(destination, baseModifier, contentModifier)
+            is Destination.SplitHorizontal -> SplitHorizontal(destination, baseModifier, contentModifier)
+            is Destination.SplitVertical -> SplitVertical(destination, baseModifier, contentModifier)
+            is Destination.About -> AboutScreen(destination, baseModifier, contentModifier)
+            is Destination.Diagnostics -> DiagnosticsScreen(destination, baseModifier, contentModifier)
+            is Destination.VerificationRequest -> VerificationRequestScreen(destination, baseModifier, contentModifier)
+            is Destination.SessionSelector -> SessionSelectorScreen(destination, baseModifier, contentModifier)
+            is Destination.Settings -> SettingsScreen(destination, baseModifier, contentModifier)
+            is Destination.SettingsPane -> SettingsScreen(destination, baseModifier, contentModifier)
+            is Destination.InboxConversationMultiPane -> InboxConversationMultiPaneScreen(destination, baseModifier, contentModifier)
+            is Destination.ConversationDetailsMultiPane -> ConversationDetailsMultiPaneScreen(destination, baseModifier, contentModifier)
+            is Destination.SpaceDiscoveryDetailsMultiPane -> SpaceDiscoveryDetailsMultiPaneScreen(destination, baseModifier, contentModifier)
+            is Destination.MultiPaneConversationPlaceholder,
+            is Destination.MultiPaneRoomInfoPlaceholder,
+            is Destination.MultiPaneSettingsPlaceholder -> EmptyPaneScreen(baseModifier, contentModifier)
         }
     }
 }
