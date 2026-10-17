@@ -76,7 +76,7 @@ jobs:
           sdkmanager="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
           test -x "$sdkmanager"
           yes | "$sdkmanager" --licenses > /dev/null || true
-          "$sdkmanager" 'platforms;android-37' 'build-tools;37.0.0' 'ndk;28.2.13676358'
+          "$sdkmanager" 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;28.2.13676358'
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends clang cmake libclang-dev libssl-dev ninja-build pkg-config protobuf-compiler
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"

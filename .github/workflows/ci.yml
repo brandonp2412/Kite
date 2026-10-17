@@ -61,7 +61,7 @@ jobs:
       - name: Install Android SDK and Rust build dependencies
         run: |
           sdkmanager="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
-          "$sdkmanager" 'platforms;android-37' 'build-tools;37.0.0'
+          "$sdkmanager" 'platforms;android-37.0' 'build-tools;37.0.0'
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends clang cmake libclang-dev libssl-dev ninja-build pkg-config protobuf-compiler
       - name: Unit tests, Android lint and UI contract checks
