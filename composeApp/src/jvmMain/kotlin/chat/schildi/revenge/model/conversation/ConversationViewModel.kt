@@ -3033,7 +3033,7 @@ class ConversationViewModel(
         event: EventTimelineItem,
     ) = context.downloadFile(event, showDownloadConfirmation = false) { file ->
         try {
-            platformOpenFile(context.platformContext, file, event.mediaMimetype(), displayName = event.mediaFilename())
+            platformOpenFile(context.platformContext, file, event.mediaMimetype())
         } catch (t: Throwable) {
             log.e("Failed to open file", t)
             ActionResult.Failure(t.message ?: "Failed to open file")

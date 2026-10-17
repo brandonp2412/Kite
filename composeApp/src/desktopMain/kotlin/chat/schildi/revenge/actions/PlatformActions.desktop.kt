@@ -20,7 +20,6 @@ internal actual fun platformOpenFile(
     file: File,
     mimeType: String?,
     preferNewTask: Boolean,
-    displayName: String?,
 ): ActionResult {
     return try {
         if (!Desktop.isDesktopSupported()) {

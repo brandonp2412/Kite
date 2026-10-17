@@ -1144,3 +1144,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Added Settings → General → Time format (default 12-hour AM/PM), with 24-hour, 12-hour with seconds, and 24-hour with seconds choices. Preference uses the existing persistent settings store.
 - A single theme-level Compose preference read supplies the chosen format to inbox time, conversation swipe and status timestamps, message info, threaded replies, user activity, verification details and tap-to-reveal full date/time. Formatting honors local timezone; changing the preference refreshes visible times without per-row preference collectors.
 - `:composeApp:desktopTest --tests chat.schildi.revenge.TimeFormatTest :composeApp:compileAndroidMain` PASS, including default, midnight/noon, all four selections and full date/time. Android ARM64 release version 26.10.18.1 (26101801) built from commit 13aaa822 and signed with the existing Kite key; Samsung `adb install -r` SUCCESS, original first-install timestamp and `/data/user/0/app.kite` preserved. Interactive UI validation remains pending.
+
+## 2026-10-18 — Remove embedded audio player; use external mpv
+
+- Deleted the Android `AudioPlaybackActivity` and its manifest declaration. Android audio attachments again use `ACTION_VIEW` with temporary `FileProvider` read grants, so a compatible external player can open them.
+- Kept MIME inference for `.ogg`, `.oga`, and `.opus` filenames mislabeled as binary, along with unrelated single-tap timestamps and compact context-menu changes.
+- Confirmed Samsung S25 has F-Droid-signed mpv-android `is.xyz.mpv`, version `2026-09-17-release` (48), installed; Android resolves mpv for `content:` `audio/ogg` VIEW intents.

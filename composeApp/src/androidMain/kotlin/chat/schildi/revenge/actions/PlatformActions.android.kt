@@ -28,7 +28,6 @@ internal actual fun platformOpenFile(
     file: File,
     mimeType: String?,
     preferNewTask: Boolean,
-    displayName: String?,
 ): ActionResult {
     val uri = FileProvider.getUriForFile(
         context,
@@ -38,14 +37,6 @@ internal actual fun platformOpenFile(
     val resolvedMimeType = mimeType?.takeIf { it.isNotBlank() }
         ?: context.contentResolver.getType(uri)
         ?: "application/octet-stream"
-    if (resolvedMimeType.startsWith("audio/")) {
-        context.startActivity(Intent(context, AudioPlaybackActivity::class.java).apply {
-            data = uri
-            putExtra(AudioPlaybackActivity.EXTRA_FILENAME, displayName ?: file.name)
-            if (preferNewTask || context is Application) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-        return ActionResult.Success()
-    }
     val intent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, resolvedMimeType)
         if (preferNewTask || context is Application) {
