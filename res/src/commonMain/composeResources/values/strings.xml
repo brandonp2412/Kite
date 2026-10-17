@@ -1,4 +1,10 @@
 <resources>
+    <string name="pref_time_format_title">Time format</string>
+    <string name="pref_time_format_summary">How message times and dates are displayed</string>
+    <string name="pref_time_format_12h">12-hour (8:45 AM)</string>
+    <string name="pref_time_format_24h">24-hour (08:45)</string>
+    <string name="pref_time_format_12h_seconds">12-hour with seconds (8:45:30 AM)</string>
+    <string name="pref_time_format_24h_seconds">24-hour with seconds (08:45:30)</string>
     <string name="manage_accounts">Accounts</string>
     <string name="inbox">Inbox</string>
     <string name="inbox_search">Inbox search</string>

@@ -21,6 +21,7 @@ import chat.schildi.lib.preferences.ScPref
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.lib.preferences.safeLookup
 import chat.schildi.revenge.Dimens
+import chat.schildi.revenge.LocalTimeDisplayFormat
 import chat.schildi.revenge.preferences.LocalScPreferencesStore
 import chat.schildi.revenge.preferences.value
 
@@ -85,6 +86,7 @@ fun ScTheme(
     content: @Composable () -> Unit,
 ) {
     val blackTheme = ScPrefs.BLACK_THEME.value()
+    val timeFormat = ScPrefs.TIME_FORMAT.value()
 
     val currentExposures = remember {
         scdExposures.copy()
@@ -133,6 +135,7 @@ fun ScTheme(
         LocalScExposures provides currentExposures,
         LocalContentColor provides colorScheme.onSurfaceVariant,
         LocalMessageStyle provides messageStyle,
+        LocalTimeDisplayFormat provides timeFormat,
         //androidx.compose.material.LocalContentColor provides colorScheme.onSurfaceVariant,
     ) {
         MaterialTheme(

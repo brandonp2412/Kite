@@ -1,6 +1,8 @@
 package chat.schildi.revenge
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+import chat.schildi.lib.preferences.ScPrefs
 import androidx.compose.runtime.remember
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
@@ -10,6 +12,10 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+/** A single preference source for all visible timestamps, without per-row subscriptions. */
+val LocalTimeDisplayFormat = compositionLocalOf { ScPrefs.TimeFormat.TWELVE_HOUR }
 
 object DateTimeFormat {
 
@@ -34,17 +40,27 @@ object DateTimeFormat {
         }
     }
 
-    fun formatTime(dateTime: LocalDateTime): String {
-        return DateTimeFormatter.ofPattern("HH:mm").format(dateTime)
+    private fun timePattern(format: String): String = when (format) {
+        ScPrefs.TimeFormat.TWENTY_FOUR_HOUR -> "HH:mm"
+        ScPrefs.TimeFormat.TWELVE_HOUR_SECONDS -> "h:mm:ss a"
+        ScPrefs.TimeFormat.TWENTY_FOUR_HOUR_SECONDS -> "HH:mm:ss"
+        else -> "h:mm a"
     }
+
+    fun formatTime(dateTime: LocalDateTime, format: String = ScPrefs.TimeFormat.TWELVE_HOUR): String =
+        DateTimeFormatter.ofPattern(timePattern(format), Locale.getDefault()).format(dateTime)
+
+    fun formatFullDateTime(dateTime: LocalDateTime, format: String = ScPrefs.TimeFormat.TWELVE_HOUR): String =
+        DateTimeFormatter.ofPattern("d MMM yyyy, ${timePattern(format)}", Locale.getDefault()).format(dateTime)
 
     fun formatDateOrTime(
         dateTime: LocalDateTime,
         strings: DateTimeStrings,
         now: LocalDateTime = LocalDateTime.now(),
+        format: String = ScPrefs.TimeFormat.TWELVE_HOUR,
     ): String {
         return if (now.year == dateTime.year && now.dayOfYear == dateTime.dayOfYear) {
-            formatTime(dateTime)
+            formatTime(dateTime, format)
         } else {
             formatDate(dateTime, strings, now)
         }
@@ -54,21 +70,23 @@ object DateTimeFormat {
         dateTime: LocalDateTime,
         strings: DateTimeStrings,
         now: LocalDateTime = LocalDateTime.now(),
+        format: String = ScPrefs.TimeFormat.TWELVE_HOUR,
     ): String = buildString {
         append(formatDate(dateTime, strings, now))
         append(" ")
-        append(formatTime(dateTime))
+        append(formatTime(dateTime, format))
     }
 
     fun formatTimeOrDateTime(
         dateTime: LocalDateTime,
         strings: DateTimeStrings,
         now: LocalDateTime = LocalDateTime.now(),
+        format: String = ScPrefs.TimeFormat.TWELVE_HOUR,
     ): String {
         return if (now.year == dateTime.year && now.dayOfYear == dateTime.dayOfYear) {
-            formatTime(dateTime)
+            formatTime(dateTime, format)
         } else {
-            formatDatetime(dateTime, strings, now)
+            formatDatetime(dateTime, strings, now, format)
         }
     }
 
@@ -89,16 +107,18 @@ object DateTimeFormat {
     @Composable
     fun formatTimestampAsDateOrTime(timestamp: Long): String {
         val strings = dateTimeStrings()
-        return remember(timestamp) {
-            formatDateOrTime(timestampToDateTime(timestamp), strings)
+        val format = LocalTimeDisplayFormat.current
+        return remember(timestamp, format, strings) {
+            formatDateOrTime(timestampToDateTime(timestamp), strings, format = format)
         }
     }
 
     @Composable
     fun formatTimeOrDateTime(timestamp: Long): String {
         val strings = dateTimeStrings()
-        return remember(timestamp) {
-            formatTimeOrDateTime(timestampToDateTime(timestamp), strings)
+        val format = LocalTimeDisplayFormat.current
+        return remember(timestamp, format, strings) {
+            formatTimeOrDateTime(timestampToDateTime(timestamp), strings, format = format)
         }
     }
 }

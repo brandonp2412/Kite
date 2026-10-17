@@ -66,8 +66,8 @@ data class TimestampOverlayContent(
     val sendError: LocalEventSendState.Failed?,
 )
 
-fun EventTimelineItem.timestampOverlayContent() = TimestampOverlayContent(
-    timestamp = DateTimeFormat.formatTime(DateTimeFormat.timestampToDateTime(timestamp)),
+fun EventTimelineItem.timestampOverlayContent(format: String) = TimestampOverlayContent(
+    timestamp = DateTimeFormat.formatTime(DateTimeFormat.timestampToDateTime(timestamp), format),
     isEdited = (content as? EventCanBeEdited)?.isEdited == true,
     isSending = localSendState is LocalEventSendState.Sending,
     sendError = localSendState as? LocalEventSendState.Failed,

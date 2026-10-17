@@ -61,6 +61,12 @@ import shire.res.generated.resources.pref_disable_typing_notice_in_public_rooms_
 import shire.res.generated.resources.pref_double_tap_reaction_title
 import shire.res.generated.resources.pref_double_tap_to_react_summary
 import shire.res.generated.resources.pref_double_tap_to_react_title
+import shire.res.generated.resources.pref_time_format_title
+import shire.res.generated.resources.pref_time_format_summary
+import shire.res.generated.resources.pref_time_format_12h
+import shire.res.generated.resources.pref_time_format_24h
+import shire.res.generated.resources.pref_time_format_12h_seconds
+import shire.res.generated.resources.pref_time_format_24h_seconds
 import shire.res.generated.resources.pref_focus_follows_mouse_summary
 import shire.res.generated.resources.pref_focus_follows_mouse_title
 import shire.res.generated.resources.pref_font_scale
@@ -289,6 +295,24 @@ object ScPrefs {
     val ALWAYS_SHOW_SDK_UNREAD_LINE = ScBoolPref("ALWAYS_SHOW_SDK_UNREAD_LINE", false, Res.string.pref_always_show_sdk_unread_line_title, Res.string.pref_always_show_sdk_unread_line_summary)
 
     // Appearance
+    object TimeFormat {
+        const val TWELVE_HOUR = "12h"
+        const val TWENTY_FOUR_HOUR = "24h"
+        const val TWELVE_HOUR_SECONDS = "12h_seconds"
+        const val TWENTY_FOUR_HOUR_SECONDS = "24h_seconds"
+    }
+    val TIME_FORMAT = ScStringListPref(
+        "KITE_TIME_FORMAT",
+        TimeFormat.TWELVE_HOUR,
+        persistentListOf(
+            ScListPrefEntry(TimeFormat.TWELVE_HOUR, Res.string.pref_time_format_12h.toStringHolder()),
+            ScListPrefEntry(TimeFormat.TWENTY_FOUR_HOUR, Res.string.pref_time_format_24h.toStringHolder()),
+            ScListPrefEntry(TimeFormat.TWELVE_HOUR_SECONDS, Res.string.pref_time_format_12h_seconds.toStringHolder()),
+            ScListPrefEntry(TimeFormat.TWENTY_FOUR_HOUR_SECONDS, Res.string.pref_time_format_24h_seconds.toStringHolder()),
+        ),
+        Res.string.pref_time_format_title,
+        Res.string.pref_time_format_summary,
+    )
     val LOCALE = ScStringListPref("LOCALE", "", availableLocaleSettings, Res.string.pref_locale, allowNonEntryValues = true)
     val INITIAL_WINDOW_WIDTH = ScIntPref("INITIAL_WINDOW_WIDTH", 900, Res.string.pref_initial_window_width_title, Res.string.pref_initial_window_width_summary, minValue = 600, maxValue = 3840, supportedOnPlatform = scPrefPlatformSupport.desktopOnly)
     val INITIAL_WINDOW_HEIGHT = ScIntPref("INITIAL_WINDOW_HEIGHT", 1200, Res.string.pref_initial_window_height_title, Res.string.pref_initial_window_height_summary, minValue = 600, maxValue = 2160, supportedOnPlatform = scPrefPlatformSupport.desktopOnly)
@@ -538,6 +562,7 @@ object ScPrefs {
     val rootPrefsAllPlatforms = ScPrefScreen("ROOT", Res.string.hint_settings, null, listOf<AbstractScPref>(
         ScPrefScreen("GENERAL", Res.string.pref_category_general, Res.string.pref_category_general_summary, listOf(
             LOCALE,
+            TIME_FORMAT,
             CLOSE_TO_TRAY,
             ScPrefCategory("UI_SCALE", Res.string.pref_category_scale, null, listOf(
                 RENDER_SCALE,

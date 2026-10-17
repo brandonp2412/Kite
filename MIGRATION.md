@@ -1138,3 +1138,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Compact long-press menu reduces action-item height and spacing, removes the layered panel treatment, transparent backing and extra shadow/tonal elevation; all quick reactions, Copy/Select/Delete permissions remain unchanged.
 - Samsung reports only Termux as an `audio/ogg` ACTION_VIEW handler. Android Kite now handles audio attachments in-app with a minimal native MediaPlayer screen (play/pause, seek, progress, lifecycle release). Matrix `.ogg`/`.oga`/`.opus` filenames supply audio MIME when senders mark them generic, and original filenames reach the player.
 - Verification: `:composeApp:compileKotlinDesktop :androidApp:assembleDebug` PASS on Glass with JDK 25 and Gradle offline; `git diff --check` PASS. Initial package attempt hit a stale pre-rename dex cache path; `:composeApp:clean` resolved it. The debug APK declares `app.kite` and that package already exists on Samsung, so it was **not installed**; real-device tap/menu/audio playback and frame-time verification remain outstanding.
+
+## 2026-10-18 — Configurable time display
+
+- Added Settings → General → Time format (default 12-hour AM/PM), with 24-hour, 12-hour with seconds, and 24-hour with seconds choices. Preference uses the existing persistent settings store.
+- A single theme-level Compose preference read supplies the chosen format to inbox time, conversation swipe and status timestamps, message info, threaded replies, user activity, verification details and tap-to-reveal full date/time. Formatting honors local timezone; changing the preference refreshes visible times without per-row preference collectors.
+- `:composeApp:desktopTest --tests chat.schildi.revenge.TimeFormatTest :composeApp:compileAndroidMain` PASS, including default, midnight/noon, all four selections and full date/time. Android device installation and visual validation pending.

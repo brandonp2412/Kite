@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.DateTimeFormat
+import chat.schildi.revenge.LocalTimeDisplayFormat
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.ActionContext
 import chat.schildi.revenge.actions.ActionResult
@@ -64,7 +65,6 @@ import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_deselect_message
 import shire.res.generated.resources.action_select_message
 import kotlin.math.roundToInt
-import java.time.format.DateTimeFormatter
 
 enum class EventHighlight {
     NONE,
@@ -109,7 +109,8 @@ fun EventRow(
         rememberMatrixFormatInteractionState(it)
     }
     val selectable = event.isKiteSelectableMessage()
-    val timestamp = remember(event) { event.timestampOverlayContent() }
+    val timeFormat = LocalTimeDisplayFormat.current
+    val timestamp = remember(event, timeFormat) { event.timestampOverlayContent(timeFormat) }
     var showSentDateTime by remember(event.eventId, event.transactionId) { mutableStateOf(false) }
     val timestampRevealDistancePx = LocalDensity.current.run {
         Dimens.Conversation.MessageSwipe.maxOffset.toPx()
@@ -255,9 +256,10 @@ fun EventRow(
                             )
                         }
                         if (selectable && showSentDateTime) {
-                            val sentDateTime = remember(event.timestamp) {
-                                DateTimeFormat.timestampToDateTime(event.timestamp)
-                                    .format(DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm"))
+                            val sentDateTime = remember(event.timestamp, timeFormat) {
+                                DateTimeFormat.formatFullDateTime(
+                                    DateTimeFormat.timestampToDateTime(event.timestamp), timeFormat,
+                                )
                             }
                             Text(
                                 text = sentDateTime,
