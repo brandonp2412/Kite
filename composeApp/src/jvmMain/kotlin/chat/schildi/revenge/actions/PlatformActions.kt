@@ -9,6 +9,6 @@ internal expect val platformHasUserFacingFilePaths: Boolean
 
 internal expect val platformOpenUri: (suspend (String) -> Unit)?
 
-internal expect fun platformOpenFile(context: PlatformContext, file: File, mimeType: String?, preferNewTask: Boolean = false): ActionResult
+internal expect fun platformOpenFile(context: PlatformContext, file: File, mimeType: String?, preferNewTask: Boolean = false, displayName: String? = null): ActionResult
 
 internal expect fun platformPersistDownload(context: PlatformContext, file: File, filename: String?, mimeType: String?): ActionResult

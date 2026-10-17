@@ -1,14 +1,12 @@
 package chat.schildi.revenge.compose.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -194,7 +192,7 @@ fun WithContextMenu(
     val density = LocalDensity.current
 
     val containerColor = when {
-        presentation == ContextMenuPresentation.Message -> Color.Transparent
+        presentation == ContextMenuPresentation.Message -> MaterialTheme.colorScheme.surface
         hasChild -> MaterialTheme.colorScheme.surfaceContainerLow
         else -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
@@ -230,6 +228,8 @@ fun WithContextMenu(
                 expanded = expanded,
                 onDismissRequest = { keyHandler.dismissContextMenu(menuId) },
                 containerColor = containerColor,
+                tonalElevation = 0.dp,
+                shadowElevation = if (presentation == ContextMenuPresentation.Message) 0.dp else 8.dp,
                 offset = offset,
                 shape = if (presentation == ContextMenuPresentation.Message) {
                     MaterialTheme.shapes.extraLarge
@@ -303,27 +303,18 @@ fun WithContextMenu(
                     )
                 }
                 if (actionRows.isNotEmpty() && menuEntries.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
                 if (menuEntries.isNotEmpty()) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    ) {
-                        Column {
-                            menuEntries.forEach { entry ->
-                                ContextMenuDropdownMenuItem(
-                                    entry = entry,
-                                    focusId = focusId,
-                                    menuId = menuId,
-                                    presentation = presentation,
-                                    onClick = {
-                                        keyHandler.handleContextMenuEntry(focusId, menuId, entry)
-                                    },
-                                )
-                            }
-                        }
+                    menuEntries.forEach { entry ->
+                        ContextMenuDropdownMenuItem(
+                            entry = entry,
+                            focusId = focusId,
+                            menuId = menuId,
+                            presentation = presentation,
+                            modifier = Modifier.height(40.dp),
+                            onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
+                        )
                     }
                 }
             } else {
@@ -411,20 +402,9 @@ private fun ContextMenuActionRowContent(
     }
     val compactMessageSurface = presentation == ContextMenuPresentation.Message
     Column(
-        modifier = modifier
-            .then(
-                if (compactMessageSurface) {
-                    Modifier.background(
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
-                        MaterialTheme.shapes.extraLarge,
-                    )
-                } else {
-                    Modifier
-                }
-            )
-            .padding(
-                horizontal = if (compactMessageSurface) 6.dp else 12.dp,
-                vertical = if (compactMessageSurface) 4.dp else 10.dp,
+        modifier = modifier.padding(
+                horizontal = if (compactMessageSurface) 4.dp else 12.dp,
+                vertical = if (compactMessageSurface) 2.dp else 10.dp,
             ),
         verticalArrangement = Arrangement.spacedBy(if (compactMessageSurface) 2.dp else 8.dp),
     ) {

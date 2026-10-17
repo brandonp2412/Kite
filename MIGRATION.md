@@ -1131,3 +1131,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - The root cause was `TopNavigationCloseOrNavigateToInboxIcon`: on Android it offered `closeScreen` (which finishes the activity) instead of inbox navigation because the single-window branch was inverted.
 - For Android, normal settings/account toolbar Back now navigates to the inbox; initial account setup retains its special case. Desktop multi-window behavior unchanged.
 - Three `TopNavigationBackTest` regressions PASS; Android signed ARM64 release `:androidApp:assembleRelease -PandroidAbi=arm64-v8a` PASS. Installed on Samsung Galaxy S25 with `app.kite` app data preserved; device lock prevented live UI navigation verification.
+
+## 2026-10-18 — Single-tap timestamps, compact message menu, Android Ogg audio
+
+- A short single tap on a normal message bubble now toggles the full local sent date and time beneath it; the passive pointer observer preserves immediate double-tap reactions and long-press/selection. The detector is disabled during selection or an open message-action menu.
+- Compact long-press menu reduces action-item height and spacing, removes the layered panel treatment, transparent backing and extra shadow/tonal elevation; all quick reactions, Copy/Select/Delete permissions remain unchanged.
+- Samsung reports only Termux as an `audio/ogg` ACTION_VIEW handler. Android Kite now handles audio attachments in-app with a minimal native MediaPlayer screen (play/pause, seek, progress, lifecycle release). Matrix `.ogg`/`.oga`/`.opus` filenames supply audio MIME when senders mark them generic, and original filenames reach the player.
+- Verification: `:composeApp:compileKotlinDesktop :androidApp:assembleDebug` PASS on Glass with JDK 25 and Gradle offline; `git diff --check` PASS. Initial package attempt hit a stale pre-rename dex cache path; `:composeApp:clean` resolved it. The debug APK declares `app.kite` and that package already exists on Samsung, so it was **not installed**; real-device tap/menu/audio playback and frame-time verification remain outstanding.

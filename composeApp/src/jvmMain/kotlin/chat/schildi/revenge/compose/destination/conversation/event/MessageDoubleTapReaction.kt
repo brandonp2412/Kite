@@ -44,13 +44,18 @@ fun Modifier.passiveDoubleTapReaction(
     enabled: Boolean,
     reaction: String,
     reactionActive: Boolean,
+    singleTapEnabled: Boolean,
+    onSingleTap: () -> Unit,
 ): Modifier {
-    if (!enabled) return this
+    if (!enabled && !singleTapEnabled) return this
 
     val actionHandler = LocalKeyboardActionHandler.current
     val viewConfiguration = LocalViewConfiguration.current
     val haptics = LocalHapticFeedback.current
     val activeReaction by rememberUpdatedState(reactionActive)
+    val reactionEnabled by rememberUpdatedState(enabled)
+    val tapEnabled by rememberUpdatedState(singleTapEnabled)
+    val latestOnSingleTap by rememberUpdatedState(onSingleTap)
     var burstPosition by remember(focusId) { mutableStateOf<Offset?>(null) }
     var burstSerial by remember(focusId) { mutableIntStateOf(0) }
     val burstProgress = remember(focusId) { Animatable(0f) }
@@ -178,7 +183,7 @@ fun Modifier.passiveDoubleTapReaction(
                         val interval = priorTime?.let { change.uptimeMillis - it }
                         val closeEnough = priorPosition != null &&
                                 (change.position - priorPosition).getDistance() <= doubleTapSlop
-                        if (interval != null &&
+                        if (reactionEnabled && interval != null &&
                             interval >= doubleTapMinTime &&
                             interval <= doubleTapTimeout &&
                             closeEnough
@@ -198,6 +203,7 @@ fun Modifier.passiveDoubleTapReaction(
                                 listOf(reaction),
                             )
                         } else {
+                            if (tapEnabled) latestOnSingleTap()
                             previousTapTime = change.uptimeMillis
                             previousTapPosition = change.position
                         }

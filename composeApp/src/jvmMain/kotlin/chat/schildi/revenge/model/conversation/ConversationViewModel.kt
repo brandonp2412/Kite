@@ -3033,7 +3033,7 @@ class ConversationViewModel(
         event: EventTimelineItem,
     ) = context.downloadFile(event, showDownloadConfirmation = false) { file ->
         try {
-            platformOpenFile(context.platformContext, file, event.mediaMimetype())
+            platformOpenFile(context.platformContext, file, event.mediaMimetype(), displayName = event.mediaFilename())
         } catch (t: Throwable) {
             log.e("Failed to open file", t)
             ActionResult.Failure(t.message ?: "Failed to open file")
@@ -3191,9 +3191,9 @@ private fun EventTimelineItem.mediaSource() = when (val content = content) {
     else -> null
 }
 
-private fun EventTimelineItem.mediaMimetype() = when (val content = content) {
-    is MessageContent -> {
-        when (val type = content.type) {
+private fun EventTimelineItem.mediaMimetype(): String? {
+    val declared = when (val content = content) {
+        is MessageContent -> when (val type = content.type) {
             !is MessageTypeWithAttachment -> null
             is AudioMessageType -> type.info?.mimetype
             is FileMessageType -> type.info?.mimetype
@@ -3202,8 +3202,17 @@ private fun EventTimelineItem.mediaMimetype() = when (val content = content) {
             is VideoMessageType -> type.info?.mimetype
             is VoiceMessageType -> type.info?.mimetype
         }
+        else -> null
     }
-    else -> null
+    // Some Matrix senders label Ogg attachments as generic binary files.
+    if (declared.isNullOrBlank() || declared == "application/octet-stream" || declared == "application/ogg") {
+        return when (mediaFilename()?.substringAfterLast('.', "")?.lowercase()) {
+            "ogg", "oga" -> "audio/ogg"
+            "opus" -> "audio/opus"
+            else -> declared
+        }
+    }
+    return declared
 }
 
 private fun EventTimelineItem.mediaFilename() = when (val content = content) {

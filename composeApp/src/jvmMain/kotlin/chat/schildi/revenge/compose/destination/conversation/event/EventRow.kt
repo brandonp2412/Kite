@@ -14,6 +14,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -21,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.ActionContext
 import chat.schildi.revenge.actions.ActionResult
@@ -60,6 +64,7 @@ import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_deselect_message
 import shire.res.generated.resources.action_select_message
 import kotlin.math.roundToInt
+import java.time.format.DateTimeFormatter
 
 enum class EventHighlight {
     NONE,
@@ -105,6 +110,7 @@ fun EventRow(
     }
     val selectable = event.isKiteSelectableMessage()
     val timestamp = remember(event) { event.timestampOverlayContent() }
+    var showSentDateTime by remember(event.eventId, event.transactionId) { mutableStateOf(false) }
     val timestampRevealDistancePx = LocalDensity.current.run {
         Dimens.Conversation.MessageSwipe.maxOffset.toPx()
     }
@@ -233,13 +239,33 @@ fun EventRow(
                                 messageContentModifier = Modifier.passiveDoubleTapReaction(
                                     focusId = focusId,
                                     enabled = canDoubleTapReact && !messageActionMenuOpen,
+                                    singleTapEnabled = !selectionActive && !messageActionMenuOpen && selectable,
                                     reaction = doubleTapReaction,
                                     reactionActive = event.reactions.any { reaction ->
                                         reaction.key == doubleTapReaction && reaction.senders.any { sender ->
                                             sender.senderId.value == viewModel.sessionId.value
                                         }
                                     },
+                                    onSingleTap = {
+                                        if (!selectionActive && !messageActionMenuOpen && selectable) {
+                                            showSentDateTime = !showSentDateTime
+                                        }
+                                    },
                                 ),
+                            )
+                        }
+                        if (selectable && showSentDateTime) {
+                            val sentDateTime = remember(event.timestamp) {
+                                DateTimeFormat.timestampToDateTime(event.timestamp)
+                                    .format(DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm"))
+                            }
+                            Text(
+                                text = sentDateTime,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = Dimens.Conversation.messageTimestampStyle,
+                                modifier = Modifier
+                                    .align(if (event.isOwn) Alignment.End else Alignment.Start)
+                                    .padding(horizontal = 12.dp, vertical = 2.dp),
                             )
                         }
                         ReactionsRow(
