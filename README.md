@@ -10,7 +10,7 @@ Kite is a fork of [SchildiChat Revenge](https://github.com/SchildiChat/schildi-r
 | --- | --- |
 | ![Kite inbox with example conversations](fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.png) | ![Kite conversation with example messages](fastlane/metadata/android/en-US/images/phoneScreenshots/2_en-US.png) |
 
-Screenshots use anonymized example content, based on the current Android UI.
+Screenshots are illustrative, generated from anonymized sample content with `python3 scripts/generate_screenshots.py`; they are not live device captures.
 
 ## Features
 

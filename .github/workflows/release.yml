@@ -137,8 +137,28 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  screenshots:
+    name: Generate demo screenshots
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install deterministic screenshot renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends librsvg2-bin fonts-roboto
+      - name: Regenerate screenshots
+        run: python3 scripts/generate_screenshots.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kite-screenshots
+          path: metadata/en-US/images/phoneScreenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
+
   release:
-    needs: build
+    needs: [build, screenshots]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -148,6 +168,18 @@ jobs:
           pattern: kite-*
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: kite-screenshots
+          path: images
+      - name: Add screenshots to release assets
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          test -s images/1_en-US.png
+          test -s images/2_en-US.png
+          cp images/1_en-US.png "dist/Kite-${TAG}-inbox.png"
+          cp images/2_en-US.png "dist/Kite-${TAG}-conversation.png"
       - name: Verify all four APKs
         env:
           TAG: ${{ github.ref_name }}
@@ -165,3 +197,45 @@ jobs:
           files: |
             dist/*.apk
             dist/*.sha256
+            dist/*.png
+
+  update-screenshots:
+    needs: [release, screenshots]
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: kite-screenshots
+          path: regenerated
+      - name: Update README/Fastlane images on main
+        id: publish
+        env:
+          TAG_SHA: ${{ github.sha }}
+        run: |
+          # Do not replace main's artwork from tags made on unrelated branches.
+          git merge-base --is-ancestor "$TAG_SHA" HEAD || exit 0
+          git diff --quiet "$TAG_SHA" HEAD -- scripts/generate_screenshots.py || exit 0
+          cp regenerated/1_en-US.png metadata/en-US/images/phoneScreenshots/1_en-US.png
+          cp regenerated/2_en-US.png metadata/en-US/images/phoneScreenshots/2_en-US.png
+          if git diff --quiet -- metadata/en-US/images/phoneScreenshots; then
+            echo 'Screenshots unchanged'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add metadata/en-US/images/phoneScreenshots
+          git commit -m "docs: update release screenshots"
+          git push origin HEAD:main
+          echo 'updated=true' >> "$GITHUB_OUTPUT"
+      - name: Run main-branch checks for screenshot commit
+        if: steps.publish.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ci.yml --ref main
