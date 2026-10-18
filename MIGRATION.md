@@ -1191,4 +1191,4 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Gave the message long-press date its own content-width rounded surface above the reaction/action panel. The message dropdown background is transparent behind the separate surfaces; ordinary menus stay unchanged.
 - Cut last-message bottom spacer from 16dp to 4dp. The multiline composer retains 12dp vertical text padding with a 56dp minimum row height.
-- Glass verification: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu --offline --no-daemon -Pkotlin.incremental=false` PASS; Android release/device proof pending.
+- Glass verification: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu --offline --no-daemon -Pkotlin.incremental=false` PASS. Isolated arm64 release APK from `ded151ae` produced, ZIP and APK signature verified (SHA-256 `928b68c5070fbdc4ac9489c582cdf78c1d898c7f90268786b7f47b04df5fd982`), installed via `adb install -r` on Samsung S25 (Success); `app.kite`/`26101803` and original firstInstallTime retained. Real-device popup interaction not verified.
