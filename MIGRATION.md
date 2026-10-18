@@ -1151,3 +1151,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Kept MIME inference for `.ogg`, `.oga`, and `.opus` filenames mislabeled as binary, along with unrelated single-tap timestamps and compact context-menu changes.
 - Confirmed Samsung S25 has F-Droid-signed mpv-android `is.xyz.mpv`, version `2026-09-17-release` (48), installed; Android resolves mpv for `content:` `audio/ogg` VIEW intents.
 - Release verification: clean detached worktree build `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26101802 -PandroidVersionName=26.10.18.2` PASS; APK `app.kite` arm64 signer SHA-256 matches installed `app.kite`; `adb install -r` on Samsung Galaxy S25 PASS with app data retained; `dumpsys package` confirms version `26.10.18.2`. In-app tap of a real Matrix audio attachment has not yet been tested.
+
+## 2026-10-18 — Selected reaction contrast
+
+- Selected (self-reacted) reaction chips now use an opaque Material 3 `primaryContainer` fill, `primary` outline and `onPrimaryContainer` count text instead of a translucent accent overlay. Unselected chips remain unchanged.
+- Verified `:composeApp:compileAndroidMain --offline` PASS and `git diff --check` PASS on Glass. Visual inspection of the updated APK on Samsung remains pending.
