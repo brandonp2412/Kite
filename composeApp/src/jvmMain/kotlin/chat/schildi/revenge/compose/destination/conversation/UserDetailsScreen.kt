@@ -157,6 +157,50 @@ fun UserDetailsScreen(
                         item(key = "profile", contentType = "profile") {
                             val primaryAvatar = roomMemberInfo?.avatarUrl ?: info?.avatarUrl
                             val displayName = roomMemberInfo?.displayName ?: info?.displayName
+                            val changePhoto: () -> Unit = {
+                                scope.launch {
+                                    photoError = null
+                                    photoNote = null
+                                    val result = FilePicker.requestFilePicker(
+                                        "Choose profile image",
+                                        actionContext.windowId,
+                                        AttachmentPickerKind.GALLERY,
+                                    )
+                                    val selected = result.getOrNull()
+                                    if (result.isFailure) {
+                                        photoError = result.exceptionOrNull()?.message ?: "Couldn't open image picker"
+                                    } else if (selected != null) {
+                                        try {
+                                            require(selected.mimeType?.startsWith("image/") == true) {
+                                                "Select an image file"
+                                            }
+                                            require(selected.file.length() in 1..20_000_000) {
+                                                "Image must be smaller than 20 MB"
+                                            }
+                                            val own = viewModel.userId.value == viewModel.sessionId.value
+                                            val uploaded = if (own) {
+                                                val client = UiState.currentClientFor(viewModel.sessionId)
+                                                client?.uploadAvatar(
+                                                    selected.mimeType,
+                                                    withContext(Dispatchers.IO) { selected.file.readBytes() },
+                                                )?.isSuccess == true
+                                            } else false
+                                            LocalAvatarOverrides.set(
+                                                viewModel.sessionId, viewModel.userId, selected.file,
+                                            )
+                                            photoNote = if (uploaded) "Profile image updated" else "Image saved on this device"
+                                        } catch (error: Exception) {
+                                            photoError = error.message ?: "Couldn't save image"
+                                        } finally {
+                                            if (selected.isAppOwned) {
+                                                withContext(Dispatchers.IO) {
+                                                    selected.file.parentFile?.deleteRecursively()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -176,53 +220,11 @@ fun UserDetailsScreen(
                                         size = 96.dp,
                                         displayName = displayName ?: viewModel.userId.value,
                                         shape = CircleShape,
-                                        modifier = Modifier.clickable {
-                                            scope.launch {
-                                                photoError = null
-                                                photoNote = null
-                                                val result = FilePicker.requestFilePicker(
-                                                    "Choose profile image",
-                                                    actionContext.windowId,
-                                                    AttachmentPickerKind.GALLERY,
-                                                )
-                                                val selected = result.getOrNull()
-                                                if (result.isFailure) {
-                                                    photoError = result.exceptionOrNull()?.message ?: "Couldn't open image picker"
-                                                } else if (selected != null) {
-                                                    try {
-                                                        require(selected.mimeType?.startsWith("image/") == true) {
-                                                            "Select an image file"
-                                                        }
-                                                        require(selected.file.length() in 1..20_000_000) {
-                                                            "Image must be smaller than 20 MB"
-                                                        }
-                                                        val own = viewModel.userId.value == viewModel.sessionId.value
-                                                        val uploaded = if (own) {
-                                                            val client = UiState.currentClientFor(viewModel.sessionId)
-                                                            client?.uploadAvatar(
-                                                                selected.mimeType,
-                                                                withContext(Dispatchers.IO) { selected.file.readBytes() },
-                                                            )?.isSuccess == true
-                                                        } else false
-                                                        LocalAvatarOverrides.set(
-                                                            viewModel.sessionId, viewModel.userId, selected.file,
-                                                        )
-                                                        photoNote = if (uploaded) "Profile image updated" else "Image saved on this device"
-                                                    } catch (error: Exception) {
-                                                        photoError = error.message ?: "Couldn't save image"
-                                                    } finally {
-                                                        if (selected.isAppOwned) {
-                                                            withContext(Dispatchers.IO) {
-                                                                selected.file.parentFile?.deleteRecursively()
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        },
+                                        modifier = Modifier.clickable(onClick = changePhoto),
                                         contentDescription = "Change profile image",
                                         allowAnimated = true,
                                     )
+                                    TextButton(onClick = changePhoto) { Text("Change photo") }
                                     if (LocalAvatarOverrides.photo(viewModel.sessionId, viewModel.userId) != null) {
                                         TextButton(onClick = {
                                             scope.launch {
