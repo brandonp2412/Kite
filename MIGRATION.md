@@ -1192,3 +1192,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Gave the message long-press date its own content-width rounded surface above the reaction/action panel. The message dropdown background is transparent behind the separate surfaces; ordinary menus stay unchanged.
 - Cut last-message bottom spacer from 16dp to 4dp. The multiline composer retains 12dp vertical text padding with a 56dp minimum row height.
 - Glass verification: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu --offline --no-daemon -Pkotlin.incremental=false` PASS. Isolated arm64 release APK from `ded151ae` produced, ZIP and APK signature verified (SHA-256 `928b68c5070fbdc4ac9489c582cdf78c1d898c7f90268786b7f47b04df5fd982`), installed via `adb install -r` on Samsung S25 (Success); `app.kite`/`26101803` and original firstInstallTime retained. Real-device popup interaction not verified.
+
+## 2026-10-18 — Neutral message Delete action
+
+- Removed the message long-press Delete entry's critical/red styling; text and icon now use the same default colour as Copy/Select. Deletion permissions and behaviour are unchanged.
+- Isolated release build at `fd1cf786`: `:androidApp:assembleRelease :androidApp:verifyKiteLongPressMenu` PASS. APK SHA-256 `48a8c2c6b968d70c8f2d459ef6cc18a03cae6c1811fa65a6a6b9b7a7ead18139`. Verified package `app.kite`, unchanged versionCode `26101803`, existing signing certificate. Installed on Samsung S25 with `adb install -r` (Success); original firstInstallTime preserved. Interactive visual check not performed.
