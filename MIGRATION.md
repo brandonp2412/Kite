@@ -1209,3 +1209,11 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Removed the normal-image 500dp maximum height; an image with Matrix width/height metadata now reserves its full displayed aspect ratio at available message width, before or after Coil decode. Reply thumbnails retain their compact maximum height; unknown dimensions retain the fixed square fallback, with no decode-triggered list remeasurement.
 - Image-only transparent bubbles no longer request a grey status-overlay background; existing sending/failed indicators remain possible without that pill. Captions and replies retain their normal styling.
 - Glass verification: isolated arm64 `:androidApp:assembleRelease` through buildq job 5 PASS (4m56s; lint PASS). APK SHA-256 `eedad99b268bf14c6821a124c2f454a41e1530b9c796350bd9bacc9277de7507`; `app.kite`, original signing certificate and versionCode `26101803`. `adb install -r` on Samsung S25 PASS; firstInstallTime `2026-10-16 18:00:56` unchanged. Visual and scroll-jank measurements still unverified on unlocked device.
+
+## 2026-10-18 — Room-open stability, media captions and reactions
+
+- Loading chat now reserves the 56dp composer before the timeline appears. Default Index(0) opening no longer re-keys the list when it is already at position 0, avoiding a needless anchor reset.
+- Captioned images render text above the image, with the image filling the same message width. Its aspect ratio remains derived from metadata before decoding; image-only messages remain unchanged.
+- Message long-press date, reaction shortcuts, and Copy/Select/Delete actions now use separate rounded surfaces. Actions are 192dp wide instead of inheriting the wide emoji row.
+- Replaced the broken full reaction chooser's composer REACTION mode with a searchable emoji grid that dispatches ToggleReactionKey directly.
+- Glass: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu` via buildq #47 PASS; `git diff --check` PASS. Device visual testing and frame-time proof still pending (Samsung locked).

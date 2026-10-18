@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -292,6 +294,26 @@ fun ConversationScreen(
                         viewModel.loadState,
                         delayMillis = 100L,
                     )
+                    if (viewModel.modeSupportsComposer) {
+                        // Reserve the composer's footprint before the timeline arrives.
+                        // Otherwise the first real conversation frame shrinks the
+                        // viewport and visibly jumps the newest message.
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = Dimens.windowPadding,
+                                    end = Dimens.windowPadding,
+                                    top = 8.dp,
+                                    bottom = composerBottomPadding,
+                                )
+                                .height(56.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    RoundedCornerShape(28.dp),
+                                ),
+                        )
+                    }
                 }
             }
             return@BoxWithConstraints
@@ -386,11 +408,20 @@ fun ConversationScreen(
             } else {
                 Logger.withTag("ConversationScreen").d("Targetting $index for $targetEvent")
                 val offset = density.run { contentHeight.roundToPx() } / 2
-                initialListOffset = Triple(
-                    index,
-                    if (isUnreadJump || isOpeningUnread || targetEvent is EventJumpTarget.Index && index == 0) 0 else -offset,
-                    targetEvent.renavigationCount,
-                )
+                val scrollOffset = if (
+                    isUnreadJump || isOpeningUnread ||
+                    targetEvent is EventJumpTarget.Index && index == 0
+                ) 0 else -offset
+                // The normal inbox -> chat target is Index(0). Re-keying an
+                // already-correct LazyListState for that no-op resets measurement
+                // and makes the first visible chat frame jump.
+                if (index != initialListOffset.first ||
+                    scrollOffset != initialListOffset.second ||
+                    (targetEvent.renavigationCount > 0 &&
+                        targetEvent.renavigationCount != initialListOffset.third)
+                ) {
+                    initialListOffset = Triple(index, scrollOffset, targetEvent.renavigationCount)
+                }
                 scrolledToEvent = targetEvent
             }
             allowPaginateAfterInitialLoad = true

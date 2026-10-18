@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -99,11 +100,8 @@ fun ImageMessage(
         val shape = if (inReplyTo == null && messageMetadata?.preFormattedContent == null) {
             LocalMessageBubbleShape.current
         } else {
-            val topRadius = if (inReplyTo == null) Dimens.Conversation.messageBubbleCornerRadius else 0.dp
-            val bottomRadius = if (messageMetadata?.preFormattedContent == null)
-                Dimens.Conversation.messageBubbleCornerRadius
-            else
-                0.dp
+            val topRadius = 0.dp
+            val bottomRadius = Dimens.Conversation.messageBubbleCornerRadius
             RoundedCornerShape(
                 topStart = topRadius,
                 topEnd = topRadius,
@@ -150,6 +148,16 @@ fun ColumnScope.ImageMessageContent(
     // otherwise remeasures the whole message list as an image comes into view.
     // Unknown dimensions use a stable square rather than jumping after loading.
     val reservedAspectRatio = aspectRatioOrNull(width, height) ?: 1f
+    if (caption != null) {
+        TextLikeMessageContent(
+            caption,
+            allowBigEmojiOnly = false,
+            modifier = Modifier.padding(Dimens.Conversation.messageBubblePadding),
+            onTextLayout = onCaptionTextLayout,
+        )
+    } else {
+        LaunchedEffect(Unit) { onCaptionTextLayout(null) }
+    }
     Box(
         modifier = Modifier.align(Alignment.CenterHorizontally),
         contentAlignment = Alignment.Center,
@@ -163,7 +171,15 @@ fun ColumnScope.ImageMessageContent(
             filterQuality = FilterQuality.High,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .boundedMediaSize(minWidth, minHeight, maxWidth, maxHeight, reservedAspectRatio)
+                .then(
+                    if (caption != null && LocalMessageRenderContext.current == MessageRenderContext.NORMAL) {
+                        // Text + image share one width; don't letterbox a narrow portrait
+                        // inside a much wider caption bubble.
+                        Modifier.fillMaxWidth().aspectRatio(reservedAspectRatio)
+                    } else {
+                        Modifier.boundedMediaSize(minWidth, minHeight, maxWidth, maxHeight, reservedAspectRatio)
+                    }
+                )
                 .clip(shape),
         ) {
             if (blurhash != null && ScPrefs.FORCE_RENDER_BLURHASH.value()) {
@@ -192,18 +208,6 @@ fun ColumnScope.ImageMessageContent(
             }
         }
         overlay()
-    }
-    if (caption != null) {
-        TextLikeMessageContent(
-            caption,
-            allowBigEmojiOnly = false,
-            modifier = Modifier.padding(Dimens.Conversation.messageBubblePadding),
-            onTextLayout = onCaptionTextLayout,
-        )
-    } else {
-        LaunchedEffect(Unit) {
-            onCaptionTextLayout(null)
-        }
     }
 }
 

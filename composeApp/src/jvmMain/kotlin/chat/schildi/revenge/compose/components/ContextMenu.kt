@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -271,6 +271,7 @@ fun WithContextMenu(
     parentMenuId: Uuid? = null,
     presentation: ContextMenuPresentation = ContextMenuPresentation.Default,
     messageTimestamp: String? = null,
+    onComposeReaction: (() -> Unit)? = null,
     content: @Composable (InteractionAction.ContextMenu?) -> Unit,
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
@@ -306,34 +307,41 @@ fun WithContextMenu(
                         )
                     }
                 }
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.extraLarge,
-                ) {
-                    Column {
+                if (actionRows.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.extraLarge,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    ) {
                         actionRows.forEach { entry ->
                             ContextMenuDropdownMenuItem(
                                 entry = entry,
                                 focusId = focusId,
                                 menuId = menuId,
                                 presentation = presentation,
-                                onClick = {
-                                    keyHandler.handleContextMenuEntry(focusId, menuId, entry)
-                                },
-                            )
-                        }
-                        if (actionRows.isNotEmpty() && menuEntries.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                        }
-                        menuEntries.forEach { entry ->
-                            ContextMenuDropdownMenuItem(
-                                entry = entry,
-                                focusId = focusId,
-                                menuId = menuId,
-                                presentation = presentation,
-                                modifier = Modifier.height(40.dp),
                                 onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
+                                onComposeReaction = onComposeReaction,
                             )
+                        }
+                    }
+                }
+                if (menuEntries.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.extraLarge,
+                        modifier = Modifier.width(192.dp),
+                    ) {
+                        Column {
+                            menuEntries.forEach { entry ->
+                                ContextMenuDropdownMenuItem(
+                                    entry = entry,
+                                    focusId = focusId,
+                                    menuId = menuId,
+                                    presentation = presentation,
+                                    modifier = Modifier.height(40.dp),
+                                    onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
+                                )
+                            }
                         }
                     }
                 }
@@ -370,6 +378,7 @@ private fun ContextMenuDropdownMenuItem(
     presentation: ContextMenuPresentation,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onComposeReaction: (() -> Unit)? = null,
 ) {
     when (entry) {
         is ContextMenuActionRowEntry -> {
@@ -377,7 +386,12 @@ private fun ContextMenuDropdownMenuItem(
             ContextMenuActionRowContent(
                 entry = entry,
                 onActionClick = { action ->
-                    keyHandler.handleContextMenuEntry(focusId, menuId, action)
+                    if (action.action == Action.Event.ComposeReaction && onComposeReaction != null) {
+                        keyHandler.dismissContextMenu(menuId)
+                        onComposeReaction()
+                    } else {
+                        keyHandler.handleContextMenuEntry(focusId, menuId, action)
+                    }
                 },
                 modifier = modifier,
                 presentation = presentation,

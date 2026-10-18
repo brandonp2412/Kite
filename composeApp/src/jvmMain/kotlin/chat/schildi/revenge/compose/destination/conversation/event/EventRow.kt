@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +35,9 @@ import chat.schildi.revenge.compose.components.LocalTouchTextSelectionEnabled
 import chat.schildi.revenge.compose.components.WithContextMenu
 import chat.schildi.revenge.compose.destination.conversation.event.message.timestampOverlayContent
 import chat.schildi.revenge.compose.destination.conversation.event.reaction.ReactionsRow
+import chat.schildi.revenge.compose.destination.conversation.event.reaction.ReactionPickerDialog
+import chat.schildi.revenge.actions.LocalKeyboardActionHandler
+import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.model.conversation.ConversationPermissions
@@ -94,6 +100,8 @@ fun EventRow(
         }
     ).value
     val focusId = rememberFocusId()
+    var reactionPickerOpen by remember { mutableStateOf(false) }
+    val keyboardHandler = LocalKeyboardActionHandler.current
     val formatInteractionState = messageMetadata?.preFormattedContent?.let {
         rememberMatrixFormatInteractionState(it)
     }
@@ -114,6 +122,7 @@ fun EventRow(
             onToggleSelection = toggleSelection.takeIf { selectable },
         ),
         presentation = ContextMenuPresentation.Message,
+        onComposeReaction = { reactionPickerOpen = true },
         messageTimestamp = if (selectable) remember(event.timestamp, timeFormat) {
             DateTimeFormat.formatFullDateTime(
                 DateTimeFormat.timestampToDateTime(event.timestamp), timeFormat,
@@ -261,6 +270,15 @@ fun EventRow(
                 )
             }
         }
+    }
+    if (reactionPickerOpen) {
+        ReactionPickerDialog(
+            onDismiss = { reactionPickerOpen = false },
+            onSelect = { emoji ->
+                reactionPickerOpen = false
+                keyboardHandler.handleAction(focusId, Action.Event.ToggleReactionKey, listOf(emoji))
+            },
+        )
     }
 }
 
