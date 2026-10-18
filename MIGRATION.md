@@ -1168,3 +1168,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Removed the remaining sent-time text from message bubble status decorations, hidden swipe overlays, system/state event rows, and threaded-reply previews. A message's full sent time remains available only within its long-press actions popup. Sending/error/edited indicators remain on the bubble.
 - Removed timestamp reveal from swipe settings and gesture implementation. Legacy persisted timestamp-swipe settings are safely treated as None; swipe-to-reply remains available. Shrunk the reserved delivery-status width to match icons without text.
 - Glass verification: Android/desktop source compilation, targeted `MessageSwipeActionsTest` and `StableTextMessageLayoutTest`, and `verifyKiteLongPressMenu` all PASS; `git diff --check` PASS. Device UI check pending.
+
+### Release install verification — 2026-10-18
+
+- Built isolated committed source `9d914dec` in existing clean detached worktree `/home/brandon/worktrees/kite-release-625be7bb`; initial build failed due to stale incremental Kotlin lookup storage, retry with `-Pkotlin.incremental=false` succeeded.
+- Arm64 release APK: `app.kite`, `26.10.18.3` (`26101803`), signed with SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; identical to the installed Samsung signing certificate as verified by pulling its previous APK and checking both with `apksigner`.
+- `adb install -r` on Samsung S25 (10.66.66.3:5555) returned Success. `dumpsys package app.kite` confirms `26.10.18.3`, firstInstallTime unchanged (`2026-10-16 18:00:56`). Screen was locked when inspected, so long-press popup visual interaction remains unverified; phone was not unlocked or reset.
