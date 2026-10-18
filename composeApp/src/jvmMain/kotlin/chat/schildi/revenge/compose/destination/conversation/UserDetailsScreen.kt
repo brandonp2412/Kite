@@ -1,6 +1,7 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,10 +28,14 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,15 +48,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.revenge.Destination
+import chat.schildi.revenge.UiState
 import chat.schildi.revenge.actions.FocusRole
 import chat.schildi.revenge.actions.LocalListActionProvider
 import chat.schildi.revenge.actions.LocalUserIdSuggestionsProvider
 import chat.schildi.revenge.actions.actionProvider
+import chat.schildi.revenge.actions.currentActionContext
 import chat.schildi.revenge.actions.plainTextCopyAction
 import chat.schildi.revenge.actions.plainTextCopyActionWithMxcUrl
 import chat.schildi.revenge.actions.plainTextCopyActionWithUserId
 import chat.schildi.revenge.actions.rememberListActions
 import chat.schildi.revenge.compose.components.AvatarImage
+import chat.schildi.revenge.compose.components.LocalAvatarOverrides
 import chat.schildi.revenge.compose.components.EmptyListScreen
 import chat.schildi.revenge.compose.destination.conversation.userlist.ConversationDetailsTopNavigation
 import chat.schildi.revenge.compose.focus.FocusContainer
@@ -65,6 +73,11 @@ import io.element.android.libraries.matrix.api.MutualRoomsPagedInfo
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.room.RoomInfo
+import chat.schildi.revenge.util.filepicker.AttachmentPickerKind
+import chat.schildi.revenge.util.filepicker.FilePicker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.collections.immutable.ImmutableList
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -95,6 +108,10 @@ fun UserDetailsScreen(
 
     val listState = rememberLazyListState()
     val listAction = rememberListActions(listState)
+    val scope = rememberCoroutineScope()
+    val actionContext = currentActionContext()
+    var photoError by remember { mutableStateOf<String?>(null) }
+    var photoNote by remember { mutableStateOf<String?>(null) }
     FocusContainer(
         LocalUserIdSuggestionsProvider provides viewModel,
         LocalListActionProvider provides listAction,
@@ -154,17 +171,69 @@ fun UserDetailsScreen(
                                 ) {
                                     AvatarImage(
                                         source = primaryAvatar?.let { MediaSource(it) },
+                                        userId = viewModel.userId,
+                                        sessionId = viewModel.sessionId,
                                         size = 96.dp,
                                         displayName = displayName ?: viewModel.userId.value,
                                         shape = CircleShape,
-                                        modifier = Modifier.keyFocusable(
-                                            role = FocusRole.NESTED_AUX_ITEM,
-                                            actionProvider = actionProvider(
-                                                copyActions = plainTextCopyActionWithMxcUrl(primaryAvatar),
-                                            ),
-                                        ),
+                                        modifier = Modifier.clickable {
+                                            scope.launch {
+                                                photoError = null
+                                                photoNote = null
+                                                val result = FilePicker.requestFilePicker(
+                                                    "Choose profile image",
+                                                    actionContext.windowId,
+                                                    AttachmentPickerKind.GALLERY,
+                                                )
+                                                val selected = result.getOrNull()
+                                                if (result.isFailure) {
+                                                    photoError = result.exceptionOrNull()?.message ?: "Couldn't open image picker"
+                                                } else if (selected != null) {
+                                                    try {
+                                                        require(selected.mimeType?.startsWith("image/") == true) {
+                                                            "Select an image file"
+                                                        }
+                                                        require(selected.file.length() in 1..20_000_000) {
+                                                            "Image must be smaller than 20 MB"
+                                                        }
+                                                        val own = viewModel.userId.value == viewModel.sessionId.value
+                                                        val uploaded = if (own) {
+                                                            val client = UiState.currentClientFor(viewModel.sessionId)
+                                                            client?.uploadAvatar(
+                                                                selected.mimeType,
+                                                                withContext(Dispatchers.IO) { selected.file.readBytes() },
+                                                            )?.isSuccess == true
+                                                        } else false
+                                                        LocalAvatarOverrides.set(
+                                                            viewModel.sessionId, viewModel.userId, selected.file,
+                                                        )
+                                                        photoNote = if (uploaded) "Profile image updated" else "Image saved on this device"
+                                                    } catch (error: Exception) {
+                                                        photoError = error.message ?: "Couldn't save image"
+                                                    } finally {
+                                                        if (selected.isAppOwned) {
+                                                            withContext(Dispatchers.IO) {
+                                                                selected.file.parentFile?.deleteRecursively()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        contentDescription = "Change profile image",
                                         allowAnimated = true,
                                     )
+                                    if (LocalAvatarOverrides.photo(viewModel.sessionId, viewModel.userId) != null) {
+                                        TextButton(onClick = {
+                                            scope.launch {
+                                                LocalAvatarOverrides.clear(viewModel.sessionId, viewModel.userId)
+                                                photoNote = "Local image removed"
+                                                photoError = null
+                                            }
+                                        }) { Text("Remove local image") }
+                                    }
+                                    photoError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                    photoNote?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                                     if (displayName != null) {
                                         SelectionContainer {
                                             Text(

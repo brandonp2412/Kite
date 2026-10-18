@@ -256,6 +256,7 @@ private fun SessionSelectorRow(
                 source = account.user.avatarUrl?.let { MediaSource(it) },
                 size = 48.dp,
                 sessionId = account.sessionId,
+                userId = account.user.userId,
                 displayName = displayName,
                 contentDescription = account.sessionId.value,
             )

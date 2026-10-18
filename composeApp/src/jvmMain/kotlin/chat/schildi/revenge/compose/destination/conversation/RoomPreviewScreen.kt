@@ -312,6 +312,7 @@ fun BoxWithConstraintsScope.RoomPreviewScreen(
                                     ) {
                                         AvatarImage(
                                             source = roomInviter.avatarUrl?.let { MediaSource(it) },
+                                            userId = roomInviter.userId,
                                             size = 48.dp,
                                             displayName = roomInviter.disambiguatedDisplayName,
                                             shape = CircleShape,

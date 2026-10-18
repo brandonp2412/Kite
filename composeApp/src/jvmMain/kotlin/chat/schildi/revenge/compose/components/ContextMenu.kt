@@ -270,6 +270,7 @@ fun WithContextMenu(
     menuId: Uuid = focusId,
     parentMenuId: Uuid? = null,
     presentation: ContextMenuPresentation = ContextMenuPresentation.Default,
+    messageTimestamp: String? = null,
     content: @Composable (InteractionAction.ContextMenu?) -> Unit,
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
@@ -304,6 +305,14 @@ fun WithContextMenu(
                 }
                 if (actionRows.isNotEmpty() && menuEntries.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
+                }
+                if (messageTimestamp != null) {
+                    Text(
+                        text = messageTimestamp,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
                 }
                 if (menuEntries.isNotEmpty()) {
                     menuEntries.forEach { entry ->

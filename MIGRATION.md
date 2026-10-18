@@ -1156,3 +1156,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Selected (self-reacted) reaction chips now use an opaque Material 3 `primaryContainer` fill, `primary` outline and `onPrimaryContainer` count text instead of a translucent accent overlay. Unselected chips remain unchanged.
 - Verified `:composeApp:compileAndroidMain --offline` PASS and `git diff --check` PASS on Glass. Visual inspection of the updated APK on Samsung remains pending.
+
+## 2026-10-18 — Sent time in long-press menu and local profile photos
+
+- Moved full sent date/time from single-tap inline expansion to a compact, non-action label in the existing message long-press menu. Swipe-to-reveal time and configured time formats remain intact.
+- Tapping the avatar on User Details opens the existing photo picker. Own-account photos attempt a Matrix avatar upload; other users, or failed own uploads, receive persistent per-session/per-user local overrides. Updated photo rendering across chat, DM headers/inbox, member lists, receipts, polls and account avatars, with local removal from User Details.
+- Glass proof: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu --offline --no-daemon` PASS with JDK 25 and Android SDK; `git diff --check` PASS. Not yet installed on Samsung or visually validated with a logged-in account; no real Matrix upload or picker interaction tested.

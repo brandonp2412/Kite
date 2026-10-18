@@ -129,6 +129,7 @@ fun KiteInboxSearchBar(
                                 source = account.avatarUrl?.let(::MediaSource),
                                 size = 36.dp,
                                 sessionId = account.sessionId,
+                                userId = io.element.android.libraries.matrix.api.core.UserId(account.sessionId.value),
                                 shape = CircleShape,
                                 displayName = account.displayName ?: account.sessionId.value,
                                 contentDescription = stringResource(Res.string.hint_settings),

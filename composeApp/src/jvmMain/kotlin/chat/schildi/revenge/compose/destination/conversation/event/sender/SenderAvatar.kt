@@ -14,6 +14,7 @@ import chat.schildi.revenge.actions.LocalRoomContextSuggestionsProvider
 import chat.schildi.revenge.actions.actionProvider
 import chat.schildi.revenge.compose.components.AvatarImage
 import chat.schildi.revenge.compose.components.LocalSessionId
+import chat.schildi.revenge.compose.components.LocalAvatarOverrides
 import chat.schildi.revenge.compose.focus.keyFocusable
 import chat.schildi.resources.HardcodedStringHolder
 import io.element.android.libraries.matrix.api.core.UserId
@@ -64,11 +65,13 @@ fun SenderAvatar(
     ) {
         AvatarImage(
             source = avatarSource,
+            userId = senderId,
             size = size,
             shape = shape,
             displayName = perMessageProfile?.displayName ?: senderProfile.getDisplayName() ?: senderId.value,
         )
-        if (avatarUrl != null && (perMessageProfile?.avatarFile != null ||
+        if (LocalAvatarOverrides.photo(sessionId, senderId) == null &&
+            avatarUrl != null && (perMessageProfile?.avatarFile != null ||
             perMessageProfile?.avatarUrl != null && perMessageProfile.avatarUrl != avatarUrl)) {
             AvatarImage(
                 source = MediaSource(avatarUrl),

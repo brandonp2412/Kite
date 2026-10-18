@@ -70,6 +70,8 @@ fun <T : UserListItem>UserListRow(
             leadingContent()
             AvatarImage(
                 source = item.avatarUrl?.let { MediaSource(it) },
+                userId = item.userId,
+                sessionId = viewModel.sessionId,
                 size = 48.dp,
                 shape = Dimens.avatarShape,
                 displayName = item.displayName ?: item.userId.value,

@@ -36,6 +36,7 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import coil3.request.ImageRequest
 import io.element.android.libraries.matrix.api.core.SessionId
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
 import io.element.android.libraries.matrix.ui.media.animated.allowAnimatedImageDecoding
@@ -50,20 +51,22 @@ fun AvatarImage(
     modifier: Modifier = Modifier,
     fallbackColorSource: MediaSource? = null,
     sessionId: SessionId? = LocalSessionId.current,
+    userId: UserId? = null,
     shape: Shape = Dimens.avatarShape,
     contentDescription: String? = null,
     allowAnimated: Boolean = ScPrefs.ANIMATE_AVATARS.value(),
 ) {
-    if (source == null || source.safeUrl.isEmpty()) {
-        AvatarFallback(displayName, shape, size, fallbackColorSource = fallbackColorSource, sessionId = sessionId)
+    val localPhoto = LocalAvatarOverrides.photo(sessionId, userId)
+    if (localPhoto == null && (source == null || source.safeUrl.isEmpty())) {
+        AvatarFallback(displayName, shape, size, modifier = modifier, fallbackColorSource = fallbackColorSource, sessionId = sessionId)
         return
     }
     // Model doesn't appear different enough from adding the option to invalidate on setting toggle, so key it
     key(allowAnimated) {
         val context = LocalPlatformContext.current
-        val model = remember(source, allowAnimated, context) {
+        val model = remember(source, localPhoto, allowAnimated, context) {
             ImageRequest.Builder(context)
-                .data(MediaRequestData(source, MediaRequestData.Kind.Content))
+                .data(localPhoto ?: MediaRequestData(requireNotNull(source), MediaRequestData.Kind.Content))
                 .allowAnimatedImageDecoding(allowAnimated)
                 .build()
         }

@@ -220,6 +220,7 @@ private fun PollAnswerOption(
                                 val senderName = member?.displayName ?: userId.value
                                 AvatarImage(
                                     source = member?.avatarUrl?.let { MediaSource(it) },
+                                    userId = userId,
                                     size = Dimens.Conversation.receiptSize,
                                     contentDescription = senderName,
                                     displayName = senderName,

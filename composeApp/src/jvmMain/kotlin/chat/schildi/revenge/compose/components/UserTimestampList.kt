@@ -133,6 +133,7 @@ private fun <T> UserTimestampListItem(
         }
         AvatarImage(
             source = user.avatarUrl?.let { MediaSource(it) },
+            userId = user.userId,
             size = 36.dp,
             displayName = user.displayName ?: user.userId.value,
         )

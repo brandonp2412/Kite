@@ -381,6 +381,7 @@ private fun StartChatUserRow(
         ) {
             AvatarImage(
                 source = user.avatarUrl?.let(::MediaSource),
+                userId = user.userId,
                 size = 44.dp,
                 sessionId = sessionId,
                 shape = CircleShape,

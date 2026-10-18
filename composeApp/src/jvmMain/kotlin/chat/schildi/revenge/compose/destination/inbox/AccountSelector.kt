@@ -214,6 +214,7 @@ fun AccountButton(
                         source = account.avatarUrl?.let { MediaSource(it) },
                         size = 24.dp,
                         sessionId = account.sessionId,
+                        userId = io.element.android.libraries.matrix.api.core.UserId(account.sessionId.value),
                         shape = Dimens.ownAccountAvatarShape,
                         displayName = account.displayName ?: account.sessionId.value,
                         contentDescription = account.sessionId.value,

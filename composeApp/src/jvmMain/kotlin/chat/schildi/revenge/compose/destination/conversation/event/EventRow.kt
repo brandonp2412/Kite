@@ -15,8 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -111,7 +109,6 @@ fun EventRow(
     val selectable = event.isKiteSelectableMessage()
     val timeFormat = LocalTimeDisplayFormat.current
     val timestamp = remember(event, timeFormat) { event.timestampOverlayContent(timeFormat) }
-    var showSentDateTime by remember(event.eventId, event.transactionId) { mutableStateOf(false) }
     val timestampRevealDistancePx = LocalDensity.current.run {
         Dimens.Conversation.MessageSwipe.maxOffset.toPx()
     }
@@ -129,6 +126,11 @@ fun EventRow(
             onToggleSelection = toggleSelection.takeIf { selectable },
         ),
         presentation = ContextMenuPresentation.Message,
+        messageTimestamp = if (selectable) remember(event.timestamp, timeFormat) {
+            DateTimeFormat.formatFullDateTime(
+                DateTimeFormat.timestampToDateTime(event.timestamp), timeFormat,
+            )
+        } else null,
     ) { openContextMenu ->
         val messageActionMenuOpen = LocalTouchTextSelectionEnabled.current
         // Child content (links, media, polls and reaction chips) has its own click
@@ -240,34 +242,15 @@ fun EventRow(
                                 messageContentModifier = Modifier.passiveDoubleTapReaction(
                                     focusId = focusId,
                                     enabled = canDoubleTapReact && !messageActionMenuOpen,
-                                    singleTapEnabled = !selectionActive && !messageActionMenuOpen && selectable,
+                                    singleTapEnabled = false,
                                     reaction = doubleTapReaction,
                                     reactionActive = event.reactions.any { reaction ->
                                         reaction.key == doubleTapReaction && reaction.senders.any { sender ->
                                             sender.senderId.value == viewModel.sessionId.value
                                         }
                                     },
-                                    onSingleTap = {
-                                        if (!selectionActive && !messageActionMenuOpen && selectable) {
-                                            showSentDateTime = !showSentDateTime
-                                        }
-                                    },
+                                    onSingleTap = {},
                                 ),
-                            )
-                        }
-                        if (selectable && showSentDateTime) {
-                            val sentDateTime = remember(event.timestamp, timeFormat) {
-                                DateTimeFormat.formatFullDateTime(
-                                    DateTimeFormat.timestampToDateTime(event.timestamp), timeFormat,
-                                )
-                            }
-                            Text(
-                                text = sentDateTime,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = Dimens.Conversation.messageTimestampStyle,
-                                modifier = Modifier
-                                    .align(if (event.isOwn) Alignment.End else Alignment.Start)
-                                    .padding(horizontal = 12.dp, vertical = 2.dp),
                             )
                         }
                         ReactionsRow(

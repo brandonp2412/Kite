@@ -201,6 +201,8 @@ fun InboxRow(
                     AvatarImage(
                         source = room.summary.info.avatarUrl?.let(::MediaSource)
                             ?: room.summary.info.heroes.singleOrNull()?.avatarUrl?.let(::MediaSource),
+                        userId = room.summary.info.heroes.singleOrNull()?.userId
+                            ?.takeIf { room.summary.info.avatarUrl == null },
                         size = Dimens.Inbox.avatar,
                         shape = CircleShape,
                         displayName = room.summary.info.name ?: "",
@@ -208,6 +210,7 @@ fun InboxRow(
                     user?.avatarUrl?.takeIf { needsAccountDisambiguation }?.let { userAvatar ->
                         AvatarImage(
                             source = MediaSource(userAvatar),
+                            userId = user.userId,
                             size = Dimens.Inbox.accountAvatar,
                             shape = Dimens.ownAccountAvatarShape,
                             displayName = user.displayName ?: user.userId.value,

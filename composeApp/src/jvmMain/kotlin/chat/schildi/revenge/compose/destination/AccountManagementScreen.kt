@@ -241,6 +241,7 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
                     size = 52.dp,
                     displayName = displayName,
                     sessionId = account.sessionId,
+                    userId = io.element.android.libraries.matrix.api.core.UserId(account.sessionId.value),
                     contentDescription = displayName,
                 )
                 Column(

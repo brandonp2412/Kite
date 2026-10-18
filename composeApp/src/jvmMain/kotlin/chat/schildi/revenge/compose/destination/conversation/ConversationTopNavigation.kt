@@ -56,6 +56,7 @@ import chat.schildi.revenge.model.conversation.RoomPreviewViewModel
 import chat.schildi.revenge.preferences.isEnabled
 import chat.schildi.revenge.preferences.value
 import io.element.android.libraries.matrix.api.media.MediaSource
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.painterResource
@@ -83,6 +84,7 @@ import shire.res.generated.resources.thread_in
 private fun RowScope.ConversationParticipantHeader(
     title: String,
     avatar: MediaSource?,
+    userId: UserId?,
     onClick: () -> Unit,
 ) {
     Row(
@@ -95,6 +97,7 @@ private fun RowScope.ConversationParticipantHeader(
     ) {
         AvatarImage(
             source = avatar,
+            userId = userId,
             size = 36.dp,
             displayName = title,
             shape = CircleShape,
@@ -186,6 +189,7 @@ fun ConversationTopNavigation(
                 ConversationParticipantHeader(
                     title = title,
                     avatar = avatar,
+                    userId = directHero?.userId?.takeIf { roomInfo.avatarUrl == null },
                     onClick = { destinationState?.navigate(detailsDestination) },
                 )
                 if (focusParent != null) {

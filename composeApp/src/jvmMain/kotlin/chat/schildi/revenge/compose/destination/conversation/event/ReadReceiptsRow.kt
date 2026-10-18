@@ -118,6 +118,7 @@ fun ReadReceiptItem(
     val senderName = member?.displayName ?: receipt.userId.value
     AvatarImage(
         source = member?.avatarUrl?.let { MediaSource(it) },
+        userId = receipt.userId,
         size = Dimens.Conversation.receiptSize,
         contentDescription = senderName,
         displayName = senderName,

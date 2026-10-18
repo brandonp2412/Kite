@@ -89,6 +89,7 @@ fun ColumnScope.ThreadRootInfoRow(
             latestEvent.senderProfile.getAvatarUrl()?.let { latestSenderAvatar ->
                 AvatarImage(
                     source = MediaSource(latestSenderAvatar),
+                    userId = latestEvent.senderId,
                     size = Dimens.Conversation.receiptSize,
                     contentDescription = latestEvent.senderProfile.getDisambiguatedDisplayName(latestEvent.senderId),
                     displayName = latestEvent.senderProfile.getDisplayName() ?: "",
