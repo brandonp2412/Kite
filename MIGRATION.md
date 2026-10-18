@@ -1197,3 +1197,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Removed the message long-press Delete entry's critical/red styling; text and icon now use the same default colour as Copy/Select. Deletion permissions and behaviour are unchanged.
 - Isolated release build at `fd1cf786`: `:androidApp:assembleRelease :androidApp:verifyKiteLongPressMenu` PASS. APK SHA-256 `48a8c2c6b968d70c8f2d459ef6cc18a03cae6c1811fa65a6a6b9b7a7ead18139`. Verified package `app.kite`, unchanged versionCode `26101803`, existing signing certificate. Installed on Samsung S25 with `adb install -r` (Success); original firstInstallTime preserved. Interactive visual check not performed.
+
+## 2026-10-18 — Borderless, stable-size image messages
+
+- Image-only messages and stickers no longer paint an outgoing/incoming bubble behind the picture. The image's aspect-ratio-constrained outer component owns the message bounds, so portrait screenshots do not sit centered in wide coloured bubbles.
+- Reserve the same width/height from Matrix metadata for blurhash/loading/error and decoded media; content fills those bounds without changing the measured row size on decode. Captions and replies retain their normal bubble background.
+- Glass verification: `:composeApp:compileAndroidMain --no-daemon --console=plain` PASS (28s), `git diff --check` PASS. Android visual/layout-jank testing on Samsung not performed; missing Matrix image dimensions still use a stable square fallback.

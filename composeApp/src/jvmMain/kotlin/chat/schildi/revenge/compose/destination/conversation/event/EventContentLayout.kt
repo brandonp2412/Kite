@@ -219,7 +219,6 @@ fun EventContentLayout(
                 timestamp = timestamp,
                 inReplyTo = inReplyTo,
                 threadInfo = threadInfo,
-                isSticker = true,
             )
         }
 

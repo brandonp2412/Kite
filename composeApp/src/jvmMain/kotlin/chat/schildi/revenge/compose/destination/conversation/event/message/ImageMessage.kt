@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,7 +38,6 @@ import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageLikeMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.InReplyTo
-import io.element.android.libraries.matrix.api.timeline.item.event.StickerMessageType
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
 
 @Composable
@@ -60,7 +60,6 @@ fun ImageMessage(
         timestamp = timestamp,
         inReplyTo = inReplyTo,
         threadInfo = threadInfo,
-        isSticker = image is StickerMessageType,
         modifier = modifier,
     )
 }
@@ -76,11 +75,10 @@ fun ImageMessage(
     timestamp: TimestampOverlayContent?,
     inReplyTo: InReplyTo?,
     threadInfo: EventThreadInfo?,
-    isSticker: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val captionLayoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
-    val isTransparent = isSticker && messageMetadata?.preFormattedContent == null && inReplyTo == null
+    val isTransparent = messageMetadata?.preFormattedContent == null && inReplyTo == null
     MessageBubble(
         isOwn = isOwn,
         timestamp = timestamp,
@@ -164,32 +162,22 @@ fun ColumnScope.ImageMessageContent(
             transform = rememberAnimatedImageTransform(),
             filterQuality = FilterQuality.High,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.clip(shape),
+            modifier = Modifier
+                .boundedMediaSize(minWidth, minHeight, maxWidth, maxHeight, reservedAspectRatio)
+                .clip(shape),
         ) {
             if (blurhash != null && ScPrefs.FORCE_RENDER_BLURHASH.value()) {
                 BlurHashPlaceholder(
                     blurHash = blurhash,
                     width = width,
                     height = height,
-                    modifier = Modifier.boundedMediaSize(
-                        minWidth,
-                        minHeight,
-                        maxWidth,
-                        maxHeight,
-                        reservedAspectRatio,
-                    ),
+                    modifier = Modifier.fillMaxSize(),
                 )
                 return@SubcomposeAsyncImage
             }
             when (painter.state.collectAsState().value) {
                 is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent(
-                    modifier = Modifier.boundedMediaSize(
-                        minWidth,
-                        minHeight,
-                        maxWidth,
-                        maxHeight,
-                        reservedAspectRatio,
-                    ),
+                    modifier = Modifier.fillMaxSize(),
                 )
                 AsyncImagePainter.State.Empty,
                 is AsyncImagePainter.State.Loading,
@@ -198,13 +186,7 @@ fun ColumnScope.ImageMessageContent(
                         blurHash = blurhash,
                         width = width,
                         height = height,
-                        modifier = Modifier.boundedMediaSize(
-                            minWidth,
-                            minHeight,
-                            maxWidth,
-                            maxHeight,
-                            reservedAspectRatio,
-                        ),
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
