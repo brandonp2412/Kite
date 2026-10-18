@@ -227,7 +227,7 @@ fun WithContextMenu(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { keyHandler.dismissContextMenu(menuId) },
-                containerColor = containerColor,
+                containerColor = if (presentation == ContextMenuPresentation.Message) Color.Transparent else containerColor,
                 tonalElevation = 0.dp,
                 shadowElevation = if (presentation == ContextMenuPresentation.Message) 0.dp else 8.dp,
                 offset = offset,
@@ -293,37 +293,48 @@ fun WithContextMenu(
                 val menuEntries = entries.filterNot { it is ContextMenuActionRowEntry }
 
                 if (messageTimestamp != null) {
-                    Text(
-                        text = messageTimestamp,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                actionRows.forEach { entry ->
-                    ContextMenuDropdownMenuItem(
-                        entry = entry,
-                        focusId = focusId,
-                        menuId = menuId,
-                        presentation = presentation,
-                        onClick = {
-                            keyHandler.handleContextMenuEntry(focusId, menuId, entry)
-                        },
-                    )
-                }
-                if (actionRows.isNotEmpty() && menuEntries.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                }
-                if (menuEntries.isNotEmpty()) {
-                    menuEntries.forEach { entry ->
-                        ContextMenuDropdownMenuItem(
-                            entry = entry,
-                            focusId = focusId,
-                            menuId = menuId,
-                            presentation = presentation,
-                            modifier = Modifier.height(40.dp),
-                            onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+                    ) {
+                        Text(
+                            text = messageTimestamp,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         )
+                    }
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.extraLarge,
+                ) {
+                    Column {
+                        actionRows.forEach { entry ->
+                            ContextMenuDropdownMenuItem(
+                                entry = entry,
+                                focusId = focusId,
+                                menuId = menuId,
+                                presentation = presentation,
+                                onClick = {
+                                    keyHandler.handleContextMenuEntry(focusId, menuId, entry)
+                                },
+                            )
+                        }
+                        if (actionRows.isNotEmpty() && menuEntries.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                        }
+                        menuEntries.forEach { entry ->
+                            ContextMenuDropdownMenuItem(
+                                entry = entry,
+                                focusId = focusId,
+                                menuId = menuId,
+                                presentation = presentation,
+                                modifier = Modifier.height(40.dp),
+                                onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
+                            )
+                        }
                     }
                 }
             } else {

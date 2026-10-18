@@ -325,7 +325,8 @@ fun ComposerRow(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 56.dp)
+                        .padding(vertical = 12.dp)
+                        .heightIn(min = 32.dp)
                         .keyFocusable(role = FocusRole.MESSAGE_COMPOSER)
                         .onFocusChanged {
                             isFocused = it.isFocused

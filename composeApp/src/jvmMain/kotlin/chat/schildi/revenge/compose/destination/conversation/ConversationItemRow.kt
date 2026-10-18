@@ -181,7 +181,7 @@ fun ConversationItemRow(
             if (showForwardPagingIndicator) {
                 PagingIndicator()
             }
-            Spacer(Modifier.height(Dimens.windowPadding))
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
