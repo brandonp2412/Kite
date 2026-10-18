@@ -292,6 +292,14 @@ fun WithContextMenu(
                 val actionRows = entries.filterIsInstance<ContextMenuActionRowEntry>()
                 val menuEntries = entries.filterNot { it is ContextMenuActionRowEntry }
 
+                if (messageTimestamp != null) {
+                    Text(
+                        text = messageTimestamp,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
                 actionRows.forEach { entry ->
                     ContextMenuDropdownMenuItem(
                         entry = entry,
@@ -317,14 +325,6 @@ fun WithContextMenu(
                             onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
                         )
                     }
-                }
-                if (messageTimestamp != null) {
-                    Text(
-                        text = messageTimestamp,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
                 }
             } else {
                 entries.forEach { entry ->

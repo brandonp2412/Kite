@@ -1180,3 +1180,7 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Move full sent date/time below every context-menu action in the message popup, with 8dp vertical padding. No timestamp is rendered inline in the conversation.
 - Verify release source and packaging in isolated clean worktree, then install `app.kite` on Samsung via `adb install -r` while retaining its existing version code and Matrix app data.
 - Verified on Glass from clean detached worktree at `254142d5`: `:androidApp:assembleRelease :androidApp:verifyKiteLongPressMenu -PandroidAbi=arm64-v8a -Pkotlin.incremental=false` PASS (1m24s); APK `app.kite`, signed with existing certificate, versionCode `26101803` unchanged. New release APK SHA-256 `123de838b00bab484a560a0534d89586fee7d30f012d8e39ba59ba74c4989ff6`. `adb install -r` on Samsung S25 returned Success and original firstInstallTime retained. Device popup interaction not exercised.
+
+## 2026-10-18 — Timestamp at top of message popup
+
+- Moved the full sent date/time to the **first row** of the long-press message popup, above the reaction shortcut row and message action entries. Kept timestamps entirely off chat rows and retained existing timestamp text and versionCode.
