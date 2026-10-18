@@ -1174,3 +1174,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Built isolated committed source `9d914dec` in existing clean detached worktree `/home/brandon/worktrees/kite-release-625be7bb`; initial build failed due to stale incremental Kotlin lookup storage, retry with `-Pkotlin.incremental=false` succeeded.
 - Arm64 release APK: `app.kite`, `26.10.18.3` (`26101803`), signed with SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; identical to the installed Samsung signing certificate as verified by pulling its previous APK and checking both with `apksigner`.
 - `adb install -r` on Samsung S25 (10.66.66.3:5555) returned Success. `dumpsys package app.kite` confirms `26.10.18.3`, firstInstallTime unchanged (`2026-10-16 18:00:56`). Screen was locked when inspected, so long-press popup visual interaction remains unverified; phone was not unlocked or reset.
+
+## 2026-10-18 — Sent timestamp footer in long-press menu
+
+- Move full sent date/time below every context-menu action in the message popup, with 8dp vertical padding. No timestamp is rendered inline in the conversation.
+- Verify release source and packaging in isolated clean worktree, then install `app.kite` on Samsung via `adb install -r` while retaining its existing version code and Matrix app data.

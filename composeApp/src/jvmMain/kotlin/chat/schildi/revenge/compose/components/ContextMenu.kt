@@ -306,14 +306,6 @@ fun WithContextMenu(
                 if (actionRows.isNotEmpty() && menuEntries.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
                 }
-                if (messageTimestamp != null) {
-                    Text(
-                        text = messageTimestamp,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
                 if (menuEntries.isNotEmpty()) {
                     menuEntries.forEach { entry ->
                         ContextMenuDropdownMenuItem(
@@ -325,6 +317,14 @@ fun WithContextMenu(
                             onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
                         )
                     }
+                }
+                if (messageTimestamp != null) {
+                    Text(
+                        text = messageTimestamp,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
                 }
             } else {
                 entries.forEach { entry ->
