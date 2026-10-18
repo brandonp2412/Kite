@@ -85,7 +85,7 @@ fun ImageMessage(
         modifier = modifier,
         padding = PaddingValues(Dimens.Conversation.imageBubbleInnerPadding),
         contentTextLayoutResult = captionLayoutResult.value,
-        isMediaOverlay = true,
+        isMediaOverlay = !isTransparent,
         transparent = isTransparent,
         allowTimestampOverlay = messageMetadata?.preFormattedContent?.allowTimestampOverlay() != false,
     ) {
@@ -120,7 +120,7 @@ fun ImageMessage(
             minHeight = Dimens.Conversation.imageMinHeight,
             maxWidth = Dimens.Conversation.imageMaxWidth,
             maxHeight = when (LocalMessageRenderContext.current) {
-                MessageRenderContext.NORMAL -> Dimens.Conversation.imageMaxHeight
+                MessageRenderContext.NORMAL -> Dp.Infinity
                 MessageRenderContext.IN_REPLY_TO -> Dimens.Conversation.imageRepliedToMaxHeight
             },
             caption = messageMetadata?.preFormattedContent,
