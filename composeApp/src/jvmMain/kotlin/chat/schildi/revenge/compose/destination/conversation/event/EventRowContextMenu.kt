@@ -108,7 +108,6 @@ fun EventTimelineItem.contextMenu(
             Res.string.action_redact.toStringHolder(),
             rememberVectorPainter(Icons.Default.Delete),
             Action.Event.Redact,
-            critical = true,
             keyboardShortcut = Key.D,
             enabled = canRedact,
         ),
