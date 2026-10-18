@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.compose.components.WithTooltip
 import chat.schildi.revenge.compose.components.thenIf
@@ -60,14 +59,12 @@ internal val LocalStableTextLayoutObserver = staticCompositionLocalOf<((TextLayo
 private class StableTextLayoutHolder(var result: TextLayoutResult? = null)
 
 data class TimestampOverlayContent(
-    val timestamp: String,
     val isEdited: Boolean,
     val isSending: Boolean,
     val sendError: LocalEventSendState.Failed?,
 )
 
-fun EventTimelineItem.timestampOverlayContent(format: String) = TimestampOverlayContent(
-    timestamp = DateTimeFormat.formatTime(DateTimeFormat.timestampToDateTime(timestamp), format),
+fun EventTimelineItem.timestampOverlayContent() = TimestampOverlayContent(
     isEdited = (content as? EventCanBeEdited)?.isEdited == true,
     isSending = localSendState is LocalEventSendState.Sending,
     sendError = localSendState as? LocalEventSendState.Failed,
@@ -224,8 +221,8 @@ internal fun reservedTextTimestampInset(
     timestamp: TimestampOverlayContent?,
 ): Dp = when {
     timestamp == null -> 0.dp
-    timestamp.isEdited -> 116.dp
-    isOwn || timestamp.isSending || timestamp.sendError != null -> 76.dp
+    timestamp.isEdited -> 56.dp
+    isOwn || timestamp.isSending || timestamp.sendError != null -> 24.dp
     else -> 0.dp
 }
 
@@ -238,9 +235,7 @@ private fun TimestampContent(
 ) {
     if (content == null) return
 
-    // Google Messages keeps successful message bubbles free of an always-visible time stamp.
-    // Preserve only message state that actually needs attention (edited/sending/failed)
-    // and include the time alongside that state.
+    // Sent time is only available in the long-press menu; show status decorations only.
     val hasStatusDecoration = content.isEdited ||
             content.isSending ||
             content.sendError != null
@@ -301,11 +296,5 @@ private fun TimestampContent(
                 }
             }
         }
-        Text(
-            content.timestamp,
-            color = textColor,
-            style = Dimens.Conversation.messageTimestampStyle,
-            modifier = Modifier.alignByBaseline(),
-        )
     }
 }

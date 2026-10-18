@@ -447,7 +447,6 @@ object ScPrefs {
     }
     private val messageSwipeActionEntries = persistentListOf(
         ScListPrefEntry(MessageSwipeAction.NONE.name, Res.string.action_none.toStringHolder()),
-        ScListPrefEntry(MessageSwipeAction.TIMESTAMPS.name, Res.string.message_info_time.toStringHolder()),
         ScListPrefEntry(MessageSwipeAction.REPLY.name, Res.string.action_reply.toStringHolder()),
         ScListPrefEntry(MessageSwipeAction.REACT.name, Res.string.action_react.toStringHolder()),
         ScListPrefEntry(MessageSwipeAction.MARK_READ.name, Res.string.action_mark_as_read.toStringHolder()),
@@ -456,7 +455,7 @@ object ScPrefs {
     )
     val MESSAGE_SWIPE_ACTION_LEFT = ScStringListPref(
         "MESSAGE_SWIPE_ACTION_LEFT",
-        if (scPrefPlatformSupport.preferTouch) MessageSwipeAction.TIMESTAMPS.name else MessageSwipeAction.NONE.name,
+        MessageSwipeAction.NONE.name,
         messageSwipeActionEntries,
         Res.string.pref_message_swipe_action_left_title,
     )

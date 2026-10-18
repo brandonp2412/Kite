@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import chat.schildi.revenge.plaintext.EventTextFormat
-import chat.schildi.revenge.compose.destination.conversation.event.message.TimestampOverlayContent
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.timeline.item.event.ProfileDetails
 import io.element.android.libraries.matrix.api.timeline.item.event.StateContent
@@ -18,7 +17,6 @@ fun StateEventRow(
     content: StateContent,
     senderId: UserId,
     senderProfile: ProfileDetails,
-    timestamp: TimestampOverlayContent?,
     modifier: Modifier = Modifier,
 ) {
     val text = EventTextFormat.stateEventToText(content, senderProfile, senderId)
@@ -26,7 +24,6 @@ fun StateEventRow(
         text = AnnotatedString(text),
         senderProfile = senderProfile,
         senderId = senderId,
-        timestamp = timestamp,
         modifier = modifier,
     )
 }
@@ -36,7 +33,6 @@ fun StateEventFallbackRow(
     eventType: String,
     senderId: UserId,
     senderProfile: ProfileDetails,
-    timestamp: TimestampOverlayContent?,
     modifier: Modifier = Modifier,
 ) {
     val senderName = senderProfile.getDisambiguatedDisplayName(senderId)
@@ -44,7 +40,6 @@ fun StateEventFallbackRow(
         text = AnnotatedString(stringResource(Res.string.message_placeholder_state_event, senderName, eventType)),
         senderProfile = senderProfile,
         senderId = senderId,
-        timestamp = timestamp,
         modifier = modifier,
     )
 }

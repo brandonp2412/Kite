@@ -9,7 +9,7 @@ class MessageSwipeActionsTest {
     fun legacyTouchDefaultsFollowCurrentMessagesGestures() {
         assertEquals(
             MessageSwipeConfig(
-                left = ScPrefs.MessageSwipeAction.TIMESTAMPS,
+                left = ScPrefs.MessageSwipeAction.NONE,
                 right = ScPrefs.MessageSwipeAction.REPLY,
             ),
             resolveMessageSwipeConfig(
@@ -34,15 +34,22 @@ class MessageSwipeActionsTest {
     }
 
     @Test
-    fun currentMessagesDefaultsAreStable() {
+    fun timestampSwipeOnEitherSideIsDisabled() {
         assertEquals(
             MessageSwipeConfig(
-                left = ScPrefs.MessageSwipeAction.TIMESTAMPS,
+                left = ScPrefs.MessageSwipeAction.NONE,
                 right = ScPrefs.MessageSwipeAction.REPLY,
             ),
             resolveMessageSwipeConfig(
                 ScPrefs.MessageSwipeAction.TIMESTAMPS.name,
                 ScPrefs.MessageSwipeAction.REPLY.name,
+            ),
+        )
+        assertEquals(
+            MessageSwipeConfig(ScPrefs.MessageSwipeAction.REACT, ScPrefs.MessageSwipeAction.NONE),
+            resolveMessageSwipeConfig(
+                ScPrefs.MessageSwipeAction.REACT.name,
+                ScPrefs.MessageSwipeAction.TIMESTAMPS.name,
             ),
         )
     }

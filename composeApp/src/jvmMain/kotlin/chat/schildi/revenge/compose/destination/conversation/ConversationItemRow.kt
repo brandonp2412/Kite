@@ -16,7 +16,6 @@ import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
 import chat.schildi.revenge.compose.destination.conversation.event.EventRow
 import chat.schildi.revenge.compose.destination.conversation.event.MessageSwipeConfig
-import chat.schildi.revenge.compose.destination.conversation.event.MessageTimestampRevealState
 import chat.schildi.revenge.compose.destination.conversation.virtual.DayHeaderRow
 import chat.schildi.revenge.compose.destination.conversation.virtual.DebugLinePosition
 import chat.schildi.revenge.compose.destination.conversation.virtual.TimelineItemDebugLine
@@ -65,7 +64,6 @@ fun ConversationItemRow(
     doubleTapToReact: Boolean,
     doubleTapReaction: String,
     swipeConfig: MessageSwipeConfig,
-    timestampRevealState: MessageTimestampRevealState,
     selectionActive: Boolean,
     isSelected: Boolean,
     isPinned: Boolean,
@@ -158,7 +156,6 @@ fun ConversationItemRow(
                     doubleTapToReact = doubleTapToReact,
                     doubleTapReaction = doubleTapReaction,
                     swipeConfig = swipeConfig,
-                    timestampRevealState = timestampRevealState,
                     selectionActive = selectionActive,
                     isSelected = isSelected,
                     isPinned = isPinned,

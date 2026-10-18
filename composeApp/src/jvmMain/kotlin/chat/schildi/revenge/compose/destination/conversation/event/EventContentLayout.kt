@@ -236,13 +236,13 @@ fun EventContentLayout(
             )
         }
 
-        is RoomMembershipContent -> RoomMembershipRow(content, senderId, senderProfile, timestamp, modifier)
-        is ProfileChangeContent -> ProfileChangeRow(content, senderId, senderProfile, timestamp, modifier)
-        is StateContent -> StateEventRow(content, senderId, senderProfile, timestamp, modifier)
-        is FailedToParseStateContent -> StateEventFallbackRow(content.eventType, senderId, senderProfile, timestamp, modifier)
+        is RoomMembershipContent -> RoomMembershipRow(content, senderId, senderProfile, modifier)
+        is ProfileChangeContent -> ProfileChangeRow(content, senderId, senderProfile, modifier)
+        is StateContent -> StateEventRow(content, senderId, senderProfile, modifier)
+        is FailedToParseStateContent -> StateEventFallbackRow(content.eventType, senderId, senderProfile, modifier)
         is UnknownContent -> {
             if (ScPrefs.VIEW_HIDDEN_EVENTS.value()) {
-                HiddenEventRow(timelineItemDebugInfoProvider, senderId, senderProfile, timestamp, modifier)
+                HiddenEventRow(timelineItemDebugInfoProvider, senderId, senderProfile, modifier)
             } else {
                 EventMessageFallback(stringResource(Res.string.message_placeholder_unknown))
             }

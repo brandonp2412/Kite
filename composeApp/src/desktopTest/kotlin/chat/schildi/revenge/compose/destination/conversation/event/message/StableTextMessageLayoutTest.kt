@@ -7,11 +7,11 @@ import kotlin.test.assertEquals
 class StableTextMessageLayoutTest {
     @Test
     fun outgoingTextStatusSpaceIsReservedBeforeSendingAndAfterDelivery() {
-        val delivered = TimestampOverlayContent("15:30", isEdited = false, isSending = false, sendError = null)
+        val delivered = TimestampOverlayContent(isEdited = false, isSending = false, sendError = null)
         val sending = delivered.copy(isSending = true)
 
-        assertEquals(76.dp, reservedTextTimestampInset(isOwn = true, timestamp = delivered))
-        assertEquals(76.dp, reservedTextTimestampInset(isOwn = true, timestamp = sending))
+        assertEquals(24.dp, reservedTextTimestampInset(isOwn = true, timestamp = delivered))
+        assertEquals(24.dp, reservedTextTimestampInset(isOwn = true, timestamp = sending))
     }
 
     @Test
@@ -54,15 +54,15 @@ class StableTextMessageLayoutTest {
 
     @Test
     fun incomingTextWithoutStatusHasNoExtraInset() {
-        val received = TimestampOverlayContent("15:30", isEdited = false, isSending = false, sendError = null)
+        val received = TimestampOverlayContent(isEdited = false, isSending = false, sendError = null)
         assertEquals(0.dp, reservedTextTimestampInset(isOwn = false, timestamp = received))
         assertEquals(0.dp, reservedTextTimestampInset(isOwn = false, timestamp = null))
     }
 
     @Test
     fun editedTextHasReservedWidthFromFirstLayout() {
-        val edited = TimestampOverlayContent("15:30", isEdited = true, isSending = false, sendError = null)
-        assertEquals(116.dp, reservedTextTimestampInset(isOwn = true, timestamp = edited))
-        assertEquals(116.dp, reservedTextTimestampInset(isOwn = false, timestamp = edited))
+        val edited = TimestampOverlayContent(isEdited = true, isSending = false, sendError = null)
+        assertEquals(56.dp, reservedTextTimestampInset(isOwn = true, timestamp = edited))
+        assertEquals(56.dp, reservedTextTimestampInset(isOwn = false, timestamp = edited))
     }
 }

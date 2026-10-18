@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import chat.schildi.revenge.Dimens
-import chat.schildi.revenge.compose.destination.conversation.event.message.TimestampOverlayContent
 import chat.schildi.revenge.compose.destination.conversation.event.sender.SenderAvatar
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.timeline.item.event.ProfileDetails
@@ -22,7 +21,6 @@ fun StateUpdateRow(
     text: AnnotatedString,
     senderProfile: ProfileDetails,
     senderId: UserId,
-    timestamp: TimestampOverlayContent?,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -44,13 +42,5 @@ fun StateUpdateRow(
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f, fill = false),
         )
-        timestamp?.let {
-            Spacer(Modifier.width(Dimens.horizontalItemPadding))
-            Text(
-                it.timestamp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
     }
 }

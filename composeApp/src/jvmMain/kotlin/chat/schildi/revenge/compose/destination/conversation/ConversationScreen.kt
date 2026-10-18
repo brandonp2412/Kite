@@ -75,7 +75,6 @@ import chat.schildi.revenge.compose.components.PlatformBackHandler
 import chat.schildi.revenge.compose.destination.imeAwareBottomPadding
 import chat.schildi.revenge.compose.destination.SplashScreenContent
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
-import chat.schildi.revenge.compose.destination.conversation.event.MessageTimestampRevealState
 import chat.schildi.revenge.compose.destination.conversation.event.isKiteSelectableMessage
 import chat.schildi.revenge.compose.destination.conversation.event.kiteSelectionKey
 import chat.schildi.revenge.compose.destination.conversation.event.resolveMessageSwipeConfig
@@ -776,7 +775,6 @@ fun ConversationScreen(
                     val messageSwipeConfig = remember(swipeActionLeftRaw, swipeActionRightRaw) {
                         resolveMessageSwipeConfig(swipeActionLeftRaw, swipeActionRightRaw)
                     }
-                    val timestampRevealState = remember { MessageTimestampRevealState() }
 
                     LazyColumn(
                         Modifier.fillMaxSize().nestedScroll(userScrollObserver),
@@ -841,7 +839,6 @@ fun ConversationScreen(
                                 doubleTapToReact = doubleTapToReact,
                                 doubleTapReaction = doubleTapReaction,
                                 swipeConfig = messageSwipeConfig,
-                                timestampRevealState = timestampRevealState,
                                 selectionActive = selectionActive,
                                 isSelected = rowSelected,
                                 isPinned = rowEvent?.eventId?.let { it in pinnedEventIds } == true,

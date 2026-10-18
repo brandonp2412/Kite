@@ -7,21 +7,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.LocalTimeDisplayFormat
 import chat.schildi.revenge.Dimens
@@ -62,7 +55,6 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_deselect_message
 import shire.res.generated.resources.action_select_message
-import kotlin.math.roundToInt
 
 enum class EventHighlight {
     NONE,
@@ -84,7 +76,6 @@ fun EventRow(
     doubleTapToReact: Boolean,
     doubleTapReaction: String,
     swipeConfig: MessageSwipeConfig,
-    timestampRevealState: MessageTimestampRevealState,
     selectionActive: Boolean,
     isSelected: Boolean,
     isPinned: Boolean,
@@ -108,10 +99,7 @@ fun EventRow(
     }
     val selectable = event.isKiteSelectableMessage()
     val timeFormat = LocalTimeDisplayFormat.current
-    val timestamp = remember(event, timeFormat) { event.timestampOverlayContent(timeFormat) }
-    val timestampRevealDistancePx = LocalDensity.current.run {
-        Dimens.Conversation.MessageSwipe.maxOffset.toPx()
-    }
+    val timestamp = remember(event) { event.timestampOverlayContent() }
     val toggleSelection = remember(onToggleSelection) {
         { onToggleSelection() }
     }
@@ -191,35 +179,11 @@ fun EventRow(
                     )
                 }
                 Box(Modifier.weight(1f)) {
-                    if (selectable) {
-                        Text(
-                            text = timestamp.timestamp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = Dimens.Conversation.messageTimestampStyle,
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .padding(end = 4.dp)
-                                .graphicsLayer {
-                                    alpha = timestampRevealState.progress.floatValue
-                                },
-                        )
-                    }
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .absoluteOffset {
-                                IntOffset(
-                                    x = (-timestampRevealState.progress.floatValue * timestampRevealDistancePx)
-                                        .roundToInt(),
-                                    y = 0,
-                                )
-                            }
-                    ) {
+                    Column(Modifier.fillMaxWidth()) {
                         EventSwipeable(
                             focusId = focusId,
                             isOwn = event.isOwn,
                             swipeConfig = swipeConfig,
-                            timestampRevealState = timestampRevealState,
                             enabled = !selectionActive && !messageActionMenuOpen,
                         ) { modifier ->
                             EventContentLayout(

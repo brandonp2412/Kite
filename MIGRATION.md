@@ -1162,3 +1162,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Moved full sent date/time from single-tap inline expansion to a compact, non-action label in the existing message long-press menu. Swipe-to-reveal time and configured time formats remain intact.
 - Tapping the avatar on User Details opens the existing photo picker. Own-account photos attempt a Matrix avatar upload; other users, or failed own uploads, receive persistent per-session/per-user local overrides. Updated photo rendering across chat, DM headers/inbox, member lists, receipts, polls and account avatars, with local removal from User Details.
 - Glass proof: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu --offline --no-daemon` PASS with JDK 25 and Android SDK; `git diff --check` PASS. Not yet installed on Samsung or visually validated with a logged-in account; no real Matrix upload or picker interaction tested.
+
+## 2026-10-18 — Keep sent timestamps exclusively inside message long-press popup
+
+- Removed the remaining sent-time text from message bubble status decorations, hidden swipe overlays, system/state event rows, and threaded-reply previews. A message's full sent time remains available only within its long-press actions popup. Sending/error/edited indicators remain on the bubble.
+- Removed timestamp reveal from swipe settings and gesture implementation. Legacy persisted timestamp-swipe settings are safely treated as None; swipe-to-reply remains available. Shrunk the reserved delivery-status width to match icons without text.
+- Glass verification: Android/desktop source compilation, targeted `MessageSwipeActionsTest` and `StableTextMessageLayoutTest`, and `verifyKiteLongPressMenu` all PASS; `git diff --check` PASS. Device UI check pending.

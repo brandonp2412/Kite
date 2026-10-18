@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.FocusRole
@@ -96,11 +95,6 @@ fun ColumnScope.ThreadRootInfoRow(
                     modifier = modifier,
                 )
             }
-            Text(
-                DateTimeFormat.formatTimestampAsDateOrTime(latestEvent.timestamp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelMedium,
-            )
         }
     }
 }

@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
-import chat.schildi.revenge.compose.destination.conversation.event.message.TimestampOverlayContent
 import chat.schildi.revenge.util.tryOrNull
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.timeline.item.event.ProfileDetails
@@ -23,7 +22,6 @@ fun HiddenEventRow(
     timelineItemDebugInfoProvider: TimelineItemDebugInfoProvider?,
     senderId: UserId,
     senderProfile: ProfileDetails,
-    timestamp: TimestampOverlayContent?,
     modifier: Modifier = Modifier,
 ) {
     val senderName = senderProfile.getDisambiguatedDisplayName(senderId)
@@ -38,7 +36,6 @@ fun HiddenEventRow(
         text = AnnotatedString(stringResource(Res.string.message_placeholder_hidden_event, senderName, eventType)),
         senderProfile = senderProfile,
         senderId = senderId,
-        timestamp = timestamp,
         modifier = modifier,
     )
 }
