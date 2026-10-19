@@ -1246,3 +1246,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Root cause: the double-tap heart was drawn inside message content nested under `animateContentSize`, which clips it on short text bubbles. Split the passive double-tap listener from its drawing layer; convert tap coordinates to event-row coordinates and draw the identical 540 ms heart/sparkles over the outer row, outside the animated-size clip, without changing measured row height or reaction chip placement. Non-consuming touch handling and reaction toggling are unchanged.
 - Glass buildq #389: `:composeApp:compileKotlinDesktop :composeApp:compileAndroidMain` PASS (78 tasks). `git diff --check` PASS. UI clip rendering and Samsung release verification pending.
+
+## 2026-10-19 — Heart burst fix installed on Samsung
+
+- Release build on Glass using buildq task #390: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26101904 -PandroidVersionName=26.10.19.4`, PASS. APK SHA-256 `bdf04d6197eb248a9ea93282719a21e4594909b91a12dd20b29cb7423ffe0670`; package `app.kite`, signature SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches existing installation.
+- Samsung SM-S931B in-place update `adb install -r`: Success. Device confirms version code `26101904`, version name `26.10.19.4`, unchanged `firstInstallTime` and app-data inode, startup `Status: ok` and process alive; no fatal crash markers in sampled logcat. The actual on-screen burst clipping was **not** visually retested: user resumed another foreground app. No data reset/uninstall. Main's unrelated inbox WIP preserved.
