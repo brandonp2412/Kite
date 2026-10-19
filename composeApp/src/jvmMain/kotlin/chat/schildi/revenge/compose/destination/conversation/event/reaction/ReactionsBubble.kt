@@ -3,8 +3,6 @@ package chat.schildi.revenge.compose.destination.conversation.event.reaction
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -83,8 +81,10 @@ fun ReactionsBubble(
     }
     AnimatedVisibility(
         visible = present && count > 0,
-        enter = fadeIn(tween(140)) + expandHorizontally(tween(140)),
-        exit = fadeOut(tween(180)) + shrinkHorizontally(tween(180)),
+        // Keep the chip at full measured width during the fade; horizontal shrinking
+        // caused FlowRow to reflow neighbouring reactions on every animation frame.
+        enter = fadeIn(tween(140)),
+        exit = fadeOut(tween(180)),
     ) {
     WithUserTimestampListPopup(
         focusId = focusId,

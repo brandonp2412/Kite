@@ -1,5 +1,11 @@
 package chat.schildi.revenge.compose.destination.conversation.event.reaction
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -47,10 +53,18 @@ fun ColumnScope.ReactionsRow(
             retainedReactions.removeAll { it.key !in activeKeys }
         }
     }
-    if (retainedReactions.isEmpty()) return
     val alignment = if (messageIsOwn) Alignment.End else Alignment.Start
+    // Keep the last reaction's layout alive while the entire reaction row
+    // collapses vertically. Removing the FlowRow in a single frame jolts every
+    // message above it in the reverse-layout timeline.
+    AnimatedVisibility(
+        visible = reactions.isNotEmpty(),
+        enter = fadeIn(tween(160)) + expandVertically(tween(220)),
+        exit = fadeOut(tween(180)) + shrinkVertically(tween(240)),
+        modifier = modifier.align(alignment),
+    ) {
     FlowRow(
-        modifier = modifier
+        modifier = Modifier
             .padding(
                 top = Dimens.Conversation.reactionPaddingVertical,
                 start = if (messageIsOwn)
@@ -63,8 +77,7 @@ fun ColumnScope.ReactionsRow(
                     0.dp
                 else
                     LocalMessageStyle.current.otherSideMargin,
-            )
-            .align(alignment),
+            ),
         verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.reactionPaddingVertical),
         horizontalArrangement = Arrangement.spacedBy(
             Dimens.Conversation.reactionPaddingHorizontal,
@@ -80,5 +93,6 @@ fun ColumnScope.ReactionsRow(
                 )
             }
         }
+    }
     }
 }
