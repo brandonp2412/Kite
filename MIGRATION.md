@@ -1245,3 +1245,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Removed this flag for both reaction actions, leaving error reporting in `launchActionAsync` unchanged; direct chip toggling already uses the silent `toggleReaction` path.
 - Nox `buildq` job #402 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26102004 -PandroidVersionName=26.10.20.4` passed. Signed APK with canonical certificate `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; Samsung Galaxy S25 `adb install -r` returned `Success`, installed version 26102004, preserved original firstInstallTime.
 - **Not visually verified after installation**: Odin interaction retest blocked by Samsung's secure lock screen (Window focus `Bouncer`). Do not describe this as hardware UI proof.
+
+## 2026-10-20 — Message long-press menu order and spacing
+
+- Place Select/Deselect above Copy; leave Delete last. Quick reactions and timestamp layout remain unchanged.
+- Remove the cramped 40dp fixed rows: Copy/Select/Delete now use 48dp height with 4dp top and bottom in their grouped surface, matching the rhythm of the existing quick-reaction row.
+- Nox `buildq` job #404 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26102005 -PandroidVersionName=26.10.20.5` PASS. Signed the 26.10.20.5 APK with the verified existing Kite certificate; `adb install -r` returned Success on Samsung Galaxy S25; `firstInstallTime` unchanged.
+- Device visual menu check remains outstanding: Samsung was at its locked screen when inspection was attempted. Do not claim the spacing was visually validated on hardware.

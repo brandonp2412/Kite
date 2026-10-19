@@ -34,7 +34,7 @@ import shire.res.generated.resources.action_react
 
 /**
  * Kite's deliberately minimal long-press surface: quick emoji reactions,
- * then Copy, Select, Delete. Delete remains visible even in rooms where
+ * then Select, Copy, Delete. Delete remains visible even in rooms where
  * redaction is unavailable, but stays disabled until Matrix permits it.
  */
 @Composable
@@ -84,12 +84,6 @@ fun EventTimelineItem.contextMenu(
 
     return listOfNotNull<ContextMenuEntry>(
         reactionsRow,
-        ContextMenuActionEntry(
-            "Copy".toStringHolder(),
-            rememberVectorPainter(Icons.Default.ContentCopy),
-            Action.Event.CopyContent,
-            keyboardShortcut = Key.Y,
-        ).takeIf { isMessage },
         ContextMenuCallbackEntry(
             title = if (isSelected) {
                 Res.string.action_deselect_message.toStringHolder()
@@ -104,6 +98,12 @@ fun EventTimelineItem.contextMenu(
                 ActionResult.Success()
             },
         ).takeIf { onToggleSelection != null },
+        ContextMenuActionEntry(
+            "Copy".toStringHolder(),
+            rememberVectorPainter(Icons.Default.ContentCopy),
+            Action.Event.CopyContent,
+            keyboardShortcut = Key.Y,
+        ).takeIf { isMessage },
         ContextMenuActionEntry(
             Res.string.action_redact.toStringHolder(),
             rememberVectorPainter(Icons.Default.Delete),
