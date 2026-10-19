@@ -152,8 +152,6 @@ import shire.res.generated.resources.action_send
 import shire.res.generated.resources.action_send_bug_report_prompt
 import shire.res.generated.resources.command_ambiguous
 import shire.res.generated.resources.command_ambiguous_none_valid
-import shire.res.generated.resources.command_copied_content_to_clipboard
-import shire.res.generated.resources.command_copied_to_clipboard
 import shire.res.generated.resources.command_copy_name_full_account_data
 import shire.res.generated.resources.command_external_application_launched
 import shire.res.generated.resources.command_not_applicable
@@ -742,6 +740,8 @@ class KeyboardActionHandler(
     fun publishMessage(
         message: AbstractAppMessage,
     ) {
+        // Kite does not display transient status/error banners. Keep only actionable dialogs.
+        if (message is AppMessage) return
         _messageBoard.update {
             val filtered = if (message.uniqueId == null) {
                 it
@@ -2887,16 +2887,6 @@ class KeyboardActionHandler(
         context.launchActionAsync("copyToClipboard", scope) {
             localClipboard.setClipEntry(
                 platformTextClipEntry(content)
-            )
-            publishMessage(
-                AppMessage(
-                    if (description == null) {
-                        StringResourceHolder(Res.string.command_copied_content_to_clipboard, content.toStringHolder())
-                    } else {
-                        StringResourceHolder(Res.string.command_copied_to_clipboard, description)
-                    },
-                    uniqueId = "clipboard",
-                )
             )
             ActionResult.Success()
         }

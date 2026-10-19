@@ -58,7 +58,6 @@
     <string name="action_show_room_members">Raummitglieder</string>
     <string name="command_loading_event">Lade %1$s</string>
     <string name="command_event_not_found">%1$s konnte nicht gefunden werden</string>
-    <string name="command_copied_to_clipboard">%1$s in die Zwischenablage kopiert</string>
     <string name="command_event_name_own_read_receipt">eigene Lesebestätigung</string>
     <string name="command_event_name_reply">Antworten</string>
     <string name="command_copy_name_message_content">Nachrichteninhalt</string>
@@ -231,7 +230,6 @@
     <string name="action_show_less">Zeige weniger</string>
     <string name="command_loading_timeline_at">Zeitleiste wird geladen bei: %1$s</string>
     <string name="command_external_application_launched">Externe Anwendung geöffnet</string>
-    <string name="command_copied_content_to_clipboard">Kopiert: %1$s</string>
     <string name="command_setting_set_to">%1$s auf %2$s gesetzt</string>
     <string name="command_not_applicable">%1$s ist in diesem Zusammenhang nicht zutreffend</string>
     <string name="command_ambiguous">Befehl %1$s ist in diesem Zusammenhang mehrdeutig</string>

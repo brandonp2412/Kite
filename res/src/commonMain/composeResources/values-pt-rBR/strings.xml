@@ -214,7 +214,6 @@
     <string name="message_shield_verification_violation">Identidade não verificada</string>
     <string name="send_error_unknown">Erro desconhecido</string>
     <string name="power_level_user_role_combined">%1$s (%2$s)</string>
-    <string name="command_copied_content_to_clipboard">Copiado: %1$s</string>
     <string name="hint_not_set">Não definido</string>
     <string name="room_members_title_loading">Carregando membros da sala</string>
     <string name="message_read_receipts_title">Recibos de leitura da mensagem</string>
@@ -271,7 +270,6 @@
     <string name="command_loading_timeline_at">Mostrando linha do tempo em %1$s</string>
     <string name="command_event_not_found">Não foi possível encontrar %1$s</string>
     <string name="command_external_application_launched">Programa externo iniciado</string>
-    <string name="command_copied_to_clipboard">Copiado %1$s para área de transferência</string>
     <string name="action_notifications_all">Todas mensagens</string>
     <string name="action_notifications_none">Nenhuma</string>
     <string name="pref_initial_window_width_summary">Largura da janela ao abrir nova janela em píxeis sensíveis à densidade</string>

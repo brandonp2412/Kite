@@ -144,8 +144,6 @@
     <string name="command_loading_timeline_at">正在加载时间线：%1$s</string>
     <string name="command_event_not_found">无法定位%1$s</string>
     <string name="command_external_application_launched">已调用外部应用</string>
-    <string name="command_copied_to_clipboard">已将%1$s复制到剪贴板</string>
-    <string name="command_copied_content_to_clipboard">已复制：%1$s</string>
     <string name="command_event_name_own_read_receipt">自己的已读回执</string>
     <string name="command_event_name_reply">回复</string>
     <string name="command_copy_name_message_content">消息内容</string>
