@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.LocalTimeDisplayFormat
@@ -101,6 +102,8 @@ fun EventRow(
         }
     ).value
     val focusId = rememberFocusId()
+    val heartBurst = rememberHeartBurstState()
+    val heartBurstRowCoordinates = remember { ReactionLayoutCoordinates() }
     var reactionPickerOpen by remember { mutableStateOf(false) }
     val keyboardHandler = LocalKeyboardActionHandler.current
     val formatInteractionState = messageMetadata?.preFormattedContent?.let {
@@ -135,7 +138,12 @@ fun EventRow(
         // targets. In selection mode place one hit target *above* all of them,
         // so touching any part of this message toggles selection exactly once.
         // matchParentSize does not change the row's measured size or scroll offset.
-        Box(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { heartBurstRowCoordinates.layout = it }
+                .drawHeartBurst(heartBurst),
+        ) {
             Column(
                 modifier
                 .keyFocusable(
@@ -224,6 +232,11 @@ fun EventRow(
                                         }
                                     },
                                     onSingleTap = {},
+                                    onBurst = { tap, messageCoordinates ->
+                                        heartBurstRowCoordinates.layout?.takeIf { it.isAttached }?.let { rowCoordinates ->
+                                            heartBurst.trigger(rowCoordinates.localPositionOf(messageCoordinates, tap))
+                                        }
+                                    },
                                 ),
                             )
                         }

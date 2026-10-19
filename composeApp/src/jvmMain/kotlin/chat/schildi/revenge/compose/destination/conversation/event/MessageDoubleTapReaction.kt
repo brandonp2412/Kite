@@ -12,6 +12,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -30,35 +32,28 @@ import kotlin.uuid.Uuid
 
 private const val DOUBLE_TAP_SLOP_MULTIPLIER = 2f
 
-/**
- * Observes taps without consuming pointer changes.
- *
- * Using Compose's regular double-click recognizer would defer a normal click until the
- * double-tap timeout expires. Kite instead keeps the first tap immediate and only reacts
- * when a second short, nearby tap arrives. Dragging, long-pressing, or multi-touch clears
- * the candidate so this does not compete with scrolling, swipe-to-reply, or context menus.
- */
-@Composable
-fun Modifier.passiveDoubleTapReaction(
-    focusId: Uuid,
-    enabled: Boolean,
-    reaction: String,
-    reactionActive: Boolean,
-    singleTapEnabled: Boolean,
-    onSingleTap: () -> Unit,
-): Modifier {
-    if (!enabled && !singleTapEnabled) return this
+/** Holds only the short-lived heart burst; it never affects a timeline row's size. */
+internal class HeartBurstState {
+    var position by mutableStateOf<Offset?>(null)
+        private set
+    var serial by mutableIntStateOf(0)
+        private set
 
-    val actionHandler = LocalKeyboardActionHandler.current
-    val viewConfiguration = LocalViewConfiguration.current
-    val haptics = LocalHapticFeedback.current
-    val activeReaction by rememberUpdatedState(reactionActive)
-    val reactionEnabled by rememberUpdatedState(enabled)
-    val tapEnabled by rememberUpdatedState(singleTapEnabled)
-    val latestOnSingleTap by rememberUpdatedState(onSingleTap)
-    var burstPosition by remember(focusId) { mutableStateOf<Offset?>(null) }
-    var burstSerial by remember(focusId) { mutableIntStateOf(0) }
-    val burstProgress = remember(focusId) { Animatable(0f) }
+    fun trigger(position: Offset) {
+        this.position = position
+        serial++
+    }
+
+    fun clear() { position = null }
+}
+
+@Composable
+internal fun rememberHeartBurstState() = remember { HeartBurstState() }
+
+// Paint at the unclipped event-row level, not inside animateContentSize or the bubble.
+@Composable
+internal fun Modifier.drawHeartBurst(state: HeartBurstState): Modifier {
+    val burstProgress = remember { Animatable(0f) }
     val heartShape = remember {
         Path().apply {
             moveTo(0f, 27f)
@@ -69,16 +64,16 @@ fun Modifier.passiveDoubleTapReaction(
             close()
         }
     }
-    LaunchedEffect(burstSerial) {
-        if (burstSerial > 0) {
+    LaunchedEffect(state.serial) {
+        if (state.serial > 0) {
             burstProgress.snapTo(0f)
             burstProgress.animateTo(1f, tween(durationMillis = 540, easing = LinearEasing))
-            burstPosition = null
+            state.clear()
         }
     }
     return drawWithContent {
         drawContent()
-        val at = burstPosition ?: return@drawWithContent
+        val at = state.position ?: return@drawWithContent
         val t = burstProgress.value
         val opacity = when {
             t < 0.18f -> t / 0.18f
@@ -116,7 +111,41 @@ fun Modifier.passiveDoubleTapReaction(
                 )
             }
         }
-    }.pointerInput(focusId, reaction, actionHandler, viewConfiguration) {
+    }
+}
+
+internal class ReactionLayoutCoordinates { var layout: LayoutCoordinates? = null }
+
+/**
+ * Observes taps without consuming pointer changes.
+ *
+ * Using Compose's regular double-click recognizer would defer a normal click until the
+ * double-tap timeout expires. Kite instead keeps the first tap immediate and only reacts
+ * when a second short, nearby tap arrives. Dragging, long-pressing, or multi-touch clears
+ * the candidate so this does not compete with scrolling, swipe-to-reply, or context menus.
+ */
+@Composable
+fun Modifier.passiveDoubleTapReaction(
+    focusId: Uuid,
+    enabled: Boolean,
+    reaction: String,
+    reactionActive: Boolean,
+    singleTapEnabled: Boolean,
+    onSingleTap: () -> Unit,
+    onBurst: (Offset, LayoutCoordinates) -> Unit,
+): Modifier {
+    if (!enabled && !singleTapEnabled) return this
+
+    val actionHandler = LocalKeyboardActionHandler.current
+    val viewConfiguration = LocalViewConfiguration.current
+    val haptics = LocalHapticFeedback.current
+    val activeReaction by rememberUpdatedState(reactionActive)
+    val reactionEnabled by rememberUpdatedState(enabled)
+    val tapEnabled by rememberUpdatedState(singleTapEnabled)
+    val latestOnSingleTap by rememberUpdatedState(onSingleTap)
+    val latestOnBurst by rememberUpdatedState(onBurst)
+    val coordinates = remember(focusId) { ReactionLayoutCoordinates() }
+    return this.onGloballyPositioned { coordinates.layout = it }.pointerInput(focusId, reaction, actionHandler, viewConfiguration) {
         val touchSlop = viewConfiguration.touchSlop
         val doubleTapSlop = touchSlop * DOUBLE_TAP_SLOP_MULTIPLIER
         val longPressTimeout = viewConfiguration.longPressTimeoutMillis
@@ -191,8 +220,9 @@ fun Modifier.passiveDoubleTapReaction(
                             previousTapTime = null
                             previousTapPosition = null
                             if (!activeReaction) {
-                                burstPosition = change.position
-                                burstSerial++
+                                coordinates.layout?.takeIf { it.isAttached }?.let { layout ->
+                                    latestOnBurst(change.position, layout)
+                                }
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             } else {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
