@@ -1,12 +1,17 @@
 package chat.schildi.revenge.compose.destination.conversation.event.reaction
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -21,7 +26,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 
 @Composable
-fun BoxScope.ReactionsRow(
+fun ColumnScope.ReactionsRow(
     viewModel: ConversationViewModel,
     eventOrTransactionId: EventOrTransactionId,
     reactions: ImmutableList<EventReaction>,
@@ -30,12 +35,17 @@ fun BoxScope.ReactionsRow(
     showSenderDetails: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    if (reactions.isEmpty()) return
-    val alignment = if (messageIsOwn) Alignment.BottomEnd else Alignment.BottomStart
+    // Matrix can briefly remove optimistic reactions while confirming the server's
+    // echo. Keep the previous chips through that short interval to avoid a flash.
+    var displayedReactions by remember(eventOrTransactionId) { mutableStateOf(reactions) }
+    LaunchedEffect(reactions) {
+        if (reactions.isEmpty()) delay(180)
+        displayedReactions = reactions
+    }
+    if (displayedReactions.isEmpty()) return
+    val alignment = if (messageIsOwn) Alignment.End else Alignment.Start
     FlowRow(
         modifier = modifier
-            .align(alignment)
-            .offset(y = (-6).dp)
             .padding(
                 top = Dimens.Conversation.reactionPaddingVertical,
                 start = if (messageIsOwn)
@@ -48,14 +58,15 @@ fun BoxScope.ReactionsRow(
                     0.dp
                 else
                     LocalMessageStyle.current.otherSideMargin,
-            ),
+            )
+            .align(alignment),
         verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.reactionPaddingVertical),
         horizontalArrangement = Arrangement.spacedBy(
             Dimens.Conversation.reactionPaddingHorizontal,
-            if (messageIsOwn) Alignment.End else Alignment.Start,
+            alignment,
         ),
     ) {
-        reactions.forEach { reaction ->
+        displayedReactions.forEach { reaction ->
             key(reaction.key) {
                 ReactionsBubble(viewModel, eventOrTransactionId, reaction, roomMembersById)
             }
