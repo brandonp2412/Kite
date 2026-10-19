@@ -9,7 +9,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +59,22 @@ fun ReactionsBubble(
             )
         }.toImmutableList()
     }
+    val includesSelf = reaction.senders.any { it.senderId == LocalSessionId.current }
+    // The SDK only updates reaction senders after a remote toggle completes.
+    // Show the local removal immediately; reconcile when the timeline updates.
+    var pendingSelf by remember(eventOrTransactionId, reaction.key) { mutableStateOf<Boolean?>(null) }
+    val visibleSelf = pendingSelf ?: includesSelf
+    val count = reaction.senders.size + (if (visibleSelf) 1 else 0) - (if (includesSelf) 1 else 0)
+    LaunchedEffect(includesSelf, pendingSelf) {
+        if (pendingSelf == includesSelf) pendingSelf = null
+    }
+    LaunchedEffect(pendingSelf) {
+        if (pendingSelf != null) {
+            delay(5_000)
+            pendingSelf = null // Roll back UI if sending failed or the server never acknowledged it.
+        }
+    }
+    if (count <= 0) return
     WithUserTimestampListPopup(
         focusId = focusId,
         users = userTimestamps,
@@ -71,10 +92,9 @@ fun ReactionsBubble(
             )
         }
     ) {
-        val includesSelf = reaction.senders.any { it.senderId == LocalSessionId.current }
         Row(
             modifier.let {
-                if (includesSelf) {
+                if (visibleSelf) {
                     it.background(
                         MaterialTheme.colorScheme.primaryContainer,
                         Dimens.Conversation.reactionShape,
@@ -94,7 +114,9 @@ fun ReactionsBubble(
                     role = FocusRole.NESTED_AUX_ITEM,
                     actionProvider = actionProvider(
                         primaryAction = InteractionAction.Invoke {
-                            viewModel.toggleReaction(eventOrTransactionId, reaction.key)
+                            val submitted = viewModel.toggleReaction(eventOrTransactionId, reaction.key)
+                            if (submitted) pendingSelf = !visibleSelf
+                            submitted
                         },
                         secondaryAction = InteractionAction.ContextMenu(focusId, null),
                         copyActions = plainTextCopyAction { reaction.key },
@@ -109,8 +131,8 @@ fun ReactionsBubble(
         ) {
             ReactionContent(reaction.key, reaction.shortcode)
             Text(
-                reaction.senders.size.toString(),
-                color = if (includesSelf) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                count.toString(),
+                color = if (visibleSelf) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.labelMedium,
             )
         }

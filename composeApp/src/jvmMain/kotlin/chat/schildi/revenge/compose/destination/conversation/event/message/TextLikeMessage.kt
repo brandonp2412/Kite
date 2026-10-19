@@ -133,11 +133,15 @@ fun TextLikeMessage(
     textColor: Color = MaterialTheme.colorScheme.primary,
     interactionState: MatrixFormatInteractionState = rememberMatrixFormatInteractionState(text),
 ) {
+    val emojiOnly = allowBigEmojiOnly && inReplyTo == null &&
+            remember(text) { text.text.isNotEmpty() && text.text.containsOnlyEmojis(text.inlineImages) }
     MessageBubble(
         isOwn = isOwn,
         timestamp = timestamp,
         modifier = modifier,
         outlined = outlined,
+        padding = if (emojiOnly) PaddingValues(start = 9.dp, end = 5.dp, top = 9.dp, bottom = 9.dp)
+                  else Dimens.Conversation.messageBubblePadding,
         stableTextHeight = true,
         stableTextLayoutKey = text.text,
         allowTimestampOverlay = text.allowTimestampOverlay(),

@@ -461,16 +461,22 @@ object AndroidNotifier {
     fun dismiss(sessionId: String, roomId: String): Boolean {
         val notificationManager = NotificationManagerCompat.from(RevengeApplication.instance)
         val notificationId = NotificationId.Room(SessionId(sessionId), RoomId(roomId)).androidNotificationId()
-        runCatching {
-            notificationManager.activeNotifications.firstOrNull { it.id == notificationId }
+        val active = runCatching {
+            notificationManager.activeNotifications.filter { posted ->
+                posted.id == notificationId ||
+                        (posted.notification.extras.getString(EXTRA_SESSION_ID) == sessionId &&
+                         posted.notification.extras.getString(EXTRA_ROOM_ID) == roomId)
+            }
         }.onFailure { failure ->
             log.w("Failed to inspect active notifications", failure)
         }.getOrNull() ?: return false
-        runCatching { notificationManager.cancel(notificationId) }
-            .onFailure { failure ->
-                log.w("Failed to cancel auto-dismissed notification for $sessionId/$roomId", failure)
-            }
-        return true
+        active.forEach { posted ->
+            runCatching { notificationManager.cancel(posted.tag, posted.id) }
+                .onFailure { failure ->
+                    log.w("Failed to cancel notification ${posted.id} for $sessionId/$roomId", failure)
+                }
+        }
+        return active.isNotEmpty()
     }
 
     fun redactMessage(
@@ -549,11 +555,7 @@ object AndroidNotifier {
     }
 
     private fun NotificationId.conversationDestination() = when (this) {
-        is NotificationId.Event -> Destination.Conversation(
-            sessionId,
-            roomId,
-            CreateTimelineParams.Focused(eventId),
-        )
+        is NotificationId.Event -> Destination.Conversation(sessionId, roomId)
         is NotificationId.Room -> Destination.Conversation(sessionId, roomId)
         is NotificationId.AppMessage,
         NotificationId.DebugMessage,
@@ -570,6 +572,17 @@ object AndroidNotifier {
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         conversationDestination()?.let { destination ->
             intent.putExtra(MainActivity.EXTRA_DESTINATION, destination.serializedToString())
+        }
+        when (this) {
+            is NotificationId.Event -> {
+                intent.putExtra(EXTRA_SESSION_ID, sessionId.value)
+                intent.putExtra(EXTRA_ROOM_ID, roomId.value)
+            }
+            is NotificationId.Room -> {
+                intent.putExtra(EXTRA_SESSION_ID, sessionId.value)
+                intent.putExtra(EXTRA_ROOM_ID, roomId.value)
+            }
+            else -> Unit
         }
         return intent
     }

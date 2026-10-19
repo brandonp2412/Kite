@@ -1217,3 +1217,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Message long-press date, reaction shortcuts, and Copy/Select/Delete actions now use separate rounded surfaces. Actions are 192dp wide instead of inheriting the wide emoji row.
 - Replaced the broken full reaction chooser's composer REACTION mode with a searchable emoji grid that dispatches ToggleReactionKey directly.
 - Glass: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu` via buildq #47 PASS; `git diff --check` PASS. Device visual testing and frame-time proof still pending (Samsung locked).
+
+## 2026-10-20 — Inbox, notification, reaction and timeline feedback
+
+- Opening message notifications now routes to the live room and dismisses every active notification for the same session and room. Normal room openings no longer focus an old fully-read marker; explicit unread jumps are unchanged.
+- Inbox subtitles contain message content without a duplicate sender prefix. Emoji-only bubbles have a tighter trailing inset.
+- Reaction deselection updates immediately and reconciles with Matrix state, with a timeout rollback; double-tap burst animates the chosen emoji with heart/face/thumb-specific movement and stays above the composer edge.
+- Verification: `:composeApp:compileAndroidMain` succeeded through Nox buildq task 355; `git diff --check` clean. Signed release and real Samsung interaction verification pending.

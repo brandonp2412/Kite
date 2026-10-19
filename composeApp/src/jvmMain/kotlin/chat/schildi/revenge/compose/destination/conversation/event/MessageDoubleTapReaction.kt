@@ -16,6 +16,13 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
+import chat.schildi.revenge.compose.destination.conversation.event.reaction.kiteReactionFace
+import chat.schildi.theme.rememberEmojiFontFamily
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
@@ -59,6 +66,12 @@ fun Modifier.passiveDoubleTapReaction(
     var burstPosition by remember(focusId) { mutableStateOf<Offset?>(null) }
     var burstSerial by remember(focusId) { mutableIntStateOf(0) }
     val burstProgress = remember(focusId) { Animatable(0f) }
+    val textMeasurer = rememberTextMeasurer()
+    val emojiFont = rememberEmojiFontFamily()
+    val reactionLayout = remember(reaction, emojiFont) {
+        textMeasurer.measure(AnnotatedString(reaction), style = TextStyle(fontSize = 52.sp, fontFamily = emojiFont))
+    }
+    val isHeart = reaction == "❤️" || reaction == "❤"
     val heartShape = remember {
         Path().apply {
             moveTo(0f, 27f)
@@ -78,7 +91,9 @@ fun Modifier.passiveDoubleTapReaction(
     }
     return drawWithContent {
         drawContent()
-        val at = burstPosition ?: return@drawWithContent
+        val tap = burstPosition ?: return@drawWithContent
+        // Keep the burst above the composer boundary even on the bottom message.
+        val at = Offset(tap.x, tap.y - 52.dp.toPx())
         val t = burstProgress.value
         val opacity = when {
             t < 0.18f -> t / 0.18f
@@ -94,11 +109,25 @@ fun Modifier.passiveDoubleTapReaction(
         val liftPx = (4f - 16f * t).dp.toPx()
         withTransform({
             translate(left = at.x, top = at.y + liftPx)
-            rotate(degrees = -4f + 6f * t)
+            rotate(degrees = when {
+                isHeart -> -4f + 6f * t
+                reaction.startsWith("👍") || reaction.startsWith("👎") -> -22f + 32f * t
+                kiteReactionFace(reaction) != null -> 12f - 25f * t
+                else -> -16f + 24f * t
+            })
             scale(scaleX = glyphScale, scaleY = glyphScale, pivot = Offset.Zero)
         }) {
-            drawPath(heartShape, color = Color.Black, alpha = 0.16f * opacity)
-            drawPath(heartShape, color = Color(0xFFFF5278), alpha = opacity)
+            if (isHeart) {
+                drawPath(heartShape, color = Color.Black, alpha = 0.16f * opacity)
+                drawPath(heartShape, color = Color(0xFFFF5278), alpha = opacity)
+            } else {
+                // Text is measured once; the animation only changes its draw transform.
+                drawText(
+                    textLayoutResult = reactionLayout,
+                    topLeft = Offset(-reactionLayout.size.width / 2f, -reactionLayout.size.height / 2f),
+                    alpha = opacity,
+                )
+            }
         }
         if (t < 0.6f) {
             val sparkle = (1f - t / 0.6f).coerceIn(0f, 1f)
@@ -106,7 +135,12 @@ fun Modifier.passiveDoubleTapReaction(
             for (direction in 0..5) {
                 val angle = direction * kotlin.math.PI / 3
                 drawCircle(
-                    color = if (direction % 2 == 0) Color(0xFFFF90B0) else Color(0xFFFFD38A),
+                    color = when {
+                        isHeart -> if (direction % 2 == 0) Color(0xFFFF90B0) else Color(0xFFFFD38A)
+                        reaction.startsWith("👍") || reaction.startsWith("👎") -> Color(0xFFFFC83D)
+                        kiteReactionFace(reaction) != null -> if (direction % 2 == 0) Color(0xFFFFD848) else Color(0xFF69C8F2)
+                        else -> if (direction % 2 == 0) Color(0xFF9BD3FF) else Color(0xFFC59BFF)
+                    },
                     radius = 2.6.dp.toPx() * sparkle,
                     center = Offset(
                         at.x + kotlin.math.cos(angle).toFloat() * (22.dp.toPx() + spread),
