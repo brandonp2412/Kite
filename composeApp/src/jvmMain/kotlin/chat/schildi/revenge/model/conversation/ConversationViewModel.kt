@@ -2753,7 +2753,6 @@ class ConversationViewModel(
                             viewModelScope,
                             Dispatchers.IO,
                             "toggleReaction",
-                            notifyProcessing = true,
                         ) {
                             timeline.toggleReaction(reaction, eventOrTransactionId)
                             ActionResult.Success()
@@ -2770,7 +2769,6 @@ class ConversationViewModel(
                             viewModelScope,
                             Dispatchers.IO,
                             "toggleReaction",
-                            notifyProcessing = true,
                         ) {
                             timeline.toggleReaction(reactionToToggle.key, eventOrTransactionId)
                             ActionResult.Success()

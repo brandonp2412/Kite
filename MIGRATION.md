@@ -1237,3 +1237,11 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Samsung Galaxy S25 hardware test on the **Odin** Matrix conversation (not other chats): double-tapped the existing short own message to add ❤️, then tapped that reaction to remove it. Confirmed the reaction disappeared. Captured the real device screen recording at `/home/brandon/.cache/kite-release/odin-reaction-26102003.mp4` (47 encoded video frames, 1080×2340). In the exit frames, the same message bubble at x≈974 moved smoothly from y=1700 to y=1788; largest successive-frame displacement was 8 px, with no instantaneous layout jump. No new text message was sent.
 - Nox `buildq` #389 `:androidApp:assembleRelease` PASS (arm64-v8a). Signed local APK with the existing Kite certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; Samsung `adb install -r` succeeded and installed `app.kite` version `26.10.20.3` (versionCode 26102003) preserving data.
 - This proves the specific final-chip reaction-removal motion on Odin; broader combinations of simultaneous reactions and top-layer bursts were not rerun in this capture.
+
+## 2026-10-20 — Suppress reaction action progress notification
+
+- Reproduced in user-provided Odin recording `14776.mp4`: a transient `Processing` app message flashes below the composer during a double-tap heart reaction.
+- Root cause: `Action.Event.ToggleReactionKey` and `ToggleReactionIndex` requested `notifyProcessing = true` in `ConversationViewModel`, causing `ActionContext.launchActionAsync` to publish the `action_processing` message despite successful asynchronous reaction toggles.
+- Removed this flag for both reaction actions, leaving error reporting in `launchActionAsync` unchanged; direct chip toggling already uses the silent `toggleReaction` path.
+- Nox `buildq` job #402 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26102004 -PandroidVersionName=26.10.20.4` passed. Signed APK with canonical certificate `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; Samsung Galaxy S25 `adb install -r` returned `Success`, installed version 26102004, preserved original firstInstallTime.
+- **Not visually verified after installation**: Odin interaction retest blocked by Samsung's secure lock screen (Window focus `Bouncer`). Do not describe this as hardware UI proof.
