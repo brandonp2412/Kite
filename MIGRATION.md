@@ -1251,3 +1251,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Release build on Glass using buildq task #390: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26101904 -PandroidVersionName=26.10.19.4`, PASS. APK SHA-256 `bdf04d6197eb248a9ea93282719a21e4594909b91a12dd20b29cb7423ffe0670`; package `app.kite`, signature SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches existing installation.
 - Samsung SM-S931B in-place update `adb install -r`: Success. Device confirms version code `26101904`, version name `26.10.19.4`, unchanged `firstInstallTime` and app-data inode, startup `Status: ok` and process alive; no fatal crash markers in sampled logcat. The actual on-screen burst clipping was **not** visually retested: user resumed another foreground app. No data reset/uninstall. Main's unrelated inbox WIP preserved.
+
+## 2026-10-19 — Heart animation: eliminate lazy-row clipping
+
+- Follow-up recording showed the previous event-row drawing layer still clipped at the edge of short LazyColumn items. Moved the existing 540 ms heart/sparkle draw into the conversation viewport Box, outside the LazyColumn. A shared stable CompositionLocal passes a viewport coordinate callback to message tap handling, retaining existing gesture and reaction actions. The overlay does not change any item measurements, reaction chip positions, or touch targets.
+- Glass buildq #416 `:composeApp:compileKotlinDesktop :composeApp:compileAndroidMain` PASS. In-device visual retest pending release install.

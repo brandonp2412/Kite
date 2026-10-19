@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -39,18 +40,26 @@ internal class HeartBurstState {
     var serial by mutableIntStateOf(0)
         private set
 
-    fun trigger(position: Offset) {
-        this.position = position
+    private var viewport: LayoutCoordinates? = null
+
+    fun updateViewport(coordinates: LayoutCoordinates) { viewport = coordinates }
+
+    fun trigger(tap: Offset, messageCoordinates: LayoutCoordinates) {
+        val viewportCoordinates = viewport?.takeIf { it.isAttached } ?: return
+        if (!messageCoordinates.isAttached) return
+        position = viewportCoordinates.localPositionOf(messageCoordinates, tap)
         serial++
     }
 
     fun clear() { position = null }
 }
 
+internal val LocalHeartBurstState = staticCompositionLocalOf<HeartBurstState?> { null }
+
 @Composable
 internal fun rememberHeartBurstState() = remember { HeartBurstState() }
 
-// Paint at the unclipped event-row level, not inside animateContentSize or the bubble.
+// Draw above the LazyColumn, so neither the short message nor its lazy item clips the burst.
 @Composable
 internal fun Modifier.drawHeartBurst(state: HeartBurstState): Modifier {
     val burstProgress = remember { Animatable(0f) }

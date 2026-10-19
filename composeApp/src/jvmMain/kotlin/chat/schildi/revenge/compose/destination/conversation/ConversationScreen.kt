@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -50,6 +51,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
@@ -77,6 +79,9 @@ import chat.schildi.revenge.compose.components.PlatformBackHandler
 import chat.schildi.revenge.compose.destination.imeAwareBottomPadding
 import chat.schildi.revenge.compose.destination.SplashScreenContent
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
+import chat.schildi.revenge.compose.destination.conversation.event.LocalHeartBurstState
+import chat.schildi.revenge.compose.destination.conversation.event.drawHeartBurst
+import chat.schildi.revenge.compose.destination.conversation.event.rememberHeartBurstState
 import chat.schildi.revenge.compose.destination.conversation.event.isKiteSelectableMessage
 import chat.schildi.revenge.compose.destination.conversation.event.kiteSelectionKey
 import chat.schildi.revenge.compose.destination.conversation.event.resolveMessageSwipeConfig
@@ -642,13 +647,16 @@ fun ConversationScreen(
 
                 ConversationTopDebugHeader(viewModel, Modifier.fillMaxWidth())
 
-                // Box for list + floating header overlay
+                // One viewport-wide drawing layer for reaction bursts, outside LazyColumn item clipping.
+                val heartBurst = rememberHeartBurstState()
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .clip(Dimens.Conversation.timelineSurfaceShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .onGloballyPositioned { heartBurst.updateViewport(it) }
+                        .drawHeartBurst(heartBurst),
                 ) {
                     // Reverse layout helps with stick-to-bottom while paging backwards or receiving messages
                     val renderedItems = remember(timelineItems) {
@@ -807,6 +815,7 @@ fun ConversationScreen(
                         resolveMessageSwipeConfig(swipeActionLeftRaw, swipeActionRightRaw)
                     }
 
+                    CompositionLocalProvider(LocalHeartBurstState provides heartBurst) {
                     LazyColumn(
                         Modifier.fillMaxSize().nestedScroll(userScrollObserver),
                         reverseLayout = true,
@@ -888,6 +897,7 @@ fun ConversationScreen(
                                 PagingIndicator(Modifier.padding(vertical = Dimens.windowPadding))
                             }
                         }
+                    }
                     }
 
                     // Jump-to-message FABs
