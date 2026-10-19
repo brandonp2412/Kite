@@ -6,9 +6,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.revenge.preferences.value
@@ -77,7 +82,8 @@ fun ConversationItemRow(
     modifier: Modifier = Modifier,
     debugSeparatorLines: ImmutableList<TimelineItemDebugLineInstance> = persistentListOf(),
 ) {
-    Column(modifier.fillMaxWidth()) {
+    var burstActive by remember { mutableStateOf(false) }
+    Column(modifier.fillMaxWidth().zIndex(if (burstActive) Float.MAX_VALUE else 0f)) {
         if (previous == null) {
             Spacer(Modifier.height(Dimens.windowPadding))
             if (showBackwardPagingIndicator) {
@@ -162,6 +168,7 @@ fun ConversationItemRow(
                     canPin = canPin,
                     showReadReceipts = showReadReceipts,
                     onToggleSelection = { onToggleSelection(item) },
+                    onBurstActiveChange = { burstActive = it },
                     onForward = { onForward(item.item.event) },
                     onShowInfo = { onShowInfo(item.item.event) },
                     modifier = debugSeparatorLines.firstOrNull { it.position == DebugLinePosition.Start }?.let {

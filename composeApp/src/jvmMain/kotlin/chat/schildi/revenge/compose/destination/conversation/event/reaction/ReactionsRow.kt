@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +33,21 @@ fun ColumnScope.ReactionsRow(
     showSenderDetails: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    if (reactions.isEmpty()) return
+    val retainedReactions = remember(eventOrTransactionId) {
+        mutableStateListOf<EventReaction>().apply { addAll(reactions) }
+    }
+    LaunchedEffect(reactions) {
+        val activeKeys = reactions.mapTo(hashSetOf()) { it.key }
+        reactions.forEach { updated ->
+            val index = retainedReactions.indexOfFirst { it.key == updated.key }
+            if (index >= 0) retainedReactions[index] = updated else retainedReactions.add(updated)
+        }
+        if (retainedReactions.any { it.key !in activeKeys }) {
+            delay(220) // Let removed reactions finish their exit before the SDK drops their rows.
+            retainedReactions.removeAll { it.key !in activeKeys }
+        }
+    }
+    if (retainedReactions.isEmpty()) return
     val alignment = if (messageIsOwn) Alignment.End else Alignment.Start
     FlowRow(
         modifier = modifier
@@ -53,9 +71,13 @@ fun ColumnScope.ReactionsRow(
             alignment,
         ),
     ) {
-        reactions.forEach { reaction ->
+        retainedReactions.forEach { reaction ->
             key(reaction.key) {
-                ReactionsBubble(viewModel, eventOrTransactionId, reaction, roomMembersById)
+                ReactionsBubble(
+                    viewModel, eventOrTransactionId, reaction,
+                    present = reactions.any { it.key == reaction.key },
+                    roomMembersById = roomMembersById,
+                )
             }
         }
     }

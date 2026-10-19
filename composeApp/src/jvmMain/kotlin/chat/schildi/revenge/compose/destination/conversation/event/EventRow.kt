@@ -87,6 +87,7 @@ fun EventRow(
     canPin: Boolean,
     showReadReceipts: Boolean,
     onToggleSelection: () -> Unit,
+    onBurstActiveChange: (Boolean) -> Unit,
     onForward: () -> Unit,
     onShowInfo: () -> Unit,
     modifier: Modifier = Modifier
@@ -214,6 +215,7 @@ fun EventRow(
                                     }
                                 },
                                 onSingleTap = {},
+                                onBurstActiveChange = onBurstActiveChange,
                             ),
                         )
                     }

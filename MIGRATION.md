@@ -1224,3 +1224,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Inbox subtitles contain message content without a duplicate sender prefix. Emoji-only bubbles have a tighter trailing inset.
 - Reaction deselection updates immediately and reconciles with Matrix state, with a timeout rollback; double-tap burst animates the chosen emoji with heart/face/thumb-specific movement and stays above the composer edge.
 - Verification: `:composeApp:compileAndroidMain` succeeded through Nox buildq task 355; `git diff --check` clean. Signed release and real Samsung interaction verification pending.
+
+## 2026-10-20 — Reaction exit motion and burst layering
+
+- Animate immediate reaction-chip removal with a 180 ms fade/shrink; retain SDK-removed chips for 220 ms so quick acknowledgements cannot interrupt the exit.
+- Give active double-tap bursts max z-order on both message content and their timeline row until animation completes.
+- Nox `buildq` job 375: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a` PASS. The APK is **unsigned** because canonical Kite release-signing environment is unavailable on Nox; Samsung install and on-device animation verification remain pending.

@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -53,6 +54,7 @@ fun Modifier.passiveDoubleTapReaction(
     reactionActive: Boolean,
     singleTapEnabled: Boolean,
     onSingleTap: () -> Unit,
+    onBurstActiveChange: (Boolean) -> Unit,
 ): Modifier {
     if (!enabled && !singleTapEnabled) return this
 
@@ -63,6 +65,7 @@ fun Modifier.passiveDoubleTapReaction(
     val reactionEnabled by rememberUpdatedState(enabled)
     val tapEnabled by rememberUpdatedState(singleTapEnabled)
     val latestOnSingleTap by rememberUpdatedState(onSingleTap)
+    val latestOnBurstActiveChange by rememberUpdatedState(onBurstActiveChange)
     var burstPosition by remember(focusId) { mutableStateOf<Offset?>(null) }
     var burstSerial by remember(focusId) { mutableIntStateOf(0) }
     val burstProgress = remember(focusId) { Animatable(0f) }
@@ -87,9 +90,10 @@ fun Modifier.passiveDoubleTapReaction(
             burstProgress.snapTo(0f)
             burstProgress.animateTo(1f, tween(durationMillis = 540, easing = LinearEasing))
             burstPosition = null
+            latestOnBurstActiveChange(false)
         }
     }
-    return drawWithContent {
+    return this.zIndex(if (burstPosition != null) Float.MAX_VALUE else 0f).drawWithContent {
         drawContent()
         val tap = burstPosition ?: return@drawWithContent
         // Keep the burst above the composer boundary even on the bottom message.
@@ -226,6 +230,7 @@ fun Modifier.passiveDoubleTapReaction(
                             previousTapPosition = null
                             if (!activeReaction) {
                                 burstPosition = change.position
+                                latestOnBurstActiveChange(true)
                                 burstSerial++
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             } else {

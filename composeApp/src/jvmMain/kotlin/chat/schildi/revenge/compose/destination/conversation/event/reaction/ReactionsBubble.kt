@@ -1,5 +1,11 @@
 package chat.schildi.revenge.compose.destination.conversation.event.reaction
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +49,7 @@ fun ReactionsBubble(
     viewModel: ConversationViewModel,
     eventOrTransactionId: EventOrTransactionId,
     reaction: EventReaction,
+    present: Boolean,
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     modifier: Modifier = Modifier
 ) {
@@ -74,7 +81,11 @@ fun ReactionsBubble(
             pendingSelf = null // Roll back UI if sending failed or the server never acknowledged it.
         }
     }
-    if (count <= 0) return
+    AnimatedVisibility(
+        visible = present && count > 0,
+        enter = fadeIn(tween(140)) + expandHorizontally(tween(140)),
+        exit = fadeOut(tween(180)) + shrinkHorizontally(tween(180)),
+    ) {
     WithUserTimestampListPopup(
         focusId = focusId,
         users = userTimestamps,
@@ -131,10 +142,11 @@ fun ReactionsBubble(
         ) {
             ReactionContent(reaction.key, reaction.shortcode)
             Text(
-                count.toString(),
+                count.coerceAtLeast(1).toString(),
                 color = if (visibleSelf) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.labelMedium,
             )
         }
+    }
     }
 }
