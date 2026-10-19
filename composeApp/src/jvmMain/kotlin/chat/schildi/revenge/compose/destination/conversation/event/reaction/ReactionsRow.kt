@@ -1,9 +1,10 @@
 package chat.schildi.revenge.compose.destination.conversation.event.reaction
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
@@ -20,7 +21,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 
 @Composable
-fun ColumnScope.ReactionsRow(
+fun BoxScope.ReactionsRow(
     viewModel: ConversationViewModel,
     eventOrTransactionId: EventOrTransactionId,
     reactions: ImmutableList<EventReaction>,
@@ -30,9 +31,11 @@ fun ColumnScope.ReactionsRow(
     modifier: Modifier = Modifier,
 ) {
     if (reactions.isEmpty()) return
-    val alignment = if (messageIsOwn) Alignment.End else Alignment.Start
+    val alignment = if (messageIsOwn) Alignment.BottomEnd else Alignment.BottomStart
     FlowRow(
         modifier = modifier
+            .align(alignment)
+            .offset(y = (-6).dp)
             .padding(
                 top = Dimens.Conversation.reactionPaddingVertical,
                 start = if (messageIsOwn)
@@ -45,12 +48,11 @@ fun ColumnScope.ReactionsRow(
                     0.dp
                 else
                     LocalMessageStyle.current.otherSideMargin,
-            )
-            .align(alignment),
+            ),
         verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.reactionPaddingVertical),
         horizontalArrangement = Arrangement.spacedBy(
             Dimens.Conversation.reactionPaddingHorizontal,
-            alignment,
+            if (messageIsOwn) Alignment.End else Alignment.Start,
         ),
     ) {
         reactions.forEach { reaction ->

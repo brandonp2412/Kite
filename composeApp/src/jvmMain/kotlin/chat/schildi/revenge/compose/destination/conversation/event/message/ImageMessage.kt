@@ -8,12 +8,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,14 +77,17 @@ fun ImageMessage(
     threadInfo: EventThreadInfo?,
     modifier: Modifier = Modifier,
 ) {
-    val captionLayoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
-    val isTransparent = messageMetadata?.preFormattedContent == null && inReplyTo == null
+    val hasCaption = messageMetadata?.preFormattedContent != null
+    val isTransparent = !hasCaption && inReplyTo == null
+    // Portrait attachments with a caption should remain compact and
+    // right-aligned, matching the image width rather than the whole row.
+    val captionWidth = if (hasCaption && (aspectRatioOrNull(width, height) ?: 1f) < 0.8f) 220.dp else 320.dp
     MessageBubble(
         isOwn = isOwn,
         timestamp = timestamp,
-        modifier = modifier,
+        modifier = if (hasCaption) modifier.widthIn(max = captionWidth) else modifier,
         padding = PaddingValues(Dimens.Conversation.imageBubbleInnerPadding),
-        contentTextLayoutResult = captionLayoutResult.value,
+        contentTextLayoutResult = null,
         isMediaOverlay = !isTransparent,
         transparent = isTransparent,
         allowTimestampOverlay = messageMetadata?.preFormattedContent?.allowTimestampOverlay() != false,
@@ -123,7 +125,7 @@ fun ImageMessage(
             },
             caption = messageMetadata?.preFormattedContent,
             shape = shape,
-            onCaptionTextLayout = { captionLayoutResult.value = it }
+            onCaptionTextLayout = {}
         )
     }
 }

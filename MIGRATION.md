@@ -1217,3 +1217,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Message long-press date, reaction shortcuts, and Copy/Select/Delete actions now use separate rounded surfaces. Actions are 192dp wide instead of inheriting the wide emoji row.
 - Replaced the broken full reaction chooser's composer REACTION mode with a searchable emoji grid that dispatches ToggleReactionKey directly.
 - Glass: `:androidApp:compileDebugSources :androidApp:verifyKiteLongPressMenu` via buildq #47 PASS; `git diff --check` PASS. Device visual testing and frame-time proof still pending (Samsung locked).
+
+## 2026-10-19 — Messenger-like media captions and stable reaction rows
+
+- Captioned portrait images now use a compact 220dp maximum width (other captioned images 320dp), keeping the attached image and its text above it within one right/left-aligned bubble. Image-only messages retain their original sizing. The caption no longer updates media status layout state after text measurement.
+- Reaction chips are overlaid within the event content bounds instead of entering or leaving the measured event column; adding/removing a reaction no longer changes row height.
+- Glass: `:composeApp:compileAndroidMain` PASS via buildq #257; `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26101901 -PandroidVersionName=26.10.19.1` PASS via buildq #259. APK package `app.kite` and signing SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` match the installed Samsung package. Direct visual validation of the image/caption and reaction gestures is pending.

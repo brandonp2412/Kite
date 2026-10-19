@@ -189,6 +189,9 @@ fun EventRow(
                 }
                 Box(Modifier.weight(1f)) {
                     Column(Modifier.fillMaxWidth()) {
+                        // Keep reaction chips outside measurement: toggling a reaction must
+                        // not resize this row and shift the reverse-layout timeline.
+                        Box(Modifier.fillMaxWidth()) {
                         EventSwipeable(
                             focusId = focusId,
                             isOwn = event.isOwn,
@@ -234,6 +237,7 @@ fun EventRow(
                             messageIsOwn = event.isOwn,
                             showSenderDetails = showSenderDetails,
                         )
+                        }
                         if (threadInfo is EventThreadInfo.ThreadRoot && event.eventId?.value != currentThreadId?.value) {
                             ThreadRootInfoRow(
                                 threadInfo = threadInfo,
