@@ -203,9 +203,14 @@ object AndroidNotifier {
         } else {
             NotificationCompat.MessagingStyle(ownUser)
         }
+        // Bridged DMs can lack the Matrix direct-chat flag. When the room title is
+        // the only sender's name, showing it as a group repeats the name twice.
+        val hasOtherSenders = messagingStyle.messages.any { it.person?.key != sender.key }
+        val isGroupConversation = !data.isDirect &&
+                (data.roomDisplayName != senderName || hasOtherSenders)
         messagingStyle
-            .setConversationTitle(data.roomDisplayName)
-            .setGroupConversation(!data.isDirect)
+            .setConversationTitle(data.roomDisplayName.takeIf { isGroupConversation })
+            .setGroupConversation(isGroupConversation)
         val previousMessageCount = messagingStyle.messages.size
         val alignedPreviousEventIds = if (historyIsAligned) previousEventIds else emptyList()
 
