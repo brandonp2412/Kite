@@ -13,6 +13,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
+import chat.schildi.revenge.compose.destination.conversation.event.reaction.kiteReactionFace
+import chat.schildi.theme.rememberEmojiFontFamily
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.drawWithContent
@@ -39,15 +46,18 @@ internal class HeartBurstState {
         private set
     var serial by mutableIntStateOf(0)
         private set
+    var reaction by mutableStateOf("❤️")
+        private set
 
     private var viewport: LayoutCoordinates? = null
 
     fun updateViewport(coordinates: LayoutCoordinates) { viewport = coordinates }
 
-    fun trigger(tap: Offset, messageCoordinates: LayoutCoordinates) {
+    fun trigger(tap: Offset, messageCoordinates: LayoutCoordinates, selectedReaction: String) {
         val viewportCoordinates = viewport?.takeIf { it.isAttached } ?: return
         if (!messageCoordinates.isAttached) return
         position = viewportCoordinates.localPositionOf(messageCoordinates, tap)
+        reaction = selectedReaction
         serial++
     }
 
@@ -63,6 +73,13 @@ internal fun rememberHeartBurstState() = remember { HeartBurstState() }
 @Composable
 internal fun Modifier.drawHeartBurst(state: HeartBurstState): Modifier {
     val burstProgress = remember { Animatable(0f) }
+    val reaction = state.reaction
+    val textMeasurer = rememberTextMeasurer()
+    val emojiFont = rememberEmojiFontFamily()
+    val reactionLayout = remember(reaction, emojiFont) {
+        textMeasurer.measure(AnnotatedString(reaction), style = TextStyle(fontSize = 52.sp, fontFamily = emojiFont))
+    }
+    val isHeart = reaction == "❤️" || reaction == "❤"
     val heartShape = remember {
         Path().apply {
             moveTo(0f, 27f)
@@ -101,8 +118,16 @@ internal fun Modifier.drawHeartBurst(state: HeartBurstState): Modifier {
             rotate(degrees = -4f + 6f * t)
             scale(scaleX = glyphScale, scaleY = glyphScale, pivot = Offset.Zero)
         }) {
-            drawPath(heartShape, color = Color.Black, alpha = 0.16f * opacity)
-            drawPath(heartShape, color = Color(0xFFFF5278), alpha = opacity)
+            if (isHeart) {
+                drawPath(heartShape, color = Color.Black, alpha = 0.16f * opacity)
+                drawPath(heartShape, color = Color(0xFFFF5278), alpha = opacity)
+            } else {
+                drawText(
+                    textLayoutResult = reactionLayout,
+                    topLeft = Offset(-reactionLayout.size.width / 2f, -reactionLayout.size.height / 2f),
+                    alpha = opacity,
+                )
+            }
         }
         if (t < 0.6f) {
             val sparkle = (1f - t / 0.6f).coerceIn(0f, 1f)
@@ -110,7 +135,12 @@ internal fun Modifier.drawHeartBurst(state: HeartBurstState): Modifier {
             for (direction in 0..5) {
                 val angle = direction * kotlin.math.PI / 3
                 drawCircle(
-                    color = if (direction % 2 == 0) Color(0xFFFF90B0) else Color(0xFFFFD38A),
+                    color = when {
+                        isHeart -> if (direction % 2 == 0) Color(0xFFFF90B0) else Color(0xFFFFD38A)
+                        reaction.startsWith("👍") || reaction.startsWith("👎") -> Color(0xFFFFC83D)
+                        kiteReactionFace(reaction) != null -> if (direction % 2 == 0) Color(0xFFFFD848) else Color(0xFF69C8F2)
+                        else -> if (direction % 2 == 0) Color(0xFF9BD3FF) else Color(0xFFC59BFF)
+                    },
                     radius = 2.6.dp.toPx() * sparkle,
                     center = Offset(
                         at.x + kotlin.math.cos(angle).toFloat() * (22.dp.toPx() + spread),

@@ -1282,3 +1282,46 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Glass buildq #574 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000004 -PandroidVersionName=1.0.4` PASS. Verified package `app.kite`, version 1.0.4 and signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches installed releases.
 - Samsung SM-S931B `adb install -r` Success; `dumpsys package` confirms version code 101000004, app data retained (`firstInstallTime=2026-10-16 18:00:56`). Existing notifications are from the previous build; only a subsequent actual incoming notification can verify the rendered UI.
+
+## 2026-10-20 — Nox/GitHub release integration history
+
+## 2026-10-20 — Inbox, notification, reaction and timeline feedback
+
+- Opening message notifications now routes to the live room and dismisses every active notification for the same session and room. Normal room openings no longer focus an old fully-read marker; explicit unread jumps are unchanged.
+- Inbox subtitles contain message content without a duplicate sender prefix. Emoji-only bubbles have a tighter trailing inset.
+- Reaction deselection updates immediately and reconciles with Matrix state, with a timeout rollback; double-tap burst animates the chosen emoji with heart/face/thumb-specific movement and stays above the composer edge.
+- Verification: `:composeApp:compileAndroidMain` succeeded through Nox buildq task 355; `git diff --check` clean. Signed release and real Samsung interaction verification pending.
+
+## 2026-10-20 — Reaction exit motion and burst layering
+
+- Animate immediate reaction-chip removal with a 180 ms fade/shrink; retain SDK-removed chips for 220 ms so quick acknowledgements cannot interrupt the exit.
+- Give active double-tap bursts max z-order on both message content and their timeline row until animation completes.
+- Nox `buildq` job 375: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a` PASS. The APK is **unsigned** because canonical Kite release-signing environment is unavailable on Nox; Samsung install and on-device animation verification remain pending.
+
+## 2026-10-20 — Odin hardware proof: reaction exit without FlowRow jolt
+
+- Corrected the regression from `ecb95f6`: `shrinkHorizontally` modified reaction-chip width every frame, forcing `FlowRow` to reposition its neighbours. Chip exit now fades at fixed measured width; when its last reaction is removed, the entire reactions row uses a 240 ms vertical collapse.
+- Samsung Galaxy S25 hardware test on the **Odin** Matrix conversation (not other chats): double-tapped the existing short own message to add ❤️, then tapped that reaction to remove it. Confirmed the reaction disappeared. Captured the real device screen recording at `/home/brandon/.cache/kite-release/odin-reaction-26102003.mp4` (47 encoded video frames, 1080×2340). In the exit frames, the same message bubble at x≈974 moved smoothly from y=1700 to y=1788; largest successive-frame displacement was 8 px, with no instantaneous layout jump. No new text message was sent.
+- Nox `buildq` #389 `:androidApp:assembleRelease` PASS (arm64-v8a). Signed local APK with the existing Kite certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; Samsung `adb install -r` succeeded and installed `app.kite` version `26.10.20.3` (versionCode 26102003) preserving data.
+- This proves the specific final-chip reaction-removal motion on Odin; broader combinations of simultaneous reactions and top-layer bursts were not rerun in this capture.
+
+## 2026-10-20 — Suppress reaction action progress notification
+
+- Reproduced in user-provided Odin recording `14776.mp4`: a transient `Processing` app message flashes below the composer during a double-tap heart reaction.
+- Root cause: `Action.Event.ToggleReactionKey` and `ToggleReactionIndex` requested `notifyProcessing = true` in `ConversationViewModel`, causing `ActionContext.launchActionAsync` to publish the `action_processing` message despite successful asynchronous reaction toggles.
+- Removed this flag for both reaction actions, leaving error reporting in `launchActionAsync` unchanged; direct chip toggling already uses the silent `toggleReaction` path.
+- Nox `buildq` job #402 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26102004 -PandroidVersionName=26.10.20.4` passed. Signed APK with canonical certificate `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; Samsung Galaxy S25 `adb install -r` returned `Success`, installed version 26102004, preserved original firstInstallTime.
+- **Not visually verified after installation**: Odin interaction retest blocked by Samsung's secure lock screen (Window focus `Bouncer`). Do not describe this as hardware UI proof.
+
+## 2026-10-20 — Message long-press menu order and spacing
+
+- Place Select/Deselect above Copy; leave Delete last. Quick reactions and timestamp layout remain unchanged.
+- Remove the cramped 40dp fixed rows: Copy/Select/Delete now use 48dp height with 4dp top and bottom in their grouped surface, matching the rhythm of the existing quick-reaction row.
+- Nox `buildq` job #404 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26102005 -PandroidVersionName=26.10.20.5` PASS. Signed the 26.10.20.5 APK with the verified existing Kite certificate; `adb install -r` returned Success on Samsung Galaxy S25; `firstInstallTime` unchanged.
+- Device visual menu check remains outstanding: Samsung was at its locked screen when inspection was attempted. Do not claim the spacing was visually validated on hardware.
+
+## 2026-10-21 — Reconcile Glass and GitHub/Nox histories after stale release regression
+
+- Nox `/home/brandon/worktrees/kite-notification-name-20261020` and current GitHub `main` contained original duplicate-name fix `8326605` (Kite 1.0.2). Glass release 1.0.3 was built from a diverged local `main` that omitted eight GitHub-only commits, including the fix; this explains the observed 1.0.3 regression.
+- Merged both branch histories with distinct selection/reaction layout improvements kept, and retained viewport-owned reaction rendering while supporting non-heart emoji bursts. Kept the notification single-contact logic plus older dismissal/message-opening fixes. Added release source ancestry requirement to AGENTS.md.
+- Glass buildq #584 `:composeApp:desktopTest :composeApp:compileAndroidMain` PASS; includes notification grouping regression tests. Device/UI integration and 1.0.5 release installation not yet performed.

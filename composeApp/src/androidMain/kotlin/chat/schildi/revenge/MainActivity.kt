@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
         this.destinationStateHolder = destinationStateHolder
 
         if (savedInstanceState == null) {
+            dismissOpenedConversationNotification(intent)
             handleViewIntent(intent)
             handleShareIntent(intent)
         }
@@ -168,6 +169,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        dismissOpenedConversationNotification(intent)
         handleViewIntent(intent)
         handleShareIntent(intent)
         setIntent(intent)
@@ -180,6 +182,12 @@ class MainActivity : ComponentActivity() {
                     log.e("Failed to deserialize new intent destination", failure)
                 }
         }
+    }
+
+    private fun dismissOpenedConversationNotification(intent: Intent) {
+        val sessionId = intent.getStringExtra("session_id") ?: return
+        val roomId = intent.getStringExtra("room_id") ?: return
+        chat.schildi.revenge.notification.AndroidNotifier.dismiss(sessionId, roomId)
     }
 
     private fun handleViewIntent(intent: Intent) {

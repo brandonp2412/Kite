@@ -1,17 +1,21 @@
 package chat.schildi.revenge.compose.destination.conversation.event.reaction
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -35,17 +39,32 @@ fun ColumnScope.ReactionsRow(
     showSenderDetails: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    // Matrix can briefly remove optimistic reactions while confirming the server's
-    // echo. Keep the previous chips through that short interval to avoid a flash.
-    var displayedReactions by remember(eventOrTransactionId) { mutableStateOf(reactions) }
-    LaunchedEffect(reactions) {
-        if (reactions.isEmpty()) delay(180)
-        displayedReactions = reactions
+    val retainedReactions = remember(eventOrTransactionId) {
+        mutableStateListOf<EventReaction>().apply { addAll(reactions) }
     }
-    if (displayedReactions.isEmpty()) return
+    LaunchedEffect(reactions) {
+        val activeKeys = reactions.mapTo(hashSetOf()) { it.key }
+        reactions.forEach { updated ->
+            val index = retainedReactions.indexOfFirst { it.key == updated.key }
+            if (index >= 0) retainedReactions[index] = updated else retainedReactions.add(updated)
+        }
+        if (retainedReactions.any { it.key !in activeKeys }) {
+            delay(220) // Let removed reactions finish their exit before the SDK drops their rows.
+            retainedReactions.removeAll { it.key !in activeKeys }
+        }
+    }
     val alignment = if (messageIsOwn) Alignment.End else Alignment.Start
+    // Keep the last reaction's layout alive while the entire reaction row
+    // collapses vertically. Removing the FlowRow in a single frame jolts every
+    // message above it in the reverse-layout timeline.
+    AnimatedVisibility(
+        visible = retainedReactions.isNotEmpty(),
+        enter = fadeIn(tween(160)) + expandVertically(tween(220)),
+        exit = fadeOut(tween(180)) + shrinkVertically(tween(240)),
+        modifier = modifier.align(alignment),
+    ) {
     FlowRow(
-        modifier = modifier
+        modifier = Modifier
             .padding(
                 top = Dimens.Conversation.reactionPaddingVertical,
                 start = if (messageIsOwn)
@@ -58,18 +77,22 @@ fun ColumnScope.ReactionsRow(
                     0.dp
                 else
                     LocalMessageStyle.current.otherSideMargin,
-            )
-            .align(alignment),
+            ),
         verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.reactionPaddingVertical),
         horizontalArrangement = Arrangement.spacedBy(
             Dimens.Conversation.reactionPaddingHorizontal,
             alignment,
         ),
     ) {
-        displayedReactions.forEach { reaction ->
+        retainedReactions.forEach { reaction ->
             key(reaction.key) {
-                ReactionsBubble(viewModel, eventOrTransactionId, reaction, roomMembersById)
+                ReactionsBubble(
+                    viewModel, eventOrTransactionId, reaction,
+                    present = reactions.any { it.key == reaction.key },
+                    roomMembersById = roomMembersById,
+                )
             }
         }
+    }
     }
 }

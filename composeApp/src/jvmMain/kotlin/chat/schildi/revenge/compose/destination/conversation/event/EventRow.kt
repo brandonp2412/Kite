@@ -1,13 +1,11 @@
 package chat.schildi.revenge.compose.destination.conversation.event
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -179,82 +177,84 @@ fun EventRow(
                 .padding(horizontal = Dimens.Conversation.timelineHorizontalPadding)
         ) {
             val threadInfo = event.threadInfo()
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-            ) {
-                if (selectionActive && selectable) {
-                    MessageSelectionIndicator(
-                        selected = isSelected,
-                        onClick = toggleSelection,
-                    )
-                }
-                Box(Modifier.weight(1f)) {
-                    Column(Modifier.fillMaxWidth().animateContentSize()) {
-                        EventSwipeable(
-                            focusId = focusId,
+            // Draw selection affordances over the row instead of adding a leading
+            // column that narrows every message when multi-select opens.
+            Box(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth()) {
+                    EventSwipeable(
+                        focusId = focusId,
+                        isOwn = event.isOwn,
+                        swipeConfig = swipeConfig,
+                        enabled = !selectionActive && !messageActionMenuOpen,
+                    ) { modifier ->
+                        EventContentLayout(
+                            eventId = event.eventId,
+                            content = event.content,
+                            messageMetadata = messageMetadata,
+                            formatInteractionState = formatInteractionState,
+                            senderId = event.sender,
+                            senderProfile = event.senderProfile,
                             isOwn = event.isOwn,
-                            swipeConfig = swipeConfig,
-                            enabled = !selectionActive && !messageActionMenuOpen,
-                        ) { modifier ->
-                            EventContentLayout(
-                                eventId = event.eventId,
-                                content = event.content,
-                                messageMetadata = messageMetadata,
-                                formatInteractionState = formatInteractionState,
-                                senderId = event.sender,
-                                senderProfile = event.senderProfile,
-                                isOwn = event.isOwn,
-                                showSenderDetails = showSenderDetails,
-                                timestamp = timestamp,
-                                isSameAsPreviousSender = isSameAsPreviousSender,
-                                isSameAsNextSender = isSameAsNextSender,
-                                inReplyTo = event.inReplyTo(),
-                                threadInfo = threadInfo,
-                                roomMembersById = roomMembersById,
-                                timelineItemDebugInfoProvider = event.timelineItemDebugInfoProvider,
-                                modifier = modifier,
-                                messageContentModifier = Modifier.passiveDoubleTapReaction(
-                                    focusId = focusId,
-                                    enabled = canDoubleTapReact && !messageActionMenuOpen,
-                                    singleTapEnabled = false,
-                                    reaction = doubleTapReaction,
-                                    reactionActive = event.reactions.any { reaction ->
-                                        reaction.key == doubleTapReaction && reaction.senders.any { sender ->
-                                            sender.senderId.value == viewModel.sessionId.value
-                                        }
-                                    },
-                                    onSingleTap = {},
-                                    onBurst = { tap, messageCoordinates ->
-                                        heartBurst?.trigger(tap, messageCoordinates)
-                                    },
-                                ),
-                            )
-                        }
-                        ReactionsRow(
-                            viewModel = viewModel,
-                            eventOrTransactionId = EventOrTransactionId.from(event.eventId, event.transactionId),
-                            reactions = event.reactions,
+                            showSenderDetails = showSenderDetails,
+                            timestamp = timestamp,
+                            isSameAsPreviousSender = isSameAsPreviousSender,
+                            isSameAsNextSender = isSameAsNextSender,
+                            inReplyTo = event.inReplyTo(),
+                            threadInfo = threadInfo,
                             roomMembersById = roomMembersById,
+                            timelineItemDebugInfoProvider = event.timelineItemDebugInfoProvider,
+                            modifier = modifier,
+                            messageContentModifier = Modifier.passiveDoubleTapReaction(
+                                focusId = focusId,
+                                enabled = canDoubleTapReact && !messageActionMenuOpen,
+                                singleTapEnabled = false,
+                                reaction = doubleTapReaction,
+                                reactionActive = event.reactions.any { reaction ->
+                                    reaction.key == doubleTapReaction && reaction.senders.any { sender ->
+                                        sender.senderId.value == viewModel.sessionId.value
+                                    }
+                                },
+                                onSingleTap = {},
+                                onBurst = { tap, messageCoordinates ->
+                                    heartBurst?.trigger(tap, messageCoordinates, doubleTapReaction)
+                                },
+                            ),
+                        )
+                    }
+                    ReactionsRow(
+                        viewModel = viewModel,
+                        eventOrTransactionId = EventOrTransactionId.from(event.eventId, event.transactionId),
+                        reactions = event.reactions,
+                        roomMembersById = roomMembersById,
+                        messageIsOwn = event.isOwn,
+                        showSenderDetails = showSenderDetails,
+                    )
+                    if (threadInfo is EventThreadInfo.ThreadRoot && event.eventId?.value != currentThreadId?.value) {
+                        ThreadRootInfoRow(
+                            threadInfo = threadInfo,
+                            sessionId = viewModel.sessionId,
+                            roomId = viewModel.roomId,
+                            eventId = event.eventId,
                             messageIsOwn = event.isOwn,
                             showSenderDetails = showSenderDetails,
                         )
-                        if (threadInfo is EventThreadInfo.ThreadRoot && event.eventId?.value != currentThreadId?.value) {
-                            ThreadRootInfoRow(
-                                threadInfo = threadInfo,
-                                sessionId = viewModel.sessionId,
-                                roomId = viewModel.roomId,
-                                eventId = event.eventId,
-                                messageIsOwn = event.isOwn,
-                                showSenderDetails = showSenderDetails,
-                            )
-                        }
-                        if (showReadReceipts) {
-                            ReadReceiptsRow(
-                                receipts = event.receipts,
-                                roomMembersById = roomMembersById,
-                            )
-                        }
+                    }
+                    if (showReadReceipts) {
+                        ReadReceiptsRow(
+                            receipts = event.receipts,
+                            roomMembersById = roomMembersById,
+                        )
+                    }
+                }
+                if (selectionActive && selectable) {
+                    // matchParentSize children never participate in Box measurement:
+                    // even a one-line message keeps its pre-selection row height.
+                    Box(Modifier.matchParentSize()) {
+                        MessageSelectionIndicator(
+                            selected = isSelected,
+                            onClick = toggleSelection,
+                            modifier = Modifier.align(Alignment.CenterStart),
+                        )
                     }
                 }
             }

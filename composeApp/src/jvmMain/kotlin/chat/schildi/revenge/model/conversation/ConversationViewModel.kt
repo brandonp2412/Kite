@@ -340,31 +340,10 @@ class ConversationViewModel(
 
     private val clientFlow = UiState.selectClient(sessionId, viewModelScope, loadStateHolder)
 
-    private val effectiveInitialEventId = viewModelScope.async {
-        if (timelineParams == null && scPreferencesStore.getSetting(ScPrefs.OPEN_AT_UNREAD)) {
-            loadStateHolder.addExpectedBefore(LoadCheckPoint.Timeline, LoadCheckPoint.ReadMarker)
-            val client = clientFlow.filterNotNull().first()
-            // Rust SDK requires
-            val fullyReadEventId = client.getRoomAccountData(roomId, "m.fully_read")
-                .mapCatching {
-                    it?.let {
-                        Json.parseToJsonElement(it).jsonObject["event_id"]?.jsonPrimitive?.contentOrNull
-                            ?.let(::EventId)
-                    }
-                }
-                .also { loadStateHolder.handleResult(LoadCheckPoint.ReadMarker, it) }
-                .getOrNull()
-            if (fullyReadEventId != null) {
-                _targetEvent.emit(EventJumpTarget.Event(fullyReadEventId, highlight = false))
-                fullyReadEventId
-            } else {
-                null
-            }
-        } else {
-            initialTargetEvent
-        }
-    }
-
+    // Opening an ordinary room must load the live timeline and show the latest
+    // message, even when the previous fully-read marker is far back in history.
+    // Explicit jump-to-unread/fully-read actions still resolve that marker later.
+    private val effectiveInitialEventId = viewModelScope.async { initialTargetEvent }
 
     private val _targetEvent = MutableStateFlow<EventJumpTarget?>(
         initialTargetEvent?.let(EventJumpTarget::Event) ?: EventJumpTarget.Index(0)

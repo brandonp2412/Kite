@@ -331,14 +331,14 @@ fun WithContextMenu(
                         shape = MaterialTheme.shapes.extraLarge,
                         modifier = Modifier.width(192.dp),
                     ) {
-                        Column {
+                        Column(Modifier.padding(vertical = 4.dp)) {
                             menuEntries.forEach { entry ->
                                 ContextMenuDropdownMenuItem(
                                     entry = entry,
                                     focusId = focusId,
                                     menuId = menuId,
                                     presentation = presentation,
-                                    modifier = Modifier.height(40.dp),
+                                    modifier = Modifier.height(48.dp),
                                     onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
                                 )
                             }

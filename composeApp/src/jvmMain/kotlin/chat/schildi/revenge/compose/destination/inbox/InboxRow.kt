@@ -304,19 +304,7 @@ private fun RowScope.ScLastMessageAndIndicatorRow(
                     event.senderProfile,
                     event.senderId,
                 )
-                if (event.isOwn || room.isDm) {
-                    AnnotatedString(eventText)
-                } else {
-                    val senderName = event.senderProfile.getDisplayName() ?: event.senderId.value
-                    .sanitizeDirection()
-                    buildAnnotatedString {
-                        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                            append(senderName.sanitizeDirection())
-                            append(": ")
-                        }
-                        append(eventText.sanitizeDirection())
-                    }
-                }
+                AnnotatedString(eventText.sanitizeDirection())
             }
             is LatestEventValue.RoomInvite -> event.inviterId?.let { inviterId ->
                 event.invitedProfile.getDisplayName()?.let {
