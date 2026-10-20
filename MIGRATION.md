@@ -1331,3 +1331,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Verified `git merge-base --is-ancestor origin/main HEAD`, with both Nox `8326605` and Glass `990bf0a9` original/renewed duplicate-name notification fixes included in merge `ac7a72fa`; GitHub main pushed at that commit.
 - Glass buildq #585 signed `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000005 -PandroidVersionName=1.0.5` PASS (280 tasks, 5m 51s). APK `app.kite`, SHA-256 signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches the installed release signer.
 - Samsung SM-S931B (`10.66.66.3:5555`) `adb install -r`: Success. Version 1.0.5 / 101000005 confirmed; `firstInstallTime=2026-10-16 18:00:56` unchanged, app data retained. Fresh inbound notification visual proof still pending.
+
+## 2026-10-21 — Matching rounded corners on sent images
+
+- Moved media clipping from the Coil subcomposed image to its enclosing measured media viewport. Outgoing and incoming images, stickers, and video thumbnails now share the bubble-derived rounded shape without adding an image background or changing reserved dimensions.
+- Glass isolated worktree: `:composeApp:compileAndroidMain --offline --no-daemon -Pkotlin.incremental=false` PASS via buildq #604 (3m 36s); `git diff --check` PASS. Samsung visual comparison is pending.
