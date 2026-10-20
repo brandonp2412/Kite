@@ -1325,3 +1325,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Nox `/home/brandon/worktrees/kite-notification-name-20261020` and current GitHub `main` contained original duplicate-name fix `8326605` (Kite 1.0.2). Glass release 1.0.3 was built from a diverged local `main` that omitted eight GitHub-only commits, including the fix; this explains the observed 1.0.3 regression.
 - Merged both branch histories with distinct selection/reaction layout improvements kept, and retained viewport-owned reaction rendering while supporting non-heart emoji bursts. Kept the notification single-contact logic plus older dismissal/message-opening fixes. Added release source ancestry requirement to AGENTS.md.
 - Glass buildq #584 `:composeApp:desktopTest :composeApp:compileAndroidMain` PASS; includes notification grouping regression tests. Device/UI integration and 1.0.5 release installation not yet performed.
+
+## 2026-10-21 — Reconciled Kite 1.0.5 installed on Samsung
+
+- Verified `git merge-base --is-ancestor origin/main HEAD`, with both Nox `8326605` and Glass `990bf0a9` original/renewed duplicate-name notification fixes included in merge `ac7a72fa`; GitHub main pushed at that commit.
+- Glass buildq #585 signed `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000005 -PandroidVersionName=1.0.5` PASS (280 tasks, 5m 51s). APK `app.kite`, SHA-256 signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches the installed release signer.
+- Samsung SM-S931B (`10.66.66.3:5555`) `adb install -r`: Success. Version 1.0.5 / 101000005 confirmed; `firstInstallTime=2026-10-16 18:00:56` unchanged, app data retained. Fresh inbound notification visual proof still pending.
