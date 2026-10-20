@@ -1336,3 +1336,5 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Moved media clipping from the Coil subcomposed image to its enclosing measured media viewport. Outgoing and incoming images, stickers, and video thumbnails now share the bubble-derived rounded shape without adding an image background or changing reserved dimensions.
 - Glass isolated worktree: `:composeApp:compileAndroidMain --offline --no-daemon -Pkotlin.incremental=false` PASS via buildq #604 (3m 36s); `git diff --check` PASS. Samsung visual comparison is pending.
+
+- Glass buildq #611 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000006 -PandroidVersionName=1.0.6` PASS (5m 12s, lint PASS). APK signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`, package `app.kite`, APK SHA-256 `980ae4dc7d241e6db3a459cba1261944ba668d9e1815044fc8ff545b4875ae39`. Samsung S25 `adb install -r` SUCCESS; 1.0.6/101000006 verified, original firstInstallTime `2026-10-16 18:00:56` preserved. Direct visual corner comparison still pending.
