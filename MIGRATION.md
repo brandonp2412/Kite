@@ -1338,3 +1338,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass isolated worktree: `:composeApp:compileAndroidMain --offline --no-daemon -Pkotlin.incremental=false` PASS via buildq #604 (3m 36s); `git diff --check` PASS. Samsung visual comparison is pending.
 
 - Glass buildq #611 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000006 -PandroidVersionName=1.0.6` PASS (5m 12s, lint PASS). APK signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`, package `app.kite`, APK SHA-256 `980ae4dc7d241e6db3a459cba1261944ba668d9e1815044fc8ff545b4875ae39`. Samsung S25 `adb install -r` SUCCESS; 1.0.6/101000006 verified, original firstInstallTime `2026-10-16 18:00:56` preserved. Direct visual corner comparison still pending.
+
+## 2026-10-21 — Fit-aligned media clip after 1.0.6 visual regression
+
+- User reported unchanged square corners on Samsung after 1.0.6. The previous viewport clip did not address fitted images: `ContentScale.Fit` can letterbox an outgoing portrait photo inside the stable square reserved for missing Matrix dimensions, leaving the visible photo's corners inside the clip.
+- Apply the existing bubble corner shape to the decoded image's **fitted bounds** inside the reserved viewport, using the painter's intrinsic dimensions; preserve placeholder clipping and fixed timeline measurements. This also handles landscape media and video thumbnails.
+- Added regression tests for portrait fitted mask bounds, landscape offsets, and unknown intrinsic dimensions. Glass `buildq` #630 `:composeApp:compileAndroidMain :composeApp:desktopTest --tests chat.schildi.revenge.FittedImageShapeTest` PASS (27s). Samsung visual confirmation pending while device is locked.

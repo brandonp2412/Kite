@@ -16,10 +16,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import chat.schildi.lib.preferences.ScPrefs
@@ -39,6 +47,7 @@ import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageLikeMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.InReplyTo
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
+import kotlin.math.min
 
 @Composable
 fun ImageMessage(
@@ -161,8 +170,7 @@ fun ColumnScope.ImageMessageContent(
         LaunchedEffect(Unit) { onCaptionTextLayout(null) }
     }
     Box(
-        // Clip the entire media viewport, including Coil's subcomposed content,
-        // so sent and received images retain identical rounded corners.
+        // Keep placeholders and overlays inside the reserved viewport.
         modifier = Modifier.align(Alignment.CenterHorizontally).clip(shape),
         contentAlignment = Alignment.Center,
     ) {
@@ -196,7 +204,9 @@ fun ColumnScope.ImageMessageContent(
             }
             when (painter.state.collectAsState().value) {
                 is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent(
-                    modifier = Modifier.fillMaxSize(),
+                    // Fit may letterbox an image when its Matrix dimensions are absent or
+                    // incorrect. Clip to the decoded picture, not the empty viewport.
+                    modifier = Modifier.fillMaxSize().clip(FittedImageShape(painter.intrinsicSize, shape)),
                 )
                 AsyncImagePainter.State.Empty,
                 is AsyncImagePainter.State.Loading,
@@ -212,6 +222,42 @@ fun ColumnScope.ImageMessageContent(
         }
         overlay()
     }
+}
+
+/** Keeps rounded corners on the *visible* ContentScale.Fit image when its reserved
+ * viewport has a different aspect ratio (especially older outgoing media without info). */
+internal class FittedImageShape(private val imageSize: Size, private val corners: Shape) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val rect = fittedMediaRect(size, imageSize)
+        val child = corners.createOutline(rect.size, layoutDirection, density)
+        if (rect.left == 0f && rect.top == 0f && rect.size == size) return child
+        val path = Path()
+        when (child) {
+            is Outline.Rectangle -> path.addRect(rect)
+            is Outline.Rounded -> {
+                val rounded = child.roundRect
+                path.addRoundRect(RoundRect(
+                    left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom,
+                    topLeftCornerRadius = rounded.topLeftCornerRadius,
+                    topRightCornerRadius = rounded.topRightCornerRadius,
+                    bottomRightCornerRadius = rounded.bottomRightCornerRadius,
+                    bottomLeftCornerRadius = rounded.bottomLeftCornerRadius,
+                ))
+            }
+            is Outline.Generic -> path.addPath(child.path, Offset(rect.left, rect.top))
+        }
+        return Outline.Generic(path)
+    }
+}
+
+internal fun fittedMediaRect(viewport: Size, image: Size): Rect {
+    if (!image.width.isFinite() || !image.height.isFinite() ||
+        image.width <= 0f || image.height <= 0f || viewport.width <= 0f || viewport.height <= 0f
+    ) return Rect(Offset.Zero, viewport)
+    val scale = min(viewport.width / image.width, viewport.height / image.height)
+    val width = image.width * scale
+    val height = image.height * scale
+    return Rect(Offset((viewport.width - width) / 2f, (viewport.height - height) / 2f), Size(width, height))
 }
 
 private fun aspectRatioOrNull(width: Long?, height: Long?): Float? {
