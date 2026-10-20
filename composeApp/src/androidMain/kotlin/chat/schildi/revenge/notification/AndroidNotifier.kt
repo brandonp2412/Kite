@@ -203,16 +203,25 @@ object AndroidNotifier {
         } else {
             NotificationCompat.MessagingStyle(ownUser)
         }
+        // Bridge rooms can be one-to-one even when Matrix does not mark them as direct.
+        val isGroupConversation = isGroupNotification(
+            isDirect = data.isDirect,
+            isDm = data.isDm,
+            roomName = data.roomDisplayName,
+            senderName = senderName,
+            senderId = data.senderId.value,
+            previousSenderIds = messagingStyle.messages.map { it.person?.key },
+        )
         messagingStyle
-            .setConversationTitle(data.roomDisplayName)
-            .setGroupConversation(!data.isDirect)
+            .setConversationTitle(data.roomDisplayName.takeIf { isGroupConversation })
+            .setGroupConversation(isGroupConversation)
         val previousMessageCount = messagingStyle.messages.size
         val alignedPreviousEventIds = if (historyIsAligned) previousEventIds else emptyList()
 
         val plainMessageText = NotificationEventTextFormat.notificationToText(
             data,
             attachmentMode = AttachmentFormatMode.Auto,
-            prefixSenderInGroupChats = true,
+            prefixSenderInGroupChats = isGroupConversation,
         )
 
         suspend fun textMessage(
@@ -312,9 +321,9 @@ object AndroidNotifier {
         val shortcut = createConversationShortcut(
             sessionId = id.sessionId,
             roomId = id.roomId,
-            label = data.roomDisplayName ?: senderName.takeIf { data.isDirect },
-            icon = roomAvatar ?: senderAvatar?.takeIf { data.isDirect },
-            person = sender.takeIf { data.isDirect },
+            label = data.roomDisplayName ?: senderName.takeUnless { isGroupConversation },
+            icon = roomAvatar ?: senderAvatar?.takeUnless { isGroupConversation },
+            person = sender.takeUnless { isGroupConversation },
             context = context,
         )
         shortcut?.let {
@@ -378,7 +387,7 @@ object AndroidNotifier {
 
         val notification = builder
             .setSmallIcon(R.drawable.ic_notification_message)
-            .setContentTitle(data.roomDisplayName)
+            .setContentTitle(data.roomDisplayName.takeIf { isGroupConversation })
             .setContentText(plainMessageText)
             .setTicker(plainMessageText)
             .setStyle(messagingStyle)

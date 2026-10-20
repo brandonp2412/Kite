@@ -1273,3 +1273,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Built clean commit `6a4b5a7f` (inbox search-results heading removed) from `/home/brandon/worktrees/kite-hide-search-header-20261021`. Glass buildq #561 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000003 -PandroidVersionName=1.0.3` PASS (280 tasks).
 - Verified release APK package `app.kite`, version `1.0.3` / `101000003`, signing SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`, matching the previously installed 1.0.2 APK.
 - Samsung Galaxy S25 (`10.66.66.3:5555`): `adb install -r` Success; package version advanced from 1.0.2/101000002 to 1.0.3/101000003 and original `firstInstallTime=2026-10-16 18:00:56` persisted. Cold start `am start -W` Status ok (244ms); process running. Search heading was not visually checked on device.
+
+## 2026-10-21 — Bridge one-to-one notification titles
+
+- Samsung `dumpsys notification --noredact` for the reported Tyla Lockwood · Facebook notification showed exactly one MessagingStyle message, but `android.isGroupConversation=true` with the same `android.title` and `android.conversationTitle`, explaining the double sender/title display.
+- Notification grouping now uses DM/direct flags and the single-sender/room-name match for bridge pseudo-DMs; genuine group rooms or histories with multiple senders retain group presentation. Suppresses the redundant one-to-one conversation title and sender prefix, and aligns shortcut person with that classification.
+- Glass buildq #572 `:composeApp:desktopTest :composeApp:compileAndroidMain` PASS, including 3 new notification grouping tests (0 failures). `git diff --check` PASS. Actual next inbound Samsung notification remains unverified.
