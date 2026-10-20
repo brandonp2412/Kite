@@ -161,7 +161,9 @@ fun ColumnScope.ImageMessageContent(
         LaunchedEffect(Unit) { onCaptionTextLayout(null) }
     }
     Box(
-        modifier = Modifier.align(Alignment.CenterHorizontally),
+        // Clip the entire media viewport, including Coil's subcomposed content,
+        // so sent and received images retain identical rounded corners.
+        modifier = Modifier.align(Alignment.CenterHorizontally).clip(shape),
         contentAlignment = Alignment.Center,
     ) {
         SubcomposeAsyncImage(
@@ -181,8 +183,7 @@ fun ColumnScope.ImageMessageContent(
                     } else {
                         Modifier.boundedMediaSize(minWidth, minHeight, maxWidth, maxHeight, reservedAspectRatio)
                     }
-                )
-                .clip(shape),
+                ),
         ) {
             if (blurhash != null && ScPrefs.FORCE_RENDER_BLURHASH.value()) {
                 BlurHashPlaceholder(
