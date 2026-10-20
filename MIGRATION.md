@@ -1262,3 +1262,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass buildq #417: signed `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=26101905 -PandroidVersionName=26.10.19.5` PASS. Artifact SHA-256 `ddcb32fd248ea9aaa0be8f230faf6d8ee13174365bf6e46c84f028d969286c03`; application ID `app.kite`; signer certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`, unchanged from installed release.
 - Installed via `adb install -r` on Samsung Galaxy S25 `10.66.66.3:5555`: Success. Android reports `26.10.19.5`, code `26101905`, unchanged signing identity, `firstInstallTime` and app-data inode. `am start -W` PASS (cold start 274 ms), app process running, no sampled FATAL exception.
 - On-device double-tap burst rendering has not been visually re-tested yet. The phone had returned to the user’s ChatGPT conversation when UI inspection was attempted; did not interact with the user’s chat/reactions. Main’s separate inbox changes remain unmodified.
+
+## 2026-10-21 — Remove inbox search-results heading
+
+- Removed the conditional “Conversations” heading/list item when filtering the inbox. Search results now begin directly with matching rooms; room ordering and Kite’s bottom-anchored search field are unchanged. Removed the unused resource/import.
+- Validation: `git diff --check` PASS; Glass buildq #559 `:composeApp:compileAndroidMain` PASS. No Samsung visual check or release installation performed.

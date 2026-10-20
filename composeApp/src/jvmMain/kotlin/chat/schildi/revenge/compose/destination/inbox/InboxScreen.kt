@@ -90,7 +90,6 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_account_management
 import shire.res.generated.resources.empty_screen_placeholder_inbox
-import shire.res.generated.resources.search_results_conversations
 
 val LocalInboxListState = compositionLocalOf<LazyListState?> { null }
 
@@ -269,21 +268,6 @@ fun InboxScreen(
                                     extraContentPadding +
                                     PaddingValues(vertical = Dimens.Inbox.listContentPadding),
                         ) {
-                            if (!roomsState.searchTerm.isNullOrBlank()) {
-                                item(key = "kite-search-results-header") {
-                                    Text(
-                                        text = stringResource(Res.string.search_results_conversations),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(
-                                            start = Dimens.windowPadding,
-                                            end = Dimens.windowPadding,
-                                            top = 8.dp,
-                                            bottom = 4.dp,
-                                        ),
-                                    )
-                                }
-                            }
                             items(
                                 rooms,
                                 key = { room -> Pair(room.sessionId, room.summary.roomId) },

@@ -733,7 +733,6 @@
     <string name="room_membership_leave">Left</string>
 
     <string name="empty_screen_placeholder_search">No search results</string>
-    <string name="search_results_conversations">Conversations</string>
     <string name="empty_screen_placeholder_search_in_progress">Searching...</string>
     <string name="empty_screen_placeholder_space">Selected space is empty</string>
     <string name="empty_screen_placeholder_inbox">No chats yet</string>
