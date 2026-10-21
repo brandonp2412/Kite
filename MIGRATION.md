@@ -1351,3 +1351,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - The message long-press menu now captures its touch anchor in the opening composition, eliminating the one-frame zero-offset position followed by a `LaunchedEffect` reposition. Menu content, actions and hit targets are unchanged.
 - Glass buildq #680: `:composeApp:compileAndroidMain :androidApp:verifyKiteLongPressMenu --offline --no-daemon -Pkotlin.incremental=false` passed. Physical Samsung visual verification remains pending.
+
+## 2026-10-21 — Samsung 1.0.8 release install
+
+- Glass buildq #681: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000008 -PandroidVersionName=1.0.8 --offline --no-daemon` passed. Release APK `app.kite`, arm64-v8a, SHA-256 `eb753ebc6939bb65bc48d1c0241f87a6d496cdf968b24a63e117419bfca4043f`; V2 signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches the APK pulled from the currently installed 1.0.7.
+- Samsung S25 `adb install -r` returned `Success`. Post-install version `1.0.8` (`101000008`); original `firstInstallTime=2026-10-16 18:00:56`, `appId=10847`, `dataDir=/data/user/0/app.kite` all unchanged. No uninstall or data clear. Live long-press flicker comparison is still unverified.
