@@ -1367,3 +1367,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Reserve delivery-status width beside the text before measuring it. A full last line no longer puts the invisible sent-state icon in an extra footer row; sending/delivery retain the same geometry. Incoming messages without status retain their existing padding.
 - Glass buildq #694: signed arm64 release and six StableTextMessageLayoutTest tests passed (293 tasks). Samsung updated in place to 1.0.10 / 101000010 with matching certificate; appId 10847 and firstInstallTime 2026-10-16 18:00:56 unchanged. Activity launch succeeded. The screenshot conversation was not visually retested.
+
+## 2026-10-21 — Emoji padding and send-status overlay
+
+- Emoji-only messages use symmetric 6 dp padding and a line height matching the emoji font size. Sending/error badges for unedited text and emoji bubbles are placed at the bubble edge without participating in body measurement. Toggling status cannot resize or rewrap the text. Edited labels retain their existing layout.
+- Glass buildq #698 signed arm64 release passed (277 tasks, lint included), reusing unchanged generated Rust SDK artifacts from verified #694. Samsung updated in place to 1.0.11 / 101000011 with matching signer, unchanged appId 10847 and firstInstallTime 2026-10-16 18:00:56. Launch succeeded. Device screenshot was black; live sending transition and emoji appearance have not been visually verified.
