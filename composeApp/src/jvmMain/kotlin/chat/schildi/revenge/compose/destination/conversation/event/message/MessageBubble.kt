@@ -118,13 +118,24 @@ fun MessageBubble(
                 .padding(padding),
         ) {
             if (overlayStatus) {
-                Column(verticalArrangement = verticalArrangement, content = content)
-                TimestampContent(
-                    timestamp,
-                    reserveSendingSpace = false,
-                    withBackground = false,
-                    modifier = Modifier.align(Alignment.BottomEnd),
-                )
+                val endPadding = with(LocalDensity.current) {
+                    padding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr).roundToPx()
+                }
+                Layout(content = {
+                    Column(verticalArrangement = verticalArrangement, content = content)
+                    TimestampContent(timestamp, reserveSendingSpace = false, withBackground = false)
+                }) { children, constraints ->
+                    val body = children.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    val status = children.getOrNull(1)?.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    // Status is decoration: it must never resize or rewrap the message.
+                    layout(body.width, body.height) {
+                        body.place(0, 0)
+                        status?.place(
+                            body.width + endPadding - status.width / 2,
+                            (body.height - status.height).coerceAtLeast(0),
+                        )
+                    }
+                }
             } else if (stableTextHeight) {
                 // Capture the final text line in the same measure pass and keep
                 // delivery status in a reserved gutter beside the body.
