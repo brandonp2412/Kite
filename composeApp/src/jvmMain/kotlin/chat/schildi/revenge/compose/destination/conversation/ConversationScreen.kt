@@ -625,6 +625,7 @@ fun ConversationScreen(
             // are still one-to-one conversations; only true multi-member rooms need labels.
             val showSenderDetails = shouldShowTimelineSenderDetails(roomInfo?.joinedMembersCount)
             val highlightedActionEventId = viewModel.highlightedActionEventId.collectAsState().value
+            val heartBurst = rememberHeartBurstState()
             Column(contentModifier
                 .fillMaxSize()
                 .alpha(dragAlpha.value)
@@ -647,16 +648,12 @@ fun ConversationScreen(
 
                 ConversationTopDebugHeader(viewModel, Modifier.fillMaxWidth())
 
-                // One viewport-wide drawing layer for reaction bursts, outside LazyColumn item clipping.
-                val heartBurst = rememberHeartBurstState()
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .clip(Dimens.Conversation.timelineSurfaceShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                        .onGloballyPositioned { heartBurst.updateViewport(it) }
-                        .drawHeartBurst(heartBurst),
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow),
                 ) {
                     // Reverse layout helps with stick-to-bottom while paging backwards or receiving messages
                     val renderedItems = remember(timelineItems) {
@@ -1061,6 +1058,12 @@ fun ConversationScreen(
                     )
                 }
             }
+            // Draw above the composer without joining the clipped timeline's layout.
+            Box(
+                Modifier.matchParentSize()
+                    .onGloballyPositioned { heartBurst.updateViewport(it) }
+                    .drawHeartBurst(heartBurst),
+            )
         }
     }
 }

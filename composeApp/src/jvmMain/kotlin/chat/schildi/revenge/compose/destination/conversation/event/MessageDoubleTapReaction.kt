@@ -69,7 +69,7 @@ internal val LocalHeartBurstState = staticCompositionLocalOf<HeartBurstState?> {
 @Composable
 internal fun rememberHeartBurstState() = remember { HeartBurstState() }
 
-// Draw above the LazyColumn, so neither the short message nor its lazy item clips the burst.
+// Draw in a separate conversation-wide layer so the composer cannot cover the burst.
 @Composable
 internal fun Modifier.drawHeartBurst(state: HeartBurstState): Modifier {
     val burstProgress = remember { Animatable(0f) }
