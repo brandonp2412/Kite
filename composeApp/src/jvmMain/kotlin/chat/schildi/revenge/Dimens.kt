@@ -121,7 +121,10 @@ object Dimens {
         const val mentionBgRadiusOnLineBreak = 2f
 
         val emojiOnlyMessageStyle
-            @Composable get() = MaterialTheme.typography.headlineLarge.copy(textDirection = TextDirection.Content)
+            @Composable get() = MaterialTheme.typography.headlineLarge.copy(
+                textDirection = TextDirection.Content,
+                lineHeight = MaterialTheme.typography.headlineLarge.fontSize,
+            )
                 .merge(fontFamily = rememberEmojiFontFamily())
         val messageTimestampStyle
             @Composable get() = MaterialTheme.typography.labelSmall

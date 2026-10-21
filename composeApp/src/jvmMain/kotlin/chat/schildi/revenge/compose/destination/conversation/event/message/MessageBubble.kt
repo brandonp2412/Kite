@@ -83,6 +83,7 @@ fun MessageBubble(
     transparent: Boolean = false,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     nonTextWidth: Dp = 0.dp,
+    overlayStatus: Boolean = false,
     stableTextHeight: Boolean = false,
     stableTextLayoutKey: Any? = null,
     content: @Composable ColumnScope.() -> Unit
@@ -116,7 +117,15 @@ fun MessageBubble(
                 )
                 .padding(padding),
         ) {
-            if (stableTextHeight) {
+            if (overlayStatus) {
+                Column(verticalArrangement = verticalArrangement, content = content)
+                TimestampContent(
+                    timestamp,
+                    reserveSendingSpace = false,
+                    withBackground = false,
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                )
+            } else if (stableTextHeight) {
                 // Capture the final text line in the same measure pass and keep
                 // delivery status in a reserved gutter beside the body.
                 val reserveTimestamp = reservedTextTimestampInset(isOwn, timestamp) > 0.dp
