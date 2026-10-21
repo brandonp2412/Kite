@@ -117,8 +117,8 @@ fun MessageBubble(
                 .padding(padding),
         ) {
             if (stableTextHeight) {
-                // Measure the body at full width. Capture its final line during the
-                // same measure pass, before placing the always-reserved status slot.
+                // Capture the final text line in the same measure pass and keep
+                // delivery status in a reserved gutter beside the body.
                 val reserveTimestamp = reservedTextTimestampInset(isOwn, timestamp) > 0.dp
                 val density = LocalDensity.current
                 val horizontalGap = with(density) { Dimens.Conversation.timestampHorizontalPaddingToText.roundToPx() }
@@ -135,8 +135,14 @@ fun MessageBubble(
                         TimestampContent(timestamp, reserveSendingSpace = isOwn, withBackground = false)
                     }
                 }) { children, constraints ->
-                    val body = children.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
                     val status = children.getOrNull(1)?.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    // Keep delivery status beside the text, even when its last line is full.
+                    // An invisible sent-state icon must never add a blank footer row.
+                    val bodyMaxWidth = (constraints.maxWidth - (status?.let { it.width + horizontalGap } ?: 0))
+                        .coerceAtLeast(0)
+                    val body = children.first().measure(
+                        constraints.copy(minWidth = 0, minHeight = 0, maxWidth = bodyMaxWidth)
+                    )
                     if (status == null) {
                         layout(body.width, body.height) { body.place(0, 0) }
                     } else {

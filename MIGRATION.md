@@ -1362,3 +1362,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Double-tap reaction burst now draws in an independent conversation-wide layer above the composer, rather than in the clipped timeline. Removed the invisible 18 dp empty read-receipt placeholder under the newest outgoing message; actual receipt avatars remain.
 - Glass buildq #682 arm64 `:androidApp:assembleRelease` PASS (1m 1s), lint PASS. Signed `app.kite` 1.0.9 (`101000009`) verified against the existing certificate `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
 - Samsung S25 `adb install -r` SUCCESS, version 1.0.9 confirmed. Original `appId=10847`, `firstInstallTime=2026-10-16 18:00:56`, `dataDir=/data/user/0/app.kite` unchanged; no data reset. Live animation/spacing visual confirmation pending.
+
+## 2026-10-21 — Consistent multiline bubble padding
+
+- Reserve delivery-status width beside the text before measuring it. A full last line no longer puts the invisible sent-state icon in an extra footer row; sending/delivery retain the same geometry. Incoming messages without status retain their existing padding.
+- Glass buildq #694: six StableTextMessageLayoutTest tests passed. Signed release build and Samsung update verification in progress.
