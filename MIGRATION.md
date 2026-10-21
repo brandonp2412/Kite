@@ -1346,3 +1346,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Added regression tests for portrait fitted mask bounds, landscape offsets, and unknown intrinsic dimensions. Glass `buildq` #630 `:composeApp:compileAndroidMain :composeApp:desktopTest --tests chat.schildi.revenge.FittedImageShapeTest` PASS (27s). Samsung visual confirmation pending while device is locked.
 
 - Glass `buildq` #631 arm64 release (`app.kite` 1.0.7 / `101000007`) PASS in 1m 6s, lint PASS. Signed APK verified with existing certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`; APK SHA-256 `f78d024f846892014fd3c03014b1ad1f2f109b472940ba8864b0b05f96a16d1c`. Samsung SM-S931B `adb install -r` SUCCESS; version 1.0.7 confirmed and `firstInstallTime=2026-10-16 18:00:56` unchanged. No device visual check: Samsung screen locked.
+
+## 2026-10-21 — Stable first-frame message popup anchor
+
+- The message long-press menu now captures its touch anchor in the opening composition, eliminating the one-frame zero-offset position followed by a `LaunchedEffect` reposition. Menu content, actions and hit targets are unchanged.
+- Glass buildq #680: `:composeApp:compileAndroidMain :androidApp:verifyKiteLongPressMenu --offline --no-daemon -Pkotlin.incremental=false` passed. Physical Samsung visual verification remains pending.

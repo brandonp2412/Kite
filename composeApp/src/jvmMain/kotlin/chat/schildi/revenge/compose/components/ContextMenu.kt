@@ -24,13 +24,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -188,19 +185,17 @@ fun WithContextMenu(
     // needed at menu-open time, so keep the latest value outside snapshot state;
     // otherwise onGloballyPositioned invalidates every visible message every frame.
     val anchorBounds = remember { arrayOfNulls<Rect>(1) }
-    var pointerPositionOnOpen by remember { mutableStateOf<Offset?>(null) }
+    // Capture the touch position before the popup's first frame. Updating it from
+    // a LaunchedEffect makes the menu appear at zero offset and then jump.
+    val pointerPositionOnOpen = remember(expanded) {
+        keyHandler.lastPointerPosition.takeIf { expanded }
+    }
     val density = LocalDensity.current
 
     val containerColor = when {
         presentation == ContextMenuPresentation.Message -> MaterialTheme.colorScheme.surface
         hasChild -> MaterialTheme.colorScheme.surfaceContainerLow
         else -> MaterialTheme.colorScheme.surfaceContainerHighest
-    }
-
-    LaunchedEffect(expanded) {
-        if (expanded) {
-            pointerPositionOnOpen = keyHandler.lastPointerPosition
-        }
     }
 
     val offset = remember(pointerPositionOnOpen, expanded) {
