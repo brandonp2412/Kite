@@ -28,6 +28,14 @@ class StableTextMessageLayoutTest {
     }
 
     @Test
+    fun multilineBubbleDoesNotIncludeUndrawnRightSideSpace() {
+        assertEquals(260, stableTextBubbleWidth(320, 259.4f, tighten = true))
+        assertEquals(320, stableTextBubbleWidth(320, 259.4f, tighten = false))
+        assertEquals(320, stableTextBubbleWidth(320, null, tighten = true))
+        assertEquals(320, stableTextBubbleWidth(320, 400f, tighten = true))
+    }
+
+    @Test
     fun fullLastLineGetsReservedStatusRowOnFirstMeasure() {
         val layout = stableTextTimestampPlacement(
             contentWidth = 320, contentHeight = 128, lastLineRight = 304,

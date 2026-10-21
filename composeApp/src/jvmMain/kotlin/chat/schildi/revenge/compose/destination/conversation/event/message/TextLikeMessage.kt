@@ -145,6 +145,8 @@ fun TextLikeMessage(
         overlayStatus = timestamp?.isEdited != true,
         stableTextHeight = true,
         stableTextLayoutKey = text.text,
+        tightTextWidth = inReplyTo == null && !reserveUrlPreviewSlot && urlPreview == null &&
+                text.inlineImages.isEmpty() && text.text.getStringAnnotations("mx:BLOCK_QUOTE", 0, text.text.length).isEmpty(),
         allowTimestampOverlay = text.allowTimestampOverlay(),
     ) {
         inReplyTo?.let { ReplyContent(it, threadInfo) }

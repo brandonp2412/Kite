@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.Dimens
@@ -48,6 +49,7 @@ import shire.res.generated.resources.send_error_sending_from_unverified_device
 import shire.res.generated.resources.send_error_unknown
 import shire.res.generated.resources.send_error_verified_user_changed_identity
 import shire.res.generated.resources.send_error_verified_user_has_unsigned_device
+import kotlin.math.ceil
 import kotlin.math.max
 
 internal val LocalMessageBubbleShape = staticCompositionLocalOf<Shape> {
@@ -86,6 +88,7 @@ fun MessageBubble(
     overlayStatus: Boolean = false,
     stableTextHeight: Boolean = false,
     stableTextLayoutKey: Any? = null,
+    tightTextWidth: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     // Bypass double message bubble when nested in a reply
@@ -121,17 +124,26 @@ fun MessageBubble(
                 val endPadding = with(LocalDensity.current) {
                     padding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr).roundToPx()
                 }
+                val measuredText = remember(stableTextLayoutKey) { StableTextLayoutHolder() }
+                val textObserver = remember(measuredText) {
+                    { result: TextLayoutResult -> measuredText.result = result }
+                }
                 Layout(content = {
-                    Column(verticalArrangement = verticalArrangement, content = content)
+                    CompositionLocalProvider(LocalStableTextLayoutObserver provides textObserver) {
+                        Column(verticalArrangement = verticalArrangement, content = content)
+                    }
                     TimestampContent(timestamp, reserveSendingSpace = false, withBackground = false)
                 }) { children, constraints ->
                     val body = children.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
                     val status = children.getOrNull(1)?.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                    // Status is decoration: it must never resize or rewrap the message.
-                    layout(body.width, body.height) {
+                    val width = stableTextBubbleWidth(
+                        body.width, measuredText.result?.rightmostVisibleGlyph(), tightTextWidth,
+                    )
+                    // Delivery state may change the decoration, never the bubble size.
+                    layout(width, body.height) {
                         body.place(0, 0)
                         status?.place(
-                            body.width + endPadding - status.width / 2,
+                            width + endPadding - status.width / 2,
                             (body.height - status.height).coerceAtLeast(0),
                         )
                     }
@@ -158,16 +170,20 @@ fun MessageBubble(
                     val status = children.getOrNull(1)?.measure(constraints.copy(minWidth = 0, minHeight = 0))
                     // Keep delivery status beside the text, even when its last line is full.
                     // An invisible sent-state icon must never add a blank footer row.
-                    val bodyMaxWidth = (constraints.maxWidth - (status?.let { it.width + horizontalGap } ?: 0))
-                        .coerceAtLeast(0)
+                    // Measure text across the whole bubble. The status only needs
+                    // space on the final line, not a gutter beside every line.
+                    val bodyMaxWidth = constraints.maxWidth
                     val body = children.first().measure(
                         constraints.copy(minWidth = 0, minHeight = 0, maxWidth = bodyMaxWidth)
                     )
+                    val textLayout = measuredText.result
+                    val lineRight = textLayout?.rightmostVisibleGlyph()
+                    val contentWidth = stableTextBubbleWidth(body.width, lineRight, tightTextWidth)
                     if (status == null) {
-                        layout(body.width, body.height) { body.place(0, 0) }
+                        layout(contentWidth, body.height) { body.place(0, 0) }
                     } else {
                         val position = stableTextTimestampPlacement(
-                            contentWidth = body.width,
+                            contentWidth = contentWidth,
                             contentHeight = body.height,
                             lastLineRight = measuredText.result?.lastLineRightIncludingPlaceholders(),
                             statusWidth = status.width,
@@ -205,6 +221,22 @@ fun MessageBubble(
         }
     }
 }
+
+private fun TextLayoutResult.rightmostVisibleGlyph(): Float? =
+    (0 until lineCount).maxOfOrNull { line ->
+        val start = getLineStart(line)
+        val end = getLineEnd(line, visibleEnd = true)
+        when {
+            end <= start -> 0f
+            getParagraphDirection(start) == ResolvedTextDirection.Rtl -> getLineRight(line)
+            else -> getBoundingBox(end - 1).right
+        }
+    }
+
+internal fun stableTextBubbleWidth(measuredWidth: Int, maxLineRight: Float?, tighten: Boolean): Int =
+    if (tighten && maxLineRight != null) {
+        ceil(maxLineRight.toDouble()).toInt().coerceIn(0, measuredWidth)
+    } else measuredWidth
 
 internal data class StableTextTimestampPlacement(
     val width: Int,
