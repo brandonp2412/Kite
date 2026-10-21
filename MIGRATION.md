@@ -1372,3 +1372,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Emoji-only messages use symmetric 6 dp padding and a line height matching the emoji font size. Sending/error badges for unedited text and emoji bubbles are placed at the bubble edge without participating in body measurement. Toggling status cannot resize or rewrap the text. Edited labels retain their existing layout.
 - Glass buildq #698 signed arm64 release passed (277 tasks, lint included), reusing unchanged generated Rust SDK artifacts from verified #694. Samsung updated in place to 1.0.11 / 101000011 with matching signer, unchanged appId 10847 and firstInstallTime 2026-10-16 18:00:56. Launch succeeded. Device screenshot was black; live sending transition and emoji appearance have not been visually verified.
+
+## 2026-10-21 — text emoticons and multiline bubble width
+
+- Plain Matrix text now renders common typed emoticons (`:)`, `<3`, `;)`, `:(`, `:D`, `:P`, `:3`) as emoji without changing the original event body used by copy/edit or the Matrix send format; URL/code-adjacent substrings are skipped. Rich HTML-formatted messages are not transformed by this path.
+- Simple text bubbles measure their last visible glyph on every line instead of retaining unused right-side layout width. The active unedited-message status overlay follows that tight width without reserving an invisible sending gutter. Reply cards, URL previews, blockquotes and inline-image messages retain their existing sizing.
+- Glass buildq #737: `:composeApp:desktopTest :androidApp:assembleRelease` PASS, including new emoticon and bubble-width tests. Signed `app.kite` `1.0.12` (versionCode `101000012`) was installed in place on Samsung SM-S931B with a matching signer, unchanged appId `10847`, and unchanged firstInstallTime `2026-10-16 18:00:56`. Launch succeeded. Live Facebook-bridged conversation visually confirmed `<3` becomes a heart and multi-line outgoing text has matching inner side padding.
+- Not tested: a live `:)` in the exact screenshot viewport, rich HTML conversion, mixed-bidi layout, or an in-flight sending/error-state transition.

@@ -57,7 +57,7 @@ fun EventContent.messageMetadata(
             parser.parseHtml(formattedBody.body, style, allowRoomMention)
         }
         plaintext != null && (allowEmpty || plaintext.isNotEmpty()) -> {
-            parser.parsePlaintext(plaintext, style, allowRoomMention)
+            parser.parsePlaintext(renderTextEmoticons(plaintext), style, allowRoomMention)
         }
         else -> null
     }
