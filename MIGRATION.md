@@ -1366,4 +1366,4 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 ## 2026-10-21 — Consistent multiline bubble padding
 
 - Reserve delivery-status width beside the text before measuring it. A full last line no longer puts the invisible sent-state icon in an extra footer row; sending/delivery retain the same geometry. Incoming messages without status retain their existing padding.
-- Glass buildq #694: six StableTextMessageLayoutTest tests passed. Signed release build and Samsung update verification in progress.
+- Glass buildq #694: signed arm64 release and six StableTextMessageLayoutTest tests passed (293 tasks). Samsung updated in place to 1.0.10 / 101000010 with matching certificate; appId 10847 and firstInstallTime 2026-10-16 18:00:56 unchanged. Activity launch succeeded. The screenshot conversation was not visually retested.
