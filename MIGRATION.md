@@ -1356,3 +1356,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Glass buildq #681: `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000008 -PandroidVersionName=1.0.8 --offline --no-daemon` passed. Release APK `app.kite`, arm64-v8a, SHA-256 `eb753ebc6939bb65bc48d1c0241f87a6d496cdf968b24a63e117419bfca4043f`; V2 signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches the APK pulled from the currently installed 1.0.7.
 - Samsung S25 `adb install -r` returned `Success`. Post-install version `1.0.8` (`101000008`); original `firstInstallTime=2026-10-16 18:00:56`, `appId=10847`, `dataDir=/data/user/0/app.kite` all unchanged. No uninstall or data clear. Live long-press flicker comparison is still unverified.
+
+## 2026-10-21 — Reaction burst and composer gap fix
+
+- Double-tap reaction burst now draws in an independent conversation-wide layer above the composer, rather than in the clipped timeline. Removed the invisible 18 dp empty read-receipt placeholder under the newest outgoing message; actual receipt avatars remain.
+- Glass buildq #682 arm64 `:androidApp:assembleRelease` PASS (1m 1s), lint PASS. Signed `app.kite` 1.0.9 (`101000009`) verified against the existing certificate `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
+- Samsung S25 `adb install -r` SUCCESS, version 1.0.9 confirmed. Original `appId=10847`, `firstInstallTime=2026-10-16 18:00:56`, `dataDir=/data/user/0/app.kite` unchanged; no data reset. Live animation/spacing visual confirmation pending.
