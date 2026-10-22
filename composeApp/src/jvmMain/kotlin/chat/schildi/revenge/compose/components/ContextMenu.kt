@@ -162,6 +162,7 @@ fun WithContextMenu(
     modifier: Modifier = Modifier,
     menuId: Uuid = focusId,
     presentation: ContextMenuPresentation = ContextMenuPresentation.Default,
+    onOpen: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
@@ -180,6 +181,9 @@ fun WithContextMenu(
     }
     val expanded = menuOpenState != ContextMenuOpenState.Closed
     val hasChild = menuOpenState == ContextMenuOpenState.ChildOpen
+    val wasExpanded = remember(menuId) { booleanArrayOf(false) }
+    if (expanded && !wasExpanded[0]) onOpen?.invoke()
+    wasExpanded[0] = expanded
 
     // Window bounds change continuously while the timeline scrolls. They are only
     // needed at menu-open time, so keep the latest value outside snapshot state;
@@ -270,11 +274,15 @@ fun WithContextMenu(
     content: @Composable (InteractionAction.ContextMenu?) -> Unit,
 ) {
     val keyHandler = LocalKeyboardActionHandler.current
+    // Matrix updates can arrive before the dropdown exit animation finishes.
+    // Hold the displayed labels/actions until the next menu opening.
+    val openedEntries = remember(menuId) { arrayOfNulls<ImmutableList<ContextMenuEntry>>(1) }
     WithContextMenu(
         focusId = focusId,
         menuId = menuId,
         modifier = modifier,
         presentation = presentation,
+        onOpen = { openedEntries[0] = entries },
         content = {
             content(
                 if (entries.isEmpty())
@@ -284,9 +292,10 @@ fun WithContextMenu(
             )
         },
         popupContent = {
+            val shownEntries = if (presentation == ContextMenuPresentation.Message) entries else openedEntries[0] ?: entries
             if (presentation == ContextMenuPresentation.Message) {
-                val actionRows = entries.filterIsInstance<ContextMenuActionRowEntry>()
-                val menuEntries = entries.filterNot { it is ContextMenuActionRowEntry }
+                val actionRows = shownEntries.filterIsInstance<ContextMenuActionRowEntry>()
+                val menuEntries = shownEntries.filterNot { it is ContextMenuActionRowEntry }
 
                 if (messageTimestamp != null) {
                     Surface(
@@ -341,7 +350,7 @@ fun WithContextMenu(
                     }
                 }
             } else {
-                entries.forEach { entry ->
+                shownEntries.forEach { entry ->
                     ContextMenuDropdownMenuItem(
                         entry = entry,
                         focusId = focusId,
