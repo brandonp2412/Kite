@@ -729,20 +729,32 @@ fun ConversationScreen(
                             }
                         }
                     }
-                    val newestEventKey = remember(renderedItems) {
-                        renderedItems.firstNotNullOfOrNull {
-                            (it.item as? MatrixTimelineItem.Event)?.uniqueId
-                        }
+                    val newestEvent = remember(renderedItems) {
+                        renderedItems.firstNotNullOfOrNull { it.item as? MatrixTimelineItem.Event }
                     }
+                    val newestEventKey = newestEvent?.uniqueId
                     if (viewModel.timelineParams == null &&
                         (isOpeningUnread || targetEvent is EventJumpTarget.Index && targetEvent.index == 0)
                     ) {
+                        val followScrollScope = rememberCoroutineScope()
                         var lastAnchoredEventKey by remember(listState) { mutableStateOf(newestEventKey) }
                         if (newestEventKey != null && newestEventKey != lastAnchoredEventKey) {
+                            val isOwnMessage = newestEvent.event.isOwn && newestEvent.event.content is MessageContent
                             SideEffect {
-                                // Apply the position before the next layout, so LazyColumn
-                                // cannot render an old keyed anchor then snap to the bottom.
-                                if (followLatest.value) listState.requestScrollToItem(0)
+                                if (followLatest.value) {
+                                    if (isOwnMessage) {
+                                        // Keep the existing keyed row in place while the local echo
+                                        // is measured, then reveal the new bubble with a short scroll.
+                                        // Jumping to index 0 here shifts the whole chat in one frame.
+                                        followScrollScope.launch {
+                                            snapshotFlow { listState.layoutInfo.totalItemsCount }
+                                                .first { it >= renderedItems.size }
+                                            if (followLatest.value) listState.animateScrollToItem(0)
+                                        }
+                                    } else {
+                                        listState.requestScrollToItem(0)
+                                    }
+                                }
                                 lastAnchoredEventKey = newestEventKey
                             }
                         }
