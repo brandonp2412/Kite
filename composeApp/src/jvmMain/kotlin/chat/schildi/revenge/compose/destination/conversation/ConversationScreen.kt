@@ -1,6 +1,8 @@
 package chat.schildi.revenge.compose.destination.conversation
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Box
@@ -54,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.lib.preferences.ScPrefs
@@ -736,25 +739,13 @@ fun ConversationScreen(
                     if (viewModel.timelineParams == null &&
                         (isOpeningUnread || targetEvent is EventJumpTarget.Index && targetEvent.index == 0)
                     ) {
-                        val followScrollScope = rememberCoroutineScope()
                         var lastAnchoredEventKey by remember(listState) { mutableStateOf(newestEventKey) }
                         if (newestEventKey != null && newestEventKey != lastAnchoredEventKey) {
                             val isOwnMessage = newestEvent.event.isOwn && newestEvent.event.content is MessageContent
                             SideEffect {
-                                if (followLatest.value) {
-                                    if (isOwnMessage) {
-                                        // Keep the existing keyed row in place while the local echo
-                                        // is measured, then reveal the new bubble with a short scroll.
-                                        // Jumping to index 0 here shifts the whole chat in one frame.
-                                        followScrollScope.launch {
-                                            snapshotFlow { listState.layoutInfo.totalItemsCount }
-                                                .first { it >= renderedItems.size }
-                                            if (followLatest.value) listState.animateScrollToItem(0)
-                                        }
-                                    } else {
-                                        listState.requestScrollToItem(0)
-                                    }
-                                }
+                                // Local echoes already enter at index 0. Re-anchoring them
+                                // defeats item placement animations and creates a hard jump.
+                                if (followLatest.value && !isOwnMessage) listState.requestScrollToItem(0)
                                 lastAnchoredEventKey = newestEventKey
                             }
                         }
@@ -824,6 +815,9 @@ fun ConversationScreen(
                         resolveMessageSwipeConfig(swipeActionLeftRaw, swipeActionRightRaw)
                     }
 
+                    val messagePlacementSpec = remember {
+                        tween<IntOffset>(durationMillis = 180, easing = FastOutSlowInEasing)
+                    }
                     CompositionLocalProvider(LocalHeartBurstState provides heartBurst) {
                     LazyColumn(
                         Modifier.fillMaxSize().nestedScroll(userScrollObserver),
@@ -898,6 +892,11 @@ fun ConversationScreen(
                                 onShowInfo = { event -> messageInfoEvent = event },
                                 showBackwardPagingIndicator = showBackwardPagingIndicator,
                                 showForwardPagingIndicator = showForwardPagingIndicator,
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = null,
+                                    fadeOutSpec = null,
+                                    placementSpec = messagePlacementSpec,
+                                ),
                                 debugSeparatorLines = currentDebugLines.toPersistentList(),
                             )
                         }
