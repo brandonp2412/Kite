@@ -179,7 +179,7 @@ fun ComposerRow(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp)
+                            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 2.dp)
                             .drawBehind {
                                 drawRoundRect(
                                     color = accentColor,
@@ -189,7 +189,7 @@ fun ComposerRow(
                             },
                         verticalAlignment = Alignment.Top,
                     ) {
-                        Spacer(Modifier.width(13.dp))
+                        Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -212,7 +212,7 @@ fun ComposerRow(
                                 null,
                                 Modifier
                                     .fillMaxWidth()
-                                    .padding(end = 10.dp, bottom = 4.dp),
+                                    .padding(end = 8.dp, bottom = 2.dp),
                                 composerPreview = true,
                             )
                         }

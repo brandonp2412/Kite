@@ -36,17 +36,15 @@ fun ReplyContent(
 ) {
     // TODO jump to message action
     val containerModifier = modifier
-        .padding(bottom = Dimens.Conversation.replyItemPadding)
+        .padding(bottom = if (composerPreview) 0.dp else Dimens.Conversation.replyItemPadding)
         // A reply arrives first as a tiny skeleton and later gains its sender,
         // text, or thumbnail. Do not let that asynchronous replacement move
         // the surrounding text or any other messages in the timeline.
         .let { if (composerPreview) it else it.height(92.dp) }
         .let {
             if (composerPreview) {
-                it.background(
-                    MaterialTheme.colorScheme.surfaceContainerHighest,
-                    Dimens.Conversation.replyContentShape,
-                )
+                // The composer already provides the tonal context surface.
+                it
             } else {
                 it
                     .border(1.dp, MaterialTheme.scExposures.accentColor, Dimens.Conversation.replyContentShape)

@@ -1,17 +1,28 @@
 package chat.schildi.revenge.compose.destination.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -337,13 +348,39 @@ fun ScViewOnlyPref.Rendered() {
         ScViewOnlyPref.Kind.PUSH_REGISTRATIONS -> {
             val registrations = revengeDatabase.pushNotificationDao().followPushRegistrations()
                 .collectAsState(null).value
-            if (registrations == null) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    LinearProgressIndicator(modifier = Modifier.widthIn(max = 160.dp))
-                }
-            } else if (registrations.isEmpty()) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(Res.string.pref_push_registrations_info_none))
+            if (registrations == null || registrations.isEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (registrations == null) {
+                            LinearProgressIndicator(modifier = Modifier.widthIn(max = 160.dp))
+                        } else {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(
+                                    Icons.Default.NotificationsOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    stringResource(Res.string.pref_push_registrations_info_none),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
                 }
             } else {
                 Column {

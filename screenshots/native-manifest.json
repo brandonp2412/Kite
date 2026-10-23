@@ -36,7 +36,7 @@
       "file": "screenshots/generated/native/light-settings-notifications.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "0fb8a7488eef1b7ded0cb3087ab561b4e9a093138d2a0168030d6c7a32c2acb7"
+      "sha256": "6ca1edd32baafa3681cb8fd2ec405cacc742f447a6b4831e65c127c8ab0454bb"
     },
     {
       "name": "light-settings-inbox",
@@ -92,7 +92,7 @@
       "file": "screenshots/generated/native/light-chat-reply-preview.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "c2706c5e99e569e9ecc521c27fd02405865bd6cd59e7c1bc1d323a9e64bced6f"
+      "sha256": "aea2b203c02ec385a42607535f1a8f88b5a7b28135040039cfcf1f533ec1e661"
     },
     {
       "name": "light-chat-search",
@@ -127,7 +127,7 @@
       "file": "screenshots/generated/native/light-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "eb7ab3996e0cdf013062fdc84f3379118be6808d64be45a970f66a81550509a6"
+      "sha256": "647e68f1eb8ba88714a89f2f92cb548bf77af4b23f93e6fe9c84d14367fd76b6"
     },
     {
       "name": "light-room-details",
@@ -211,7 +211,7 @@
       "file": "screenshots/generated/native/dark-settings-notifications.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "d6c48cdb518755d92ab646d144a9cf87696a6feb9aeb255a776e4ddc55a05abd"
+      "sha256": "08e40fdf3da3513437be3d24245ef05825cd24efeb3260ad127caf2450d9f961"
     },
     {
       "name": "dark-settings-inbox",
@@ -267,7 +267,7 @@
       "file": "screenshots/generated/native/dark-chat-reply-preview.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "d2d9a9c26fe5762112ff35d0776578607995e35ac42394fea6b6a796b0043f3f"
+      "sha256": "619e5daf6f8c7bb62042fd984ff8c31982b57b6287c5a3e60cbc15f190efe3f1"
     },
     {
       "name": "dark-chat-search",
@@ -302,7 +302,7 @@
       "file": "screenshots/generated/native/dark-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "81c48ed133fc8bae32e9ab5bcc1c57b636efe0b0e2fdc440200b18960ff76f98"
+      "sha256": "89e1103fafa408af7dc306000f848f2e901922bda5d2a0645475942ec2eb591e"
     },
     {
       "name": "dark-room-details",
