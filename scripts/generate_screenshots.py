@@ -2,6 +2,7 @@
 """Deterministic, fictional Kite UI gallery and eight curated store images."""
 
 import argparse
+import base64
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
@@ -14,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 STORE = ROOT / "metadata/en-US/images/phoneScreenshots"
 GALLERY = ROOT / "screenshots/generated"
 SIZE = (1080, 2340)
+COLOR_EMOJI = {"😊": "smile", "🚀": "rocket", "🎉": "party", "✨": "sparkles"}
+REACTION_EMOJI = {"❤️", "👍", "😂", "😮", "😢"}
 
 
 @dataclass(frozen=True)
@@ -52,6 +55,14 @@ class Screen:
         self.parts.append(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{fill}"/>')
 
     def text(self, x, y, value, size=42, color=None, weight=400, anchor="start"):
+        if anchor == "start":
+            for emoji in (*COLOR_EMOJI, *sorted(REACTION_EMOJI)):
+                if str(value).endswith(emoji):
+                    prefix = str(value)[:-len(emoji)].rstrip()
+                    self.text(x, y, prefix, size, color, weight, anchor)
+                    width = sum(size * (0.25 if char in " il.,:!'" else 0.77 if char in "MW" else 0.52) for char in prefix)
+                    self.emoji(x + width + size * .64, y - size * .33, emoji, size * .94)
+                    return
         self.parts.append(f'<text x="{x}" y="{y}" font-size="{size}" fill="{color or self.c.ink}" font-weight="{weight}" text-anchor="{anchor}">{escape(str(value))}</text>')
 
     def line(self, x1, y1, x2, y2, color=None, width=4):
@@ -60,6 +71,43 @@ class Screen:
     def avatar(self, x, y, initials, color="#7667B2", size=57):
         self.circle(x, y, size, color)
         self.text(x, y + 14, initials, 35 if len(initials) > 1 else 43, "#FFFFFF", 650, "middle")
+
+    def emoji(self, x, y, value, size=48):
+        if value == "＋":
+            self.line(x - size * .22, y, x + size * .22, y, self.c.subtle, size * .07)
+            self.line(x, y - size * .22, x, y + size * .22, self.c.subtle, size * .07)
+            return
+        if value in COLOR_EMOJI:
+            asset = ROOT / "graphics/screenshot-emoji" / f"{COLOR_EMOJI[value]}.png"
+            png = base64.b64encode(asset.read_bytes()).decode("ascii")
+            self.parts.append(f'<image x="{x-size/2}" y="{y-size/2}" width="{size}" height="{size}" href="data:image/png;base64,{png}"/>')
+            return
+        if value not in REACTION_EMOJI:
+            self.text(x, y + size * .33, value, size, anchor="middle")
+            return
+        detail, yellow = "#6D4818", "#FFC83D"
+        parts = []
+        if value == "❤️":
+            parts.append('<path d="M50 90 C43 84 10 60 10 33 C10 6 39 4 50 25 C61 4 90 6 90 33 C90 60 57 84 50 90Z" fill="#E84D69"/>')
+        elif value == "👍":
+            parts.append('<path d="M8 43H26V89H8Q4 89 4 85V47Q4 43 8 43Z M32 43L43 32Q51 24 52 11Q53 4 59 6Q70 10 67 24L64 35H87Q98 35 95 47L83 83Q81 92 70 92H40Q32 92 32 84Z" fill="#FFC83D"/>')
+        else:
+            parts.append(f'<circle cx="50" cy="50" r="47" fill="{yellow}"/><circle cx="35" cy="33" r="11" fill="#FFFFFF" opacity=".37"/>')
+            if value == "😂":
+                parts += [f'<path d="M23 40 Q31 31 39 40 M61 40 Q69 31 77 40" fill="none" stroke="{detail}" stroke-width="6.5" stroke-linecap="round"/>',
+                          f'<rect x="27" y="52" width="46" height="26" rx="15" fill="{detail}"/>',
+                          '<rect x="33" y="54" width="34" height="7" rx="3.5" fill="#FFFFFF" opacity=".93"/>',
+                          '<path d="M15 48 Q6 63 18 68 Q29 61 15 48Z M85 48 Q94 63 82 68 Q71 61 85 48Z" fill="#69C8F2"/>']
+            elif value == "😮":
+                parts += [f'<circle cx="34" cy="41" r="7.2" fill="{detail}"/><circle cx="66" cy="41" r="7.2" fill="{detail}"/>',
+                          f'<circle cx="50" cy="66" r="11.5" fill="{detail}"/><circle cx="50" cy="64" r="5.2" fill="#E56C6C"/>']
+            else:
+                parts += [f'<path d="M25 35L40 29 M60 29L75 35" stroke="{detail}" stroke-width="5.5" stroke-linecap="round"/>',
+                          f'<ellipse cx="34" cy="46" rx="4.25" ry="5.25" fill="{detail}"/><ellipse cx="66" cy="46" rx="4.25" ry="5.25" fill="{detail}"/>',
+                          f'<path d="M34 72Q50 59 66 72" fill="none" stroke="{detail}" stroke-width="6.5" stroke-linecap="round"/>',
+                          '<path d="M73 51Q66 63 73 70Q82 64 73 51Z" fill="#69C8F2"/>',
+                          '<ellipse cx="50" cy="78" rx="6" ry="1.75" fill="#E89B75" opacity=".47"/>']
+        self.parts.append(f'<g transform="translate({x-size/2} {y-size/2}) scale({size/100})">{"".join(parts)}</g>')
 
     def icon(self, x, y, name, color=None, scale=1.0):
         paths = {
@@ -161,7 +209,9 @@ def bubble(s, x, y, lines, outgoing=False, width=760, height=None, reaction=None
     if reaction:
         w = 148
         s.rect(x + 21, y + height - 9, w, 70, s.c.faint, 35, s.c.outline)
-        s.text(x + 94, y + height + 38, reaction, 39, anchor="middle")
+        emoji, count = reaction.split("  ", 1)
+        s.emoji(x + 69, y + height + 26, emoji, 42)
+        s.text(x + 109, y + height + 38, count, 34)
 
 
 def landscape(s, x, y, w, h):
@@ -219,7 +269,7 @@ def conversation(s, state):
         bubble(s, 228, 1317, ["It's looking fantastic.", "Let's ship it! 🚀"], True, 806)
     if state == "reactions":
         s.rect(56, 1570, 965, 166, s.c.faint, 73, s.c.outline)
-        for j, em in enumerate(["❤️", "👍", "😂", "😮", "😢", "＋"]): s.text(119 + j * 158, 1672, em, 58, anchor="middle")
+        for j, em in enumerate(["❤️", "👍", "😂", "😮", "😢", "＋"]): s.emoji(119 + j * 158, 1652, em, 58)
         s.rect(190, 1754, 730, 176, s.c.panel, 36)
         for j, action in enumerate(["Reply", "Copy", "Select", "More"]): s.text(276 + j * 171, 1858, action, 33, anchor="middle")
     elif state == "selection":

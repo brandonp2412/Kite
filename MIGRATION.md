@@ -1416,3 +1416,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Replaced two synthetic screenshots with a deterministic gallery of 98 fictional UI states across light/dark themes, 49 scenarios, and eight curated 1080×2340 Fastlane/Play metadata images. Added a searchable gallery page and release workflow artifacts for both the selected images and complete gallery. Updated the README and English full description.
 - Verified the generation through Glass buildq tasks #1140, #1142, and #1144; exactly eight distinct store PNGs, 98 gallery PNGs, matching dimensions, working local gallery links, Python syntax, release-workflow YAML syntax, and git diff whitespace checks.
 - Not tested: Android runtime/visual fidelity (these are explicitly fictional mock screenshots), a GitHub Actions run, or Play Store upload. No app code or installed package was changed by this slice.
+
+## Screenshot emoji fidelity — 2026-10-23
+
+- Replaced monochrome/font-fallback reaction emoji in the deterministic screenshot generator with the same colour palette and drawn face geometry as native `KiteReactionGlyph`; added embedded-colour PNG sprites for inline emoji rendered from the repository's bundled Noto Color Emoji font. The Add Reaction glyph is now a vector plus, eliminating a missing-font box.
+- Verified complete 98-scenario regeneration through Glass buildq #1170 and #1171, inspected the eight-image contact sheet and full-size reaction crop. No Matrix data or Android UI was accessed for these screenshots.
+- Reinstalled the byte-identical signed Kite 1.0.17 APK on Samsung SM-S931B and brought MainActivity to the foreground; original firstInstallTime and UID were preserved. Android UI emoji comparison and Play upload remain untested because the images are synthetic.
