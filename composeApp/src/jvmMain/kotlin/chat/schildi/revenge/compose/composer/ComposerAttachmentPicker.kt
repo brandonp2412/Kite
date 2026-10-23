@@ -77,7 +77,7 @@ internal fun ComposerAttachmentPicker(
                                 modifier = Modifier
                                     .size(64.dp)
                                     .clip(AttachmentActionShape)
-                                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                                     .clickable {
                                         onDismiss()
                                         onPick(kind)
