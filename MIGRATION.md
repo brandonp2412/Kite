@@ -1448,4 +1448,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Compared genuine light/dark Accounts captures with the prior verified screenshots and the pinned Google Messages Material 3 references. Replaced the vivid sign-out circle with a tonal icon surface; rounded existing Homeserver, username, password and recovery-key fields to 14dp. No account action or Matrix behavior changed.
 - GLASS buildq #1195 `:androidApp:assemblePerfDebug -PandroidAbi=x86 --offline --no-daemon` PASS; installed only on fixture Waydroid `192.168.240.112:5555`. Regenerated 50 genuine Android states; `--verify` PASS with exactly eight Fastlane captures. The Accounts images differ as intended; unrelated group-capture timing variance was retained from the previously verified suite.
-- GLASS buildq #1196 `:composeApp:desktopTest --offline --no-daemon` PASS, `git diff --check` PASS. No Samsung or real Matrix account used for screenshots. Signed release and Samsung in-place install are pending.
+- GLASS buildq #1196 `:composeApp:desktopTest --offline --no-daemon` PASS, `git diff --check` PASS. No Samsung or real Matrix account used for screenshots. Signed release and Samsung in-place install are recorded below.
+
+### Samsung Kite 1.0.19 after Accounts polish
+
+- Clean source commit `b90c21e8` was pushed to `origin/main` after live ancestry verification. GLASS buildq #1197 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000019 -PandroidVersionName=1.0.19 --offline --no-daemon` PASS.
+- Release APK package `app.kite`, versionCode `101000019`, arm64-v8a only; V2 signing certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matched the APK directly pulled from the existing Samsung installation.
+- Samsung SM-S931B `adb install -r` SUCCESS. Version advanced from 1.0.18 to 1.0.19 without changing appId `10847` or original `firstInstallTime=2026-10-16 18:00:56`. Explicit `app.kite/chat.schildi.revenge.MainActivity` start passed and ActivityManager reported it focused. Samsung account-screen pixels were not separately inspected; light/dark visual proof is from isolated fixture Waydroid only.
