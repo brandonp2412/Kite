@@ -19,7 +19,9 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 release/
-screenshots/generated/
+screenshots/generated/*
+!screenshots/generated/native/
+!screenshots/generated/native/*.png
 vcs.xml
 .flatpak-builder
 flatpak

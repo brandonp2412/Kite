@@ -1,0 +1,371 @@
+{
+  "source": "adb exec-out screencap -p",
+  "device": "192.168.240.112:5555",
+  "fixture_user": "@taylor:kite-screenshots.test",
+  "screenshots": [
+    {
+      "name": "light-inbox",
+      "file": "screenshots/generated/native/light-inbox.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "c4850226ea08b842b000c82bcaef26bf25713c42c5871af60b1ed42786596517"
+    },
+    {
+      "name": "light-accounts",
+      "file": "screenshots/generated/native/light-accounts.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "60fa9ff60f665f67557b4855c4cbc2052a6db8abad55736a74fa5bde75633ba6"
+    },
+    {
+      "name": "light-settings",
+      "file": "screenshots/generated/native/light-settings.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "03a7359fb1859dccdd110de364483554a53e48f14b47467503a6728a0f523b30"
+    },
+    {
+      "name": "light-settings-general",
+      "file": "screenshots/generated/native/light-settings-general.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "762af3dd83ea041ceb45d8936596479c29e000b5de8c732c7e9e7ca6e3a75f9d"
+    },
+    {
+      "name": "light-settings-notifications",
+      "file": "screenshots/generated/native/light-settings-notifications.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "0879650264d70fd74370ac7a8da3143e62699dc36cda12f7dce17bd3c9e33020"
+    },
+    {
+      "name": "light-settings-inbox",
+      "file": "screenshots/generated/native/light-settings-inbox.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "bcc91328b7bb86e95e591cf63327ea07cd1121f3cefefc38d0fca4a58139e67b"
+    },
+    {
+      "name": "light-settings-conversation",
+      "file": "screenshots/generated/native/light-settings-conversation.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "da3dc98da9139fecc183fc37b8e81d62fdc0b20f3b76e7c13b555e7830a78d10"
+    },
+    {
+      "name": "light-chat-direct",
+      "file": "screenshots/generated/native/light-chat-direct.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "dceb8c26e93980ae37690641cc5febcc087dd9e11ca297d6e4df11dbbdddd1ee"
+    },
+    {
+      "name": "light-chat-reactions",
+      "file": "screenshots/generated/native/light-chat-reactions.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "74827cea4041e27d764cc4e92e05a6352e892f3e01453726a6998373b481ee66"
+    },
+    {
+      "name": "light-chat-selection",
+      "file": "screenshots/generated/native/light-chat-selection.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "a13f7baa24c89d6c9bbb499acc545b286777ac6d3f81fecd5ed54067f982e8d0"
+    },
+    {
+      "name": "light-chat-emoji-picker",
+      "file": "screenshots/generated/native/light-chat-emoji-picker.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "8ea4c7f2ac901d29584328c5fd291ec8b7789cbcf8e6233f7c1ef2e37ceafe41"
+    },
+    {
+      "name": "light-chat-selection-actions",
+      "file": "screenshots/generated/native/light-chat-selection-actions.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "e2541894b0bd1ae59e192a7b990f779b147eac6df4e4df833547c24a19681e17"
+    },
+    {
+      "name": "light-chat-reply-preview",
+      "file": "screenshots/generated/native/light-chat-reply-preview.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "25aa20d4eef4d65c2f32cbcedda25d7c4ada9c909881c8e2e31f7e758cf4b146"
+    },
+    {
+      "name": "light-chat-search",
+      "file": "screenshots/generated/native/light-chat-search.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "799f7d45fbfe5df0f54d1641d29dd7ca978a18dd9c7c588884fb8b0e8c05822f"
+    },
+    {
+      "name": "light-chat-direct-details",
+      "file": "screenshots/generated/native/light-chat-direct-details.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "49c02a52d7b4472296e23c736e3af18096a67bb38b5973a5dcc3e0c8af2a5a17"
+    },
+    {
+      "name": "light-chat-composer",
+      "file": "screenshots/generated/native/light-chat-composer.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "e50b767070476974856bec73db9245ecf916c219b029b3a0f2ef348a2639c5c5"
+    },
+    {
+      "name": "light-chat-group",
+      "file": "screenshots/generated/native/light-chat-group.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "c19c9068d94b39caa70ba33bacb95804fc2479406680351364ca03aa0a2d9429"
+    },
+    {
+      "name": "light-chat-group-reactions",
+      "file": "screenshots/generated/native/light-chat-group-reactions.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "87bb3e0d05ecd4ed0bfbd58fbddc34b33dc94ba5e3cd3d6edf4f2c7f2e192a3d"
+    },
+    {
+      "name": "light-room-details",
+      "file": "screenshots/generated/native/light-room-details.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "7d027170db47138ba9a9d5ba086675f4091662d6e3dd736660f6c445e5a2e38d"
+    },
+    {
+      "name": "light-room-members",
+      "file": "screenshots/generated/native/light-room-members.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "8027abd06d03f1d04adcd5f1659844e57b4e27748fb4b9463da1857c60bec8ca"
+    },
+    {
+      "name": "light-chat-media",
+      "file": "screenshots/generated/native/light-chat-media.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "ebf990a11911c026d659450961c813ca52f8e939a0749c8750b15931a4bca646"
+    },
+    {
+      "name": "light-chat-attachment-picker",
+      "file": "screenshots/generated/native/light-chat-attachment-picker.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "e8dae1cea51780b716baa871ef6a470ec9f87263b56f7f4b9ece27400ec6236c"
+    },
+    {
+      "name": "light-search-rooms",
+      "file": "screenshots/generated/native/light-search-rooms.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "a637ff9086b35c22a02cddd01b8b5a978ef9036bf0823f3e71098380e5f29b4f"
+    },
+    {
+      "name": "light-search-empty",
+      "file": "screenshots/generated/native/light-search-empty.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "7f97f7b0ce82bb9cf778879cfb2829621c3d9816af6e475ec6a8ab7cfb1a7cdc"
+    },
+    {
+      "name": "light-inbox-context",
+      "file": "screenshots/generated/native/light-inbox-context.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "3b58da89698ef66dec85ebeb714726cc69aacc158192c84d185e1321f1f94842"
+    },
+    {
+      "name": "dark-inbox",
+      "file": "screenshots/generated/native/dark-inbox.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "994e9fd0c3833b1ae68f50c22439fcf4b1a33928db85222284182b50add4cb4a"
+    },
+    {
+      "name": "dark-accounts",
+      "file": "screenshots/generated/native/dark-accounts.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "275042f7fb5780dfc4662fb866423d6f84c4cc370cefe3e62006ca58fd48d82a"
+    },
+    {
+      "name": "dark-settings",
+      "file": "screenshots/generated/native/dark-settings.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "7ce72411a78242a75b565cf23db5933284b8ae6b05522e1560710ba80082316e"
+    },
+    {
+      "name": "dark-settings-general",
+      "file": "screenshots/generated/native/dark-settings-general.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "38182a57d0e2a6907e084bc61e25a695e6ed108f847a65343ada26ad5a3895c7"
+    },
+    {
+      "name": "dark-settings-notifications",
+      "file": "screenshots/generated/native/dark-settings-notifications.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "cb3086b2d5c3c7524eb188cd12cc88bf64b9908312485d07ea3a0f755daa7cfb"
+    },
+    {
+      "name": "dark-settings-inbox",
+      "file": "screenshots/generated/native/dark-settings-inbox.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "5bb2faf4c632bf45fa47761b28ea68a2534a6b00a4dd57e2e56979950b857bb5"
+    },
+    {
+      "name": "dark-settings-conversation",
+      "file": "screenshots/generated/native/dark-settings-conversation.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "ace672445467b28a4c098741e30df4371b92c1f48c0cfb2dae214adad0bc5b97"
+    },
+    {
+      "name": "dark-chat-direct",
+      "file": "screenshots/generated/native/dark-chat-direct.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "7979a0bf6f3316c0424e4f956f8e3c7e047d3ccbd593917f52ba5113ca103c87"
+    },
+    {
+      "name": "dark-chat-reactions",
+      "file": "screenshots/generated/native/dark-chat-reactions.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "6cd26167211894665ed800bf698f19ef1ec7fa8edcc643e13a1478ce831a55a1"
+    },
+    {
+      "name": "dark-chat-selection",
+      "file": "screenshots/generated/native/dark-chat-selection.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "0a850d7d9c2bb5c5fef1b7f89007718fa947608aff34191f477beeb76aa4594a"
+    },
+    {
+      "name": "dark-chat-emoji-picker",
+      "file": "screenshots/generated/native/dark-chat-emoji-picker.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "9c9108ed63a7a4d3889a6867e25a7da00959fcc2351c9d77e2d24e1076ac515e"
+    },
+    {
+      "name": "dark-chat-selection-actions",
+      "file": "screenshots/generated/native/dark-chat-selection-actions.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "112bc0873790622752b57ead41b5253d7f87ca03ad7d11cfaa311939d98f9e61"
+    },
+    {
+      "name": "dark-chat-reply-preview",
+      "file": "screenshots/generated/native/dark-chat-reply-preview.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "defdddfa4b1a1d6349a494e302948d8010eb3e21568769c6c3715ebf60af886f"
+    },
+    {
+      "name": "dark-chat-search",
+      "file": "screenshots/generated/native/dark-chat-search.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "d694b10550dae202830b7c736b8ea8a921ebee834ef662aa6b402d89c8869d36"
+    },
+    {
+      "name": "dark-chat-direct-details",
+      "file": "screenshots/generated/native/dark-chat-direct-details.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "92f50bc2d6973fa4c189e7ebd08c67f5afcb0409a6fa3815f72713fecb672059"
+    },
+    {
+      "name": "dark-chat-composer",
+      "file": "screenshots/generated/native/dark-chat-composer.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "d861af8c2cfc5882211f7ec3a837fee3d566a2ba2494ebb766637b2c18e62fd8"
+    },
+    {
+      "name": "dark-chat-group",
+      "file": "screenshots/generated/native/dark-chat-group.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "caedb3bf477f25ab02c7df26126a03b1b5cbf30bc5d667a4c55422cd400a99a7"
+    },
+    {
+      "name": "dark-chat-group-reactions",
+      "file": "screenshots/generated/native/dark-chat-group-reactions.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "d307db86b33d1198f615a69470b1724c94da97bde649f27f6c7395128441cffb"
+    },
+    {
+      "name": "dark-room-details",
+      "file": "screenshots/generated/native/dark-room-details.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "1ffee90847736ee86480266e447f2ab22015265bb13c06d535aa9b890a1d2d35"
+    },
+    {
+      "name": "dark-room-members",
+      "file": "screenshots/generated/native/dark-room-members.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "059da3df1033b906e2d68006be8e7d903f253877c3a4b15a6c0f88f0f0d80922"
+    },
+    {
+      "name": "dark-chat-media",
+      "file": "screenshots/generated/native/dark-chat-media.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "a8288e4220f216b58983c86361e707765305d5a9170c12113485c2e08daab9a5"
+    },
+    {
+      "name": "dark-chat-attachment-picker",
+      "file": "screenshots/generated/native/dark-chat-attachment-picker.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "bd5b0a1ec3b9ef8cc24583487e4a1edd3586e8ab4d9cdd2b65aad117bf859515"
+    },
+    {
+      "name": "dark-search-rooms",
+      "file": "screenshots/generated/native/dark-search-rooms.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "7255ad191302602f3a66441f57f8df001a8b78c472bee039884e65e019e18c83"
+    },
+    {
+      "name": "dark-search-empty",
+      "file": "screenshots/generated/native/dark-search-empty.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "e4eb7cf5bc2e95c20abb0c4b974e995c1b22ec53d1e2a16903498671161e67ca"
+    },
+    {
+      "name": "dark-inbox-context",
+      "file": "screenshots/generated/native/dark-inbox-context.png",
+      "width": 1080,
+      "height": 2160,
+      "sha256": "818445e1a5176544afb7e3fdef97320441f804bcb23ff38baf54e701e29ba21f"
+    }
+  ],
+  "failures": {
+    "light": {},
+    "dark": {}
+  },
+  "curated": [
+    "light-inbox",
+    "light-chat-direct",
+    "dark-chat-reactions",
+    "light-chat-group",
+    "light-chat-media",
+    "light-search-rooms",
+    "light-settings",
+    "dark-chat-attachment-picker"
+  ]
+}

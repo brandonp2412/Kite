@@ -6,11 +6,11 @@ Kite is a fork of [SchildiChat Revenge](https://github.com/SchildiChat/schildi-r
 
 ## Screenshots
 
-| Inbox | Conversation | Reactions | Appearance |
+| Inbox | Conversation | Reactions | Attachments |
 | --- | --- | --- | --- |
-| ![Kite inbox](metadata/en-US/images/phoneScreenshots/1_en-US.png) | ![Direct chat](metadata/en-US/images/phoneScreenshots/2_en-US.png) | ![Quick reactions](metadata/en-US/images/phoneScreenshots/4_en-US.png) | ![Dark theme](metadata/en-US/images/phoneScreenshots/8_en-US.png) |
+| ![Kite inbox](metadata/en-US/images/phoneScreenshots/1_en-US.png) | ![Direct chat](metadata/en-US/images/phoneScreenshots/2_en-US.png) | ![Quick reactions](metadata/en-US/images/phoneScreenshots/3_en-US.png) | ![Attachment picker](metadata/en-US/images/phoneScreenshots/8_en-US.png) |
 
-The screenshot generator creates 98 fictional, deterministic UI scenarios in `screenshots/generated/` for review, and selects just eight for Fastlane/Play metadata. These are illustrations, **not** captures from a running app. Run `python3 scripts/generate_screenshots.py` (requires `rsvg-convert`); see [screenshot scenarios](screenshots/README.md).
+The [screenshot gallery](screenshots/index.html) contains genuine Android captures of Kite, using isolated fictional Matrix accounts. Exactly eight are selected for Fastlane/Play. See [capture instructions](screenshots/README.md).
 
 ## Features
 

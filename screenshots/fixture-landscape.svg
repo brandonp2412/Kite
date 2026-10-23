@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#3e4e8f"/>
+      <stop offset=".56" stop-color="#ee9c92"/>
+      <stop offset="1" stop-color="#ffd8a4"/>
+    </linearGradient>
+    <linearGradient id="lake" x2="0" y2="1">
+      <stop stop-color="#8e9bc5"/>
+      <stop offset="1" stop-color="#2c617b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#sky)"/>
+  <circle cx="870" cy="262" r="104" fill="#ffe9ae" opacity=".92"/>
+  <path d="M0 604 193 373 341 524 542 302 768 584 918 433 1200 635V900H0Z" fill="#5f678d"/>
+  <path d="M0 686 259 508 429 616 648 409 834 630 1029 485 1200 658V900H0Z" fill="#364c75"/>
+  <path d="M0 676Q285 655 598 679T1200 672V900H0Z" fill="url(#lake)"/>
+  <g fill="none" stroke="#ffd9b4" opacity=".52">
+    <path d="M800 720Q1000 724 1156 716" stroke-width="7"/>
+    <path d="M685 772Q910 783 1162 773" stroke-width="4"/>
+    <path d="M70 819Q416 833 648 818" stroke-width="6"/>
+    <path d="M423 865Q694 878 891 861" stroke-width="3"/>
+  </g>
+  <path d="M0 827 180 777 322 840 465 807 685 900H0Z" fill="#213d57"/>
+  <path d="M1200 785 1089 744 943 799 811 780 712 900H1200Z" fill="#234159"/>
+</svg>

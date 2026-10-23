@@ -138,18 +138,14 @@ jobs:
           retention-days: 7
 
   screenshots:
-    name: Generate demo screenshots
+    name: Verify native screenshot assets
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Install deterministic screenshot renderer
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends librsvg2-bin fonts-roboto
-      - name: Regenerate screenshots
-        run: python3 scripts/generate_screenshots.py
+      - name: Verify genuine device captures and metadata
+        run: python3 scripts/generate_screenshots.py --verify
       - uses: actions/upload-artifact@v4
         with:
           name: store-screenshots
@@ -159,7 +155,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: screenshot-gallery
-          path: screenshots/generated/*.png
+          path: |
+            screenshots/generated/native/*.png
+            screenshots/index.html
+            screenshots/native-manifest.json
           if-no-files-found: error
           retention-days: 7
 
@@ -204,46 +203,3 @@ jobs:
             dist/*.apk
             dist/*.sha256
             dist/*.png
-
-  update-screenshots:
-    needs: [release, screenshots]
-    runs-on: ubuntu-24.04
-    permissions:
-      actions: write
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-      - uses: actions/download-artifact@v4
-        with:
-          name: store-screenshots
-          path: regenerated
-      - name: Update README/Fastlane images on main
-        id: publish
-        env:
-          TAG_SHA: ${{ github.sha }}
-        run: |
-          # Do not replace main's artwork from tags made on unrelated branches.
-          git merge-base --is-ancestor "$TAG_SHA" HEAD || exit 0
-          git diff --quiet "$TAG_SHA" HEAD -- scripts/generate_screenshots.py || exit 0
-          for n in $(seq 1 8); do
-            test -s "regenerated/${n}_en-US.png"
-            cp "regenerated/${n}_en-US.png" "metadata/en-US/images/phoneScreenshots/${n}_en-US.png"
-          done
-          if git diff --quiet -- metadata/en-US/images/phoneScreenshots; then
-            echo 'Screenshots unchanged'
-            exit 0
-          fi
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add metadata/en-US/images/phoneScreenshots
-          git commit -m "docs: update release screenshots"
-          git push origin HEAD:main
-          echo 'updated=true' >> "$GITHUB_OUTPUT"
-      - name: Run main-branch checks for screenshot commit
-        if: steps.publish.outputs.updated == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run ci.yml --ref main

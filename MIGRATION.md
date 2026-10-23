@@ -1422,3 +1422,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Replaced monochrome/font-fallback reaction emoji in the deterministic screenshot generator with the same colour palette and drawn face geometry as native `KiteReactionGlyph`; added embedded-colour PNG sprites for inline emoji rendered from the repository's bundled Noto Color Emoji font. The Add Reaction glyph is now a vector plus, eliminating a missing-font box.
 - Verified complete 98-scenario regeneration through Glass buildq #1170 and #1171, inspected the eight-image contact sheet and full-size reaction crop. No Matrix data or Android UI was accessed for these screenshots.
 - Reinstalled the byte-identical signed Kite 1.0.17 APK on Samsung SM-S931B and brought MainActivity to the foreground; original firstInstallTime and UID were preserved. Android UI emoji comparison and Play upload remain untested because the images are synthetic.
+
+## Genuine Android screenshot suite — 2026-10-23
+
+- Replaced the fabricated SVG screenshot renderer and emoji approximations with 50 device screenshots from Kite itself on isolated Glass Waydroid, in light and dark themes. Selected exactly eight distinct native screenshots for Fastlane.
+- Created a local Synapse fixture with nine fictional users, six conversations, reactions and artwork; screenshot automation refuses non-fixture accounts. No personal or production Matrix data was captured.
+- Added a PerfDebug-only cleartext homeserver allowance for the isolated fixture, screenshot SHA-256 manifest, browsable gallery, and native image verification in release CI. The public release source set is unchanged.
+- Visually reviewed all 50 captures in contact sheets, including Kite’s actual vertical reaction menu and full emoji picker. Glass buildq #1173 produced the x86 PerfDebug APK; #1176 captured the final suite. `python3 scripts/generate_screenshots.py --verify`, Python compilation, YAML parse and whitespace checks pass.
