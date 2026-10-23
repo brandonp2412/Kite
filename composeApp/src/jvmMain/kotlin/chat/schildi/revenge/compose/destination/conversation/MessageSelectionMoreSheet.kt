@@ -140,23 +140,15 @@ private fun SelectionMoreAction(
     destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val containerColor = if (destructive) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-    }
-    val contentColor = if (destructive) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val contentColor = MaterialTheme.colorScheme.onSurface
     val iconContainerColor = if (destructive) {
-        MaterialTheme.colorScheme.error
+        MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
     } else {
         MaterialTheme.colorScheme.secondaryContainer
     }
     val iconContentColor = if (destructive) {
-        MaterialTheme.colorScheme.onError
+        MaterialTheme.colorScheme.error
     } else {
         MaterialTheme.colorScheme.onSecondaryContainer
     }

@@ -64,7 +64,7 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
                 )
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(44.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 404.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
                     items(results, key = { it.string }) { emoji ->
