@@ -229,11 +229,15 @@ fun WithContextMenu(
                 containerColor = if (presentation == ContextMenuPresentation.Message) Color.Transparent else containerColor,
                 tonalElevation = 0.dp,
                 shadowElevation = if (presentation == ContextMenuPresentation.Message) 0.dp else 8.dp,
-                offset = offset,
+                offset = if (presentation == ContextMenuPresentation.Default) {
+                    DpOffset(offset.x - 12.dp, offset.y)
+                } else {
+                    offset
+                },
                 shape = if (presentation == ContextMenuPresentation.Message) {
                     MaterialTheme.shapes.extraLarge
                 } else {
-                    MaterialTheme.shapes.medium
+                    MaterialTheme.shapes.large
                 },
                 // Message actions intentionally stay non-focusable. Current Google Messages
                 // keeps the floating action surface visible while a second long-press lands
@@ -509,18 +513,19 @@ private fun ContextMenuDropdownMenuItemContent(
     modifier: Modifier = Modifier,
 ) {
     val keyboardShortcutsEnabled = LocalKeyboardActionHandler.current.keyboardPrimary.collectAsState().value
-    val primaryColor = if (entry.critical) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val iconColor = if (entry.critical) {
         MaterialTheme.colorScheme.error
     } else {
-        MaterialTheme.colorScheme.onSurface
+        textColor
     }
     DropdownMenuItem(
         modifier = modifier,
         enabled = entry.enabled,
         colors = MenuItemColors(
-            textColor = primaryColor,
-            leadingIconColor = primaryColor,
-            trailingIconColor = primaryColor,
+            textColor = textColor,
+            leadingIconColor = iconColor,
+            trailingIconColor = textColor,
             disabledTextColor = MaterialTheme.colorScheme.tertiary,
             disabledLeadingIconColor = MaterialTheme.colorScheme.tertiary,
             disabledTrailingIconColor = MaterialTheme.colorScheme.tertiary,

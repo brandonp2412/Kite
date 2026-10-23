@@ -176,7 +176,7 @@
       "file": "screenshots/generated/native/light-inbox-context.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "3b58da89698ef66dec85ebeb714726cc69aacc158192c84d185e1321f1f94842"
+      "sha256": "5551f3a8632f3fdf245894fb029faad6a67636dac8f26794cc56f6dd0a7eb30b"
     },
     {
       "name": "dark-inbox",
@@ -351,7 +351,7 @@
       "file": "screenshots/generated/native/dark-inbox-context.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "818445e1a5176544afb7e3fdef97320441f804bcb23ff38baf54e701e29ba21f"
+      "sha256": "872d01463481e5a8a8f0bb316491f45df77d20fbf8624b60c358ddc250147ab1"
     }
   ],
   "failures": {
