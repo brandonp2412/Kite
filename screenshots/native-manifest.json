@@ -29,7 +29,7 @@
       "file": "screenshots/generated/native/light-settings-general.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "762af3dd83ea041ceb45d8936596479c29e000b5de8c732c7e9e7ca6e3a75f9d"
+      "sha256": "68ddd460619ce9be1cce59625c04fbe21386db76f0a7a956e88dcdc4c42849da"
     },
     {
       "name": "light-settings-notifications",
@@ -78,14 +78,14 @@
       "file": "screenshots/generated/native/light-chat-emoji-picker.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "8ea4c7f2ac901d29584328c5fd291ec8b7789cbcf8e6233f7c1ef2e37ceafe41"
+      "sha256": "fc42f12a49dc76e2aa4ebb13f9d765e1383c9e807ed2d5db65a9c7f656a59f5a"
     },
     {
       "name": "light-chat-selection-actions",
       "file": "screenshots/generated/native/light-chat-selection-actions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "73d79229709f6d1d781c4d00f4d85fa727ee44c24da0ea8377fd4747026cda94"
+      "sha256": "ca1a74137b3c7a17ea8819b3762d0312985b7d3ff0f23db9be7f44f5e51a1f1a"
     },
     {
       "name": "light-chat-reply-preview",
@@ -204,7 +204,7 @@
       "file": "screenshots/generated/native/dark-settings-general.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "38182a57d0e2a6907e084bc61e25a695e6ed108f847a65343ada26ad5a3895c7"
+      "sha256": "95181b069fa4d309222edc4254e248a5cdf64022eecc457fed339a29c676c93a"
     },
     {
       "name": "dark-settings-notifications",
@@ -253,14 +253,14 @@
       "file": "screenshots/generated/native/dark-chat-emoji-picker.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "9c9108ed63a7a4d3889a6867e25a7da00959fcc2351c9d77e2d24e1076ac515e"
+      "sha256": "0e45ca9d190c5a0a2bc414120948ca50c119b20b9fafebfd80bf8a7c1a0abca1"
     },
     {
       "name": "dark-chat-selection-actions",
       "file": "screenshots/generated/native/dark-chat-selection-actions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "cf7b6704cc35a95b45835320d13a5149c97919d2f41397400f30055ebda694e2"
+      "sha256": "8b6ea80599e80d8761a89e1e13e7754b874fe55305de16f79ddf525dbc232dcd"
     },
     {
       "name": "dark-chat-reply-preview",

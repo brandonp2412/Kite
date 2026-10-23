@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -206,6 +208,7 @@ fun <T> ScPref<T>.RenderedWithTextField() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScIntPref.Rendered() {
     val persist = persistSettingValue()
@@ -234,12 +237,14 @@ fun ScIntPref.Rendered() {
                     enabled = enabled,
                     valueRange = minValue.toFloat()..maxValue.toFloat(),
                     steps = (maxValue - minValue) / stepSize - 1,
+                    track = { SliderDefaults.Track(sliderState = it, drawTick = { _, _ -> }, drawStopIndicator = {}) },
                 )
             }
         },
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScFloatPref.Rendered() {
     val persist = persistSettingValue()
@@ -268,6 +273,7 @@ fun ScFloatPref.Rendered() {
                     enabled = enabled,
                     valueRange = minValue..maxValue,
                     steps = ((maxValue - minValue) / stepSize).roundToInt() - 1,
+                    track = { SliderDefaults.Track(sliderState = it, drawTick = { _, _ -> }, drawStopIndicator = {}) },
                 )
             }
         },
