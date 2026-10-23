@@ -2,7 +2,6 @@ package chat.schildi.revenge.compose.composer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -58,7 +56,6 @@ internal fun ComposerAttachmentPicker(
         ) {
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 AttachmentActionOrder.forEach { kind ->
                     if (kind in availableKinds) {
@@ -73,14 +70,14 @@ internal fun ComposerAttachmentPicker(
                             AttachmentPickerKind.GALLERY -> Icons.Default.PhotoLibrary
                         }
                         Column(
-                            modifier = Modifier.width(72.dp),
+                            modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Box(
                                 modifier = Modifier
                                     .size(64.dp)
                                     .clip(AttachmentActionShape)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer)
                                     .clickable {
                                         onDismiss()
                                         onPick(kind)

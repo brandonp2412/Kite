@@ -155,7 +155,7 @@
       "file": "screenshots/generated/native/light-chat-attachment-picker.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "e8dae1cea51780b716baa871ef6a470ec9f87263b56f7f4b9ece27400ec6236c"
+      "sha256": "75799cb10d2741e3d98515dd660d5d48434a7f5fe6f573b17f452498600ae449"
     },
     {
       "name": "light-search-rooms",
@@ -330,7 +330,7 @@
       "file": "screenshots/generated/native/dark-chat-attachment-picker.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "bd5b0a1ec3b9ef8cc24583487e4a1edd3586e8ab4d9cdd2b65aad117bf859515"
+      "sha256": "c69cb6141a849ff7fdc63b91fa44956156462474e9e46428ef12adf7f639218d"
     },
     {
       "name": "dark-search-rooms",
