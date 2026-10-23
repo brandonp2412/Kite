@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NoEncryption
 import androidx.compose.material.icons.outlined.EmojiEmotions
-import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,8 +37,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
@@ -172,22 +175,21 @@ fun ComposerRow(
                     ),
             ) {
                 if (draftState.inReplyTo != null) {
+                    val accentColor = MaterialTheme.scExposures.accentColor
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+                            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp)
+                            .drawBehind {
+                                drawRoundRect(
+                                    color = accentColor,
+                                    size = Size(3.dp.toPx(), size.height),
+                                    cornerRadius = CornerRadius(2.dp.toPx()),
+                                )
+                            },
                         verticalAlignment = Alignment.Top,
                     ) {
-                        Box(
-                            Modifier
-                                .width(3.dp)
-                                .height(48.dp)
-                                .background(
-                                    MaterialTheme.scExposures.accentColor,
-                                    RoundedCornerShape(2.dp),
-                                )
-                        )
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(13.dp))
                         Column(Modifier.weight(1f)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -411,7 +413,7 @@ fun ComposerRow(
                             minHeight = Dimens.Conversation.Composer.buttonHeight,
                         ) {
                             Icon(
-                                Icons.Outlined.PhotoLibrary,
+                                Icons.Outlined.Image,
                                 stringResource(Res.string.action_add_attachment),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp),
@@ -475,12 +477,12 @@ private fun ComposerSendButton(
     onClick: () -> Unit,
 ) {
     val containerColor = if (enabled) {
-        MaterialTheme.colorScheme.primary
+        MaterialTheme.scExposures.accentColor
     } else {
         MaterialTheme.colorScheme.surfaceContainerHighest
     }
     val contentColor = if (enabled) {
-        MaterialTheme.colorScheme.onPrimary
+        MaterialTheme.scExposures.colorOnAccent
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
