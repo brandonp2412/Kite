@@ -297,20 +297,6 @@ fun WithContextMenu(
                 val actionRows = shownEntries.filterIsInstance<ContextMenuActionRowEntry>()
                 val menuEntries = shownEntries.filterNot { it is ContextMenuActionRowEntry }
 
-                if (messageTimestamp != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
-                    ) {
-                        Text(
-                            text = messageTimestamp,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        )
-                    }
-                }
                 if (actionRows.isNotEmpty()) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
@@ -329,13 +315,21 @@ fun WithContextMenu(
                         }
                     }
                 }
-                if (menuEntries.isNotEmpty()) {
+                if (menuEntries.isNotEmpty() || messageTimestamp != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
                         shape = MaterialTheme.shapes.extraLarge,
                         modifier = Modifier.width(192.dp),
                     ) {
                         Column(Modifier.padding(vertical = 4.dp)) {
+                            if (messageTimestamp != null) {
+                                Text(
+                                    text = messageTimestamp,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                )
+                            }
                             menuEntries.forEach { entry ->
                                 ContextMenuDropdownMenuItem(
                                     entry = entry,
