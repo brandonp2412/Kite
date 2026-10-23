@@ -6,11 +6,11 @@ Kite is a fork of [SchildiChat Revenge](https://github.com/SchildiChat/schildi-r
 
 ## Screenshots
 
-| Inbox | Conversation |
-| --- | --- |
-| ![Kite inbox with example conversations](fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.png) | ![Kite conversation with example messages](fastlane/metadata/android/en-US/images/phoneScreenshots/2_en-US.png) |
+| Inbox | Conversation | Reactions | Appearance |
+| --- | --- | --- | --- |
+| ![Kite inbox](metadata/en-US/images/phoneScreenshots/1_en-US.png) | ![Direct chat](metadata/en-US/images/phoneScreenshots/2_en-US.png) | ![Quick reactions](metadata/en-US/images/phoneScreenshots/4_en-US.png) | ![Dark theme](metadata/en-US/images/phoneScreenshots/8_en-US.png) |
 
-Screenshots are illustrative, generated from anonymized sample content with `python3 scripts/generate_screenshots.py`; they are not live device captures.
+The screenshot generator creates 98 fictional, deterministic UI scenarios in `screenshots/generated/` for review, and selects just eight for Fastlane/Play metadata. These are illustrations, **not** captures from a running app. Run `python3 scripts/generate_screenshots.py` (requires `rsvg-convert`); see [screenshot scenarios](screenshots/README.md).
 
 ## Features
 

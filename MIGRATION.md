@@ -1410,3 +1410,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - In attachment-caption mode, composer text/hint now start 16dp inside the capsule instead of nearly touching its left edge (2dp). The empty text composer retains the gallery shortcut even while focused; it switches to the send control once typing begins. Source commit `8ed760fa`.
 - Glass buildq #1108 `:androidApp:assembleRelease` PASS including Android compile and lint, `git diff --check` PASS. Signed ARM64 APK `app.kite` 1.0.17 / `101000017` retained the installed SHA-256 signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
 - Samsung SM-S931B `adb install -r` Success. Original `firstInstallTime=2026-10-16 18:00:56` and `appId=10847` preserved. Live gallery-focus/caption visual QA is not yet claimed.
+
+## Screenshot suite / store metadata — 2026-10-23
+
+- Replaced two synthetic screenshots with a deterministic gallery of 98 fictional UI states across light/dark themes, 49 scenarios, and eight curated 1080×2340 Fastlane/Play metadata images. Added a searchable gallery page and release workflow artifacts for both the selected images and complete gallery. Updated the README and English full description.
+- Verified the generation through Glass buildq tasks #1140, #1142, and #1144; exactly eight distinct store PNGs, 98 gallery PNGs, matching dimensions, working local gallery links, Python syntax, release-workflow YAML syntax, and git diff whitespace checks.
+- Not tested: Android runtime/visual fidelity (these are explicitly fictional mock screenshots), a GitHub Actions run, or Play Store upload. No app code or installed package was changed by this slice.

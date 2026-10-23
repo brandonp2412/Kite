@@ -1,11 +1,18 @@
-Kite is a fast, native Matrix messaging client for Android and desktop.
+Kite is a fast, native Matrix messenger for Android and desktop. Keep your conversations together in a clean, responsive interface built with Kotlin/Compose and the Matrix Rust SDK.
 
-Features include encrypted messaging, multi-account support, a unified inbox, rich-text messages, media attachments, reactions, and configurable keyboard shortcuts.
+• A unified inbox for direct chats and group rooms
+• End-to-end encrypted conversations on supported Matrix rooms
+• Multiple Matrix accounts and homeservers
+• Quick reactions, replies, and swipe-to-reply
+• Media attachments, files, and rich-text messages
+• Search for chats and messages
+• Appearance, notification, and conversation preferences
+• Native desktop support and keyboard shortcuts
 
-Matrix is an open, decentralized messaging protocol: you choose your homeserver or host your own. Kite is a community fork of SchildiChat Revenge and builds on the Matrix Rust SDK.
+Matrix is an open, decentralized messaging protocol. Use a compatible homeserver or host your own.
 
-Kite is still under active development. Some Matrix features are not yet implemented.
+Kite is a community fork of SchildiChat Revenge. The application remains in active development, and some Matrix features are incomplete.
 
-Source: https://github.com/brandonp2412/Kite
+Source code: https://github.com/brandonp2412/Kite
 Upstream: https://github.com/SchildiChat/schildi-revenge
-Matrix: https://matrix.org/
+Protocol: https://matrix.org/

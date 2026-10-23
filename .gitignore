@@ -19,6 +19,8 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 release/
+screenshots/generated/
 vcs.xml
 .flatpak-builder
 flatpak
+__pycache__/

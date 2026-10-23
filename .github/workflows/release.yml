@@ -152,8 +152,14 @@ jobs:
         run: python3 scripts/generate_screenshots.py
       - uses: actions/upload-artifact@v4
         with:
-          name: kite-screenshots
+          name: store-screenshots
           path: metadata/en-US/images/phoneScreenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-gallery
+          path: screenshots/generated/*.png
           if-no-files-found: error
           retention-days: 7
 
@@ -170,16 +176,16 @@ jobs:
           merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
-          name: kite-screenshots
+          name: store-screenshots
           path: images
       - name: Add screenshots to release assets
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          test -s images/1_en-US.png
-          test -s images/2_en-US.png
-          cp images/1_en-US.png "dist/Kite-${TAG}-inbox.png"
-          cp images/2_en-US.png "dist/Kite-${TAG}-conversation.png"
+          for n in $(seq 1 8); do
+            test -s "images/${n}_en-US.png"
+            cp "images/${n}_en-US.png" "dist/Kite-${TAG}-screen-${n}.png"
+          done
       - name: Verify all four APKs
         env:
           TAG: ${{ github.ref_name }}
@@ -212,7 +218,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
-          name: kite-screenshots
+          name: store-screenshots
           path: regenerated
       - name: Update README/Fastlane images on main
         id: publish
@@ -222,8 +228,10 @@ jobs:
           # Do not replace main's artwork from tags made on unrelated branches.
           git merge-base --is-ancestor "$TAG_SHA" HEAD || exit 0
           git diff --quiet "$TAG_SHA" HEAD -- scripts/generate_screenshots.py || exit 0
-          cp regenerated/1_en-US.png metadata/en-US/images/phoneScreenshots/1_en-US.png
-          cp regenerated/2_en-US.png metadata/en-US/images/phoneScreenshots/2_en-US.png
+          for n in $(seq 1 8); do
+            test -s "regenerated/${n}_en-US.png"
+            cp "regenerated/${n}_en-US.png" "metadata/en-US/images/phoneScreenshots/${n}_en-US.png"
+          done
           if git diff --quiet -- metadata/en-US/images/phoneScreenshots; then
             echo 'Screenshots unchanged'
             exit 0
