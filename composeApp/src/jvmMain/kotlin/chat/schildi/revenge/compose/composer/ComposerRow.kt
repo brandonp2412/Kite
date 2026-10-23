@@ -352,7 +352,7 @@ fun ComposerRow(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 2.dp, end = 4.dp),
+                                .padding(start = if (draftState.attachment != null) 16.dp else 2.dp, end = 4.dp),
                             contentAlignment = Alignment.CenterStart,
                         ) {
                             if (draftState.textFieldValue.text.isEmpty()) {
@@ -397,7 +397,6 @@ fun ComposerRow(
                 }
                 if (
                     !isSendInProgress &&
-                    !isFocused &&
                     draftState.type == DraftType.TEXT &&
                     draftState.attachment == null &&
                     draftState.isEmpty() &&
