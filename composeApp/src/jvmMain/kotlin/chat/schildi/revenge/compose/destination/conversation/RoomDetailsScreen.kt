@@ -595,7 +595,7 @@ private fun RoomInfoAdvancedInfoField(
         title,
         copyActions = content.toCopyAction(),
         primaryAction = primaryAction,
-        color = MaterialTheme.colorScheme.tertiary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
     ) {
         SectionText(
@@ -607,7 +607,7 @@ private fun RoomInfoAdvancedInfoField(
                     it
                 }
             },
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

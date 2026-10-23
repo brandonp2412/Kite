@@ -104,7 +104,7 @@ fun RoomMembersScreen(
                     )
                 } else {
                     LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                        Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 12.dp),
                         state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = WindowInsets.navigationBars
