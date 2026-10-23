@@ -15,7 +15,7 @@
       "file": "screenshots/generated/native/light-accounts.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "60fa9ff60f665f67557b4855c4cbc2052a6db8abad55736a74fa5bde75633ba6"
+      "sha256": "6481371e9a65d40b7dfbe5f73bcc3f72dbaee275ebc8610516d9979fa74485f6"
     },
     {
       "name": "light-settings",
@@ -190,7 +190,7 @@
       "file": "screenshots/generated/native/dark-accounts.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "275042f7fb5780dfc4662fb866423d6f84c4cc370cefe3e62006ca58fd48d82a"
+      "sha256": "dccd6348ec6e8c6606fbf996ff3a146933b02d07b79fcb119b51129eef4409b8"
     },
     {
       "name": "dark-settings",

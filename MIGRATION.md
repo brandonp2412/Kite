@@ -1443,3 +1443,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - Signed arm64 `:androidApp:assembleRelease -PandroidVersionCode=101000018 -PandroidVersionName=1.0.18 --offline --no-daemon` built successfully through Glass buildq #1182, with release lint and R8 passing. Live `origin/main` ancestry was confirmed before the release. APK SHA-256: `38965f27637473f10485599d75b980f9a1432bc3e087ceb98ab037a1a54ce3e5`.
 - Confirmed `app.kite`, versionCode 101000018 and signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matches Samsung's previously installed APK. On SM-S931B `adb install -r` succeeded, keeping app UID `10847` and original `firstInstallTime=2026-10-16 18:00:56`; `am start -W` succeeded and ActivityManager reported Kite MainActivity resumed. No app data reset. This is install/launch verification, not a separate on-Samsung visual review.
+
+## 2026-10-24 — Accounts visual polish
+
+- Compared genuine light/dark Accounts captures with the prior verified screenshots and the pinned Google Messages Material 3 references. Replaced the vivid sign-out circle with a tonal icon surface; rounded existing Homeserver, username, password and recovery-key fields to 14dp. No account action or Matrix behavior changed.
+- GLASS buildq #1195 `:androidApp:assemblePerfDebug -PandroidAbi=x86 --offline --no-daemon` PASS; installed only on fixture Waydroid `192.168.240.112:5555`. Regenerated 50 genuine Android states; `--verify` PASS with exactly eight Fastlane captures. The Accounts images differ as intended; unrelated group-capture timing variance was retained from the previously verified suite.
+- GLASS buildq #1196 `:composeApp:desktopTest --offline --no-daemon` PASS, `git diff --check` PASS. No Samsung or real Matrix account used for screenshots. Signed release and Samsung in-place install are pending.

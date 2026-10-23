@@ -269,7 +269,7 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
                 AccountManagementIconButton(
                     icon = rememberVectorPainter(Icons.AutoMirrored.Default.Logout),
                     contentDescription = stringResource(Res.string.action_logout),
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     focusId = logoutFocusId,
                 ) {
                     keyboardActionHandler.handleAction(
@@ -305,6 +305,7 @@ private fun ExistingLogin(account: AccountManagementData, viewModel: AccountMana
                         onValueChange = { recoveryKey = it },
                         label = { Text(stringResource(Res.string.hint_recovery_key)) },
                         singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.weight(1f).keyFocusable(FocusRole.TEXT_FIELD_SINGLE_LINE),
                     )
                     // TODO move to VM
@@ -490,6 +491,7 @@ private fun NewLogin(viewModel: AccountManagementViewModel) {
                 onValueChange = { homeserver = it },
                 label = { Text(stringResource(Res.string.hint_homeserver)) },
                 singleLine = true,
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.weight(1f).keyFocusable(FocusRole.TEXT_FIELD_SINGLE_LINE),
                 enabled = loginVariant == null && !setHomeserverInProgress.value,
             )
@@ -619,6 +621,7 @@ private fun ColumnScope.PasswordLogin(
         onValueChange = { username = it },
         label = { Text(stringResource(Res.string.hint_username)) },
         singleLine = true,
+        shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().keyFocusable(FocusRole.TEXT_FIELD_SINGLE_LINE),
     )
     val passwordVisible = remember { mutableStateOf(false) }
@@ -626,6 +629,7 @@ private fun ColumnScope.PasswordLogin(
         value = password,
         onValueChange = { password = it },
         label = { Text(stringResource(Res.string.hint_password)) },
+        shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().keyFocusable(FocusRole.TEXT_FIELD_SINGLE_LINE),
         visualTransformation = if (passwordVisible.value) {
             VisualTransformation.None
@@ -722,7 +726,7 @@ private fun AccountManagementIconButton(
     IconButton(
         modifier = modifier
             .size(40.dp)
-            .background(MaterialTheme.colorScheme.errorContainer, CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape)
             .keyFocusable(
                 role = role,
                 id = focusId,
