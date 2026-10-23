@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
@@ -699,7 +700,9 @@ private fun AccountManagementButton(
     Button(
         enabled = enabled,
         onClick = { onClick() },
+        shape = RoundedCornerShape(16.dp),
         modifier = modifier
+            .heightIn(min = 56.dp)
             .keyFocusable(
                 role = role,
                 actionProvider = actionProvider(
@@ -725,7 +728,7 @@ private fun AccountManagementIconButton(
 ) {
     IconButton(
         modifier = modifier
-            .size(40.dp)
+            .size(44.dp)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape)
             .keyFocusable(
                 role = role,

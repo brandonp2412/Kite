@@ -109,21 +109,21 @@ fun EmptySearchListScreen(
         Column(
             modifier = Modifier.padding(horizontal = 32.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
             ) {
                 Box(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(64.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (inProgress) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(28.dp),
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -131,16 +131,16 @@ fun EmptySearchListScreen(
                         Icon(
                             Icons.Default.Search,
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
                     }
                 }
             }
             Text(
                 title.render(),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             actionContent()
         }

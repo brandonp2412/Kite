@@ -15,7 +15,7 @@
       "file": "screenshots/generated/native/light-accounts.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "6481371e9a65d40b7dfbe5f73bcc3f72dbaee275ebc8610516d9979fa74485f6"
+      "sha256": "3bef4db72bc6744c81d915c0c0cb5f205a9f79cc7ed92485a670ae1bea914d5a"
     },
     {
       "name": "light-settings",
@@ -169,7 +169,7 @@
       "file": "screenshots/generated/native/light-search-empty.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "7f97f7b0ce82bb9cf778879cfb2829621c3d9816af6e475ec6a8ab7cfb1a7cdc"
+      "sha256": "f4eb00e80614008c23b9c10b2b6d36297388cb79b0f0c35d416ccfe66f977076"
     },
     {
       "name": "light-inbox-context",
@@ -190,7 +190,7 @@
       "file": "screenshots/generated/native/dark-accounts.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "dccd6348ec6e8c6606fbf996ff3a146933b02d07b79fcb119b51129eef4409b8"
+      "sha256": "571ff87fc115d5b5a3f38a4618a723e70c9ba5d12f54236a4aba9b9b34b04bc7"
     },
     {
       "name": "dark-settings",
@@ -344,7 +344,7 @@
       "file": "screenshots/generated/native/dark-search-empty.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "e4eb7cf5bc2e95c20abb0c4b974e995c1b22ec53d1e2a16903498671161e67ca"
+      "sha256": "7a1fce004c290078d1e20a6ef2845ee8a7e6231fc1bd574ce17a6fd5bdf31fed"
     },
     {
       "name": "dark-inbox-context",
