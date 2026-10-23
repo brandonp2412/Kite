@@ -1404,3 +1404,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass buildq #1106 `:composeApp:compileAndroidMain` PASS; #1107 signed ARM64 `:androidApp:assembleRelease` PASS (release lint included). Source commit `41eb388d`; `git diff --check` PASS.
 - Verified release `app.kite` 1.0.16 / `101000016`, ARM64, SHA-256 signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` against the installed APK. Samsung SM-S931B `adb install -r` Success; `firstInstallTime=2026-10-16 18:00:56` and `appId=10847` unchanged.
 - Interactive portrait attachment visual proof remains pending; the phone was in NotificationShade/launcher during installation, so no private chat or gallery content was opened.
+
+## 2026-10-23 — Attachment caption inset and focused gallery shortcut
+
+- In attachment-caption mode, composer text/hint now start 16dp inside the capsule instead of nearly touching its left edge (2dp). The empty text composer retains the gallery shortcut even while focused; it switches to the send control once typing begins. Source commit `8ed760fa`.
+- Glass buildq #1108 `:androidApp:assembleRelease` PASS including Android compile and lint, `git diff --check` PASS. Signed ARM64 APK `app.kite` 1.0.17 / `101000017` retained the installed SHA-256 signer `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`.
+- Samsung SM-S931B `adb install -r` Success. Original `firstInstallTime=2026-10-16 18:00:56` and `appId=10847` preserved. Live gallery-focus/caption visual QA is not yet claimed.
