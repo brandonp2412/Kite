@@ -22,35 +22,35 @@
       "file": "screenshots/generated/native/light-settings.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "03a7359fb1859dccdd110de364483554a53e48f14b47467503a6728a0f523b30"
+      "sha256": "b87c3fb368630b8c0919c683a728cafd2688cb045bf4e5f259c9c08de8617e55"
     },
     {
       "name": "light-settings-general",
       "file": "screenshots/generated/native/light-settings-general.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "68ddd460619ce9be1cce59625c04fbe21386db76f0a7a956e88dcdc4c42849da"
+      "sha256": "14c19f025b708340d62025b6ca498fc9053a7f80dd9cfb71bd8aa4498cd6deb9"
     },
     {
       "name": "light-settings-notifications",
       "file": "screenshots/generated/native/light-settings-notifications.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "0879650264d70fd74370ac7a8da3143e62699dc36cda12f7dce17bd3c9e33020"
+      "sha256": "0fb8a7488eef1b7ded0cb3087ab561b4e9a093138d2a0168030d6c7a32c2acb7"
     },
     {
       "name": "light-settings-inbox",
       "file": "screenshots/generated/native/light-settings-inbox.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "bcc91328b7bb86e95e591cf63327ea07cd1121f3cefefc38d0fca4a58139e67b"
+      "sha256": "9350e4514cc751075b2bf6ee68cc10c7871c97d645e8879db817d9b05f102f9c"
     },
     {
       "name": "light-settings-conversation",
       "file": "screenshots/generated/native/light-settings-conversation.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "da3dc98da9139fecc183fc37b8e81d62fdc0b20f3b76e7c13b555e7830a78d10"
+      "sha256": "e9ab6b18b39aa3bb300032b92cfb1b89e2e08d365dd1680e6e53be487daaf703"
     },
     {
       "name": "light-chat-direct",
@@ -197,35 +197,35 @@
       "file": "screenshots/generated/native/dark-settings.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "7ce72411a78242a75b565cf23db5933284b8ae6b05522e1560710ba80082316e"
+      "sha256": "3a84c0e1a64819619fc44568f0ec9c27655bbd53706f78985b54be51949681dd"
     },
     {
       "name": "dark-settings-general",
       "file": "screenshots/generated/native/dark-settings-general.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "95181b069fa4d309222edc4254e248a5cdf64022eecc457fed339a29c676c93a"
+      "sha256": "e470977562613955c8ec0859a4bd21be39f961c064263339deff1f2781fdb33e"
     },
     {
       "name": "dark-settings-notifications",
       "file": "screenshots/generated/native/dark-settings-notifications.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "cb3086b2d5c3c7524eb188cd12cc88bf64b9908312485d07ea3a0f755daa7cfb"
+      "sha256": "d6c48cdb518755d92ab646d144a9cf87696a6feb9aeb255a776e4ddc55a05abd"
     },
     {
       "name": "dark-settings-inbox",
       "file": "screenshots/generated/native/dark-settings-inbox.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "5bb2faf4c632bf45fa47761b28ea68a2534a6b00a4dd57e2e56979950b857bb5"
+      "sha256": "893192a53af184b857bb265a50499db791a70ef3ef1fde1ec5b36f8587577292"
     },
     {
       "name": "dark-settings-conversation",
       "file": "screenshots/generated/native/dark-settings-conversation.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "ace672445467b28a4c098741e30df4371b92c1f48c0cfb2dae214adad0bc5b97"
+      "sha256": "69f740c7b29fcb13eeead0dfece27a7308c5f17d912e53c2412a1dfe4565efb7"
     },
     {
       "name": "dark-chat-direct",

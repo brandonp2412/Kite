@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,6 +41,7 @@ import chat.schildi.lib.preferences.ScPrefScreen
 import chat.schildi.lib.preferences.ScStringListPref
 import chat.schildi.lib.preferences.ScViewOnlyPref
 import chat.schildi.revenge.preferences.value
+import chat.schildi.theme.scExposures
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.actions.FocusRole
@@ -163,6 +165,8 @@ private fun <T>ScPref<T>.persistSettingValue(): (T) -> Unit {
 @Composable
 fun ScPref<Boolean>.Rendered() {
     val onCheckedChange = persistSettingValue()
+    val accent = MaterialTheme.scExposures.accentColor
+    val onAccent = MaterialTheme.scExposures.colorOnAccent
     ScPrefLayout(
         clickAction = {
             InteractionAction.Invoke {
@@ -175,6 +179,11 @@ fun ScPref<Boolean>.Rendered() {
             checked = value,
             onCheckedChange = onCheckedChange,
             enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = accent,
+                checkedBorderColor = accent,
+                checkedThumbColor = onAccent,
+            ),
         )
     }
 }
@@ -212,6 +221,8 @@ fun <T> ScPref<T>.RenderedWithTextField() {
 @Composable
 fun ScIntPref.Rendered() {
     val persist = persistSettingValue()
+    val accent = MaterialTheme.scExposures.accentColor
+    val sliderColors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent)
     ScPrefLayout(
         secondaryContent = { persistedValue, enabled ->
             Row(
@@ -235,9 +246,10 @@ fun ScIntPref.Rendered() {
                     onValueChangeFinished = { persist(value) }.takeIf { !allowLiveSliderChange },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = enabled,
+                    colors = sliderColors,
                     valueRange = minValue.toFloat()..maxValue.toFloat(),
                     steps = (maxValue - minValue) / stepSize - 1,
-                    track = { SliderDefaults.Track(sliderState = it, drawTick = { _, _ -> }, drawStopIndicator = {}) },
+                    track = { SliderDefaults.Track(sliderState = it, colors = sliderColors, drawTick = { _, _ -> }, drawStopIndicator = {}) },
                 )
             }
         },
@@ -248,6 +260,8 @@ fun ScIntPref.Rendered() {
 @Composable
 fun ScFloatPref.Rendered() {
     val persist = persistSettingValue()
+    val accent = MaterialTheme.scExposures.accentColor
+    val sliderColors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent)
     ScPrefLayout(
         secondaryContent = { persistedValue, enabled ->
             Row(
@@ -271,9 +285,10 @@ fun ScFloatPref.Rendered() {
                     onValueChangeFinished = { persist(value) }.takeIf { !allowLiveSliderChange },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = enabled,
+                    colors = sliderColors,
                     valueRange = minValue..maxValue,
                     steps = ((maxValue - minValue) / stepSize).roundToInt() - 1,
-                    track = { SliderDefaults.Track(sliderState = it, drawTick = { _, _ -> }, drawStopIndicator = {}) },
+                    track = { SliderDefaults.Track(sliderState = it, colors = sliderColors, drawTick = { _, _ -> }, drawStopIndicator = {}) },
                 )
             }
         },
