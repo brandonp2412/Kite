@@ -1475,3 +1475,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Selection More now uses 48dp action rows and scrollable overflow with bottom breathing room, preserving action callbacks. Discrete render/font scale settings retain their step counts and persistence but draw smooth Material tracks. Emoji search has a 16dp rounded field. No Matrix paths or gestures changed.
 - GLASS buildq #1205 x86 PerfDebug PASS; captured 50 genuine 192.168.240.112:5555 Waydroid shots from the fictional fixture through #1206. Both changed sheet/slider/emoji screens were visually compared before/after at full resolution in both themes. Kept previously verified genuine group shots to avoid unrelated transient timing variation.
 - scripts/generate_screenshots.py --verify PASS (50/50, no failures), exactly eight unique Fastlane PNGs, git diff --check PASS; GLASS buildq #1207 full :composeApp:desktopTest PASS. Public signed release/Samsung result recorded separately below.
+
+
+### Samsung Kite 1.0.21 after screenshot-led polish
+
+- Clean ancestral source commit e8bbda02, pushed to origin/main before release. GLASS buildq #1208 :androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000021 -PandroidVersionName=1.0.21 PASS (280 tasks; lint/R8 included).
+- Release APK SHA-256 a33c697899c6f1dd98ded677d39f61d9c74aeb2b833d59ff7c81db30ed59ffcf, package app.kite, versionCode 101000021, arm64-v8a only. V2 signer 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd matched the certificate independently verified from Samsung's installed 1.0.20 base APK.
+- Samsung SM-S931B adb install -r SUCCESS. Version advanced from 1.0.20 to 1.0.21; appId 10847 and firstInstallTime 2026-10-16 18:00:56 unchanged. Explicit MainActivity launch returned Status: ok and ActivityManager reported Kite resumed. No uninstall, account reset or personal Matrix screenshot capture. The polished screens were visually verified on fixture Waydroid, not separately on Samsung.
