@@ -22,6 +22,12 @@ fun ConversationDetailsTopNavigation(
     val destinationState = LocalDestinationState.current
     val keyHandler = LocalKeyboardActionHandler.current
     TopNavigation {
+        TopNavigationIcon(
+            Icons.AutoMirrored.Default.ArrowBack,
+            stringResource(Res.string.action_close),
+        ) {
+            destinationState?.closeScreen(keyHandler)
+        }
         val searchProvider = LocalSearchProvider.current
         if (searchProvider != null) {
             TopNavigationSearchOrTitle(title, searchProvider = searchProvider)
@@ -29,11 +35,5 @@ fun ConversationDetailsTopNavigation(
             TopNavigationTitle(title)
         }
         additionalIcons()
-        TopNavigationIcon(
-            Icons.AutoMirrored.Default.ArrowBack,
-            stringResource(Res.string.action_close),
-        ) {
-            destinationState?.closeScreen(keyHandler)
-        }
     }
 }

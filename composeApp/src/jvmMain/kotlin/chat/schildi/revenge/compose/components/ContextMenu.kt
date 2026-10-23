@@ -315,7 +315,7 @@ fun WithContextMenu(
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
                         shape = MaterialTheme.shapes.extraLarge,
-                        modifier = Modifier.padding(bottom = 6.dp),
+                        modifier = Modifier.padding(end = 12.dp, bottom = 6.dp),
                     ) {
                         actionRows.forEach { entry ->
                             ContextMenuDropdownMenuItem(

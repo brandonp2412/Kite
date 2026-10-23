@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -17,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.LocalTimeDisplayFormat
 import chat.schildi.revenge.Dimens
@@ -180,7 +182,12 @@ fun EventRow(
             // Draw selection affordances over the row instead of adding a leading
             // column that narrows every message when multi-select opens.
             Box(Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxWidth()) {
+                // Offset without remeasurement: selection circles must not cover incoming text.
+                Column(
+                    Modifier.fillMaxWidth().offset(
+                        x = if (selectionActive && selectable && !event.isOwn) 36.dp else 0.dp,
+                    )
+                ) {
                     EventSwipeable(
                         focusId = focusId,
                         isOwn = event.isOwn,

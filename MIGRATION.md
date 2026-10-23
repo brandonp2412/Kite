@@ -1429,3 +1429,12 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Created a local Synapse fixture with nine fictional users, six conversations, reactions and artwork; screenshot automation refuses non-fixture accounts. No personal or production Matrix data was captured.
 - Added a PerfDebug-only cleartext homeserver allowance for the isolated fixture, screenshot SHA-256 manifest, browsable gallery, and native image verification in release CI. The public release source set is unchanged.
 - Visually reviewed all 50 captures in contact sheets, including Kite’s actual vertical reaction menu and full emoji picker. Glass buildq #1173 produced the x86 PerfDebug APK; #1176 captured the final suite. `python3 scripts/generate_screenshots.py --verify`, Python compilation, YAML parse and whitespace checks pass.
+
+
+## 2026-10-23 — Android screenshot-led visual polish
+
+- Inspected all 50 genuine light/dark native screenshots and compared representative direct/group reactions, selection, detail/members, composer, emoji, attachments, search, settings, and media against the existing Kite Material-style layout. No routes or behaviors added.
+- Incoming messages in selection mode previously had 24dp selection circles over their first characters; offset only the incoming rendered row by 36dp without changing measurement or timeline height. Compared actual `light-chat-selection.png` and `dark-chat-selection.png` before/after; rings now sit clear of bubble text.
+- Shared conversation-detail Back was trailing (and on members visually adjacent to Search); moved Back to the leading slot for room/user/member detail destinations. Visually compared `light-room-details.png`, `light-room-members.png` and dark equivalents.
+- Floating six-reaction row touched the viewport edge in group chats; added 12dp trailing popup inset. Compared real direct/group context menus in both themes; all six controls have edge spacing.
+- Glass isolated worktree: buildq #1179 `:androidApp:assemblePerfDebug -PandroidAbi=x86 --offline --no-daemon` PASS, installed in place only on fixture Waydroid `192.168.240.112:5555`; native generator #1180 produced 50 genuine captures (25 per theme, no failures), `--verify` PASS, exactly eight unique curated Fastlane captures. `:composeApp:desktopTest --offline --no-daemon` PASS (buildq #1181), Python compilation and `git diff --check` PASS. Samsung release installation is separate and not yet claimed.
