@@ -89,8 +89,6 @@ import kotlinx.coroutines.flow.debounce
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_account_management
-import shire.res.generated.resources.app_title_short
-import shire.res.generated.resources.hint_search
 import shire.res.generated.resources.empty_screen_placeholder_inbox
 
 val LocalInboxListState = compositionLocalOf<LazyListState?> { null }
@@ -221,23 +219,10 @@ fun InboxScreen(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
                 ) {
-                    Column(Modifier.fillMaxSize()) {
-                        if (compact) {
-                            Text(
-                                text = stringResource(
-                                    if (searchQuery.isNullOrBlank()) Res.string.app_title_short else Res.string.hint_search,
-                                ),
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = Dimens.windowPadding, vertical = 12.dp),
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            contentAlignment = Alignment.Center,
-                        ) {
+                    Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
                     if (roomsState == null) {
                         InboxLoadingRows()
                     } else if (rooms.isNullOrEmpty()) {
@@ -340,7 +325,6 @@ fun InboxScreen(
                             }
                         }
                     }
-                        }
                     }
                 }
             }

@@ -1,6 +1,5 @@
 package chat.schildi.revenge.compose.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -230,16 +229,11 @@ fun WithContextMenu(
                 containerColor = if (presentation == ContextMenuPresentation.Message) Color.Transparent else containerColor,
                 tonalElevation = 0.dp,
                 shadowElevation = if (presentation == ContextMenuPresentation.Message) 0.dp else 8.dp,
-                offset = if (presentation == ContextMenuPresentation.Default) {
-                    DpOffset(offset.x - 12.dp, offset.y)
-                } else {
-                    // Keep floating actions above nearby message bubbles where space permits.
-                    DpOffset(offset.x, offset.y - 56.dp)
-                },
+                offset = offset,
                 shape = if (presentation == ContextMenuPresentation.Message) {
                     MaterialTheme.shapes.extraLarge
                 } else {
-                    MaterialTheme.shapes.large
+                    MaterialTheme.shapes.medium
                 },
                 // Message actions intentionally stay non-focusable. Current Google Messages
                 // keeps the floating action surface visible while a second long-press lands
@@ -303,13 +297,25 @@ fun WithContextMenu(
                 val actionRows = shownEntries.filterIsInstance<ContextMenuActionRowEntry>()
                 val menuEntries = shownEntries.filterNot { it is ContextMenuActionRowEntry }
 
+                if (messageTimestamp != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+                    ) {
+                        Text(
+                            text = messageTimestamp,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                    }
+                }
                 if (actionRows.isNotEmpty()) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-                        shadowElevation = 4.dp,
                         shape = MaterialTheme.shapes.extraLarge,
-                        modifier = Modifier.padding(end = 12.dp, bottom = 6.dp),
+                        modifier = Modifier.padding(bottom = 6.dp),
                     ) {
                         actionRows.forEach { entry ->
                             ContextMenuDropdownMenuItem(
@@ -323,23 +329,13 @@ fun WithContextMenu(
                         }
                     }
                 }
-                if (menuEntries.isNotEmpty() || messageTimestamp != null) {
+                if (menuEntries.isNotEmpty()) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-                        shadowElevation = 4.dp,
                         shape = MaterialTheme.shapes.extraLarge,
                         modifier = Modifier.width(192.dp),
                     ) {
                         Column(Modifier.padding(vertical = 4.dp)) {
-                            if (messageTimestamp != null) {
-                                Text(
-                                    text = messageTimestamp,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                )
-                            }
                             menuEntries.forEach { entry ->
                                 ContextMenuDropdownMenuItem(
                                     entry = entry,
@@ -519,19 +515,18 @@ private fun ContextMenuDropdownMenuItemContent(
     modifier: Modifier = Modifier,
 ) {
     val keyboardShortcutsEnabled = LocalKeyboardActionHandler.current.keyboardPrimary.collectAsState().value
-    val textColor = MaterialTheme.colorScheme.onSurface
-    val iconColor = if (entry.critical) {
+    val primaryColor = if (entry.critical) {
         MaterialTheme.colorScheme.error
     } else {
-        textColor
+        MaterialTheme.colorScheme.onSurface
     }
     DropdownMenuItem(
         modifier = modifier,
         enabled = entry.enabled,
         colors = MenuItemColors(
-            textColor = textColor,
-            leadingIconColor = iconColor,
-            trailingIconColor = textColor,
+            textColor = primaryColor,
+            leadingIconColor = primaryColor,
+            trailingIconColor = primaryColor,
             disabledTextColor = MaterialTheme.colorScheme.tertiary,
             disabledLeadingIconColor = MaterialTheme.colorScheme.tertiary,
             disabledTrailingIconColor = MaterialTheme.colorScheme.tertiary,

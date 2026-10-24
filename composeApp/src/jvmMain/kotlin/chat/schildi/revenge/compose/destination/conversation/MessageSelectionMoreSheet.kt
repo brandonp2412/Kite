@@ -1,14 +1,11 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -68,7 +65,7 @@ fun MessageSelectionMoreSheet(
 ) {
     KiteModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (canEdit) {
@@ -128,7 +125,7 @@ fun MessageSelectionMoreSheet(
                     onDelete()
                 }
             }
-            Spacer(Modifier.height(12.dp).navigationBarsPadding())
+            Spacer(Modifier.navigationBarsPadding())
         }
     }
 }
@@ -140,15 +137,23 @@ private fun SelectionMoreAction(
     destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-    val contentColor = MaterialTheme.colorScheme.onSurface
+    val containerColor = if (destructive) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val contentColor = if (destructive) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
     val iconContainerColor = if (destructive) {
-        MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+        MaterialTheme.colorScheme.error
     } else {
         MaterialTheme.colorScheme.secondaryContainer
     }
     val iconContentColor = if (destructive) {
-        MaterialTheme.colorScheme.error
+        MaterialTheme.colorScheme.onError
     } else {
         MaterialTheme.colorScheme.onSecondaryContainer
     }
@@ -162,13 +167,13 @@ private fun SelectionMoreAction(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .padding(horizontal = 14.dp, vertical = 6.dp),
+                .heightIn(min = 60.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(40.dp),
                 shape = CircleShape,
                 color = iconContainerColor,
                 contentColor = iconContentColor,

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -47,8 +46,7 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.94f),
             shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = 2.dp,
+            color = MaterialTheme.colorScheme.surface,
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -60,15 +58,12 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
                     onValueChange = { query = it },
                     label = { Text("Search emoji") },
                     singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(44.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 404.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
                     items(results, key = { it.string }) { emoji ->
                         IconButton(
@@ -77,7 +72,7 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
                         ) {
                             Text(
                                 emoji.string,
-                                fontSize = 24.sp,
+                                fontSize = 26.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Clip,
                             )
