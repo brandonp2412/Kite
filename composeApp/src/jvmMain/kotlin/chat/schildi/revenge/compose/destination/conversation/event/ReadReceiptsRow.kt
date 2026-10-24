@@ -1,8 +1,10 @@
 package chat.schildi.revenge.compose.destination.conversation.event
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,46 +60,49 @@ fun ColumnScope.ReadReceiptsRow(
             )
         }.toImmutableList()
     }
-    WithUserTimestampListPopup(
-        focusId = focusId,
-        users = userTimestamps,
-        modifier = modifier.padding(
-            top = Dimens.Conversation.receiptPaddingVertical,
-            start = 0.dp,
-            end = LocalMessageStyle.current.otherSideMarginOutgoing,
-        ).clip(RoundedCornerShape(Dimens.Conversation.receiptSize / 2)),
-    ) {
-        FlowRow(
-            modifier = Modifier
-                .keyFocusable(
-                    role = FocusRole.NESTED_AUX_ITEM,
-                    id = focusId,
-                    actionProvider = actionProvider(
-                        primaryAction = InteractionAction.ContextMenu(focusId, null),
-                        secondaryAction = InteractionAction.ContextMenu(focusId, null),
-                    ),
-                )
-                .align(Alignment.End),
-            verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.receiptPaddingVertical),
-            horizontalArrangement = Arrangement.spacedBy(
-                Dimens.Conversation.receiptPaddingHorizontal,
-                Alignment.End,
-            ),
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+        WithUserTimestampListPopup(
+            focusId = focusId,
+            users = userTimestamps,
+            modifier = Modifier.align(Alignment.CenterEnd).padding(
+                top = Dimens.Conversation.receiptPaddingVertical,
+                start = 0.dp,
+                end = LocalMessageStyle.current.otherSideMarginOutgoing,
+            ).clip(RoundedCornerShape(Dimens.Conversation.receiptSize / 2)),
         ) {
-            receipts.take(MAX_VISIBLE_RECEIPTS).forEachIndexed { index, receipt ->
-                key(receipt.userId) {
-                    ReadReceiptItem(
-                        receipt = receipt,
-                        member = roomMembersById[receipt.userId],
-                        modifier = Modifier.zIndex(-index.toFloat())
-                    )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                FlowRow(
+                    modifier = Modifier
+                        .keyFocusable(
+                            role = FocusRole.NESTED_AUX_ITEM,
+                            id = focusId,
+                            actionProvider = actionProvider(
+                                primaryAction = InteractionAction.ContextMenu(focusId, null),
+                                secondaryAction = InteractionAction.ContextMenu(focusId, null),
+                            ),
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.Conversation.receiptPaddingVertical),
+                    horizontalArrangement = Arrangement.spacedBy(
+                        Dimens.Conversation.receiptPaddingHorizontal,
+                        Alignment.End,
+                    ),
+                ) {
+                    receipts.take(MAX_VISIBLE_RECEIPTS).forEachIndexed { index, receipt ->
+                        key(receipt.userId) {
+                            ReadReceiptItem(
+                                receipt = receipt,
+                                member = roomMembersById[receipt.userId],
+                                modifier = Modifier.zIndex(-index.toFloat())
+                            )
+                        }
+                    }
+                    if (receipts.size > MAX_VISIBLE_RECEIPTS) {
+                        ReadReceiptOverflowItem(
+                            receipts.size - MAX_VISIBLE_RECEIPTS,
+                            Modifier.padding(start = Dimens.Conversation.receiptPaddingHorizontal.value.absoluteValue.dp)
+                        )
+                    }
                 }
-            }
-            if (receipts.size > MAX_VISIBLE_RECEIPTS) {
-                ReadReceiptOverflowItem(
-                    receipts.size - MAX_VISIBLE_RECEIPTS,
-                    Modifier.padding(start = Dimens.Conversation.receiptPaddingHorizontal.value.absoluteValue.dp)
-                )
             }
         }
     }

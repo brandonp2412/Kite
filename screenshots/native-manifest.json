@@ -57,28 +57,28 @@
       "file": "screenshots/generated/native/light-chat-direct.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "5bb4c8baa6f7f39014813e06f2487dc5b3b58e665b9f3ad2a0a288d5b8258b78"
+      "sha256": "cadb252841f3f3f4a01c63236a57399e16b7ac25cf3b57374ee9b8a8b6bc9f97"
     },
     {
       "name": "light-chat-reactions",
       "file": "screenshots/generated/native/light-chat-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "deac54a574a4d694244c44b9e9621ba2c587b9a31bcd37b823dd5a17b3981391"
+      "sha256": "5c07dfe3b722b2a29b27b538baaedf6238c8bf520231908c3baf4d5aac59d9df"
     },
     {
       "name": "light-chat-selection",
       "file": "screenshots/generated/native/light-chat-selection.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "7f84922802d13974ed34a2c338ff6bb975e1f0b000e63213e77942b1b3112481"
+      "sha256": "bbc19dabb443f947101ebc6951e7d5a324f2c63c379f0efe1062219b96ffe00a"
     },
     {
       "name": "light-chat-emoji-picker",
       "file": "screenshots/generated/native/light-chat-emoji-picker.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "6ab14afb986f98fa7003f9397e32c348004c19d6bd70b7993465b06d53058305"
+      "sha256": "0c44d07e022936dc6905b268afa638643c554df7482cfe136b13fad7077ffb89"
     },
     {
       "name": "light-chat-selection-actions",
@@ -92,14 +92,14 @@
       "file": "screenshots/generated/native/light-chat-reply-preview.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "aea2b203c02ec385a42607535f1a8f88b5a7b28135040039cfcf1f533ec1e661"
+      "sha256": "134a82bf46fc9992906473d6324b3e1d52dfd72b395f04c8f43797f1ac526874"
     },
     {
       "name": "light-chat-search",
       "file": "screenshots/generated/native/light-chat-search.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "799f7d45fbfe5df0f54d1641d29dd7ca978a18dd9c7c588884fb8b0e8c05822f"
+      "sha256": "98b2ded49490d9afe998dc5056d6e5bd80f4527cfafdd595ec8d3da9d73ebe1d"
     },
     {
       "name": "light-chat-direct-details",
@@ -113,7 +113,7 @@
       "file": "screenshots/generated/native/light-chat-composer.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "030eb753b67193b3ec1528dc59e161d8f19a61186a2fa7f9f6a3f8a5bb125a1f"
+      "sha256": "bd1d0ec5afedb564470383cc77091b8c2421af7ed0024202bd4d2f6dbd1192b2"
     },
     {
       "name": "light-chat-group",
@@ -127,7 +127,7 @@
       "file": "screenshots/generated/native/light-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "e4f938cbf2705079e54936e8153b9a1c441f8f8592e08d4bc8d9e80369b5b710"
+      "sha256": "224fe84131fc8aa9cc70a3841cba924bb2e18635a5979806b92102d198e02d44"
     },
     {
       "name": "light-room-details",
@@ -232,28 +232,28 @@
       "file": "screenshots/generated/native/dark-chat-direct.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "5b55fae2ad5fd790743d2de12dab9f996241936f5f3a55de2872a0d81bc66351"
+      "sha256": "a9bbab65b87404c1784eb99a31c017516c098a754e603f0a71f4aeac1f2f54e8"
     },
     {
       "name": "dark-chat-reactions",
       "file": "screenshots/generated/native/dark-chat-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "32ecacf9cec240ec4a482bac46cfee012700eea58d36e7edfb7663d5e0c3921b"
+      "sha256": "26e697e4447be942680300a22136388f8a9eb004f22598191278f6f2dfb249a7"
     },
     {
       "name": "dark-chat-selection",
       "file": "screenshots/generated/native/dark-chat-selection.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "4c40e3eec071f26a05a2a8fb15a2cd726da877a62cf19b545001c3ff3a288b4e"
+      "sha256": "01c5e0d63a49a5591711da63fb0b40be4f7d59603c876c4900edd61812363233"
     },
     {
       "name": "dark-chat-emoji-picker",
       "file": "screenshots/generated/native/dark-chat-emoji-picker.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "0a1039e458fd1f9592311f57866eefa27c2f6e9e23dbdba46801c8c5d0d16d14"
+      "sha256": "d7cbb6d79ab55346c9f6c28204c527fe69ff62b3e4681f60bb7cb59542052c70"
     },
     {
       "name": "dark-chat-selection-actions",
@@ -267,14 +267,14 @@
       "file": "screenshots/generated/native/dark-chat-reply-preview.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "619e5daf6f8c7bb62042fd984ff8c31982b57b6287c5a3e60cbc15f190efe3f1"
+      "sha256": "0e54088cb783d6fc65e9fae32082de5894a625499b1ce3ae4e8655fb1e8b8708"
     },
     {
       "name": "dark-chat-search",
       "file": "screenshots/generated/native/dark-chat-search.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "d694b10550dae202830b7c736b8ea8a921ebee834ef662aa6b402d89c8869d36"
+      "sha256": "518ee8f9713d1c7b4c70b7131a5e8854d9477a030538c3e6a02b1fb620d17073"
     },
     {
       "name": "dark-chat-direct-details",
@@ -288,7 +288,7 @@
       "file": "screenshots/generated/native/dark-chat-composer.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "c9fc446b5fd88acfcd449b24144a607b4c5e5cfd9171a76f9ef93e5a5f42e049"
+      "sha256": "3fa49b873beac263582f734d57b9c7d8d86e96d14348df133b03d45c460cce31"
     },
     {
       "name": "dark-chat-group",
@@ -302,7 +302,7 @@
       "file": "screenshots/generated/native/dark-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "e5f062a2dcef2c0db2f45dd430aff603702d056ec9b3411a902b14443606adfb"
+      "sha256": "0ecd93e58906968b0f5a38af171362cb7f03faa97aedd5642ea6618b7281bca4"
     },
     {
       "name": "dark-room-details",

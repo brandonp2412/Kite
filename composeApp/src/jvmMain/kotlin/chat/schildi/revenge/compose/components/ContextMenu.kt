@@ -234,7 +234,7 @@ fun WithContextMenu(
                     DpOffset(offset.x - 12.dp, offset.y)
                 } else {
                     // Keep floating actions above nearby message bubbles where space permits.
-                    DpOffset(offset.x, offset.y - 24.dp)
+                    DpOffset(offset.x, offset.y - 56.dp)
                 },
                 shape = if (presentation == ContextMenuPresentation.Message) {
                     MaterialTheme.shapes.extraLarge
