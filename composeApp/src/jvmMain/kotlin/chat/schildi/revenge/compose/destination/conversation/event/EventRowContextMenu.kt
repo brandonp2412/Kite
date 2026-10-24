@@ -110,6 +110,7 @@ fun EventTimelineItem.contextMenu(
             Action.Event.Redact,
             keyboardShortcut = Key.D,
             enabled = canRedact,
+            critical = true,
         ),
     ).toPersistentList()
 }
