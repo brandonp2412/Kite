@@ -77,6 +77,8 @@ fun ConversationItemRow(
     onShowInfo: (EventTimelineItem) -> Unit,
     showBackwardPagingIndicator: Boolean,
     showForwardPagingIndicator: Boolean,
+    isBackwardPaging: Boolean,
+    isForwardPaging: Boolean,
     modifier: Modifier = Modifier,
     debugSeparatorLines: ImmutableList<TimelineItemDebugLineInstance> = persistentListOf(),
 ) {
@@ -84,7 +86,7 @@ fun ConversationItemRow(
         if (previous == null) {
             Spacer(Modifier.height(Dimens.windowPadding))
             if (showBackwardPagingIndicator) {
-                PagingIndicator()
+                PagingIndicator(isLoading = isBackwardPaging)
             }
         }
         debugSeparatorLines.filter { it.position == DebugLinePosition.Above }.forEach {
@@ -94,7 +96,7 @@ fun ConversationItemRow(
             is MatrixTimelineItem.Virtual -> {
                 when (val virtualItem = item.item.virtual) {
                     is VirtualTimelineItem.DayDivider -> DayHeaderRow(virtualItem)
-                    is VirtualTimelineItem.LoadingIndicator -> PagingIndicator()
+                    is VirtualTimelineItem.LoadingIndicator -> PagingIndicator(isLoading = isBackwardPaging || isForwardPaging)
                     VirtualTimelineItem.ReadMarker -> NewMessagesLine(
                         instance = NewMessageLineInstance.Sdk,
                         isThreadedTimeline = currentThreadId != null,
@@ -182,7 +184,7 @@ fun ConversationItemRow(
         }
         if (next == null) {
             if (showForwardPagingIndicator) {
-                PagingIndicator()
+                PagingIndicator(isLoading = isForwardPaging)
             }
             Spacer(Modifier.height(4.dp))
         }

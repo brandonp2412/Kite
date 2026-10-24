@@ -255,6 +255,8 @@ fun ConversationScreen(
         val backwardPaginationStatus = viewModel.backwardPaginationStatus.collectAsState(null).value
         val showBackwardPagingIndicator = backwardPaginationStatus?.hasMoreToLoad == true
         val showForwardPagingIndicator = forwardPaginationStatus?.hasMoreToLoad == true
+        val isBackwardPaging = backwardPaginationStatus?.isPaginating == true
+        val isForwardPaging = forwardPaginationStatus?.isPaginating == true
 
         val roomInfo = viewModel.roomInfo.collectAsState().value
         val roomPreview = viewModel.roomPreview.collectAsState().value
@@ -892,6 +894,8 @@ fun ConversationScreen(
                                 onShowInfo = { event -> messageInfoEvent = event },
                                 showBackwardPagingIndicator = showBackwardPagingIndicator,
                                 showForwardPagingIndicator = showForwardPagingIndicator,
+                                isBackwardPaging = isBackwardPaging,
+                                isForwardPaging = isForwardPaging,
                                 modifier = Modifier.animateItem(
                                     fadeInSpec = null,
                                     fadeOutSpec = null,
@@ -902,7 +906,7 @@ fun ConversationScreen(
                         }
                         if (renderedItems.isEmpty() && showBackwardPagingIndicator) {
                             item {
-                                PagingIndicator(Modifier.padding(vertical = Dimens.windowPadding))
+                                PagingIndicator(isLoading = isBackwardPaging, modifier = Modifier.padding(vertical = Dimens.windowPadding))
                             }
                         }
                     }
