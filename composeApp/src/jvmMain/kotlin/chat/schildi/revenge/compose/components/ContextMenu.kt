@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -304,6 +305,8 @@ fun WithContextMenu(
                 if (actionRows.isNotEmpty()) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        shadowElevation = 4.dp,
                         shape = MaterialTheme.shapes.extraLarge,
                         modifier = Modifier.padding(end = 12.dp, bottom = 6.dp),
                     ) {
@@ -322,6 +325,8 @@ fun WithContextMenu(
                 if (menuEntries.isNotEmpty() || messageTimestamp != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        shadowElevation = 4.dp,
                         shape = MaterialTheme.shapes.extraLarge,
                         modifier = Modifier.width(192.dp),
                     ) {

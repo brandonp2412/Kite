@@ -223,16 +223,16 @@ fun RoomDetailsScreen(
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    color = Color.Transparent,
                                     tonalElevation = 0.dp,
                                 ) {
                                     EditableText(
                                         "$viewModelKey/roomName",
                                         currentValue = info.rawName?.let(EditTextValue::Plain),
                                         role = FocusRole.LIST_ITEM_EDITABLE_SINGLE_LINE,
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                                         renderColor = MaterialTheme.colorScheme.onSurface,
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        style = MaterialTheme.typography.titleLarge,
                                         persist = viewModel::setRoomName,
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         textAlign = TextAlign.Center,

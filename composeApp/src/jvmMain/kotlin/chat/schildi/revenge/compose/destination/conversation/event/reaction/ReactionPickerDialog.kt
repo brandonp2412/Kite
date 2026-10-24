@@ -47,7 +47,8 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.94f),
             shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 2.dp,
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -65,7 +66,9 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(44.dp),
                     modifier = Modifier.fillMaxWidth().heightIn(max = 404.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     items(results, key = { it.string }) { emoji ->
                         IconButton(
@@ -74,7 +77,7 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
                         ) {
                             Text(
                                 emoji.string,
-                                fontSize = 26.sp,
+                                fontSize = 24.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Clip,
                             )
