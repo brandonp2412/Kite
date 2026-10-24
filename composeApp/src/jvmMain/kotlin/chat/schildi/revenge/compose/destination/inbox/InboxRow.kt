@@ -223,7 +223,10 @@ fun InboxRow(
                         .fillMaxWidth()
                         .padding(start = Dimens.Inbox.avatarItemPadding)
                 ) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         ScNameAndTimestampRow(room.summary, unreadCounts)
                     }
                     Row(modifier = Modifier.fillMaxWidth()) {

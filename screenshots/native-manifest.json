@@ -8,7 +8,7 @@
       "file": "screenshots/generated/native/light-inbox.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "4d079ff1e1ea2232227b009f7f435b4a4cc04edc60c90598bfe316e69e9d9496"
+      "sha256": "fa9580de1c2621c09ac7e5692bec73426ce2c6fc4dbced5bf33924437e99e556"
     },
     {
       "name": "light-accounts",
@@ -127,7 +127,7 @@
       "file": "screenshots/generated/native/light-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "6fb2ff3a682877c0fe0130e9c77ba9e93fda1a6cb521b2991bdfdbfeb42d68ff"
+      "sha256": "7f172b26c72f04e72d0f964c55caf4857f99943ae4ad954c3fc353011ecfb562"
     },
     {
       "name": "light-room-details",
@@ -162,28 +162,28 @@
       "file": "screenshots/generated/native/light-search-rooms.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "2476d3891c110a2fe27fb1dca613a459c40affcdc476fae1febbad000a67d00c"
+      "sha256": "9dcb821e6c768fa60e800226d144283ac18c46375316e98d19263f1542362b26"
     },
     {
       "name": "light-search-empty",
       "file": "screenshots/generated/native/light-search-empty.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "f4eb00e80614008c23b9c10b2b6d36297388cb79b0f0c35d416ccfe66f977076"
+      "sha256": "863a5752e856687e5ada7a4e37241cf2095c281f6c020856aabf4c136a89b3e5"
     },
     {
       "name": "light-inbox-context",
       "file": "screenshots/generated/native/light-inbox-context.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "03a601d98c70e90be39a4f17aba21c602e2ed28e95197827c782659c81e865aa"
+      "sha256": "e38ef59d3279711e9ee025ed001a78715ada069f7ac935784357e5fecdbc4e77"
     },
     {
       "name": "dark-inbox",
       "file": "screenshots/generated/native/dark-inbox.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "7d08899a4bd10ca37234f8938b27a81c99ff1574781db03c9bd99ff88d82f4d9"
+      "sha256": "507e8b27d2090dfbe2d654522466eb8dbc7d8516c08fdd386bec35618e045e9b"
     },
     {
       "name": "dark-accounts",
@@ -302,7 +302,7 @@
       "file": "screenshots/generated/native/dark-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "9d693fc46377cee680e68a4b460dc7edf58c0556443bedbd15436ad0eb37898a"
+      "sha256": "d03d1dd07f8f4e972ebbee37b751774dba526f785d4909868d4f40e54a9e586e"
     },
     {
       "name": "dark-room-details",
@@ -337,21 +337,21 @@
       "file": "screenshots/generated/native/dark-search-rooms.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "93e52c0ca15bc81a55c1f8d16559d09ec71ce9de87d5784096effb99cbff7b35"
+      "sha256": "d43220f86cbca8e0e0679cb91890c55ca4eb568786abdc721b3a7360819123d6"
     },
     {
       "name": "dark-search-empty",
       "file": "screenshots/generated/native/dark-search-empty.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "7a1fce004c290078d1e20a6ef2845ee8a7e6231fc1bd574ce17a6fd5bdf31fed"
+      "sha256": "b997d32c96102a968fb59d000114aa576aa44ee068c623828f04b9396345099e"
     },
     {
       "name": "dark-inbox-context",
       "file": "screenshots/generated/native/dark-inbox-context.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "bf91d8d6c101aab06519f19ebb4aec65f7dd08ce71a97c56908039b7e375f6a0"
+      "sha256": "795e0b7a235edf2f64455036cef64000ca8c2662060edcafec3d8d036983cd1d"
     }
   ],
   "failures": {
