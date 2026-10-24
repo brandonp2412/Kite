@@ -329,9 +329,9 @@ fun WithContextMenu(
                             if (messageTimestamp != null) {
                                 Text(
                                     text = messageTimestamp,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                                 )
                             }
                             menuEntries.forEach { entry ->

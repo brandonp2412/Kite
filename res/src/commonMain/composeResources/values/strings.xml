@@ -443,7 +443,7 @@
 
     <string name="pref_locale">Locale</string>
     <string name="pref_locale_follow_system">Follow system</string>
-    <string name="pref_category_scale">Render scale</string>
+    <string name="pref_category_scale">Text &amp; display</string>
     <string name="pref_category_dimensions">Dimensions</string>
     <string name="pref_category_dimensions_summary">Window and screen size defaults and limits</string>
     <string name="pref_category_split_screen">Splitscreen</string>

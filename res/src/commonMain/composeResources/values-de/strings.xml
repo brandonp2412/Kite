@@ -333,7 +333,7 @@
     <string name="profile_update_set_name_and_avatar">%1$s änderte den Avatar und setze den Namen</string>
     <string name="pref_locale">Sprache</string>
     <string name="pref_locale_follow_system">Folgt System</string>
-    <string name="pref_category_scale">Renderskalierung</string>
+    <string name="pref_category_scale">Text und Anzeige</string>
     <string name="pref_category_dimensions">Dimensionen</string>
     <string name="pref_category_dimensions_summary">Fenster- und Bildschirmgröße Standards und Limits</string>
     <string name="pref_category_split_screen_summary">Aktiviere &amp; Feineinstelle geteiltes Layout</string>

@@ -29,7 +29,7 @@
       "file": "screenshots/generated/native/light-settings-general.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "14c19f025b708340d62025b6ca498fc9053a7f80dd9cfb71bd8aa4498cd6deb9"
+      "sha256": "9ef1b7580378698acbf70afb2449cff838b01b8f355868e689bf87c97664fa81"
     },
     {
       "name": "light-settings-notifications",
@@ -64,7 +64,7 @@
       "file": "screenshots/generated/native/light-chat-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "f040dbe3284bfbc99bfbb446b70310e8b405e7a002f719301c3a379aba4addfc"
+      "sha256": "5acb54b07b2f267ffe4f8d9abe52bb7fef1f8e249decc7d50e05c4398b348174"
     },
     {
       "name": "light-chat-selection",
@@ -106,7 +106,7 @@
       "file": "screenshots/generated/native/light-chat-direct-details.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "ae8eab0ab7ab7e8f8ab17a3c47990c6830522168c13c2651c3c3af03cf9d122c"
+      "sha256": "a886bd74e8592cf1b5e247c40788944455dd46da926bba5579d4d582926f4ba3"
     },
     {
       "name": "light-chat-composer",
@@ -120,28 +120,28 @@
       "file": "screenshots/generated/native/light-chat-group.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "ad2a473c3f092951f4bdeb08df6c9626995fa3d87645d1ed3d46b35e21b3a642"
+      "sha256": "54dcd092931bfea9331b401844d6fccc6426871074a6add616655fccfa5271ec"
     },
     {
       "name": "light-chat-group-reactions",
       "file": "screenshots/generated/native/light-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "647e68f1eb8ba88714a89f2f92cb548bf77af4b23f93e6fe9c84d14367fd76b6"
+      "sha256": "8bb3ad24b762203bb78cfcd7406f44fa31174f4e878b6718e2c6094b0b04ef73"
     },
     {
       "name": "light-room-details",
       "file": "screenshots/generated/native/light-room-details.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "6b78096ab6d3f8662a5f682c1344f4d9024b7a21dc0d4e16bf128ff44100713e"
+      "sha256": "6aabd1c1b3994bcf570562de4ad569083c76ed4075372df2743e63abc90673d9"
     },
     {
       "name": "light-room-members",
       "file": "screenshots/generated/native/light-room-members.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "3bd6976f024ea9ae92421203cb6d462f668f1c7a4a75b5d1ba8a03c5e872c44c"
+      "sha256": "c8e0630148237f1c9c9303c84317411291c3cd20fa57394b2bd57e7aa8ad7e9d"
     },
     {
       "name": "light-chat-media",
@@ -204,7 +204,7 @@
       "file": "screenshots/generated/native/dark-settings-general.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "e470977562613955c8ec0859a4bd21be39f961c064263339deff1f2781fdb33e"
+      "sha256": "41e926541311ff6731baa0b96180c4b1181f43afdceaeb37d044a4f313c727a9"
     },
     {
       "name": "dark-settings-notifications",
@@ -239,7 +239,7 @@
       "file": "screenshots/generated/native/dark-chat-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "c70e036cbaa91255b8159f5ce6a5452fdcedac28b8b9cc0f5720d264675c1532"
+      "sha256": "510a70ea1b66eb93cae1a4da134f0b67060bb1d8bb4a9562c46a47bd9d9db8ff"
     },
     {
       "name": "dark-chat-selection",
@@ -281,7 +281,7 @@
       "file": "screenshots/generated/native/dark-chat-direct-details.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "67d9172aad54e3e0cdf1596caabcb7061a8392d99e15470c5efb5d0d876cdac6"
+      "sha256": "86672dda1c39c4005fd77655a1e0ddd12a8236626eb3075a049f820b38bebfcd"
     },
     {
       "name": "dark-chat-composer",
@@ -302,21 +302,21 @@
       "file": "screenshots/generated/native/dark-chat-group-reactions.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "89e1103fafa408af7dc306000f848f2e901922bda5d2a0645475942ec2eb591e"
+      "sha256": "41c9efdbb5364aaea46f3fb55c1b082f231eda12fe05b9dfce375d04e784f2f6"
     },
     {
       "name": "dark-room-details",
       "file": "screenshots/generated/native/dark-room-details.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "81fd5bc0d15af9b0c33f8ec7c23742df68547bc2c076f4a3b70754bbf4054eef"
+      "sha256": "7468beef568005eb6caf37c74fbce94e684753ff55712adc2b19ad50ef3212f7"
     },
     {
       "name": "dark-room-members",
       "file": "screenshots/generated/native/dark-room-members.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "8041d38eeebaaaa444a20fa28a97e8fb7df7cd866b3ea337fe320a3309291da4"
+      "sha256": "fa0c66cb82cb262fdedcb259d93c0b869452ce97effd8eec38dfb05948f63df7"
     },
     {
       "name": "dark-chat-media",

@@ -600,12 +600,10 @@ private fun RoomInfoAdvancedInfoField(
     ) {
         SectionText(
             content,
-            style = MaterialTheme.typography.bodySmall.let {
-                if (monospace) {
-                    it.copy(fontFamily = FontFamily.Monospace)
-                } else {
-                    it
-                }
+            style = if (monospace) {
+                MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+            } else {
+                MaterialTheme.typography.bodyMedium
             },
             color = MaterialTheme.colorScheme.onSurface,
         )

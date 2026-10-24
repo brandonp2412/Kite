@@ -177,7 +177,7 @@
     <string name="membership_change_knocked">%1$s bateu</string>
     <string name="membership_reason">Motivo: %1$s</string>
     <string name="pref_locale_follow_system">Seguir sistema</string>
-    <string name="pref_category_scale">Escala de renderização</string>
+    <string name="pref_category_scale">Texto e tela</string>
     <string name="pref_category_split_limits">Limites de divisão</string>
     <string name="pref_category_layout_weights">Pesos de leiaute</string>
     <string name="pref_category_keyboard_control">Controle por teclado</string>
