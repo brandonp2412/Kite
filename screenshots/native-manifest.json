@@ -8,7 +8,7 @@
       "file": "screenshots/generated/native/light-inbox.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "c4850226ea08b842b000c82bcaef26bf25713c42c5871af60b1ed42786596517"
+      "sha256": "4d079ff1e1ea2232227b009f7f435b4a4cc04edc60c90598bfe316e69e9d9496"
     },
     {
       "name": "light-accounts",
@@ -120,7 +120,7 @@
       "file": "screenshots/generated/native/light-chat-group.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "54dcd092931bfea9331b401844d6fccc6426871074a6add616655fccfa5271ec"
+      "sha256": "ad2a473c3f092951f4bdeb08df6c9626995fa3d87645d1ed3d46b35e21b3a642"
     },
     {
       "name": "light-chat-group-reactions",
@@ -162,7 +162,7 @@
       "file": "screenshots/generated/native/light-search-rooms.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "a637ff9086b35c22a02cddd01b8b5a978ef9036bf0823f3e71098380e5f29b4f"
+      "sha256": "2476d3891c110a2fe27fb1dca613a459c40affcdc476fae1febbad000a67d00c"
     },
     {
       "name": "light-search-empty",
@@ -176,14 +176,14 @@
       "file": "screenshots/generated/native/light-inbox-context.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "5551f3a8632f3fdf245894fb029faad6a67636dac8f26794cc56f6dd0a7eb30b"
+      "sha256": "03a601d98c70e90be39a4f17aba21c602e2ed28e95197827c782659c81e865aa"
     },
     {
       "name": "dark-inbox",
       "file": "screenshots/generated/native/dark-inbox.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "994e9fd0c3833b1ae68f50c22439fcf4b1a33928db85222284182b50add4cb4a"
+      "sha256": "7d08899a4bd10ca37234f8938b27a81c99ff1574781db03c9bd99ff88d82f4d9"
     },
     {
       "name": "dark-accounts",
@@ -337,7 +337,7 @@
       "file": "screenshots/generated/native/dark-search-rooms.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "7255ad191302602f3a66441f57f8df001a8b78c472bee039884e65e019e18c83"
+      "sha256": "93e52c0ca15bc81a55c1f8d16559d09ec71ce9de87d5784096effb99cbff7b35"
     },
     {
       "name": "dark-search-empty",
@@ -351,7 +351,7 @@
       "file": "screenshots/generated/native/dark-inbox-context.png",
       "width": 1080,
       "height": 2160,
-      "sha256": "872d01463481e5a8a8f0bb316491f45df77d20fbf8624b60c358ddc250147ab1"
+      "sha256": "bf91d8d6c101aab06519f19ebb4aec65f7dd08ce71a97c56908039b7e375f6a0"
     }
   ],
   "failures": {

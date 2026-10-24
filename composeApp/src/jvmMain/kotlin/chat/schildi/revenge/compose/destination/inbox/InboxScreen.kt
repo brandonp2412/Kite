@@ -89,6 +89,7 @@ import kotlinx.coroutines.flow.debounce
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_account_management
+import shire.res.generated.resources.app_title_short
 import shire.res.generated.resources.empty_screen_placeholder_inbox
 
 val LocalInboxListState = compositionLocalOf<LazyListState?> { null }
@@ -219,10 +220,21 @@ fun InboxScreen(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
                 ) {
-                    Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                    Column(Modifier.fillMaxSize()) {
+                        if (compact && searchQuery.isNullOrBlank()) {
+                            Text(
+                                text = stringResource(Res.string.app_title_short),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Dimens.windowPadding, vertical = 12.dp),
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center,
+                        ) {
                     if (roomsState == null) {
                         InboxLoadingRows()
                     } else if (rooms.isNullOrEmpty()) {
@@ -325,6 +337,7 @@ fun InboxScreen(
                             }
                         }
                     }
+                        }
                     }
                 }
             }
