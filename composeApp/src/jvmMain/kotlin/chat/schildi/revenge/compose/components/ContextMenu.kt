@@ -223,27 +223,30 @@ fun WithContextMenu(
         // If we have selectable text, want to override that menu as well
         // TODO teach that menu some copy-selection item to replicate platform menu's functionality?
         WithPlatformTextContextMenuDisabled {
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { keyHandler.dismissContextMenu(menuId) },
-                containerColor = if (presentation == ContextMenuPresentation.Message) Color.Transparent else containerColor,
-                tonalElevation = 0.dp,
-                shadowElevation = if (presentation == ContextMenuPresentation.Message) 0.dp else 8.dp,
-                offset = offset,
-                shape = if (presentation == ContextMenuPresentation.Message) {
-                    MaterialTheme.shapes.extraLarge
-                } else {
-                    MaterialTheme.shapes.medium
-                },
-                // Message actions intentionally stay non-focusable. Current Google Messages
-                // keeps the floating action surface visible while a second long-press lands
-                // on the message text for precise selection. A focusable popup consumes that
-                // second gesture before SelectionContainer can see it.
-                properties = PopupProperties(
-                    focusable = presentation != ContextMenuPresentation.Message || messageContextMenuFocusable,
-                ),
-                content = popupContent,
-            )
+            // Skip the message popup exit frame when a selection action replaces it.
+            if (presentation != ContextMenuPresentation.Message || expanded) {
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { keyHandler.dismissContextMenu(menuId) },
+                    containerColor = if (presentation == ContextMenuPresentation.Message) Color.Transparent else containerColor,
+                    tonalElevation = 0.dp,
+                    shadowElevation = if (presentation == ContextMenuPresentation.Message) 0.dp else 8.dp,
+                    offset = offset,
+                    shape = if (presentation == ContextMenuPresentation.Message) {
+                        MaterialTheme.shapes.extraLarge
+                    } else {
+                        MaterialTheme.shapes.medium
+                    },
+                    // Message actions intentionally stay non-focusable. Current Google Messages
+                    // keeps the floating action surface visible while a second long-press lands
+                    // on the message text for precise selection. A focusable popup consumes that
+                    // second gesture before SelectionContainer can see it.
+                    properties = PopupProperties(
+                        focusable = presentation != ContextMenuPresentation.Message || messageContextMenuFocusable,
+                    ),
+                    content = popupContent,
+                )
+            }
             if (presentation == ContextMenuPresentation.Message) {
                 CompositionLocalProvider(
                     LocalTouchTextSelectionEnabled provides expanded,
