@@ -121,8 +121,8 @@ fun MessageBubble(
                 .padding(padding),
         ) {
             if (overlayStatus) {
-                val endPadding = with(LocalDensity.current) {
-                    padding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr).roundToPx()
+                val leftInset = with(LocalDensity.current) {
+                    padding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr).roundToPx() + 8.dp.roundToPx()
                 }
                 val measuredText = remember(stableTextLayoutKey) { StableTextLayoutHolder() }
                 val textObserver = remember(measuredText) {
@@ -143,7 +143,7 @@ fun MessageBubble(
                     layout(width, body.height) {
                         body.place(0, 0)
                         status?.place(
-                            width + endPadding - status.width / 2,
+                            -leftInset - status.width,
                             (body.height - status.height).coerceAtLeast(0),
                         )
                     }
