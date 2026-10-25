@@ -61,5 +61,11 @@ fun EventContent.messageMetadata(
         }
         else -> null
     }
-    return MessageMetadata(preFormattedContent)
+    return MessageMetadata(preFormattedContent?.trimTrailingWhitespace())
+}
+
+// Bridges may append blank lines; they should not become bubble padding.
+internal fun MatrixBodyParseResult.trimTrailingWhitespace(): MatrixBodyParseResult {
+    val end = text.text.trimEnd().length
+    return if (end == text.length) this else copy(text = text.subSequence(0, end))
 }
