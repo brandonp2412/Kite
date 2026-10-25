@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,7 +53,16 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
             }
         }
     }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    Dialog(
+        onDismissRequest = {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+            onDismiss()
+        },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
         BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             val gridMaxHeight = (maxHeight - 224.dp).coerceIn(44.dp, 420.dp)
             Surface(
@@ -78,7 +89,11 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
                     ) {
                         items(results, key = { it.string }) { emoji ->
                             IconButton(
-                                onClick = { onSelect(emoji.string) },
+                                onClick = {
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    onSelect(emoji.string)
+                                },
                                 modifier = Modifier.size(44.dp),
                             ) {
                                 Text(
