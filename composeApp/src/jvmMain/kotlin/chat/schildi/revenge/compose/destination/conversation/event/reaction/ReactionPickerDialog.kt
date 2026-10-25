@@ -46,7 +46,8 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
             emojis.filter { details ->
                 pattern.containsMatchIn(details.description) ||
                     details.aliases.any(pattern::containsMatchIn) ||
-                    (details.string == "🪩" && pattern.containsMatchIn("disco ball"))
+                    (details.string == "🪩" && pattern.containsMatchIn("disco ball")) ||
+                    (details.string == "🎃" && pattern.containsMatchIn("pumpkin"))
             }
         }
     }
