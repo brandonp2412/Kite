@@ -38,10 +38,13 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
     }
     val results = remember(emojis, query) {
         val search = query.trim()
-        if (search.isBlank()) emojis else emojis.filter { details ->
-            details.description.contains(search, ignoreCase = true) ||
-                details.aliases.any { it.contains(search, ignoreCase = true) } ||
-                (details.string == "🪩" && "disco ball".contains(search, ignoreCase = true))
+        if (search.isBlank()) emojis else {
+            val pattern = reactionEmojiSearchPattern(search)
+            emojis.filter { details ->
+                pattern.containsMatchIn(details.description) ||
+                    details.aliases.any(pattern::containsMatchIn) ||
+                    (details.string == "🪩" && pattern.containsMatchIn("disco ball"))
+            }
         }
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -85,3 +88,6 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
         }
     }
 }
+
+internal fun reactionEmojiSearchPattern(query: String): Regex =
+    Regex("(?<![\\p{L}\\p{N}])${Regex.escape(query)}", RegexOption.IGNORE_CASE)
