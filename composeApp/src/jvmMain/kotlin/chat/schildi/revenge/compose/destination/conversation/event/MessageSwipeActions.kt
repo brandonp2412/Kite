@@ -135,8 +135,9 @@ fun EventSwipeable(
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
-    val swipeActionLeft = if (enabled) swipeConfig.left.swipeActionSpec(focusId, isOwn) else null
-    val swipeActionRight = if (enabled) swipeConfig.right.swipeActionSpec(focusId, isOwn) else null
+    // Keep media composed while menus or selection temporarily disable gestures.
+    val swipeActionLeft = swipeConfig.left.swipeActionSpec(focusId, isOwn)
+    val swipeActionRight = swipeConfig.right.swipeActionSpec(focusId, isOwn)
     val hasSwipeAction = swipeActionLeft != null || swipeActionRight != null
     if (!hasSwipeAction) {
         content(modifier)
@@ -191,6 +192,7 @@ fun EventSwipeable(
                     .thenIf(hasSwipeAction) {
                         draggable(
                             state = swipeState,
+                            enabled = enabled,
                             orientation = Orientation.Horizontal,
                             onDragStarted = {
                                 gestureId++
@@ -201,10 +203,10 @@ fun EventSwipeable(
                                 val targetOffset = decay.calculateTargetValue(offset, velocity)
                                 when (swipeDirection) {
                                     MessageSwipePosition.Neutral -> {}
-                                    MessageSwipePosition.Left -> if (targetOffset <= -threshold) {
+                                    MessageSwipePosition.Left -> if (enabled && targetOffset <= -threshold) {
                                         swipeActionLeft?.execute()
                                     }
-                                    MessageSwipePosition.Right -> if (targetOffset >= threshold) {
+                                    MessageSwipePosition.Right -> if (enabled && targetOffset >= threshold) {
                                         swipeActionRight?.execute()
                                     }
                                 }
