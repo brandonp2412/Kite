@@ -1,8 +1,10 @@
 package chat.schildi.revenge.compose.destination.conversation.event.reaction
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -20,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,39 +51,42 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
         }
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(0.94f),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            val gridMaxHeight = (maxHeight - 224.dp).coerceIn(44.dp, 420.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.94f).padding(top = 88.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surface,
             ) {
-                Text("React", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Search emoji") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(44.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(results, key = { it.string }) { emoji ->
-                        IconButton(
-                            onClick = { onSelect(emoji.string) },
-                            modifier = Modifier.size(44.dp),
-                        ) {
-                            Text(
-                                emoji.string,
-                                fontSize = 26.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Clip,
-                            )
+                    Text("React", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("Search emoji") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(44.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = gridMaxHeight),
+                        contentPadding = PaddingValues(vertical = 4.dp),
+                    ) {
+                        items(results, key = { it.string }) { emoji ->
+                            IconButton(
+                                onClick = { onSelect(emoji.string) },
+                                modifier = Modifier.size(44.dp),
+                            ) {
+                                Text(
+                                    emoji.string,
+                                    fontSize = 26.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Clip,
+                                )
+                            }
                         }
                     }
                 }
