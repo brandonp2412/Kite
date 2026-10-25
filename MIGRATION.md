@@ -1686,3 +1686,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Before: bottom message row shifted from y=1720 to y=1921 when selection hid the composer, then back to y=1720 (201px jolt). After: y=1720 in all three states (0px shift). Preserve the measured composer height with a placeholder while selecting so the timeline viewport does not resize.
 - GLASS buildq #1362 x86 `:androidApp:assemblePerfDebug -PandroidAbi=x86 --offline --no-daemon` PASS; in-place Waydroid update retained app data, fixture account, UID 10139 and original firstInstallTime. React picker and added 🫨 reaction work, and visual replay shows no new jolt.
 - Not tested in this isolated run: live Matrix network messages, Samsung 120Hz frame metrics, Android's native H.264 recording backend.
+### Signed Kite 1.0.39 and Samsung in-place update (2026-10-25)
+
+- GLASS buildq #1368 `:androidApp:assembleRelease -PandroidAbi=arm64-v8a -PandroidVersionCode=101000039 -PandroidVersionName=1.0.39 --offline --no-daemon` PASS (280 tasks, release lint/R8 included).
+- Signed ARM64 `app.kite` 1.0.39 (`101000039`), APK SHA-256 `113a1ebde3d4c8e3e3550246f79a46ae6eed2dd9a3f124ebc5d40b6c608d1045`, cert SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` (same signer as 1.0.38).
+- Samsung SM-S931B `adb install -r --no-streaming` PASS. Version is 1.0.39, original firstInstallTime `2026-10-16 18:00:56` and UID `10847` preserved. `am start -W` succeeded, Kite MainActivity resumed and focused; the device's secure Bouncer/keyguard and Doze prevented confirmation that Kite was visibly displayed.
+- No live Matrix or Samsung 120Hz jank interaction in this run; both before/after Waydroid manual videos were watched.
