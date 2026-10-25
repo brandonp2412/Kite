@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -38,6 +39,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +56,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.IntOffset
@@ -631,6 +634,7 @@ fun ConversationScreen(
             val showSenderDetails = shouldShowTimelineSenderDetails(roomInfo?.joinedMembersCount)
             val highlightedActionEventId = viewModel.highlightedActionEventId.collectAsState().value
             val heartBurst = rememberHeartBurstState()
+            val composerHeightPx = remember { mutableIntStateOf(0) }
             Column(contentModifier
                 .fillMaxSize()
                 .alpha(dragAlpha.value)
@@ -953,6 +957,10 @@ fun ConversationScreen(
                 }
 
                 if (selectionActive) {
+                    // Selection replaces the composer visually, but not its measured viewport.
+                    if (composerHeightPx.intValue > 0) {
+                        Spacer(Modifier.height(with(density) { composerHeightPx.intValue.toDp() }))
+                    }
                     if (selectionMoreOpen && selectedSingle != null && selectedSingleEvent != null) {
                         MessageSelectionMoreSheet(
                             canEdit = canEditSingle,
@@ -1060,10 +1068,12 @@ fun ConversationScreen(
                         // Keep the bottom control stable. A slide+shrink exit used to remeasure
                         // the timeline during mode/close transitions and produced a visible
                         // end-of-close jolt on compact Android.
-                        ComposerRow(
-                            viewModel,
-                            modifier = Modifier.padding(bottom = composerBottomPadding),
-                        )
+                        Box(Modifier.onSizeChanged { composerHeightPx.intValue = it.height }) {
+                            ComposerRow(
+                                viewModel,
+                                modifier = Modifier.padding(bottom = composerBottomPadding),
+                            )
+                        }
                     }
                 }
                 messageInfoEvent?.let { infoEvent ->
