@@ -37,9 +37,11 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
         Emoji.list().map { it.details }
     }
     val results = remember(emojis, query) {
-        if (query.isBlank()) emojis else emojis.filter { details ->
-            details.description.contains(query.trim(), ignoreCase = true) ||
-                details.aliases.any { it.contains(query.trim(), ignoreCase = true) }
+        val search = query.trim()
+        if (search.isBlank()) emojis else emojis.filter { details ->
+            details.description.contains(search, ignoreCase = true) ||
+                details.aliases.any { it.contains(search, ignoreCase = true) } ||
+                (details.string == "🪩" && "disco ball".contains(search, ignoreCase = true))
         }
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
