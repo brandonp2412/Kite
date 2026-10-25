@@ -8,11 +8,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,13 +92,14 @@ fun ImageMessage(
 ) {
     val hasCaption = messageMetadata?.preFormattedContent != null
     val isTransparent = !hasCaption && inReplyTo == null
-    // Portrait attachments with a caption should remain compact and
-    // right-aligned, matching the image width rather than the whole row.
-    val captionWidth = if (hasCaption && (aspectRatioOrNull(width, height) ?: 1f) < 0.8f) 220.dp else 320.dp
+    val captionedTimelineImage = hasCaption && LocalMessageRenderContext.current == MessageRenderContext.NORMAL
+    var displayAspectRatio by remember(source, width, height) {
+        mutableFloatStateOf(aspectRatioOrNull(width, height) ?: 1f)
+    }
     MessageBubble(
         isOwn = isOwn,
         timestamp = timestamp,
-        modifier = if (hasCaption) modifier.widthIn(max = captionWidth) else modifier,
+        modifier = if (captionedTimelineImage) modifier.width(captionMediaWidth(displayAspectRatio)) else modifier,
         padding = PaddingValues(Dimens.Conversation.imageBubbleInnerPadding),
         contentTextLayoutResult = null,
         isMediaOverlay = !isTransparent,
@@ -134,6 +139,8 @@ fun ImageMessage(
             },
             caption = messageMetadata?.preFormattedContent,
             shape = shape,
+            displayAspectRatio = if (captionedTimelineImage) displayAspectRatio else null,
+            onDecodedAspectRatio = if (captionedTimelineImage) { ratio -> displayAspectRatio = ratio } else null,
             onCaptionTextLayout = {}
         )
     }
@@ -151,14 +158,14 @@ fun ColumnScope.ImageMessageContent(
     maxHeight: Dp,
     caption: MatrixBodyParseResult? = null,
     shape: Shape = Dimens.Conversation.messageBubbleShape,
+    displayAspectRatio: Float? = null,
+    onDecodedAspectRatio: ((Float) -> Unit)? = null,
     onCaptionTextLayout: (TextLayoutResult?) -> Unit = {},
     overlay: @Composable () -> Unit = {},
 ) {
-    // Reserve identical bounds before and after decoding. Coil's intrinsic image
-    // size can differ from the event metadata, and switching ratios on success
-    // otherwise remeasures the whole message list as an image comes into view.
-    // Unknown dimensions use a stable square rather than jumping after loading.
-    val reservedAspectRatio = aspectRatioOrNull(width, height) ?: 1f
+    // Preserve stable sizing for media without captions. Captioned images can
+    // correct missing or inaccurate metadata once decoded so text fits the photo.
+    val reservedAspectRatio = displayAspectRatio ?: aspectRatioOrNull(width, height) ?: 1f
     if (caption != null) {
         TextLikeMessageContent(
             caption,
@@ -203,11 +210,19 @@ fun ColumnScope.ImageMessageContent(
                 return@SubcomposeAsyncImage
             }
             when (painter.state.collectAsState().value) {
-                is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent(
-                    // Fit may letterbox an image when its Matrix dimensions are absent or
-                    // incorrect. Clip to the decoded picture, not the empty viewport.
-                    modifier = Modifier.fillMaxSize().clip(FittedImageShape(painter.intrinsicSize, shape)),
-                )
+                is AsyncImagePainter.State.Success -> {
+                    if (onDecodedAspectRatio != null) {
+                        val size = painter.intrinsicSize
+                        LaunchedEffect(size) {
+                            if (size.width.isFinite() && size.height.isFinite() &&
+                                size.width > 0f && size.height > 0f
+                            ) onDecodedAspectRatio(size.width / size.height)
+                        }
+                    }
+                    SubcomposeAsyncImageContent(
+                        modifier = Modifier.fillMaxSize().clip(FittedImageShape(painter.intrinsicSize, shape)),
+                    )
+                }
                 AsyncImagePainter.State.Empty,
                 is AsyncImagePainter.State.Loading,
                 is AsyncImagePainter.State.Error -> {
@@ -258,6 +273,13 @@ internal fun fittedMediaRect(viewport: Size, image: Size): Rect {
     val width = image.width * scale
     val height = image.height * scale
     return Rect(Offset((viewport.width - width) / 2f, (viewport.height - height) / 2f), Size(width, height))
+}
+
+// One shared width for the caption and the visible picture. Media info can be
+// absent or inaccurate; the decoded aspect ratio corrects it when available.
+internal fun captionMediaWidth(aspectRatio: Float): Dp {
+    val ratio = aspectRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
+    return (220.dp * ratio).coerceIn(Dimens.Conversation.imageMinWidth, 320.dp)
 }
 
 private fun aspectRatioOrNull(width: Long?, height: Long?): Float? {

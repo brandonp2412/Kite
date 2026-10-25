@@ -9,11 +9,19 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.compose.destination.conversation.event.message.FittedImageShape
 import chat.schildi.revenge.compose.destination.conversation.event.message.fittedMediaRect
+import chat.schildi.revenge.compose.destination.conversation.event.message.captionMediaWidth
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class FittedImageShapeTest {
+    @Test
+    fun captionMatchesPortraitImageWidth() {
+        assertEquals(165.dp, captionMediaWidth(0.75f))
+        assertEquals(220.dp, captionMediaWidth(1f))
+        assertEquals(320.dp, captionMediaWidth(2f))
+    }
+
     @Test
     fun portraitImageCornersFollowImageRatherThanSquareViewport() {
         val outline = FittedImageShape(Size(3f, 4f), RoundedCornerShape(20.dp))
