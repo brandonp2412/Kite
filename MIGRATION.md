@@ -1766,3 +1766,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - buildq #1492 passed 75 desktop tests and signed ARM64 release; final 1.0.51 / 101000051 ARM64 #1497 and x86 #1499 passed release lint/R8. Reused unchanged pinned native SDK outputs.
 - Samsung #1498 in-place install passed package, version and independently hash-matched installed-APK signer checks. UID 10847 and firstInstallTime 2026-10-16 18:00:56 preserved; MainActivity launch succeeded. Phone keyguard prevented visual review of the original private chats.
 - Waydroid #1500 in-place update preserved UID 10139 and original install date. Visually reviewed a fictional incoming message ending in blank lines, a normal message, and an outgoing portrait image without dimensions: compact text padding, matching caption/photo width, and no empty status oval. No 120 Hz frame-time claim.
+
+## 2026-10-26 — steady reaction-picker height on Waydroid
+
+- Reproduced long-press → React → emoji search (`pretzel`) → 🥨 in the Maya fixture on Glass Waydroid. Filtering to one emoji collapsed the grid and shifted the picker content. Keeping its responsive grid height fixed stopped that content collapse in the 15-second before/after screen-capture replay.
+- `:androidApp:assembleRelease -PandroidAbi=x86_64` passed. Installed signed `app.kite` release versionCode 26102500 in-place on Waydroid; matching SHA-256 signer, unchanged app UID and first-install date. No crash observed in replay.
+- Waydroid still showed 13/57 janky frames (22.8%, p95 105 ms) on a later warm input run; this patch is a layout-stability change, not a verified jank fix. Samsung SM-S931B was not connected, so no Samsung release install or 120 Hz verification was performed.
