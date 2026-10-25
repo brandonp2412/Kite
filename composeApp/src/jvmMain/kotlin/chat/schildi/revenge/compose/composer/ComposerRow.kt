@@ -75,6 +75,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.matrix.rustcomponents.sdk.markdownToHtml
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_add_attachment
+import shire.res.generated.resources.action_attachment_gallery
 import shire.res.generated.resources.action_clear_reply
 import shire.res.generated.resources.action_reply
 import shire.res.generated.resources.action_send
@@ -404,7 +405,7 @@ fun ComposerRow(
                     draftState.isEmpty() &&
                     AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
                 ) {
-                    WithTooltip(stringResource(Res.string.action_add_attachment)) {
+                    WithTooltip(stringResource(Res.string.action_attachment_gallery)) {
                         ScIconButton(
                             onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
                             modifier = Modifier.padding(end = 4.dp),
@@ -414,7 +415,7 @@ fun ComposerRow(
                         ) {
                             Icon(
                                 Icons.Outlined.Image,
-                                stringResource(Res.string.action_add_attachment),
+                                stringResource(Res.string.action_attachment_gallery),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp),
                             )
