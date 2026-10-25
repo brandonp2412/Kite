@@ -181,6 +181,11 @@ fun WithContextMenu(
     }
     val expanded = menuOpenState != ContextMenuOpenState.Closed
     val hasChild = menuOpenState == ContextMenuOpenState.ChildOpen
+    // Android message popups are deliberately non-focusable for text selection.
+    // Consume Back here so it dismisses the popup instead of leaving the room.
+    PlatformBackHandler(
+        enabled = presentation == ContextMenuPresentation.Message && menuOpenState == ContextMenuOpenState.Open,
+    ) { keyHandler.dismissContextMenu(menuId) }
     val wasExpanded = remember(menuId) { booleanArrayOf(false) }
     if (expanded && !wasExpanded[0]) onOpen?.invoke()
     wasExpanded[0] = expanded
