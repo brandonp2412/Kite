@@ -301,12 +301,12 @@ private fun TimestampContent(
 
     val overlayBgColor = MaterialTheme.scExposures.timestampOverlayBg
     Row(
-        modifier.thenIf(withBackground) {
+        modifier.alpha(if (hasStatusDecoration) 1f else 0f).thenIf(withBackground) {
             background(
                 overlayBgColor,
                 Dimens.Conversation.timestampOverlayShape,
             ).padding(Dimens.Conversation.timestampPaddingWithOverlayBg)
-        }.alpha(if (hasStatusDecoration) 1f else 0f),
+        },
         horizontalArrangement = Dimens.horizontalArrangementSmall,
         verticalAlignment = Alignment.CenterVertically,
     ) {
