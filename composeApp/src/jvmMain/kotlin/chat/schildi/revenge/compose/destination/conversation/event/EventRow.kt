@@ -163,10 +163,9 @@ fun EventRow(
                     // Once the Messages-style action surface is visible, pointer
                     // gestures belong to the message content itself: a second
                     // long-press selects text and handle drags refine that range.
-                    // Keep the detector mounted while the menu opens, but disable
-                    // its pointer handling so text selection takes priority.
-                    enableClicks = !messageActionMenuOpen && !selectionActive,
-                    addClickListener = !selectionActive,
+                    // Once the message popup is open, remove the click detector
+                    // so a second long-press can select message text.
+                    addClickListener = !messageActionMenuOpen && !selectionActive,
                 )
                 .background(
                     if (isSelected) {
