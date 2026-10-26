@@ -163,10 +163,10 @@ fun EventRow(
                     // Once the Messages-style action surface is visible, pointer
                     // gestures belong to the message content itself: a second
                     // long-press selects text and handle drags refine that range.
-                    // Keep keyboard/focus actions installed, but remove this row's
-                    // click/long-click detector while the menu or selection overlay
-                    // takes ownership of pointer taps.
-                    addClickListener = !messageActionMenuOpen && !selectionActive,
+                    // Keep the detector mounted while the menu opens, but disable
+                    // its pointer handling so text selection takes priority.
+                    enableClicks = !messageActionMenuOpen && !selectionActive,
+                    addClickListener = !selectionActive,
                 )
                 .background(
                     if (isSelected) {
@@ -213,7 +213,8 @@ fun EventRow(
                             modifier = modifier,
                             messageContentModifier = Modifier.passiveDoubleTapReaction(
                                 focusId = focusId,
-                                enabled = canDoubleTapReact && !messageActionMenuOpen,
+                                enabled = canDoubleTapReact,
+                                suspended = messageActionMenuOpen,
                                 singleTapEnabled = false,
                                 reaction = doubleTapReaction,
                                 reactionActive = event.reactions.any { reaction ->
