@@ -61,11 +61,26 @@ fun EventContent.messageMetadata(
         }
         else -> null
     }
-    return MessageMetadata(preFormattedContent?.trimTrailingWhitespace())
+    val content = preFormattedContent?.trimTrailingWhitespace()
+    return MessageMetadata(if (allowEmpty) content?.trimLeadingBlankLines() else content)
 }
 
 // Bridges may append blank lines; they should not become bubble padding.
 internal fun MatrixBodyParseResult.trimTrailingWhitespace(): MatrixBodyParseResult {
     val end = text.text.trimEnd().length
     return if (end == text.length) this else copy(text = text.subSequence(0, end))
+}
+
+// Ignore empty paragraphs before text without stripping meaningful indentation.
+internal fun MatrixBodyParseResult.trimLeadingBlankLines(): MatrixBodyParseResult {
+    val content = text.text
+    var start = 0
+    while (start < content.length) {
+        var lineEnd = start
+        while (lineEnd < content.length && (content[lineEnd] == ' ' || content[lineEnd] == '\t')) lineEnd++
+        if (lineEnd < content.length && content[lineEnd] == '\r') lineEnd++
+        if (lineEnd >= content.length || content[lineEnd] != '\n') break
+        start = lineEnd + 1
+    }
+    return if (start == 0) this else copy(text = text.subSequence(start, content.length))
 }
