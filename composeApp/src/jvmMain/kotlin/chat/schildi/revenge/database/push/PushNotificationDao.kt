@@ -56,6 +56,13 @@ interface PushNotificationDao {
     """)
     suspend fun updateEndpoint(instance: String, endpoint: String)
 
+    @Query("""
+        UPDATE PushRegistration
+        SET gateway = :gateway, homeserverRegistered = 1
+        WHERE clientSecret = :instance AND endpoint = :endpoint
+    """)
+    suspend fun markHomeserverRegistered(instance: String, endpoint: String, gateway: String)
+
     @Query("SELECT * FROM PushRegistration")
     suspend fun getPushRegistrations(): List<PushRegistrationEntity>
 

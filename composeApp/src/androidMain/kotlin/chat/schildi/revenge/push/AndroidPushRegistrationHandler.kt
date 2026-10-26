@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import chat.schildi.lib.platform.platformDeviceName
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.lib.preferences.safeLookup
+import chat.schildi.revenge.RevengeAppGraph
 import chat.schildi.revenge.RevengeApplication
 import chat.schildi.revenge.ScCoroutines
 import chat.schildi.revenge.UiState
@@ -53,6 +54,7 @@ object AndroidPushRegistrationHandler {
     private val pushAppId = RevengeApplication.instance.packageName
 
     private val isLaunched = AtomicBoolean(false)
+    private val reconciledInstances = mutableSetOf<String>()
     private val notificationPermissionRequested = AtomicBoolean(false)
     private val scope = ScCoroutines.scope(Dispatchers.IO, "AndroidPushRegistration")
 
@@ -134,8 +136,19 @@ object AndroidPushRegistrationHandler {
                 needsUnregistration.forEach { registration ->
                     log.i { "Unregistering push for ${registration.sessionId}" }
                     unregisterPush(registration)
+                    reconciledInstances.remove(registration.clientSecret)
                 }
             }
+            // The server can lose a pusher while our local registration still says it exists.
+            // Reassert each saved endpoint once per app process, after sessions are available.
+            currentRegistrations.filter { it.sessionId in notifiableSessions && it.endpoint != null }
+                .forEach { registration ->
+                    if (registration.clientSecret !in reconciledInstances) {
+                        if (registerHomeserverPush(registration.clientSecret, force = true)) {
+                            reconciledInstances.add(registration.clientSecret)
+                        }
+                    }
+                }
         }.launchIn(scope)
     }
 
@@ -216,48 +229,42 @@ object AndroidPushRegistrationHandler {
     }
 
     // TODO kick on connectivity change too?
-    private suspend fun registerHomeserverPush(instance: String) {
-        val toRegister = listOfNotNull(pushDao.getPendingPushRegistration(instance))
-        if (toRegister.isEmpty()) {
-            return
-        }
-        log.d { "Handling Matrix push registration for ${toRegister.size} sessions" }
-        toRegister.forEach { registration ->
-            val client = UiState.currentClientFor(SessionId(registration.sessionId)) ?: run {
-                log.w { "Skip Matrix push registration for ${registration.sessionId}, no client yet" }
-                return@forEach
+    private suspend fun registerHomeserverPush(instance: String, force: Boolean = false): Boolean {
+        val registration = if (force) {
+            pushDao.getPushRegistration(instance)
+        } else {
+            pushDao.getPendingPushRegistration(instance)
+        } ?: return true
+        val endpoint = registration.endpoint ?: return false
+        val sessionId = SessionId(registration.sessionId)
+        val client = UiState.currentClientFor(sessionId)
+            ?: RevengeAppGraph.sessionCache.getOrRestore(sessionId)
+                .onFailure { log.w("Could not restore client for push registration", it) }
+                .getOrNull()
+            ?: run {
+                log.w { "Will retry Matrix push registration when ${registration.sessionId} is ready" }
+                return false
             }
-            registration.endpoint ?: run {
-                log.e { "Skip Matrix push registration for ${registration.sessionId}, no endpoint" }
-                return@forEach
-            }
-            val gateway = resolveGateway(registration.endpoint, registration.gateway)
-            val payload = serializeUnifiedPushDefaultPayload(registration.clientSecret)
-            log.i { "Registering push for ${registration.sessionId} at ${registration.endpoint} via ${registration.gateway}" }
-            client.pushersService.setHttpPusher(
-                SetHttpPusherData(
-                    pushKey = registration.endpoint,
-                    appId = pushAppId,
-                    url = gateway,
-                    appDisplayName = "SchildiChat Revenge",
-                    deviceDisplayName = deviceName,
-                    profileTag = "mobile_",
-                    lang = "en",
-                    defaultPayload = payload,
-                    append = false,
-                )
-            ).onSuccess {
-                log.i { "Matrix push registration successful for ${registration.sessionId}" }
-                pushDao.insertPushRegistration(
-                    registration.copy(
-                        gateway = gateway,
-                        homeserverRegistered = true,
-                    )
-                )
-            }.onFailure {
-                log.e("Matrix push registration failed for ${registration.sessionId}", it)
-            }
-        }
+        val gateway = resolveGateway(endpoint, registration.gateway)
+        val payload = serializeUnifiedPushDefaultPayload(registration.clientSecret)
+        return client.pushersService.setHttpPusher(
+            SetHttpPusherData(
+                pushKey = endpoint,
+                appId = pushAppId,
+                url = gateway,
+                appDisplayName = "Kite",
+                deviceDisplayName = deviceName,
+                profileTag = "mobile_",
+                lang = "en",
+                defaultPayload = payload,
+                append = false,
+            )
+        ).onSuccess {
+            log.i { "Matrix push registration successful for ${registration.sessionId}" }
+            pushDao.markHomeserverRegistered(instance, endpoint, gateway)
+        }.onFailure {
+            log.e("Matrix push registration failed for ${registration.sessionId}", it)
+        }.isSuccess
     }
 
     private fun resolveGateway(endpoint: String, previousGateway: String?): String {
