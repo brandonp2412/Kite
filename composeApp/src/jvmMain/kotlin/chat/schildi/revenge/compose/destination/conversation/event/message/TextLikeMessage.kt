@@ -140,6 +140,7 @@ fun TextLikeMessage(
         timestamp = timestamp,
         modifier = modifier,
         outlined = outlined,
+        transparent = emojiOnly,
         padding = if (emojiOnly) PaddingValues(6.dp)
                   else Dimens.Conversation.messageBubblePadding,
         overlayStatus = timestamp?.isEdited != true,
