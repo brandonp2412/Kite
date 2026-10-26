@@ -167,6 +167,7 @@ internal class ReactionLayoutCoordinates { var layout: LayoutCoordinates? = null
 fun Modifier.passiveDoubleTapReaction(
     focusId: Uuid,
     enabled: Boolean,
+    suspended: Boolean,
     reaction: String,
     reactionActive: Boolean,
     singleTapEnabled: Boolean,
@@ -179,8 +180,8 @@ fun Modifier.passiveDoubleTapReaction(
     val viewConfiguration = LocalViewConfiguration.current
     val haptics = LocalHapticFeedback.current
     val activeReaction by rememberUpdatedState(reactionActive)
-    val reactionEnabled by rememberUpdatedState(enabled)
-    val tapEnabled by rememberUpdatedState(singleTapEnabled)
+    val reactionEnabled by rememberUpdatedState(enabled && !suspended)
+    val tapEnabled by rememberUpdatedState(singleTapEnabled && !suspended)
     val latestOnSingleTap by rememberUpdatedState(onSingleTap)
     val latestOnBurst by rememberUpdatedState(onBurst)
     val coordinates = remember(focusId) { ReactionLayoutCoordinates() }
