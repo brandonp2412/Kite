@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - '*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to sign without publishing (e.g. 1.0.59)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -41,7 +47,7 @@ jobs:
       - name: Validate release version
         id: version
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.version || github.ref_name }}
         run: |
           [[ "$TAG" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || exit 1
           major=$((10#${BASH_REMATCH[1]}))
@@ -102,7 +108,7 @@ jobs:
           KITE_RELEASE_STORE_PASSWORD: ${{ secrets.KITE_RELEASE_STORE_PASSWORD }}
           KITE_RELEASE_KEY_ALIAS: ${{ secrets.KITE_RELEASE_KEY_ALIAS }}
           KITE_RELEASE_KEY_PASSWORD: ${{ secrets.KITE_RELEASE_KEY_PASSWORD }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.version || github.ref_name }}
           ABI: ${{ matrix.abi }}
           CODE: ${{ steps.version.outputs.code }}
         run: |
@@ -112,7 +118,7 @@ jobs:
 
       - name: Verify and package APK
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.version || github.ref_name }}
           ABI: ${{ matrix.abi }}
         run: |
           apk=androidApp/build/outputs/apk/release/androidApp-release.apk
@@ -138,6 +144,7 @@ jobs:
           retention-days: 7
 
   screenshots:
+    if: github.event_name == 'push'
     name: Verify native screenshot assets
     runs-on: ubuntu-24.04
     steps:
@@ -163,6 +170,7 @@ jobs:
           retention-days: 7
 
   release:
+    if: github.event_name == 'push'
     needs: [build, screenshots]
     runs-on: ubuntu-24.04
     permissions:
@@ -179,7 +187,7 @@ jobs:
           path: images
       - name: Add screenshots to release assets
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.version || github.ref_name }}
         run: |
           for n in $(seq 1 8); do
             test -s "images/${n}_en-US.png"
@@ -187,7 +195,7 @@ jobs:
           done
       - name: Verify all four APKs
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.version || github.ref_name }}
         run: |
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
             test -s "dist/Kite-${TAG}-${abi}.apk"

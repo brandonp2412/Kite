@@ -1816,3 +1816,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Verified on Glass: `:composeApp:compileAndroidMain` and signed `:androidApp:assembleRelease` passed at `a57126d0`; release `app.kite` 1.0.58 (`101000058`), arm64.
 - Verified Samsung SM-S931B in-place `adb install -r`: APK certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matched installed release; app UID `10847` and original `firstInstallTime=2026-10-16 18:00:56` unchanged. MainActivity launched and was resumed underneath the device keyguard.
 - Manual image-tap latency and cold-file latency were **not** visually verified; Samsung was showing its secure keyguard/AOD. No Matrix account or data was reset.
+
+## 2026-10-28 — No message-list animation on notification open
+
+- Fixed the 1.0.56 notification-preview handoff regression: the temporary push text no longer occupies a separate row below the `LazyColumn`, so removing it cannot resize or animate the conversation viewport. It is now a bottom-aligned overlay in the timeline container. SDK message placement animations are disabled while the tapped notification is pending, including the exact event-ID handoff, and remain unchanged for ordinary chat activity.
+- Nox buildq #1407 `:composeApp:desktopTest :composeApp:compileAndroidMain` PASS, following a corrected intermediate brace error in #1406. buildq #1408 ARM64 `:androidApp:assembleRelease` PASS including release lint and R8; unsigned local APK validates as `app.kite` 1.0.59 / 101000059. `git diff --check` PASS.
+- Nox has no `KITE_RELEASE_*` signing environment. The tagged-release workflow now also supports manual signed builds with an explicit version, uploading artifacts without publishing a GitHub Release. Signature verification and an in-place Samsung test must still pass before claiming device validation.

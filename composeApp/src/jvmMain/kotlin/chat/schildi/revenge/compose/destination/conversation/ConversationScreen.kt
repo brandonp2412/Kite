@@ -865,9 +865,8 @@ fun ConversationScreen(
                         tween<IntOffset>(durationMillis = 180, easing = FastOutSlowInEasing)
                     }
                     CompositionLocalProvider(LocalHeartBurstState provides heartBurst) {
-                    Column(Modifier.fillMaxSize()) {
                     LazyColumn(
-                        Modifier.fillMaxWidth().weight(1f).nestedScroll(userScrollObserver),
+                        Modifier.fillMaxSize().nestedScroll(userScrollObserver),
                         reverseLayout = true,
                         state = listState,
                         contentPadding = if (viewModel.modeSupportsComposer) {
@@ -944,7 +943,9 @@ fun ConversationScreen(
                                 modifier = Modifier.animateItem(
                                     fadeInSpec = null,
                                     fadeOutSpec = null,
-                                    placementSpec = messagePlacementSpec,
+                                    // The notified event must replace its preview in place,
+                                    // without animating previously visible messages.
+                                    placementSpec = if (openPreview == null) messagePlacementSpec else null,
                                 ),
                                 debugSeparatorLines = currentDebugLines.toPersistentList(),
                             )
@@ -955,8 +956,11 @@ fun ConversationScreen(
                             }
                         }
                     }
-                    visibleOpenPreview?.let { NotificationPreviewBubble(it) }
                     }
+                    // Overlay the temporary push text without resizing the real timeline.
+                    // Otherwise its removal makes the whole chat jump when sync catches up.
+                    visibleOpenPreview?.let {
+                        NotificationPreviewBubble(it, Modifier.align(Alignment.BottomStart))
                     }
 
                     // Jump-to-message FABs
