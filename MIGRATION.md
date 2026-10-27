@@ -1833,3 +1833,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 
 - The Henry Angelo chat screenshot showed two plain-image messages with about 270px of apparent blank spacing. `ImageMessage` previously corrected the reserved aspect ratio from Coil's decoded intrinsic dimensions only when a caption existed; plain images with missing/inaccurate Matrix metadata therefore retained square viewports and letterboxed landscape photos, leaving invisible row height above and below the picture. All images now adopt the decoded aspect ratio; captioned image width behavior stays unchanged.
 - Nox buildq #1411 `:composeApp:desktopTest :composeApp:compileAndroidMain` PASS. Signed ARM64 release, in-place Samsung install and live visual comparison remain pending.
+
+## 2026-10-28 — Reconcile latest Kite and install 1.0.61
+
+- Compared Glass local main and worktree tips against live `origin/main`; Nox carried the latest integrated fixes. Glass main remained behind with unfinished device-local hide-chat, reaction picker and screenshot work, all preserved without merging incomplete changes. Confirmed remaining Glass-only committed patch differences were already superseded or functionally present upstream.
+- The newer Nox plain-image spacing fix `f4d967e0` passed buildq #1411 (`:composeApp:desktopTest :composeApp:compileAndroidMain`), then buildq #1412 signed ARM64 `:androidApp:assembleRelease` passed including release lint/R8 (280 tasks). Commit pushed to `origin/main`.
+- Verified built `app.kite` 1.0.61 (`101000061`), ARM64 APK SHA-256 `ba3da864a42019404587557149d8bbc59cad8094b1a3339c257fa0d53cf634d1`, signing certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` matched independently pulled Samsung Kite APK.
+- Samsung SM-S931B streaming `adb install -r` succeeded, 1.0.60 → 1.0.61, preserving UID `10847` and `firstInstallTime=2026-10-16 18:00:56`; no uninstall or data reset. `--no-streaming` transport initially failed to read its pushed temp file; standard streamed install succeeded. Secure keyguard remained on screen, so live notification tap and updated image-layout replay were not performed.
