@@ -17,9 +17,11 @@ import kotlin.test.assertIs
 class FittedImageShapeTest {
     @Test
     fun captionMatchesPortraitImageWidth() {
-        assertEquals(165.dp, captionMediaWidth(0.75f))
+        assertEquals(220.dp, captionMediaWidth(0.5f))
+        assertEquals(220.dp, captionMediaWidth(0.75f))
         assertEquals(220.dp, captionMediaWidth(1f))
         assertEquals(320.dp, captionMediaWidth(2f))
+        assertEquals(220.dp, captionMediaWidth(Float.NaN))
     }
 
     @Test

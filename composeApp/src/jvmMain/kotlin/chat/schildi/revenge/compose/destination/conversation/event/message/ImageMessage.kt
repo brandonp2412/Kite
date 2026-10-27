@@ -275,11 +275,11 @@ internal fun fittedMediaRect(viewport: Size, image: Size): Rect {
     return Rect(Offset((viewport.width - width) / 2f, (viewport.height - height) / 2f), Size(width, height))
 }
 
-// One shared width for the caption and the visible picture. Media info can be
-// absent or inaccurate; the decoded aspect ratio corrects it when available.
+// Portrait images must not squeeze their captions into a narrow column.
+// Keep the width stable across portrait aspect-ratio corrections after decode.
 internal fun captionMediaWidth(aspectRatio: Float): Dp {
     val ratio = aspectRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
-    return (220.dp * ratio).coerceIn(Dimens.Conversation.imageMinWidth, 320.dp)
+    return (220.dp * ratio.coerceAtLeast(1f)).coerceAtMost(320.dp)
 }
 
 private fun aspectRatioOrNull(width: Long?, height: Long?): Float? {
