@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -64,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.revenge.model.conversation.ConversationViewModel
+import chat.schildi.revenge.notification.NotificationOpenPreview
+import chat.schildi.revenge.notification.NotificationOpenPreviews
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.LocalDestinationState
@@ -136,6 +139,22 @@ import shire.res.generated.resources.action_jump_to_bottom
 import shire.res.generated.resources.action_jump_to_unread
 import kotlin.math.absoluteValue
 import kotlin.math.sign
+
+@Composable
+private fun NotificationPreviewBubble(preview: NotificationOpenPreview, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Text(
+            preview.text,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxWidth(0.8f)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(20.dp))
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
 
 @Composable
 fun ConversationScreen(
@@ -212,6 +231,18 @@ fun ConversationScreen(
         val composerBottomPadding = imeAwareBottomPadding(navigationBottomPadding, imeBottomPadding)
 
         val timelineItems = viewModel.timelineItems.collectAsState().value
+        val openPreview = NotificationOpenPreviews.current.collectAsState().value?.takeIf {
+            destination.timelineParams == null &&
+                it.sessionId == destination.sessionId.value && it.roomId == destination.roomId.value &&
+                System.currentTimeMillis() - it.capturedAt in 0L..600_000L
+        }
+        val previewInTimeline = openPreview != null && timelineItems?.any {
+            (it.item as? MatrixTimelineItem.Event)?.eventId?.value == openPreview.eventId
+        } == true
+        LaunchedEffect(openPreview, previewInTimeline) {
+            if (openPreview != null && previewInTimeline) NotificationOpenPreviews.clearIfCurrent(openPreview)
+        }
+        val visibleOpenPreview = openPreview?.takeUnless { previewInTimeline }
         // Keep selected timeline objects directly so toggling selection stays O(1) with
         // respect to loaded room history. Re-scanning every event here can hitch large rooms.
         val selectedMessagesState = remember { mutableStateOf(persistentMapOf<String, ScTimelineItem>()) }
@@ -302,11 +333,20 @@ fun ConversationScreen(
                         hasTimeline = false,
                         compact = this@BoxWithConstraints.maxWidth < Dimens.compactActionBarThreshold,
                     )
-                    SplashScreenContent(
-                        Modifier.fillMaxWidth().weight(1f),
-                        viewModel.loadState,
-                        delayMillis = 100L,
-                    )
+                    Box(Modifier.fillMaxWidth().weight(1f)) {
+                        if (visibleOpenPreview != null) {
+                            NotificationPreviewBubble(
+                                visibleOpenPreview,
+                                Modifier.align(Alignment.BottomStart),
+                            )
+                        } else {
+                            SplashScreenContent(
+                                Modifier.fillMaxSize(),
+                                viewModel.loadState,
+                                delayMillis = 100L,
+                            )
+                        }
+                    }
                     if (viewModel.modeSupportsComposer) {
                         // Reserve the composer's footprint before the timeline arrives.
                         // Otherwise the first real conversation frame shrinks the
@@ -825,8 +865,9 @@ fun ConversationScreen(
                         tween<IntOffset>(durationMillis = 180, easing = FastOutSlowInEasing)
                     }
                     CompositionLocalProvider(LocalHeartBurstState provides heartBurst) {
+                    Column(Modifier.fillMaxSize()) {
                     LazyColumn(
-                        Modifier.fillMaxSize().nestedScroll(userScrollObserver),
+                        Modifier.fillMaxWidth().weight(1f).nestedScroll(userScrollObserver),
                         reverseLayout = true,
                         state = listState,
                         contentPadding = if (viewModel.modeSupportsComposer) {
@@ -913,6 +954,8 @@ fun ConversationScreen(
                                 PagingIndicator(isLoading = isBackwardPaging, modifier = Modifier.padding(vertical = Dimens.windowPadding))
                             }
                         }
+                    }
+                    visibleOpenPreview?.let { NotificationPreviewBubble(it) }
                     }
                     }
 

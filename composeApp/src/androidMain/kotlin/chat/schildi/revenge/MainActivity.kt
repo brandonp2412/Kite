@@ -187,6 +187,9 @@ class MainActivity : ComponentActivity() {
     private fun dismissOpenedConversationNotification(intent: Intent) {
         val sessionId = intent.getStringExtra("session_id") ?: return
         val roomId = intent.getStringExtra("room_id") ?: return
+        // The OS may dismiss the notification before this Activity starts. Its signed-by-token
+        // preview travels in the PendingIntent, and is kept only until the SDK event appears.
+        chat.schildi.revenge.notification.AndroidNotifier.captureOpenedPreview(intent)
         chat.schildi.revenge.notification.AndroidNotifier.dismiss(sessionId, roomId)
     }
 

@@ -57,6 +57,7 @@ import io.element.android.libraries.matrix.api.notification.NotificationData
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageLikeMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
+import io.element.android.libraries.matrix.api.timeline.item.event.TextMessageType
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.item.event.VideoMessageType
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
@@ -75,6 +76,7 @@ import shire.res.generated.resources.action_mark_as_read
 import shire.res.generated.resources.action_reply
 import shire.res.generated.resources.notification_channel_app_notices
 import shire.res.generated.resources.notification_channel_group_chat_messages
+import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTimedValue
 
@@ -93,6 +95,12 @@ object AndroidNotifier {
     private const val EXTRA_SESSION_ID = "session_id"
     private const val EXTRA_ROOM_ID = "room_id"
     private const val EXTRA_EVENT_IDS = "event_ids"
+    private const val EXTRA_PREVIEW_EVENT_ID = "notification_preview_event_id"
+    private const val EXTRA_PREVIEW_TEXT = "notification_preview_text"
+    private const val EXTRA_PREVIEW_TOKEN = "notification_preview_token"
+    private const val EXTRA_PREVIEW_POSTED_AT = "notification_preview_posted_at"
+    private const val PREVIEW_TOKEN_PREFS = "notification_open_tokens"
+    private const val PREVIEW_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000
     private const val EXTRA_COPY_CODE = "copy_code"
     private const val KEY_TEXT_REPLY = "text_reply"
 
@@ -341,7 +349,18 @@ object AndroidNotifier {
         val builder = existingNotification?.let {
             NotificationCompat.Builder(context, it)
         } ?: NotificationCompat.Builder(context, messageChannelId(id.sessionId))
-            .setContentIntent(id.createPendingIntent(context, notificationId))
+        val openPreview = (data.content as? NotificationContent.MessageLike.RoomMessage)
+            ?.takeIf { it.messageType is TextMessageType }
+            ?.let {
+                NotificationOpenPreview(
+                    sessionId = id.sessionId.value,
+                    roomId = id.roomId.value,
+                    eventId = data.eventId.value,
+                    text = plainMessageText.take(4096),
+                )
+            }
+        // Update on every event: grouped notifications otherwise keep the first event's intent.
+        builder.setContentIntent(id.createPendingIntent(context, notificationId, openPreview))
 
         builder.clearActions()
         val supportsRoomActions = data.content is NotificationContent.MessageLike
@@ -576,7 +595,29 @@ object AndroidNotifier {
         else -> hashCode()
     }
 
-    private fun NotificationId.createIntent(context: Context): Intent? {
+    private fun previewTokenKey(sessionId: String, roomId: String) =
+        "${sessionId.length}:$sessionId:$roomId"
+
+    /** Accept preview text only when it belongs to a notification created by this app. */
+    fun captureOpenedPreview(intent: Intent) {
+        val sessionId = intent.getStringExtra(EXTRA_SESSION_ID) ?: return
+        val roomId = intent.getStringExtra(EXTRA_ROOM_ID) ?: return
+        val token = intent.getStringExtra(EXTRA_PREVIEW_TOKEN) ?: return
+        val eventId = intent.getStringExtra(EXTRA_PREVIEW_EVENT_ID) ?: return
+        val text = intent.getStringExtra(EXTRA_PREVIEW_TEXT)?.takeIf { it.isNotBlank() } ?: return
+        val postedAt = intent.getLongExtra(EXTRA_PREVIEW_POSTED_AT, 0L)
+        if (postedAt <= 0 || System.currentTimeMillis() - postedAt !in 0L..PREVIEW_MAX_AGE_MS) return
+        val prefs = RevengeApplication.instance.getSharedPreferences(PREVIEW_TOKEN_PREFS, Context.MODE_PRIVATE)
+        val key = previewTokenKey(sessionId, roomId)
+        if (prefs.getString(key, null) != token) return
+        prefs.edit().remove(key).apply()
+        NotificationOpenPreviews.show(NotificationOpenPreview(sessionId, roomId, eventId, text))
+    }
+
+    private fun NotificationId.createIntent(
+        context: Context,
+        preview: NotificationOpenPreview? = null,
+    ): Intent? {
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         conversationDestination()?.let { destination ->
@@ -593,11 +634,28 @@ object AndroidNotifier {
             }
             else -> Unit
         }
+        if (this is NotificationId.Event && preview != null &&
+            preview.sessionId == sessionId.value && preview.roomId == roomId.value &&
+            preview.eventId == eventId.value && preview.text.isNotBlank()
+        ) {
+            val token = UUID.randomUUID().toString()
+            val prefs = context.getSharedPreferences(PREVIEW_TOKEN_PREFS, Context.MODE_PRIVATE)
+            if (prefs.edit().putString(previewTokenKey(sessionId.value, roomId.value), token).commit()) {
+                intent.putExtra(EXTRA_PREVIEW_EVENT_ID, preview.eventId)
+                intent.putExtra(EXTRA_PREVIEW_TEXT, preview.text)
+                intent.putExtra(EXTRA_PREVIEW_TOKEN, token)
+                intent.putExtra(EXTRA_PREVIEW_POSTED_AT, System.currentTimeMillis())
+            }
+        }
         return intent
     }
 
-    private fun NotificationId.createPendingIntent(context: Context, notificationId: Int): PendingIntent? {
-        val intent = createIntent(context) ?: return null
+    private fun NotificationId.createPendingIntent(
+        context: Context,
+        notificationId: Int,
+        preview: NotificationOpenPreview? = null,
+    ): PendingIntent? {
+        val intent = createIntent(context, preview) ?: return null
         return PendingIntent.getActivity(
             context,
             notificationId,
