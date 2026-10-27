@@ -1,6 +1,7 @@
 package chat.schildi.revenge.media
 
 import chat.schildi.revenge.UiState
+import chat.schildi.revenge.util.escapeForFilename
 import co.touchlab.kermit.Logger
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
@@ -20,6 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.ConcurrentHashMap
 
 interface MediaDownloadResultListener {
@@ -120,9 +122,34 @@ object MediaDownloadRepo {
             mediaSource.safeUrl,
             filename,
         )
-        if (file.exists()) {
+        if (file.isFile && file.length() > 0L) {
             listener.onDownloadResult(Result.success(file))
             return@withContext
+        }
+        // The timeline's Coil fetcher already stores full image bytes on disk.
+        // Reuse them instead of making a second Matrix download on tap.
+        val inlineCache = mediaLoader?.let { loader ->
+            File(loader.baseCacheDirectory, mediaSource.safeUrl.removePrefix("mxc://").escapeForFilename())
+        }
+        if (inlineCache?.isFile == true && inlineCache.length() > 0L) {
+            val reused = runCatching {
+                try {
+                    Files.createLink(file.toPath(), inlineCache.toPath())
+                } catch (_: IOException) {
+                    val staging = File.createTempFile("attachment-", ".part", file.parentFile)
+                    try {
+                        Files.copy(inlineCache.toPath(), staging.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                        Files.move(staging.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                    } finally {
+                        staging.delete()
+                    }
+                }
+                file.isFile && file.length() > 0L
+            }.getOrDefault(false)
+            if (reused) {
+                listener.onDownloadResult(Result.success(file))
+                return@withContext
+            }
         }
         if (mediaLoader == null) {
             listener.onDownloadResult(Result.failure(IOException("Client not ready")))
