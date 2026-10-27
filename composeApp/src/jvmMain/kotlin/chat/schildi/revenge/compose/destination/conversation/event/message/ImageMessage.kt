@@ -139,8 +139,8 @@ fun ImageMessage(
             },
             caption = messageMetadata?.preFormattedContent,
             shape = shape,
-            displayAspectRatio = if (captionedTimelineImage) displayAspectRatio else null,
-            onDecodedAspectRatio = if (captionedTimelineImage) { ratio -> displayAspectRatio = ratio } else null,
+            displayAspectRatio = displayAspectRatio,
+            onDecodedAspectRatio = { ratio -> displayAspectRatio = ratio },
             onCaptionTextLayout = {}
         )
     }
@@ -163,8 +163,8 @@ fun ColumnScope.ImageMessageContent(
     onCaptionTextLayout: (TextLayoutResult?) -> Unit = {},
     overlay: @Composable () -> Unit = {},
 ) {
-    // Preserve stable sizing for media without captions. Captioned images can
-    // correct missing or inaccurate metadata once decoded so text fits the photo.
+    // Bridged media can omit or misreport dimensions. Once decoded, use the
+    // real aspect ratio even without a caption to avoid invisible letterboxing.
     val reservedAspectRatio = displayAspectRatio ?: aspectRatioOrNull(width, height) ?: 1f
     if (caption != null) {
         TextLikeMessageContent(
