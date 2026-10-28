@@ -66,8 +66,9 @@ fun ColumnScope.ReadReceiptsRow(
             users = userTimestamps,
             modifier = Modifier.align(Alignment.CenterEnd).padding(
                 top = Dimens.Conversation.receiptPaddingVertical,
-                start = 0.dp,
-                end = LocalMessageStyle.current.otherSideMarginOutgoing,
+                // Outgoing bubbles reserve this space opposite their trailing edge.
+                start = LocalMessageStyle.current.otherSideMarginOutgoing,
+                end = 0.dp,
             ).clip(RoundedCornerShape(Dimens.Conversation.receiptSize / 2)),
         ) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
