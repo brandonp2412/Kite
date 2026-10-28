@@ -95,6 +95,7 @@ import chat.schildi.revenge.compose.destination.conversation.event.isKiteSelecta
 import chat.schildi.revenge.compose.destination.conversation.event.kiteSelectionKey
 import chat.schildi.revenge.compose.destination.conversation.event.resolveMessageSwipeConfig
 import chat.schildi.revenge.compose.destination.conversation.event.message.MessageLayoutNormal
+import chat.schildi.revenge.compose.destination.conversation.event.message.TextLikeMessage
 import chat.schildi.revenge.compose.destination.conversation.event.message.LocalUrlPreviewStateProvider
 import chat.schildi.revenge.compose.destination.conversation.virtual.PagingIndicator
 import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
@@ -118,6 +119,7 @@ import chat.schildi.revenge.publishTitle
 import chat.schildi.revenge.viewModelKey
 import chat.schildi.theme.scExposures
 import co.touchlab.kermit.Logger
+import com.beeper.android.messageformat.MatrixBodyParseResult
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.core.ThreadId
@@ -177,20 +179,13 @@ private fun NotificationPreviewBubble(
                 }
             },
             messageContent = {
-                Text(
-                    preview.text,
-                    modifier = Modifier
-                        .background(
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
-                            Dimens.Conversation.messageBubbleShape(
-                                isOwn = false,
-                                joinsPrevious = joinsPreviousBubble,
-                                joinsNext = false,
-                            ),
-                        )
-                        .padding(horizontal = 8.dp, vertical = 7.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                // Match the SDK row's text, padding, wrapping and bubble geometry.
+                TextLikeMessage(
+                    text = remember(preview.text) { MatrixBodyParseResult(preview.text) },
+                    isOwn = false,
+                    timestamp = null,
+                    inReplyTo = null,
+                    threadInfo = null,
                 )
             },
         )
@@ -338,6 +333,7 @@ fun ConversationScreen(
         val isForwardPaging = forwardPaginationStatus?.isPaginating == true
 
         val roomInfo = viewModel.roomInfo.collectAsState().value
+        val showSenderDetails = shouldShowTimelineSenderDetails(roomInfo?.joinedMembersCount)
         val roomPreview = viewModel.roomPreview.collectAsState().value
         val loadState = viewModel.loadState.collectAsState().value
 
@@ -357,7 +353,9 @@ fun ConversationScreen(
             }
         }
 
-        if (timelineItems == null) {
+        // Group/DM geometry must be known before showing a notification preview:
+        // otherwise the avatar/name gutter suddenly shifts the bubble on handoff.
+        if (timelineItems == null || (openPreview != null && roomInfo == null)) {
             val isRoomPreview = when {
                 roomInfo != null -> roomInfo.currentUserMembership != CurrentUserMembership.JOINED
                 roomPreview != null -> roomPreview.membership != CurrentUserMembership.JOINED
@@ -379,9 +377,10 @@ fun ConversationScreen(
                         compact = this@BoxWithConstraints.maxWidth < Dimens.compactActionBarThreshold,
                     )
                     Box(Modifier.fillMaxWidth().weight(1f)) {
-                        if (visibleOpenPreview != null) {
+                        if (visibleOpenPreview != null && roomInfo != null) {
                             NotificationPreviewBubble(
                                 visibleOpenPreview,
+                                showSenderDetails = showSenderDetails,
                                 modifier = Modifier.align(Alignment.BottomStart),
                             )
                         } else {
@@ -716,7 +715,6 @@ fun ConversationScreen(
             }
             // Bots/bridges often live in two-member rooms without m.direct. Visually those
             // are still one-to-one conversations; only true multi-member rooms need labels.
-            val showSenderDetails = shouldShowTimelineSenderDetails(roomInfo?.joinedMembersCount)
             val highlightedActionEventId = viewModel.highlightedActionEventId.collectAsState().value
             val heartBurst = rememberHeartBurstState()
             val composerHeightPx = remember { mutableIntStateOf(0) }

@@ -151,7 +151,7 @@ fun MessageBubble(
             } else if (stableTextHeight) {
                 // Capture the final text line in the same measure pass and keep
                 // delivery status in a reserved gutter beside the body.
-                val reserveTimestamp = reservedTextTimestampInset(isOwn, timestamp) > 0.dp
+                val reserveTimestamp = timestamp?.isEdited == true || reservedTextTimestampInset(isOwn, timestamp) > 0.dp
                 val density = LocalDensity.current
                 val horizontalGap = with(density) { Dimens.Conversation.timestampHorizontalPaddingToText.roundToPx() }
                 val verticalGap = with(density) { Dimens.Conversation.timestampVerticalMarginToText.roundToPx() }
@@ -191,6 +191,7 @@ fun MessageBubble(
                             maxWidth = constraints.maxWidth,
                             horizontalGap = horizontalGap,
                             verticalGap = verticalGap,
+                            forceSeparateLine = timestamp?.isEdited == true,
                         )
                         layout(position.width, position.height) {
                             body.place(0, 0)
@@ -254,9 +255,10 @@ internal fun stableTextTimestampPlacement(
     maxWidth: Int,
     horizontalGap: Int,
     verticalGap: Int,
+    forceSeparateLine: Boolean = false,
 ): StableTextTimestampPlacement {
     val requiredWidth = lastLineRight?.plus(statusWidth + horizontalGap)
-    if (requiredWidth != null && requiredWidth <= maxWidth) {
+    if (!forceSeparateLine && requiredWidth != null && requiredWidth <= maxWidth) {
         val width = max(contentWidth, requiredWidth)
         return StableTextTimestampPlacement(
             width, max(contentHeight, statusHeight), width - statusWidth,
@@ -279,7 +281,6 @@ internal fun reservedTextTimestampInset(
     timestamp: TimestampOverlayContent?,
 ): Dp = when {
     timestamp == null -> 0.dp
-    timestamp.isEdited -> 56.dp
     isOwn || timestamp.isSending || timestamp.sendError != null -> 24.dp
     else -> 0.dp
 }

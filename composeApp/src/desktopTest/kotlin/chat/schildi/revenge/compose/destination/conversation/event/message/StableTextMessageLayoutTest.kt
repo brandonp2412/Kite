@@ -68,9 +68,22 @@ class StableTextMessageLayoutTest {
     }
 
     @Test
-    fun editedTextHasReservedWidthFromFirstLayout() {
+    fun editedStatusHasItsOwnFooterWithoutWideningTheMessage() {
+        val layout = stableTextTimestampPlacement(
+            contentWidth = 200, contentHeight = 24, lastLineRight = 200,
+            statusWidth = 50, statusHeight = 18, maxWidth = 320,
+            horizontalGap = 8, verticalGap = 4, forceSeparateLine = true,
+        )
+        assertEquals(200, layout.width)
+        assertEquals(46, layout.height)
+        assertEquals(150, layout.statusX)
+        assertEquals(28, layout.statusY)
+    }
+
+    @Test
+    fun editedTextReservesOnlyDeliverySpace() {
         val edited = TimestampOverlayContent(isEdited = true, isSending = false, sendError = null)
-        assertEquals(56.dp, reservedTextTimestampInset(isOwn = true, timestamp = edited))
-        assertEquals(56.dp, reservedTextTimestampInset(isOwn = false, timestamp = edited))
+        assertEquals(24.dp, reservedTextTimestampInset(isOwn = true, timestamp = edited))
+        assertEquals(0.dp, reservedTextTimestampInset(isOwn = false, timestamp = edited))
     }
 }
