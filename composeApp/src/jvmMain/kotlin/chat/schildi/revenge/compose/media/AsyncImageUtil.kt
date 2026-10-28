@@ -4,7 +4,11 @@ import co.touchlab.kermit.Logger
 import coil3.compose.AsyncImagePainter
 
 fun onAsyncImageError(error: AsyncImagePainter.State.Error) {
-    Logger.withTag("AsyncImage").w("Failed to load image: $error")
+    // The Coil state includes encrypted Matrix media keys in the request model.
+    // Never log the full state or exception message.
+    Logger.withTag("AsyncImage").w(
+        "Failed to load image: " + error.result.throwable.javaClass.simpleName
+    )
 }
 
 fun onAsyncImageState(state: AsyncImagePainter.State) {

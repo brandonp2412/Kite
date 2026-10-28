@@ -40,19 +40,13 @@ class VideoThumbnailFetcherTest {
     }
 
     @Test
-    fun missingServerThumbnailFallsBackToVideoFrameAndCachesIt() = withTempDirectory { dir ->
+    fun serverReturningNonImageBytesFallsBackToVideoFrameAndCachesIt() = withTempDirectory { dir ->
         assumeTrue("ffmpeg is required for desktop video thumbnails", hasFfmpeg())
-        val video = File(dir, "clip.mp4")
-        val process = ProcessBuilder(
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi",
-            "-i", "color=c=red:s=96x64:r=5", "-t", "1",
-            "-c:v", "mpeg4", "-y", video.absolutePath,
-        ).redirectErrorStream(true).start()
-        process.inputStream.use { it.readBytes() }
-        assertTrue(process.waitFor(15, TimeUnit.SECONDS))
-        assertEquals(0, process.exitValue())
-
-        val loader = FakeMediaLoader(dir).apply { videoFile = video }
+        val video = syntheticVideo(dir)
+        val loader = FakeMediaLoader(dir).apply {
+            videoFile = video
+            serverThumbnail = video.readBytes() // The Matrix endpoint reported success with MP4 bytes.
+        }
         val request = MediaRequestData(
             MediaSource("mxc://example.test/video-without-thumb"),
             MediaRequestData.Kind.VideoThumbnail(null, "video/mp4", video.length()),
@@ -66,6 +60,13 @@ class VideoThumbnailFetcherTest {
         assertNotNull(runBlocking { RevengeCoilMediaFetcher(loader, request).fetch() })
         assertEquals(1, loader.thumbnailCalls)
         assertEquals(1, loader.downloadCalls)
+
+        // Simulate the invalid MP4 cache left by the previous app release.
+        cachedFile.writeBytes(video.readBytes())
+        assertNotNull(runBlocking { RevengeCoilMediaFetcher(loader, request).fetch() })
+        assertNotNull(ImageIO.read(cachedFile))
+        assertEquals(2, loader.thumbnailCalls)
+        assertEquals(2, loader.downloadCalls)
     }
 
     @Test
@@ -78,6 +79,34 @@ class VideoThumbnailFetcherTest {
         assertNull(runBlocking { RevengeCoilMediaFetcher(loader, request).fetch() })
         assertEquals(1, loader.thumbnailCalls)
         assertEquals(0, loader.downloadCalls)
+    }
+
+    @Test
+    fun failingServerThumbnailAlsoFallsBackToLocalFrame() = withTempDirectory { dir ->
+        assumeTrue("ffmpeg is required for desktop video thumbnails", hasFfmpeg())
+        val video = syntheticVideo(dir)
+        val loader = FakeMediaLoader(dir).apply { videoFile = video }
+        val request = MediaRequestData(
+            MediaSource("mxc://example.test/failing-thumbnail"),
+            MediaRequestData.Kind.VideoThumbnail(null, "video/mp4", video.length()),
+        )
+        assertNotNull(runBlocking { RevengeCoilMediaFetcher(loader, request).fetch() })
+        assertNotNull(ImageIO.read(assertNotNull(File(dir, "videoPreviews").listFiles()?.singleOrNull())))
+        assertEquals(1, loader.thumbnailCalls)
+        assertEquals(1, loader.downloadCalls)
+    }
+
+    private fun syntheticVideo(dir: File): File {
+        val video = File(dir, "clip.mp4")
+        val process = ProcessBuilder(
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi",
+            "-i", "color=c=red:s=96x64:r=5", "-t", "1",
+            "-c:v", "mpeg4", "-y", video.absolutePath,
+        ).redirectErrorStream(true).start()
+        process.inputStream.use { it.readBytes() }
+        assertTrue(process.waitFor(15, TimeUnit.SECONDS))
+        assertEquals(0, process.exitValue())
+        return video
     }
 
     private fun hasFfmpeg(): Boolean = runCatching {
@@ -105,6 +134,7 @@ class VideoThumbnailFetcherTest {
     private class FakeMediaLoader(override val baseCacheDirectory: File) : MatrixMediaLoader {
         var uploadedImage: ByteArray? = null
         var videoFile: File? = null
+        var serverThumbnail: ByteArray? = null
         var contentCalls = 0
         var thumbnailCalls = 0
         var downloadCalls = 0
@@ -123,7 +153,8 @@ class VideoThumbnailFetcherTest {
             thumbnailCalls++
             assertEquals(800L, width)
             assertEquals(600L, height)
-            return Result.failure(IllegalStateException("Server cannot thumbnail video"))
+            return serverThumbnail?.let { Result.success(it) }
+                ?: Result.failure(IllegalStateException("Server cannot thumbnail video"))
         }
 
         override suspend fun downloadMediaFile(

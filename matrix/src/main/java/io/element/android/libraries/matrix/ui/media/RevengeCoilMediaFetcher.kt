@@ -108,20 +108,30 @@ internal class RevengeCoilMediaFetcher(
         val cacheFile = File(mediaLoader.baseCacheDirectory, "videoPreviews/$key.img")
         return videoPreviewSemaphore.withPermit {
             if (cacheFile.isFile && cacheFile.length() > 0L) {
-                return@withPermit cacheFile.asCachedImageResult()
+                if (cacheFile.hasImagePreviewHeader()) {
+                    return@withPermit cacheFile.asCachedImageResult()
+                }
+                // Earlier builds could cache decrypted video bytes as if they were thumbnails.
+                cacheFile.delete()
             }
 
             // An uploaded thumbnail is already an image; do not call /thumbnail on it.
-            val bytes = kind.thumbnailSource?.let { thumbnailSource ->
+            // Some homeservers return the original MP4 with a successful thumbnail response.
+            val uploaded = kind.thumbnailSource?.let { thumbnailSource ->
                 mediaLoader.loadMediaContent(thumbnailSource)
                     .onFailure { Timber.w("Failed to fetch uploaded video thumbnail: $it") }
                     .getOrNull()
-            } ?: mediaLoader.loadMediaThumbnail(mediaSource, kind.width, kind.height)
-                .onFailure { Timber.w("Failed to fetch server video thumbnail: $it") }
-                .getOrNull()
-                ?: extractVideoFrame(mediaSource, kind)
-
-            if (bytes == null || bytes.isEmpty()) return@withPermit null
+            }?.takeIf { it.isImagePreview() }
+            val server = if (uploaded == null) {
+                mediaLoader.loadMediaThumbnail(mediaSource, kind.width, kind.height)
+                    .onFailure { Timber.w("Failed to fetch server video thumbnail: $it") }
+                    .getOrNull()
+                    ?.takeIf { it.isImagePreview() }
+            } else {
+                null
+            }
+            val bytes = uploaded ?: server ?: extractVideoFrame(mediaSource, kind)
+            if (bytes == null || !bytes.isImagePreview()) return@withPermit null
             val stored = runCatching {
                 cacheFile.parentFile.mkdirs()
                 val tempFile = File.createTempFile("video-preview-", ".tmp", cacheFile.parentFile)
@@ -169,6 +179,31 @@ internal class RevengeCoilMediaFetcher(
             .digest(input.toByteArray(Charsets.UTF_8))
             .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
+
+    /** Reject media endpoints that return MP4/WebM instead of an actual image. */
+    private fun ByteArray.isImagePreview(): Boolean {
+        if (size >= 3 && this[0] == 0xff.toByte() &&
+            this[1] == 0xd8.toByte() && this[2] == 0xff.toByte()
+        ) return true // JPEG
+        if (size >= 8 && this[0] == 0x89.toByte() &&
+            copyOfRange(1, 4).contentEquals(byteArrayOf(0x50, 0x4e, 0x47))
+        ) return true // PNG
+        if (size >= 6 && copyOfRange(0, 3).decodeToString() == "GIF") return true
+        if (size >= 2 && this[0] == 'B'.code.toByte() && this[1] == 'M'.code.toByte()) return true
+        if (size >= 12) {
+            val container = copyOfRange(0, 4).decodeToString()
+            val codec = copyOfRange(8, 12).decodeToString()
+            if (container == "RIFF" && codec == "WEBP") return true
+            if (copyOfRange(4, 8).decodeToString() == "ftyp" &&
+                codec in setOf("avif", "avis", "heic", "heix", "hevc", "mif1", "msf1")
+            ) return true
+        }
+        return false
+    }
+
+    private fun File.hasImagePreviewHeader(): Boolean = runCatching {
+        inputStream().use { input -> input.readNBytes(16).isImagePreview() }
+    }.getOrDefault(false)
 
     private fun File.asCachedImageResult(): SourceFetchResult = SourceFetchResult(
         source = ImageSource(file = toOkioPath(), fileSystem = FileSystem.SYSTEM, closeable = null),
