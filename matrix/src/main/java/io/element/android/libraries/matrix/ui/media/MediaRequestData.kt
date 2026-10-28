@@ -36,6 +36,15 @@ data class MediaRequestData(
         data class Thumbnail(val width: Long, val height: Long) : Kind {
             constructor(size: Long) : this(size, size)
         }
+
+        /** Prefer the sender's thumbnail, then the server thumbnail, then a local video frame. */
+        data class VideoThumbnail(
+            val thumbnailSource: MediaSource?,
+            val mimeType: String?,
+            val sizeBytes: Long?,
+            val width: Long = MAX_THUMBNAIL_WIDTH,
+            val height: Long = MAX_THUMBNAIL_HEIGHT,
+        ) : Kind
     }
 }
 

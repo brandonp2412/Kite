@@ -47,6 +47,12 @@ internal class CoilMediaFetcher(
                     }
                 )
             }
+            is MediaRequestData.Kind.VideoThumbnail ->
+                kind.thumbnailSource?.let { fetchContent(it) }
+                    ?: fetchThumbnail(
+                        mediaSource,
+                        MediaRequestData.Kind.Thumbnail(kind.width, kind.height),
+                    ).getOrNull()
             is MediaRequestData.Kind.File -> fetchFile(mediaSource, kind)
         }
     }

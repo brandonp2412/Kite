@@ -16,14 +16,20 @@ import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import io.element.android.libraries.matrix.api.media.MatrixMediaLoader
 import io.element.android.libraries.matrix.api.media.MediaSource
+import io.element.android.libraries.matrix.api.media.toFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okio.Buffer
 import okio.FileSystem
 import okio.Path.Companion.toOkioPath
 import timber.log.Timber
 import java.io.File
 import java.nio.ByteBuffer
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 
 /**
  * Revenge's alternative to upstream CoilMediaFetcher:
@@ -46,6 +52,7 @@ internal class RevengeCoilMediaFetcher(
         return when (val kind = mediaData.kind) {
             is MediaRequestData.Kind.Content -> fetchFile(mediaSource, buildFileForContentCache(mediaSource.safeUrl))
             is MediaRequestData.Kind.Thumbnail -> fetchThumbnail(mediaSource, kind)
+            is MediaRequestData.Kind.VideoThumbnail -> fetchVideoThumbnail(mediaSource, kind)
             is MediaRequestData.Kind.File -> fetchFile(mediaSource, kind)
         }
     }
@@ -90,6 +97,88 @@ internal class RevengeCoilMediaFetcher(
                 Timber.w("Failed to fetch file: $it")
             }
             .getOrNull()
+    }
+
+    /** Video events often have no uploaded thumbnail, especially bridged media. */
+    private suspend fun fetchVideoThumbnail(
+        mediaSource: MediaSource,
+        kind: MediaRequestData.Kind.VideoThumbnail,
+    ): FetchResult? {
+        val key = videoPreviewCacheKey(mediaSource, kind)
+        val cacheFile = File(mediaLoader.baseCacheDirectory, "videoPreviews/$key.img")
+        return videoPreviewSemaphore.withPermit {
+            if (cacheFile.isFile && cacheFile.length() > 0L) {
+                return@withPermit cacheFile.asCachedImageResult()
+            }
+
+            // An uploaded thumbnail is already an image; do not call /thumbnail on it.
+            val bytes = kind.thumbnailSource?.let { thumbnailSource ->
+                mediaLoader.loadMediaContent(thumbnailSource)
+                    .onFailure { Timber.w("Failed to fetch uploaded video thumbnail: $it") }
+                    .getOrNull()
+            } ?: mediaLoader.loadMediaThumbnail(mediaSource, kind.width, kind.height)
+                .onFailure { Timber.w("Failed to fetch server video thumbnail: $it") }
+                .getOrNull()
+                ?: extractVideoFrame(mediaSource, kind)
+
+            if (bytes == null || bytes.isEmpty()) return@withPermit null
+            val stored = runCatching {
+                cacheFile.parentFile.mkdirs()
+                val tempFile = File.createTempFile("video-preview-", ".tmp", cacheFile.parentFile)
+                try {
+                    tempFile.writeBytes(bytes)
+                    Files.move(tempFile.toPath(), cacheFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                } finally {
+                    tempFile.delete()
+                }
+                cacheFile
+            }.onFailure { Timber.w("Unable to cache video thumbnail: $it") }.getOrNull()
+            stored?.asCachedImageResult() ?: bytes.asSourceResult()
+        }
+    }
+
+    private suspend fun extractVideoFrame(
+        mediaSource: MediaSource,
+        kind: MediaRequestData.Kind.VideoThumbnail,
+    ): ByteArray? {
+        if (kind.sizeBytes != null && kind.sizeBytes > MAX_VIDEO_FRAME_DOWNLOAD_BYTES) {
+            Timber.d("Skipping large video preview download")
+            return null
+        }
+        return mediaLoader.downloadMediaFile(
+            source = mediaSource,
+            mimeType = kind.mimeType ?: "video/mp4",
+            filename = "video-preview-" + videoPreviewCacheKey(mediaSource, kind) + ".video",
+            useCache = true,
+        ).onFailure {
+            Timber.w("Failed to download video for preview: $it")
+        }.getOrNull()?.use { mediaFile ->
+            val file = mediaFile.toFile()
+            if (file.length() > MAX_VIDEO_FRAME_DOWNLOAD_BYTES) return@use null
+            withContext(Dispatchers.IO) { VideoThumbnailPlatform.extractFrame(file) }
+        }
+    }
+
+    private fun videoPreviewCacheKey(
+        source: MediaSource,
+        kind: MediaRequestData.Kind.VideoThumbnail,
+    ): String {
+        val input = source.safeUrl + "|" + kind.thumbnailSource?.safeUrl +
+            "|" + kind.width + "x" + kind.height
+        return MessageDigest.getInstance("SHA-256")
+            .digest(input.toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+    }
+
+    private fun File.asCachedImageResult(): SourceFetchResult = SourceFetchResult(
+        source = ImageSource(file = toOkioPath(), fileSystem = FileSystem.SYSTEM, closeable = null),
+        mimeType = null,
+        dataSource = DataSource.DISK,
+    )
+
+    private companion object {
+        const val MAX_VIDEO_FRAME_DOWNLOAD_BYTES = 80L * 1024L * 1024L
+        val videoPreviewSemaphore = Semaphore(2)
     }
 
     private suspend fun fetchThumbnail(mediaSource: MediaSource, kind: MediaRequestData.Kind.Thumbnail): FetchResult? {

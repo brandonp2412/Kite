@@ -39,7 +39,10 @@ fun VideoMessage(
     modifier: Modifier = Modifier,
 ) {
     VideoMessage(
-        source = video.info?.thumbnailSource ?: video.source,
+        source = video.source,
+        thumbnailSource = video.info?.thumbnailSource,
+        mimeType = video.info?.mimetype,
+        sizeBytes = video.info?.size,
         blurhash = video.info?.blurhash,
         width = video.info?.width,
         height = video.info?.height,
@@ -55,6 +58,9 @@ fun VideoMessage(
 @Composable
 fun VideoMessage(
     source: MediaSource,
+    thumbnailSource: MediaSource? = null,
+    mimeType: String? = null,
+    sizeBytes: Long? = null,
     blurhash: String? = null,
     width: Long? = null,
     height: Long? = null,
@@ -98,7 +104,10 @@ fun VideoMessage(
             )
         }
         VideoMessageContent(
-            model = MediaRequestData(source, MediaRequestData.Kind.Thumbnail(1000)),
+            model = MediaRequestData(
+                source,
+                MediaRequestData.Kind.VideoThumbnail(thumbnailSource, mimeType, sizeBytes),
+            ),
             blurhash = blurhash,
             width = width,
             height = height,

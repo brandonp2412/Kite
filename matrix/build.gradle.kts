@@ -50,6 +50,11 @@ kotlin {
                 implementation(libs.kotlinx.serialization.json)
             }
         }
+        jvmTest {
+            dependencies {
+                implementation(libs.kotlin.testJunit)
+            }
+        }
         androidMain {
             kotlin.srcDirs(
                 "src/main/java",
