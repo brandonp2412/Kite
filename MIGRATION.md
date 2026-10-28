@@ -1849,3 +1849,9 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Nox buildq #1427 passed `:composeApp:desktopTest :composeApp:compileAndroidMain` with JDK 25 and Android SDK configured. An earlier #1426 attempt stopped during Gradle configuration because the shell did not export `ANDROID_HOME`; it did not reach compilation. `git diff --check` passed.
 - Nox buildq #1428 passed signed ARM64 `:androidApp:assembleRelease` including lint and R8. APK `app.kite` 1.0.62 (`101000062`), SHA-256 `66e520d156f0fd8bd8acf36300420c8ccdc319023d64500c1c9e3ec8452ece7d`. The APK certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` independently matches the APK pulled from Samsung.
 - Samsung SM-S931B `adb install -r` succeeded, 1.0.61 → 1.0.62 without uninstall/reset. UID `10847` and original `firstInstallTime=2026-10-16 18:00:56` are unchanged. Live notification-tap/CLS replay was not performed while the phone was on its secure keyguard; no quantified visual improvement claimed yet.
+
+## 2026-10-28 — Align outgoing read receipts with bubbles
+
+- Samsung screenshot showed the read avatar beneath the final outgoing bubble but about 56 dp too far left. The receipt row put `otherSideMarginOutgoing` on its trailing edge even though the mirrored outgoing message layout reserves that margin on the opposite edge.
+- Moved the 56 dp reservation to the receipt row's start padding; the receipt's trailing edge now matches the outgoing bubble's trailing edge in either layout direction. Matrix receipt handling, popup, avatar sizing and event-row spacing are unchanged.
+- `git diff --check` passed. Android/desktop builds and screenshot/device replay remain unverified in this isolated checkout (no Android SDK, JDK 25, buildq or ADB); no Samsung app or data was changed.
