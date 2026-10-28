@@ -95,7 +95,7 @@ import chat.schildi.revenge.compose.destination.conversation.event.isKiteSelecta
 import chat.schildi.revenge.compose.destination.conversation.event.kiteSelectionKey
 import chat.schildi.revenge.compose.destination.conversation.event.resolveMessageSwipeConfig
 import chat.schildi.revenge.compose.destination.conversation.event.message.MessageLayoutNormal
-import chat.schildi.revenge.compose.destination.conversation.event.message.TextLikeMessage
+import chat.schildi.revenge.compose.destination.conversation.event.message.MessageBubble
 import chat.schildi.revenge.compose.destination.conversation.event.message.LocalUrlPreviewStateProvider
 import chat.schildi.revenge.compose.destination.conversation.virtual.PagingIndicator
 import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
@@ -119,7 +119,6 @@ import chat.schildi.revenge.publishTitle
 import chat.schildi.revenge.viewModelKey
 import chat.schildi.theme.scExposures
 import co.touchlab.kermit.Logger
-import com.beeper.android.messageformat.MatrixBodyParseResult
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.core.ThreadId
@@ -179,14 +178,15 @@ private fun NotificationPreviewBubble(
                 }
             },
             messageContent = {
-                // Match the SDK row's text, padding, wrapping and bubble geometry.
-                TextLikeMessage(
-                    text = remember(preview.text) { MatrixBodyParseResult(preview.text) },
-                    isOwn = false,
-                    timestamp = null,
-                    inReplyTo = null,
-                    threadInfo = null,
-                )
+                // Reuse bubble geometry without the full message formatter: that
+                // CompositionLocal is unavailable before the timeline initializes.
+                MessageBubble(isOwn = false, timestamp = null) {
+                    Text(
+                        preview.text,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             },
         )
     }
