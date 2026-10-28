@@ -90,6 +90,9 @@
     <string name="action_send">Send</string>
     <string name="action_clear_reply">Clear reply</string>
     <string name="action_hide">Hide</string>
+    <string name="kite_action_hide_chat_on_device">Hide chat on this device</string>
+    <string name="kite_notice_chat_hidden_on_device">Chat hidden on this device.</string>
+    <string name="kite_action_undo">Undo</string>
     <string name="action_show">Show</string>
     <string name="action_logout">Logout</string>
     <string name="action_cancel">Cancel</string>

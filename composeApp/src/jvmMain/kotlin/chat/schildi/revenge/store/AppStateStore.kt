@@ -36,6 +36,7 @@ data class PersistentScopedRoomKey(
 data class PersistentInboxState(
     val spaceSelection: List<String> = emptyList(),
     val hiddenAccounts: List<String> = emptyList(),
+    val hiddenRooms: List<PersistentScopedRoomKey> = emptyList(),
 )
 
 data class AppStateStore(

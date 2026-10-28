@@ -40,6 +40,7 @@ import chat.schildi.revenge.model.spaces.findInHierarchy
 import chat.schildi.revenge.model.spaces.resolveSelection
 import chat.schildi.revenge.store.AppStateStore
 import chat.schildi.revenge.store.PersistentInboxState
+import chat.schildi.revenge.store.PersistentScopedRoomKey
 import chat.schildi.revenge.util.combine
 import chat.schildi.revenge.util.throttleLatest
 import co.touchlab.kermit.Logger
@@ -163,6 +164,10 @@ class InboxViewModel(
     private val log = Logger.withTag("Inbox")
 
     private val searchTerm = MutableStateFlow<String?>(null)
+    // Kite device-local room presentation state.
+    private val localRoomVisibilityOverrides = MutableStateFlow<Set<ScopedRoomKey>>(emptySet())
+    private val _latestLocalRoomVisibilityChange = MutableStateFlow<ScopedRoomKey?>(null)
+    val latestLocalRoomVisibilityChange = _latestLocalRoomVisibilityChange.asStateFlow()
 
     // If an account is selected, automatically all non-selected accounts are treated as hidden,
     // and selected accounts are even shown even if they're otherwise muted.
@@ -266,10 +271,11 @@ class InboxViewModel(
         allRooms,
         searchTerm,
         UiState.sessionIdOrder,
-    ) { rooms, searchTerm, sessionIdOrder ->
+        localRoomVisibilityOverrides,
+    ) { rooms, searchTerm, sessionIdOrder, localRoomVisibilityOverrides ->
         RoomListState(
             rooms = filterKiteInboxItems(
-                items = rooms,
+                items = rooms.filter { it.key !in localRoomVisibilityOverrides },
                 searchTerm = searchTerm,
                 isSpace = { it.summary.info.isSpace },
                 isPinned = { it.summary.info.isFavorite },
@@ -396,16 +402,30 @@ class InboxViewModel(
                         }
                     }
                 }
+                if (lastInboxState.hiddenRooms.isNotEmpty()) {
+                    localRoomVisibilityOverrides.update {
+                        if (it.isEmpty()) {
+                            lastInboxState.hiddenRooms.map { room -> room.map() }.toSet()
+                        } else {
+                            log.w { "Race condition restoring device-local room visibility from last inbox state" }
+                            it
+                        }
+                    }
+                }
             }
         }
         // Persist inbox state
         combine(
             spaceSelection,
-            hiddenAccounts
-        ) { spaceSelection, hiddenAccounts ->
+            hiddenAccounts,
+            localRoomVisibilityOverrides,
+        ) { spaceSelection, hiddenAccounts, localRoomVisibilityOverrides ->
             PersistentInboxState(
                 spaceSelection = spaceSelection,
                 hiddenAccounts = hiddenAccounts.map { it.value }.sorted(),
+                hiddenRooms = localRoomVisibilityOverrides
+                    .map(PersistentScopedRoomKey::from)
+                    .sortedWith(compareBy({ it.sessionId }, { it.roomId })),
             )
         }
             .distinctUntilChanged()

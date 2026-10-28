@@ -220,6 +220,12 @@ fun WithContextMenu(
         }
     }
 
+    if (expanded && presentation == ContextMenuPresentation.Message) {
+        // This popup remains non-focusable for text selection, so it must consume
+        // Android Back before the conversation navigation handler does.
+        PlatformBackHandler { keyHandler.dismissContextMenu(menuId) }
+    }
+
     Box(
         modifier.onGloballyPositioned {
             anchorBounds[0] = it.boundsInWindow()

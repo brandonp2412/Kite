@@ -34,13 +34,15 @@ import androidx.compose.ui.window.DialogProperties
 import org.kodein.emoji.Emoji
 import org.kodein.emoji.list
 
+private val pickerEmojis by lazy { Emoji.list().map { it.details } }
+
 /** Actual emoji selection instead of switching the composer to reaction-text mode. */
 @Composable
 fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
     var query by remember { mutableStateOf("") }
-    val emojis = remember {
-        Emoji.list().map { it.details }
-    }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val emojis = pickerEmojis
     val results = remember(emojis, query) {
         val search = query.trim()
         if (search.isBlank()) emojis else {
@@ -53,8 +55,6 @@ fun ReactionPickerDialog(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
             }
         }
     }
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
     Dialog(
         onDismissRequest = {
             focusManager.clearFocus(force = true)

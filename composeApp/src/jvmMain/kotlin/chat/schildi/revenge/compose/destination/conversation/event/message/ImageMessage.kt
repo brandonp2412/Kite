@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -91,6 +92,8 @@ fun ImageMessage(
     modifier: Modifier = Modifier,
 ) {
     val hasCaption = messageMetadata?.preFormattedContent != null
+    var decodedAspectRatio by remember(source) { mutableStateOf<Float?>(null) }
+    val imageAspectRatio = decodedAspectRatio ?: aspectRatioOrNull(width, height) ?: 1f
     val isTransparent = !hasCaption && inReplyTo == null
     val captionedTimelineImage = hasCaption && LocalMessageRenderContext.current == MessageRenderContext.NORMAL
     var displayAspectRatio by remember(source, width, height) {
@@ -130,6 +133,8 @@ fun ImageMessage(
             blurhash = blurhash,
             width = width,
             height = height,
+            resolvedAspectRatio = imageAspectRatio,
+            onImageAspectRatio = { ratio -> decodedAspectRatio = ratio },
             minWidth = Dimens.Conversation.imageMinWidth,
             minHeight = Dimens.Conversation.imageMinHeight,
             maxWidth = Dimens.Conversation.imageMaxWidth,
@@ -152,6 +157,8 @@ fun ColumnScope.ImageMessageContent(
     blurhash: String? = null,
     width: Long? = null,
     height: Long? = null,
+    resolvedAspectRatio: Float? = null,
+    onImageAspectRatio: (Float) -> Unit = {},
     minWidth: Dp,
     minHeight: Dp,
     maxWidth: Dp,
@@ -185,7 +192,15 @@ fun ColumnScope.ImageMessageContent(
             model = model,
             contentDescription = null,
             imageLoader = imageLoader(),
-            onState = ::onAsyncImageState,
+            onState = { state ->
+                onAsyncImageState(state)
+                if (state is AsyncImagePainter.State.Success) {
+                    val decoded = state.painter.intrinsicSize
+                    if (decoded.width.isFinite() && decoded.height.isFinite() && decoded.width > 0f && decoded.height > 0f) {
+                        onImageAspectRatio(decoded.width / decoded.height)
+                    }
+                }
+            },
             transform = rememberAnimatedImageTransform(),
             filterQuality = FilterQuality.High,
             contentScale = ContentScale.Fit,
