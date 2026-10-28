@@ -19,6 +19,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -49,6 +51,7 @@ import shire.res.generated.resources.send_error_sending_from_unverified_device
 import shire.res.generated.resources.send_error_unknown
 import shire.res.generated.resources.send_error_verified_user_changed_identity
 import shire.res.generated.resources.send_error_verified_user_has_unsigned_device
+import kotlinx.coroutines.delay
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -294,9 +297,19 @@ private fun TimestampContent(
 ) {
     if (content == null) return
 
+    // Delay the clock so successful quick sends never flash a sending indicator.
+    val delayedSending = remember(content.isSending) { mutableStateOf(false) }
+    if (content.isSending) {
+        LaunchedEffect(content.isSending) {
+            delay(750L)
+            delayedSending.value = true
+        }
+    }
+    val showSending = content.isSending && delayedSending.value
+
     // Sent time is only available in the long-press menu; show status decorations only.
     val hasStatusDecoration = content.isEdited ||
-            content.isSending ||
+            showSending ||
             content.sendError != null
     if (!hasStatusDecoration && !reserveSendingSpace) return
 
@@ -325,7 +338,7 @@ private fun TimestampContent(
         }
         // A single predetermined slot handles sending, failed and sent states.
         // The failed icon must never append extra width and rewrap the bubble.
-        if (reserveSendingSpace || content.isSending || content.sendError != null) {
+        if (reserveSendingSpace || showSending || content.sendError != null) {
             Box(Modifier.size(Dimens.Conversation.timestampDecorationIcon)) {
                 if (content.sendError != null) {
                     val errorText: String = when (content.sendError) {
@@ -350,7 +363,7 @@ private fun TimestampContent(
                         stringResource(Res.string.hint_sending),
                         tint = textColor,
                         modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon)
-                            .alpha(if (content.isSending) 1f else 0f),
+                            .alpha(if (showSending) 1f else 0f),
                     )
                 }
             }
