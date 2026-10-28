@@ -1,10 +1,18 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ConversationScreenLayoutTest {
+    @Test
+    fun notifiedEventKeepsTheSameTimelineSlotAfterSdkReconciliation() {
+        assertEquals("matrix-event:\$event", notificationTimelineKey("\$event"))
+        assertEquals(notificationTimelineKey("\$event"), notificationTimelineKey("\$event"))
+        assertFalse(notificationTimelineKey("\$event") == notificationTimelineKey("\$other"))
+    }
+
     @Test
     fun senderDetailsAreHiddenForOneToOneSizedRooms() {
         assertFalse(shouldShowTimelineSenderDetails(null))

@@ -94,6 +94,7 @@ import chat.schildi.revenge.compose.destination.conversation.event.rememberHeart
 import chat.schildi.revenge.compose.destination.conversation.event.isKiteSelectableMessage
 import chat.schildi.revenge.compose.destination.conversation.event.kiteSelectionKey
 import chat.schildi.revenge.compose.destination.conversation.event.resolveMessageSwipeConfig
+import chat.schildi.revenge.compose.destination.conversation.event.message.MessageLayoutNormal
 import chat.schildi.revenge.compose.destination.conversation.event.message.LocalUrlPreviewStateProvider
 import chat.schildi.revenge.compose.destination.conversation.virtual.PagingIndicator
 import chat.schildi.revenge.compose.destination.split.requireSinglePaneLayout
@@ -115,6 +116,7 @@ import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.plaintext.EventTextFormat
 import chat.schildi.revenge.publishTitle
 import chat.schildi.revenge.viewModelKey
+import chat.schildi.theme.scExposures
 import co.touchlab.kermit.Logger
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
@@ -132,6 +134,7 @@ import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
@@ -140,18 +143,56 @@ import shire.res.generated.resources.action_jump_to_unread
 import kotlin.math.absoluteValue
 import kotlin.math.sign
 
+internal fun notificationTimelineKey(eventId: String) = "matrix-event:$eventId"
+
 @Composable
-private fun NotificationPreviewBubble(preview: NotificationOpenPreview, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
-        Text(
-            preview.text,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .fillMaxWidth(0.8f)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(20.dp))
-                .padding(horizontal = 14.dp, vertical = 9.dp),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+private fun NotificationPreviewBubble(
+    preview: NotificationOpenPreview,
+    showSenderDetails: Boolean = false,
+    joinsPreviousBubble: Boolean = false,
+    hasPreviousMessage: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        if (hasPreviousMessage) {
+            Spacer(Modifier.height(
+                if (joinsPreviousBubble) Dimens.Conversation.messageSameSenderPadding
+                else Dimens.Conversation.messageOtherSenderPadding
+            ))
+        }
+        MessageLayoutNormal(
+            isOwn = false,
+            showSenderDetails = showSenderDetails,
+            joinsPreviousBubble = joinsPreviousBubble,
+            joinsNextBubble = false,
+            senderAvatar = {},
+            senderName = {
+                if (!joinsPreviousBubble) {
+                    Text(
+                        preview.senderName ?: preview.senderId.orEmpty(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.scExposures.accentColor,
+                        maxLines = 1,
+                    )
+                }
+            },
+            messageContent = {
+                Text(
+                    preview.text,
+                    modifier = Modifier
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            Dimens.Conversation.messageBubbleShape(
+                                isOwn = false,
+                                joinsPrevious = joinsPreviousBubble,
+                                joinsNext = false,
+                            ),
+                        )
+                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            },
         )
     }
 }
@@ -240,7 +281,11 @@ fun ConversationScreen(
             (it.item as? MatrixTimelineItem.Event)?.eventId?.value == openPreview.eventId
         } == true
         LaunchedEffect(openPreview, previewInTimeline) {
-            if (openPreview != null && previewInTimeline) NotificationOpenPreviews.clearIfCurrent(openPreview)
+            if (openPreview != null && previewInTimeline) {
+                // Keep placement animations off until the SDK handoff has settled.
+                delay(300)
+                NotificationOpenPreviews.clearIfCurrent(openPreview)
+            }
         }
         val visibleOpenPreview = openPreview?.takeUnless { previewInTimeline }
         // Keep selected timeline objects directly so toggling selection stays O(1) with
@@ -337,7 +382,7 @@ fun ConversationScreen(
                         if (visibleOpenPreview != null) {
                             NotificationPreviewBubble(
                                 visibleOpenPreview,
-                                Modifier.align(Alignment.BottomStart),
+                                modifier = Modifier.align(Alignment.BottomStart),
                             )
                         } else {
                             SplashScreenContent(
@@ -877,6 +922,22 @@ fun ConversationScreen(
                                 .asPaddingValues()
                         }
                     ) {
+                        // Keep the notified event in the list's newest slot. Its replacement
+                        // by the SDK event then keeps the older messages at the same offsets.
+                        visibleOpenPreview?.let { preview ->
+                            item(key = notificationTimelineKey(preview.eventId)) {
+                                val previousEvent = (renderedItems.firstOrNull()?.item as? MatrixTimelineItem.Event)?.event
+                                val joinsPrevious = previousEvent != null &&
+                                    previousEvent.sender.value == preview.senderId &&
+                                    previousEvent.content is MessageContent
+                                NotificationPreviewBubble(
+                                    preview = preview,
+                                    showSenderDetails = showSenderDetails,
+                                    joinsPreviousBubble = joinsPrevious,
+                                    hasPreviousMessage = previousEvent != null,
+                                )
+                            }
+                        }
                         itemsIndexed(
                             renderedItems,
                             key = { index, item ->
@@ -884,7 +945,10 @@ fun ConversationScreen(
                                     // The SDK uniqueId is stable while a local echo becomes a
                                     // remote event. Event/transaction IDs are not, and re-keying
                                     // the row makes the reversed list jump on every send.
-                                    is MatrixTimelineItem.Event -> timelineItem.uniqueId
+                                    is MatrixTimelineItem.Event -> timelineItem.event.eventId
+                                        ?.takeIf { !timelineItem.event.isOwn }
+                                        ?.let { notificationTimelineKey(it.value) }
+                                        ?: timelineItem.uniqueId
                                     MatrixTimelineItem.Other -> index
                                     is MatrixTimelineItem.Virtual -> timelineItem.uniqueId
                                 }
@@ -956,11 +1020,6 @@ fun ConversationScreen(
                             }
                         }
                     }
-                    }
-                    // Overlay the temporary push text without resizing the real timeline.
-                    // Otherwise its removal makes the whole chat jump when sync catches up.
-                    visibleOpenPreview?.let {
-                        NotificationPreviewBubble(it, Modifier.align(Alignment.BottomStart))
                     }
 
                     // Jump-to-message FABs

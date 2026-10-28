@@ -97,6 +97,8 @@ object AndroidNotifier {
     private const val EXTRA_EVENT_IDS = "event_ids"
     private const val EXTRA_PREVIEW_EVENT_ID = "notification_preview_event_id"
     private const val EXTRA_PREVIEW_TEXT = "notification_preview_text"
+    private const val EXTRA_PREVIEW_SENDER_ID = "notification_preview_sender_id"
+    private const val EXTRA_PREVIEW_SENDER_NAME = "notification_preview_sender_name"
     private const val EXTRA_PREVIEW_TOKEN = "notification_preview_token"
     private const val EXTRA_PREVIEW_POSTED_AT = "notification_preview_posted_at"
     private const val PREVIEW_TOKEN_PREFS = "notification_open_tokens"
@@ -356,7 +358,13 @@ object AndroidNotifier {
                     sessionId = id.sessionId.value,
                     roomId = id.roomId.value,
                     eventId = data.eventId.value,
-                    text = plainMessageText.take(4096),
+                    text = NotificationEventTextFormat.notificationToText(
+                        data,
+                        attachmentMode = AttachmentFormatMode.Auto,
+                        prefixSenderInGroupChats = false,
+                    ).take(4096),
+                    senderId = data.senderId.value,
+                    senderName = senderName,
                 )
             }
         // Update on every event: grouped notifications otherwise keep the first event's intent.
@@ -611,7 +619,13 @@ object AndroidNotifier {
         val key = previewTokenKey(sessionId, roomId)
         if (prefs.getString(key, null) != token) return
         prefs.edit().remove(key).apply()
-        NotificationOpenPreviews.show(NotificationOpenPreview(sessionId, roomId, eventId, text))
+        NotificationOpenPreviews.show(
+            NotificationOpenPreview(
+                sessionId, roomId, eventId, text,
+                senderId = intent.getStringExtra(EXTRA_PREVIEW_SENDER_ID),
+                senderName = intent.getStringExtra(EXTRA_PREVIEW_SENDER_NAME),
+            )
+        )
     }
 
     private fun NotificationId.createIntent(
@@ -643,6 +657,8 @@ object AndroidNotifier {
             if (prefs.edit().putString(previewTokenKey(sessionId.value, roomId.value), token).commit()) {
                 intent.putExtra(EXTRA_PREVIEW_EVENT_ID, preview.eventId)
                 intent.putExtra(EXTRA_PREVIEW_TEXT, preview.text)
+                intent.putExtra(EXTRA_PREVIEW_SENDER_ID, preview.senderId)
+                intent.putExtra(EXTRA_PREVIEW_SENDER_NAME, preview.senderName)
                 intent.putExtra(EXTRA_PREVIEW_TOKEN, token)
                 intent.putExtra(EXTRA_PREVIEW_POSTED_AT, System.currentTimeMillis())
             }

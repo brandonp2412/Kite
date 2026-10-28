@@ -9,6 +9,8 @@ data class NotificationOpenPreview(
     val roomId: String,
     val eventId: String,
     val text: String,
+    val senderId: String? = null,
+    val senderName: String? = null,
     val capturedAt: Long = System.currentTimeMillis(),
 )
 
