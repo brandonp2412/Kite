@@ -123,7 +123,7 @@ object Dimens {
         val emojiOnlyMessageStyle
             @Composable get() = MaterialTheme.typography.headlineLarge.copy(
                 textDirection = TextDirection.Content,
-                lineHeight = MaterialTheme.typography.headlineLarge.fontSize,
+                lineHeight = MaterialTheme.typography.headlineLarge.fontSize * 1.3f,
             )
                 .merge(fontFamily = rememberEmojiFontFamily())
         val messageTimestampStyle
