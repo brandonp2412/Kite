@@ -57,6 +57,8 @@ fun ConversationItemRow(
     roomMembersById: ImmutableMap<UserId, RoomMember>,
     next: ScTimelineItem?,
     previous: ScTimelineItem?,
+    previousVisibleEvent: EventTimelineItem?,
+    nextVisibleEvent: EventTimelineItem?,
     previousEvent: MatrixTimelineItem.Event?,
     fullyReadEvent: FullyReadEventState?,
     currentThreadId: ThreadId?,
@@ -128,10 +130,10 @@ fun ConversationItemRow(
                     )
                 }
 
-                val directPreviousEvent = (previous?.item as? MatrixTimelineItem.Event)?.event
-                    ?.takeUnless { it.isKiteServerEvent() }
-                val directNextEvent = (next?.item as? MatrixTimelineItem.Event)?.event
-                    ?.takeUnless { it.isKiteServerEvent() }
+                // Raw neighbors may be invisible state events. Grouping and spacing
+                // must follow the adjacent *rendered* messages instead.
+                val directPreviousEvent = previousVisibleEvent
+                val directNextEvent = nextVisibleEvent
                 val previousSender = directPreviousEvent?.sender?.takeIf { !showUnreadLine }
                 val isSameAsPreviousSender = previousSender == item.item.event.sender &&
                         directPreviousEvent.content is MessageContent &&
@@ -192,7 +194,7 @@ fun ConversationItemRow(
 }
 
 
-private fun EventTimelineItem.isKiteServerEvent(): Boolean = when (content) {
+internal fun EventTimelineItem.isKiteServerEvent(): Boolean = when (content) {
     is RoomMembershipContent,
     is ProfileChangeContent,
     is StateContent,

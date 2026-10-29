@@ -751,6 +751,18 @@ fun ConversationScreen(
                     val renderedItems = remember(timelineItems) {
                         timelineItems.reversed().toPersistentList()
                     }
+                    val visibleNeighborIndices = remember(renderedItems) {
+                        calculateVisibleTimelineNeighbors(renderedItems.map { timelineItem ->
+                            when (val matrixItem = timelineItem.item) {
+                                is MatrixTimelineItem.Event -> if (matrixItem.event.isKiteServerEvent()) {
+                                    TimelineRowKind.Hidden
+                                } else {
+                                    TimelineRowKind.Event
+                                }
+                                else -> TimelineRowKind.Boundary
+                            }
+                        })
+                    }
                     // Position the FIRST unread event using the measured timeline viewport and
                     // row height. The old half-of-the-window offset could leave it hidden
                     // behind the composer or clipped, especially for long messages.
@@ -974,6 +986,12 @@ fun ConversationScreen(
                                 item = item,
                                 next = next,
                                 previous = previous,
+                                previousVisibleEvent = (renderedItems.getOrNull(
+                                    visibleNeighborIndices.older[index]
+                                )?.item as? MatrixTimelineItem.Event)?.event,
+                                nextVisibleEvent = (renderedItems.getOrNull(
+                                    visibleNeighborIndices.newer[index]
+                                )?.item as? MatrixTimelineItem.Event)?.event,
                                 previousEvent = getNextItem(
                                     index,
                                     renderedItems::getOrNull,
