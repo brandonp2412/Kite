@@ -1,6 +1,6 @@
 package chat.schildi.revenge.compose.destination.conversation
 
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -917,7 +917,13 @@ fun ConversationScreen(
                     }
 
                     val messagePlacementSpec = remember {
-                        tween<IntOffset>(durationMillis = 180, easing = FastOutSlowInEasing)
+                        // Start moving immediately, then settle. Keep the same 180 ms budget;
+                        // the old ease-in delayed motion before a noticeable mid-flight surge.
+                        tween<IntOffset>(durationMillis = 180, easing = LinearOutSlowInEasing)
+                    }
+                    val messageArrivalSpec = remember {
+                        // Soften the new bubble’s first frame while older rows make room.
+                        tween<Float>(durationMillis = 90, easing = LinearOutSlowInEasing)
                     }
                     CompositionLocalProvider(LocalHeartBurstState provides heartBurst) {
                     LazyColumn(
@@ -1021,7 +1027,9 @@ fun ConversationScreen(
                                 isBackwardPaging = isBackwardPaging,
                                 isForwardPaging = isForwardPaging,
                                 modifier = Modifier.animateItem(
-                                    fadeInSpec = null,
+                                    // Only the newest real message enters; paginated history
+                                    // and notification handoff never fade or delay.
+                                    fadeInSpec = if (openPreview == null && index == 0) messageArrivalSpec else null,
                                     fadeOutSpec = null,
                                     // The notified event must replace its preview in place,
                                     // without animating previously visible messages.
