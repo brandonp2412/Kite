@@ -143,12 +143,10 @@ fun ConversationItemRow(
                         directNextEvent.content is MessageContent &&
                         item.item.event.content is MessageContent &&
                         directNextEvent.content.perMessageProfile() == item.item.event.content.perMessageProfile()
-                val padding = when (previousSender) {
-                    null -> 0.dp
-                    item.item.event.sender -> Dimens.Conversation.messageSameSenderPadding
-                    else -> Dimens.Conversation.messageOtherSenderPadding
-                }
-                Spacer(Modifier.height(padding))
+                Spacer(Modifier.height(messageGapBeforeEvent(
+                    hasOlderVisibleMessage = directPreviousEvent != null,
+                    hasUnreadSeparator = showUnreadLine,
+                )))
                 EventRow(
                     viewModel,
                     item.item.event,

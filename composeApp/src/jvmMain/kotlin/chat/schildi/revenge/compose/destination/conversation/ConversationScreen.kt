@@ -156,10 +156,7 @@ private fun NotificationPreviewBubble(
 ) {
     Column(modifier.fillMaxWidth()) {
         if (hasPreviousMessage) {
-            Spacer(Modifier.height(
-                if (joinsPreviousBubble) Dimens.Conversation.messageSameSenderPadding
-                else Dimens.Conversation.messageOtherSenderPadding
-            ))
+            Spacer(Modifier.height(Dimens.Conversation.messageRowSpacing))
         }
         MessageLayoutNormal(
             isOwn = false,

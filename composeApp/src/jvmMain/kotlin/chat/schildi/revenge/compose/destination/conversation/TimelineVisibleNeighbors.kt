@@ -1,5 +1,9 @@
 package chat.schildi.revenge.compose.destination.conversation
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import chat.schildi.revenge.Dimens
+
 /** Timeline rows in newest-first order. Hidden rows do not separate visible bubbles. */
 internal enum class TimelineRowKind { Event, Hidden, Boundary }
 
@@ -31,4 +35,14 @@ internal fun calculateVisibleTimelineNeighbors(rows: List<TimelineRowKind>): Tim
         }
     }
     return TimelineVisibleNeighbors(older, newer)
+}
+
+// Unread markers and day boundaries own their own vertical separation.
+internal fun messageGapBeforeEvent(
+    hasOlderVisibleMessage: Boolean,
+    hasUnreadSeparator: Boolean,
+): Dp = if (hasOlderVisibleMessage && !hasUnreadSeparator) {
+    Dimens.Conversation.messageRowSpacing
+} else {
+    0.dp
 }

@@ -2,8 +2,17 @@ package chat.schildi.revenge.compose.destination.conversation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import androidx.compose.ui.unit.dp
 
 class TimelineVisibleNeighborsTest {
+    @Test
+    fun messageGapDoesNotDependOnSenderGrouping() {
+        // All adjacent rendered messages use the same 8 dp rhythm.
+        assertEquals(8.dp, messageGapBeforeEvent(true, false))
+        assertEquals(0.dp, messageGapBeforeEvent(false, false))
+        assertEquals(0.dp, messageGapBeforeEvent(true, true))
+    }
+
     @Test
     fun invisibleServerEventsDoNotEraseSenderChangeGutters() {
         // A newer incoming bubble separated from an older outgoing bubble by

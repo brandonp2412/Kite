@@ -98,8 +98,8 @@ object Dimens {
         val timelineHorizontalPadding = 8.dp
         val timelineSurfaceShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         val imageBubbleInnerPadding = 0.dp
-        val messageSameSenderPadding = 4.dp
-        val messageOtherSenderPadding = 12.dp
+        // One visual rhythm for adjacent messages, regardless of sender grouping.
+        val messageRowSpacing = 8.dp
         val captionPadding = 8.dp
         val timestampPaddingWithOverlayBg = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
         val timestampHorizontalPaddingToText = 6.dp
