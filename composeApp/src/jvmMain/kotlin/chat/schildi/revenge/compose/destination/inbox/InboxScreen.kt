@@ -1,5 +1,7 @@
 package chat.schildi.revenge.compose.destination.inbox
 
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,6 +53,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -94,6 +97,14 @@ import shire.res.generated.resources.empty_screen_placeholder_inbox
 val LocalInboxListState = compositionLocalOf<LazyListState?> { null }
 
 private val KiteSearchBarReserve = 88.dp
+
+// Animate a changed inbox order without overshoot. Reuse the specs for every row.
+private val inboxRowEnterSpec = tween<Float>(durationMillis = 120)
+private val inboxRowExitSpec = tween<Float>(durationMillis = 90)
+private val inboxRowPlacementSpec = tween<IntOffset>(
+    durationMillis = 180,
+    easing = LinearOutSlowInEasing,
+)
 
 @OptIn(FlowPreview::class)
 @Composable
@@ -287,6 +298,17 @@ fun InboxScreen(
                                     needsAccountDisambiguation = needsDisambiguation,
                                     pendingForward = pendingForward,
                                     unreadCountPreferences = unreadCountPreferences,
+                                    // A new chat fades into its slot while the existing keyed
+                                    // rows slide together. Search results stay instantaneous.
+                                    modifier = if (roomsState.searchTerm == null) {
+                                        Modifier.animateItem(
+                                            fadeInSpec = inboxRowEnterSpec,
+                                            fadeOutSpec = inboxRowExitSpec,
+                                            placementSpec = inboxRowPlacementSpec,
+                                        )
+                                    } else {
+                                        Modifier
+                                    },
                                 )
                             }
                         }
