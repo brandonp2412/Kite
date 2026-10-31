@@ -84,7 +84,7 @@ def set_avatar(base, server, token, user, name, color):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--url", default="http://192.168.240.1:18887")
+    parser.add_argument("--url", required=True)
     parser.add_argument("--server-name", default="kite-screenshots.test")
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)

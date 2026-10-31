@@ -2,23 +2,23 @@
 
 All screenshots are genuine Kite Android captures with fictional Matrix accounts, messages and media. The generator captures both themes, then selects exactly eight images for Fastlane. The app draws every message, reaction, emoji, menu and system bar; no renderer recreates its UI.
 
-## Recreate on Glass
+## Recreate in an isolated emulator
 
-Start a disposable Synapse bound only to Waydroid's network (replace the temporary directory if required):
+Choose an interface address reachable only by the isolated Android emulator, and set `HOST_BIND_IP` to that address. Start a disposable Synapse server:
 
 ```sh
 mkdir -p /tmp/kite-screenshots-synapse
 docker run --rm -e SYNAPSE_SERVER_NAME=kite-screenshots.test -e SYNAPSE_REPORT_STATS=no -v /tmp/kite-screenshots-synapse:/data matrixdotorg/synapse:latest generate
-docker run -d --name kite-screenshots-synapse -p 192.168.240.1:18887:8008 -v /tmp/kite-screenshots-synapse:/data matrixdotorg/synapse:latest
-python3 scripts/screenshot_fixture.py --config /tmp/kite-screenshots-synapse/homeserver.yaml --output /tmp/kite-fixture-login.json
+docker run -d --name kite-screenshots-synapse -p "$HOST_BIND_IP:18887:8008" -v /tmp/kite-screenshots-synapse:/data matrixdotorg/synapse:latest
+python3 scripts/screenshot_fixture.py --url "http://$HOST_BIND_IP:18887" --config /tmp/kite-screenshots-synapse/homeserver.yaml --output /tmp/kite-fixture-login.json
 ```
 
 Seed a fresh server **once**; repeating the seeder would create duplicate rooms. `rsvg-convert` is needed to generate its fictional artwork. The login JSON contains dummy account credentials and must stay private.
 
-Build with `/home/brandon/.local/bin/buildq --wait -- ./gradlew :androidApp:assemblePerfDebug -PandroidAbi=x86 --offline --no-daemon`, install the resulting APK onto the isolated Waydroid device, and sign into `http://192.168.240.1:18887` as `taylor` using the password in that JSON. Do not capture or sign into a production Matrix account.
+Build with `buildq --wait -- ./gradlew :androidApp:assemblePerfDebug -PandroidAbi=x86 --offline --no-daemon`, install the resulting APK onto the isolated emulator, and sign into the host URL as `taylor` using the password in that JSON. Set `ANDROID_SERIAL` to its ADB serial. Do not capture or sign into a production Matrix account.
 
 ```sh
-python3 scripts/generate_screenshots.py --device 192.168.240.112:5555
+python3 scripts/generate_screenshots.py --device "$ANDROID_SERIAL"
 python3 scripts/generate_screenshots.py --verify
 ```
 

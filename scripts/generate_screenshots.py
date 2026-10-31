@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -14,7 +15,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 GALLERY = ROOT / "screenshots/generated/native"
 STORE = ROOT / "metadata/en-US/images/phoneScreenshots"
-DEVICE_FILTER = "/home/brandon/.local/bin/mobile-mcp-device-filter"
+DEVICE_FILTER = os.environ.get("MOBILE_DEVICE_FILTER") or shutil.which("mobile-mcp-device-filter")
 FIXTURE_USER = "@taylor:kite-screenshots.test"
 
 # Play listing: exactly eight genuine device captures, ordered by impact.
@@ -41,6 +42,8 @@ class Android:
         return self.adb("shell", *args)
 
     def nodes(self):
+        if not DEVICE_FILTER:
+            raise RuntimeError("Set MOBILE_DEVICE_FILTER or install mobile-mcp-device-filter")
         result = subprocess.run(
             [DEVICE_FILTER, "dump", "ui", "--device", self.serial],
             capture_output=True, text=True, check=True, timeout=30,
@@ -346,7 +349,7 @@ def verify():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--device", default="192.168.240.112:5555")
+    parser.add_argument("--device", default=os.environ.get("ANDROID_SERIAL"))
     parser.add_argument("--theme", choices=["both", "light", "dark"], default="both")
     parser.add_argument("--curate-only", action="store_true")
     parser.add_argument("--verify", action="store_true")
@@ -358,6 +361,8 @@ def main():
         manifest = json.loads((ROOT / "screenshots/native-manifest.json").read_text())
         promote(manifest["screenshots"])
         return
+    if not args.device:
+        parser.error("--device or ANDROID_SERIAL is required for capture")
     device = Android(args.device)
     if "app.kite" not in device.shell("pm", "list", "packages", "app.kite"):
         raise RuntimeError("Install Kite on the isolated Android device first")

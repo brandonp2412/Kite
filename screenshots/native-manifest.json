@@ -1,6 +1,6 @@
 {
   "source": "adb exec-out screencap -p",
-  "device": "192.168.240.112:5555",
+  "device": "isolated-android-emulator",
   "fixture_user": "@taylor:kite-screenshots.test",
   "screenshots": [
     {
