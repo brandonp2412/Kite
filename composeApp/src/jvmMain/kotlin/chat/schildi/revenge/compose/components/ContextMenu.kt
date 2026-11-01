@@ -311,20 +311,6 @@ fun WithContextMenu(
                 val actionRows = shownEntries.filterIsInstance<ContextMenuActionRowEntry>()
                 val menuEntries = shownEntries.filterNot { it is ContextMenuActionRowEntry }
 
-                if (messageTimestamp != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
-                    ) {
-                        Text(
-                            text = messageTimestamp,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        )
-                    }
-                }
                 if (actionRows.isNotEmpty()) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
@@ -341,6 +327,20 @@ fun WithContextMenu(
                                 onComposeReaction = onComposeReaction,
                             )
                         }
+                    }
+                }
+                if (messageTimestamp != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+                    ) {
+                        Text(
+                            text = messageTimestamp,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
                     }
                 }
                 if (menuEntries.isNotEmpty()) {
