@@ -83,7 +83,6 @@ fun EventTimelineItem.contextMenu(
     ).takeIf { canReact }
 
     return listOfNotNull<ContextMenuEntry>(
-        reactionsRow,
         ContextMenuCallbackEntry(
             title = if (isSelected) {
                 Res.string.action_deselect_message.toStringHolder()
@@ -111,6 +110,7 @@ fun EventTimelineItem.contextMenu(
             keyboardShortcut = Key.D,
             enabled = canRedact,
         ),
+        reactionsRow,
     ).toPersistentList()
 }
 

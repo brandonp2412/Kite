@@ -311,24 +311,6 @@ fun WithContextMenu(
                 val actionRows = shownEntries.filterIsInstance<ContextMenuActionRowEntry>()
                 val menuEntries = shownEntries.filterNot { it is ContextMenuActionRowEntry }
 
-                if (actionRows.isNotEmpty()) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = MaterialTheme.shapes.extraLarge,
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    ) {
-                        actionRows.forEach { entry ->
-                            ContextMenuDropdownMenuItem(
-                                entry = entry,
-                                focusId = focusId,
-                                menuId = menuId,
-                                presentation = presentation,
-                                onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
-                                onComposeReaction = onComposeReaction,
-                            )
-                        }
-                    }
-                }
                 if (messageTimestamp != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
@@ -360,6 +342,25 @@ fun WithContextMenu(
                                     onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
                                 )
                             }
+                        }
+                    }
+                }
+
+                if (actionRows.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.extraLarge,
+                        modifier = Modifier.padding(top = 6.dp),
+                    ) {
+                        actionRows.forEach { entry ->
+                            ContextMenuDropdownMenuItem(
+                                entry = entry,
+                                focusId = focusId,
+                                menuId = menuId,
+                                presentation = presentation,
+                                onClick = { keyHandler.handleContextMenuEntry(focusId, menuId, entry) },
+                                onComposeReaction = onComposeReaction,
+                            )
                         }
                     }
                 }
