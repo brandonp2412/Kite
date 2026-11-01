@@ -42,7 +42,7 @@ fun ComposerAttachment(
                 )
             )
             .padding(start = if (isVisual) 0.dp else 10.dp, end = 2.dp, top = 8.dp, bottom = 8.dp),
-        horizontalArrangement = if (isVisual) Arrangement.Center else Arrangement.Start,
+        horizontalArrangement = Arrangement.Start,
         verticalAlignment = if (isVisual) Alignment.Top else Alignment.CenterVertically,
     ) {
         ComposerAttachmentContent(
