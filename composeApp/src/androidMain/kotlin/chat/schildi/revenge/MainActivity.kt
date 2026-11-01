@@ -37,6 +37,7 @@ import chat.schildi.revenge.model.DraftKey
 import chat.schildi.revenge.model.IncomingShare
 import chat.schildi.revenge.model.PendingShare
 import chat.schildi.revenge.model.SharedFile
+import chat.schildi.revenge.notification.AndroidReadNotificationSync
 import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.util.filepicker.AndroidFilePickerLauncher
 import chat.schildi.revenge.util.filepicker.FilePicker
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
             !UiState.initialClientRestoreComplete.value
         }
         super.onCreate(savedInstanceState)
+        AndroidReadNotificationSync.launch()
         enableEdgeToEdge()
 
         onBackPressedDispatcher.addCallback(this, backCallback)
