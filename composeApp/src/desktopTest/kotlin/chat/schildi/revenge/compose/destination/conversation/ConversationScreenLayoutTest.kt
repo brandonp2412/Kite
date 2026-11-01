@@ -25,4 +25,11 @@ class ConversationScreenLayoutTest {
         assertTrue(shouldShowTimelineSenderDetails(3))
         assertTrue(shouldShowTimelineSenderDetails(24))
     }
+
+    @Test
+    fun keyboardInsetTransitionDoesNotTweenTimelineItems() {
+        assertFalse(shouldAnimateTimelinePlacement(hasNotificationPreview = false, imeTransitioning = true))
+        assertFalse(shouldAnimateTimelinePlacement(hasNotificationPreview = true, imeTransitioning = false))
+        assertTrue(shouldAnimateTimelinePlacement(hasNotificationPreview = false, imeTransitioning = false))
+    }
 }

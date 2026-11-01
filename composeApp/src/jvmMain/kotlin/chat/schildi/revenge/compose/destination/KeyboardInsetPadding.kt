@@ -11,3 +11,7 @@ import androidx.compose.ui.unit.dp
  */
 internal fun imeAwareBottomPadding(navigationBarBottom: Dp, imeBottom: Dp): Dp =
     12.dp + (navigationBarBottom - imeBottom).coerceAtLeast(0.dp)
+
+/** Android exposes animation endpoints; desktop has no software keyboard inset animation. */
+@androidx.compose.runtime.Composable
+internal expect fun isImeTransitionInProgress(): Boolean

@@ -86,6 +86,7 @@ import chat.schildi.revenge.actions.rememberListActions
 import chat.schildi.revenge.compose.composer.ComposerRow
 import chat.schildi.revenge.compose.components.PlatformBackHandler
 import chat.schildi.revenge.compose.destination.imeAwareBottomPadding
+import chat.schildi.revenge.compose.destination.isImeTransitionInProgress
 import chat.schildi.revenge.compose.destination.SplashScreenContent
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
 import chat.schildi.revenge.compose.destination.conversation.event.LocalHeartBurstState
@@ -262,6 +263,10 @@ fun ConversationScreen(
             .asPaddingValues()
             .calculateBottomPadding()
         val composerBottomPadding = imeAwareBottomPadding(navigationBottomPadding, imeBottomPadding)
+        // The IME already animates the window inset on Android. Do not apply the
+        // independent item-placement tween to the same viewport resize: it makes
+        // bubbles lag behind the composer as the keyboard slides in or out.
+        val imeTransitioning = isImeTransitionInProgress()
 
         val timelineItems = viewModel.timelineItems.collectAsState().value
         val openPreview = NotificationOpenPreviews.current.collectAsState().value?.takeIf {
@@ -1030,7 +1035,10 @@ fun ConversationScreen(
                                     fadeOutSpec = null,
                                     // The notified event must replace its preview in place,
                                     // without animating previously visible messages.
-                                    placementSpec = if (openPreview == null) messagePlacementSpec else null,
+                                    placementSpec = if (shouldAnimateTimelinePlacement(
+                                            hasNotificationPreview = openPreview != null,
+                                            imeTransitioning = imeTransitioning,
+                                        )) messagePlacementSpec else null,
                                 ),
                                 debugSeparatorLines = currentDebugLines.toPersistentList(),
                             )
@@ -1222,6 +1230,10 @@ fun ConversationScreen(
 
 internal fun shouldShowTimelineSenderDetails(joinedMembersCount: Long?): Boolean =
     (joinedMembersCount ?: 0L) > 2L
+
+/** Placement tweens are for new/reordered events, not Android's animated IME resize. */
+internal fun shouldAnimateTimelinePlacement(hasNotificationPreview: Boolean, imeTransitioning: Boolean): Boolean =
+    !hasNotificationPreview && !imeTransitioning
 
 private inline fun <T>getNextItem(
     currentIndex: Int,
