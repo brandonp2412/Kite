@@ -45,16 +45,15 @@ jobs:
           persist-credentials: false
 
       - name: Validate release version
-        id: version
         env:
           TAG: ${{ inputs.version || github.ref_name }}
         run: |
-          [[ "$TAG" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || exit 1
+          [[ "$TAG" =~ ^([1-9][0-9]*)\.([0-9]+)\.([0-9]+)$ ]] || exit 1
           major=$((10#${BASH_REMATCH[1]}))
           minor=$((10#${BASH_REMATCH[2]}))
           patch=$((10#${BASH_REMATCH[3]}))
-          (( major < 1900 && minor < 1000 && patch < 1000 )) || exit 1
-          echo "code=$((100000000 + major * 1000000 + minor * 1000 + patch))" >> "$GITHUB_OUTPUT"
+          (( major <= 2100 && minor < 1000 && patch < 1000 )) || exit 1
+          # Gradle derives versionCode from androidVersionName; no CI offset.
 
       - name: Require signing secrets
         env:
@@ -110,11 +109,10 @@ jobs:
           KITE_RELEASE_KEY_PASSWORD: ${{ secrets.KITE_RELEASE_KEY_PASSWORD }}
           TAG: ${{ inputs.version || github.ref_name }}
           ABI: ${{ matrix.abi }}
-          CODE: ${{ steps.version.outputs.code }}
         run: |
           ./gradlew :androidApp:assembleRelease \
             -PandroidAbi="$ABI" -PandroidVersionName="$TAG" \
-            -PandroidVersionCode="$CODE" --no-daemon --stacktrace
+            --no-daemon --stacktrace
 
       - name: Verify and package APK
         env:

@@ -4,9 +4,6 @@ import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 plugins {
@@ -51,12 +48,35 @@ val kiteKeystorePassword = providers.environmentVariable("KITE_RELEASE_STORE_PAS
 val kiteKeyAlias = providers.environmentVariable("KITE_RELEASE_KEY_ALIAS").orNull
 val kiteKeyPassword = providers.environmentVariable("KITE_RELEASE_KEY_PASSWORD").orNull
 
-val calVer = ZonedDateTime.now(ZoneOffset.UTC)
-    .format(DateTimeFormatter.ofPattern("yy.MM.dd"))
-val androidVersionNameOverride = providers.gradleProperty("androidVersionName")
-val androidVersionCodeOverride = providers.gradleProperty("androidVersionCode").map(String::toInt)
-val androidVersionName = androidVersionNameOverride.getOrElse(calVer)
-val androidVersionCode = androidVersionCodeOverride.getOrElse("${calVer.replace(".", "")}00".toInt())
+// The local default tracks the latest development release; CI supplies its tag through
+// -PandroidVersionName. All build types use the same deterministic versionCode formula.
+val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.76")
+require(!providers.gradleProperty("androidVersionCode").isPresent) {
+    "Kite derives androidVersionCode from androidVersionName; remove -PandroidVersionCode."
+}
+val versionParts = Regex("""([1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)""")
+    .matchEntire(androidVersionName)
+    ?: error("Kite Android version must use major.minor.patch (for example 1.0.76).")
+val (majorText, minorText, patchText) = versionParts.destructured
+val major = majorText.toInt()
+val minor = minorText.toInt()
+val patch = patchText.toInt()
+require(major in 1..2100 && minor in 0..999 && patch in 0..999) {
+    "Kite Android version components out of range (major 1..2100, minor/patch 0..999)."
+}
+// Android requires a positive monotonically increasing code. 1.0.0 is 1,
+// 1.0.76 is 77, 1.1.0 is 1001, and 2.0.0 is 1000001.
+val androidVersionCode = (major - 1) * 1_000_000 + minor * 1_000 + patch + 1
+require(androidVersionCode in 1..2_100_000_000) {
+    "Kite Android versionCode exceeds the Google Play limit."
+}
+
+tasks.register("printKiteAndroidVersion") {
+    group = "help"
+    description = "Print the exact Android version name and code for a Kite build"
+    val outputLine = "Kite Android: $androidVersionName ($androidVersionCode)"
+    doLast { logger.lifecycle(outputLine) }
+}
 
 android {
     namespace = "chat.schildi.revenge"
@@ -139,8 +159,8 @@ val syncReleaseNativeLibraries = tasks.register<SyncNativeLibraries>("syncReleas
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         variant.outputs.forEach { output ->
-            output.versionCode.set(androidVersionCodeOverride.orElse(1))
-            output.versionName.set(androidVersionNameOverride.orElse("debug-$calVer"))
+            output.versionCode.set(androidVersionCode)
+            output.versionName.set("debug-$androidVersionName")
         }
         variant.sources.jniLibs?.addGeneratedSourceDirectory(syncDebugNativeLibraries, SyncNativeLibraries::outputDirectory)
     }
@@ -149,8 +169,8 @@ androidComponents {
     }
     onVariants(selector().withBuildType("PerfDebug")) { variant ->
         variant.outputs.forEach { output ->
-            output.versionCode.set(androidVersionCodeOverride.orElse(1))
-            output.versionName.set(androidVersionNameOverride.orElse("perfdebug-$calVer"))
+            output.versionCode.set(androidVersionCode)
+            output.versionName.set("perfdebug-$androidVersionName")
         }
         variant.sources.jniLibs?.addGeneratedSourceDirectory(syncReleaseNativeLibraries, SyncNativeLibraries::outputDirectory)
     }
