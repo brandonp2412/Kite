@@ -6,6 +6,7 @@ import chat.schildi.revenge.glue.AndroidSyncOrchestrationAppStateProvider
 import chat.schildi.revenge.notification.AndroidNotifier
 import chat.schildi.revenge.preferences.RevengePrefs
 import chat.schildi.revenge.push.AndroidPushRegistrationHandler
+import chat.schildi.revenge.push.PushResolutionWorker
 import chat.schildi.revenge.util.ExternalViewCache
 import chat.schildi.revenge.util.filepicker.ComposerAttachmentCache
 import co.touchlab.kermit.Logger
@@ -62,5 +63,12 @@ class RevengeApplication : Application() {
             AndroidNotifier.launchCreateNotificationChannelsLoop(initScope, this@RevengeApplication)
         }
         AndroidPushRegistrationHandler.launch()
+        initScope.launch {
+            try {
+                PushResolutionWorker.reschedulePending(this@RevengeApplication)
+            } catch (e: Exception) {
+                Logger.withTag("PushResolutionWorker").e("Failed to recover persisted pushes", e)
+            }
+        }
     }
 }

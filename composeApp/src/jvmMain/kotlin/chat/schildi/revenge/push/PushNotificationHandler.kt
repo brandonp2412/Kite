@@ -24,6 +24,8 @@ import io.element.android.libraries.matrix.api.notification.NotificationContent
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 
 enum class PushResolutionOutcome {
@@ -33,7 +35,10 @@ enum class PushResolutionOutcome {
 }
 
 object PushNotificationHandler {
-    private const val MAX_FAILURES = 4
+    private const val MAX_BATCH_SIZE = 32
+    private const val RESTORE_TIMEOUT_MS = 15_000L
+    private const val NOTIFICATIONS_TIMEOUT_MS = 30_000L
+    private const val DISMISS_TIMEOUT_MS = 8_000L
 
     private val log = Logger.withTag("PushNotificationHandler")
     private val scope = ScCoroutines.scope(Dispatchers.IO, "PushNotificationHandler")
@@ -101,14 +106,18 @@ object PushNotificationHandler {
     }
 
     suspend fun resolvePendingPushes(sessionId: SessionId, roomId: RoomId): PushResolutionOutcome {
-        val pushes = pushDao.getPendingPushes(sessionId.value, roomId.value, maxFailures = MAX_FAILURES)
+        // Transient failures must not permanently exclude old persisted events.
+        val pushes = pushDao.getPendingPushes(sessionId.value, roomId.value, maxEvents = MAX_BATCH_SIZE)
+        var needsRetry = pushes.size == MAX_BATCH_SIZE
         if (pushes.isEmpty()) {
             log.d { "No pending pushes for $sessionId/$roomId, will still check for auto-dismiss" }
         } else {
             log.d { "Resolving ${pushes.size} pending pushes for $sessionId/$roomId" }
         }
         val isUnknownSession by suspendLazy { RevengeAppGraph.sessionStore.getSession(sessionId.value) == null }
-        val client = RevengeAppGraph.sessionCache.getOrRestore(sessionId)
+        val client = withTimeout(RESTORE_TIMEOUT_MS) {
+            RevengeAppGraph.sessionCache.getOrRestore(sessionId)
+        }
             .onFailure { e ->
                 log.e("Failed to restore session for $sessionId", e)
                 if (pushes.isNotEmpty()) {
@@ -134,9 +143,11 @@ object PushNotificationHandler {
         var didNotify = false
 
         if (pushes.isNotEmpty()) {
-            val result = client.notificationService.getNotifications(
-                mapOf(roomId to pushes.map { EventId(it.eventId) })
-            )
+            val result = withTimeout(NOTIFICATIONS_TIMEOUT_MS) {
+                client.notificationService.getNotifications(
+                    mapOf(roomId to pushes.map { EventId(it.eventId) })
+                )
+            }
             if (result.isFailure) {
                 val e = result.exceptionOrNull()
                 log.e("Failed to get notifications for $sessionId/$roomId", e)
@@ -152,7 +163,8 @@ object PushNotificationHandler {
             }
             val results = result.getOrThrow()
             log.d { "Got ${results.size}/${pushes.size} notifications results for $sessionId/$roomId" }
-            pushes.forEach { push ->
+            // Resolve newest events first, but post their notifications in chronological order.
+            pushes.asReversed().forEach { push ->
                 val eventResult = results[EventId(push.eventId)]
                 val data = eventResult?.getOrNull() ?: run {
                     val typedException = eventResult?.exceptionOrNull() as? NotificationResolverException
@@ -167,13 +179,11 @@ object PushNotificationHandler {
                             eventResult?.exceptionOrNull()
                         )
                     }
-                    val countsAsResolved = when (typedException) {
-                        null -> false
-                        NotificationResolverException.EventFilteredOut,
-                        NotificationResolverException.EventNotFound,
-                        NotificationResolverException.EventRedacted -> true
-                        is NotificationResolverException.UnknownError -> false
-                    }
+                    val countsAsResolved = PushResolutionPolicy.isTerminalFailure(
+                        typedException,
+                        (System.currentTimeMillis() - push.timestamp).coerceAtLeast(0),
+                    )
+                    if (!countsAsResolved) needsRetry = true
                     pushDao.updatePushes(
                         listOf(
                             push.copy(
@@ -211,45 +221,51 @@ object PushNotificationHandler {
             }
         }
 
-        // Check some heuristics to dismiss notifications that were fully read
-        if (didNotify || platformActiveNotificationRooms().any {
-            it.sessionId == sessionId.value && it.roomId == roomId.value
-        }) {
-            // Check current read receipts we already have synced. On push, we can't rely on sync having run yet,
-            // so we try a best-effort live request for the fully read marker as fallback.
-            // Read receipts would be preferred over the fully read marker for that, but it's not possible to fetch
-            // those without sync, and we don't want to kick a full sync on each push.
-            var receipts: List<EventId> = emptyList()
-            val dismissedFromCachedReceipt = client.getRoom(roomId)?.use { room ->
-                receipts = listOf(ReceiptType.READ, ReceiptType.READ_PRIVATE).mapNotNull { receiptType ->
-                    room.getOwnReadReceipt(receiptType)
-                        .onFailure { log.w("Failed to load local read receipt for $sessionId/$roomId, $receiptType", it) }
-                        .getOrNull()
-                }.distinct()
+        // Read-marker checks are best-effort and cannot stall push delivery.
+        val dismissResult = withTimeoutOrNull(DISMISS_TIMEOUT_MS) {
+            // Check some heuristics to dismiss notifications that were fully read
+            if (didNotify || platformActiveNotificationRooms().any {
+                it.sessionId == sessionId.value && it.roomId == roomId.value
+            }) {
+                // Check current read receipts we already have synced. On push, we can't rely on sync having run yet,
+                // so we try a best-effort live request for the fully read marker as fallback.
+                // Read receipts would be preferred over the fully read marker for that, but it's not possible to fetch
+                // those without sync, and we don't want to kick a full sync on each push.
+                var receipts: List<EventId> = emptyList()
+                val dismissedFromCachedReceipt = client.getRoom(roomId)?.use { room ->
+                    receipts = listOf(ReceiptType.READ, ReceiptType.READ_PRIVATE).mapNotNull { receiptType ->
+                        room.getOwnReadReceipt(receiptType)
+                            .onFailure { log.w("Failed to load local read receipt for $sessionId/$roomId, $receiptType", it) }
+                            .getOrNull()
+                    }.distinct()
 
-                log.d { "Checking for auto-dismiss on $sessionId, $roomId, [${receipts.joinToString()}]" }
-                if (receipts.isNotEmpty()) {
-                    platformAutoDismissNotification(sessionId, roomId, receipts)
-                } else {
-                    false
-                }
-            } ?: false
-            if (!dismissedFromCachedReceipt) {
-                // Read marker fetched from server (bypassing SDK cache from sync)
-                client.fetchRoomAccountData(roomId, FULLY_READ_ACCOUNT_DATA_TYPE)
-                    .onFailure { log.w("Failed to fetch read marker for $sessionId/$roomId", it) }
-                    .getOrNull()
-                    ?.let {
-                        json.decodeFromString<FullyReadContent>(it).eventId?.let(::EventId)
-                    }?.let { readMarker ->
-                        log.d { "Checking for auto-dismiss on $sessionId, $roomId, $readMarker via re-fetched read marker" }
-                        if (readMarker !in receipts) {
-                            platformAutoDismissNotification(sessionId, roomId, listOf(readMarker))
-                        }
+                    log.d { "Checking for auto-dismiss on $sessionId, $roomId, [${receipts.joinToString()}]" }
+                    if (receipts.isNotEmpty()) {
+                        platformAutoDismissNotification(sessionId, roomId, receipts)
+                    } else {
+                        false
                     }
+                } ?: false
+                if (!dismissedFromCachedReceipt) {
+                    // Read marker fetched from server (bypassing SDK cache from sync)
+                    client.fetchRoomAccountData(roomId, FULLY_READ_ACCOUNT_DATA_TYPE)
+                        .onFailure { log.w("Failed to fetch read marker for $sessionId/$roomId", it) }
+                        .getOrNull()
+                        ?.let {
+                            json.decodeFromString<FullyReadContent>(it).eventId?.let(::EventId)
+                        }?.let { readMarker ->
+                            log.d { "Checking for auto-dismiss on $sessionId, $roomId, $readMarker via re-fetched read marker" }
+                            if (readMarker !in receipts) {
+                                platformAutoDismissNotification(sessionId, roomId, listOf(readMarker))
+                            }
+                        }
+                }
             }
-        }
 
-        return PushResolutionOutcome.Done
+        }
+        if (dismissResult == null) {
+            log.w { "Auto-dismiss timed out for $sessionId/$roomId" }
+        }
+        return if (needsRetry) PushResolutionOutcome.TransientFailure else PushResolutionOutcome.Done
     }
 }

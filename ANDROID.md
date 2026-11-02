@@ -12,11 +12,11 @@ Installing `app.kite` does not transfer Matrix sessions from `app.kite.revenge.d
 
 ## Versioning
 
-Kite's Android `versionCode` is calculated from `major.minor.patch` in `androidApp/build.gradle.kts`: `(major - 1) * 1_000_000 + minor * 1_000 + patch + 1`. For example, `1.0.76` becomes `77`. The major component starts at 1; minor and patch must each be below 1000. The build rejects a separate `-PandroidVersionCode` so local builds and GitHub Actions use the same calculation.
+Kite Android `versionCode` is derived from `major.minor.patch` as `101_000_000 + (major - 1) * 1_000_000 + minor * 1_000 + patch + 1`. Thus `1.0.77` becomes `101000078`. This compatibility floor preserves in-place upgrades over already installed production builds; minor and patch must stay below 1000.
 
-Local builds default to `1.0.76` until the source default is advanced. Pass `-PandroidVersionName=1.0.77` when building a different version; GitHub Actions passes the release tag automatically. Use `./gradlew :androidApp:printKiteAndroidVersion` to check the resolved name and code without building an APK.
+Local builds default to `1.0.77`. Override with `-PandroidVersionName=1.0.78` when needed. GitHub Actions passes the release tag. Use `./gradlew :androidApp:printKiteAndroidVersion` to confirm the code before building.
 
-**Compatibility break:** earlier test builds used 100-million-based version codes (for example `101000076`). Android will not install a lower version code over them. Do not uninstall or reset an existing `app.kite` installation to force this migration: doing so would delete its Matrix session data. The lower-code APK can only be installed on a fresh installation, or after an explicitly planned data-preserving migration.
+**Compatibility:** Previous production `app.kite` builds have version codes such as `101000076`. The attempted lower version-code scheme would have prevented in-place updates and was never installed. The compatibility floor is restored. Never uninstall/reset Kite to resolve a version-code mismatch: that deletes Matrix accounts.
 
 ## Tagged GitHub releases
 

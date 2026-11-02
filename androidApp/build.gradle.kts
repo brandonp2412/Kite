@@ -50,7 +50,7 @@ val kiteKeyPassword = providers.environmentVariable("KITE_RELEASE_KEY_PASSWORD")
 
 // The local default tracks the latest development release; CI supplies its tag through
 // -PandroidVersionName. All build types use the same deterministic versionCode formula.
-val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.76")
+val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.77")
 require(!providers.gradleProperty("androidVersionCode").isPresent) {
     "Kite derives androidVersionCode from androidVersionName; remove -PandroidVersionCode."
 }
@@ -64,9 +64,10 @@ val patch = patchText.toInt()
 require(major in 1..2100 && minor in 0..999 && patch in 0..999) {
     "Kite Android version components out of range (major 1..2100, minor/patch 0..999)."
 }
-// Android requires a positive monotonically increasing code. 1.0.0 is 1,
-// 1.0.76 is 77, 1.1.0 is 1001, and 2.0.0 is 1000001.
-val androidVersionCode = (major - 1) * 1_000_000 + minor * 1_000 + patch + 1
+// Existing production installations use codes from 101000000 upward.
+// Preserve that floor so upgrades never require losing Matrix account data.
+// 1.0.77 -> 101000078; 1.1.0 -> 101001001; 2.0.0 -> 102000001.
+val androidVersionCode = 101_000_000 + (major - 1) * 1_000_000 + minor * 1_000 + patch + 1
 require(androidVersionCode in 1..2_100_000_000) {
     "Kite Android versionCode exceeds the Google Play limit."
 }

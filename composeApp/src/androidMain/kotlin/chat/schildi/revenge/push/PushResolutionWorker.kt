@@ -3,6 +3,8 @@ package chat.schildi.revenge.push
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -10,10 +12,14 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import chat.schildi.revenge.RevengeApplication
+import chat.schildi.revenge.database.revengeDatabase
 import co.touchlab.kermit.Logger
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.TimeUnit
 
 class PushResolutionWorker(
@@ -24,10 +30,22 @@ class PushResolutionWorker(
         val sessionId = inputData.getString(KEY_SESSION_ID) ?: return Result.failure()
         val roomId = inputData.getString(KEY_ROOM_ID) ?: return Result.failure()
         log.d { "Resolving pushes for $sessionId/$roomId (attempt $runAttemptCount)" }
-        return when (PushNotificationHandler.resolvePendingPushes(SessionId(sessionId), RoomId(roomId))) {
-            PushResolutionOutcome.TransientFailure -> Result.retry()
-            PushResolutionOutcome.PermanentFailure -> Result.failure()
-            PushResolutionOutcome.Done -> Result.success()
+        return try {
+            when (withTimeout(WORK_TIMEOUT_MILLIS) {
+                PushNotificationHandler.resolvePendingPushes(SessionId(sessionId), RoomId(roomId))
+            }) {
+                PushResolutionOutcome.TransientFailure -> Result.retry()
+                PushResolutionOutcome.PermanentFailure -> Result.failure()
+                PushResolutionOutcome.Done -> Result.success()
+            }
+        } catch (e: TimeoutCancellationException) {
+            log.w("Push resolution timed out for $sessionId/$roomId; retrying", e)
+            Result.retry()
+        } catch (e: CancellationException) {
+            throw e // WorkManager cancelled or replaced this request.
+        } catch (e: Exception) {
+            log.e("Push resolution failed for $sessionId/$roomId; retrying", e)
+            Result.retry()
         }
     }
 
@@ -36,6 +54,7 @@ class PushResolutionWorker(
         private const val KEY_ROOM_ID = "room_id"
         private const val UNIQUE_NAME_PREFIX = "push-resolution"
         private const val BACKOFF_DELAY_MILLIS = 30_000L
+        private const val WORK_TIMEOUT_MILLIS = 65_000L
 
         private val log = Logger.withTag("PushResolutionWorker")
 
@@ -50,6 +69,13 @@ class PushResolutionWorker(
          * - if a worker is currently running, append a follow-up worker behind it;
          * - if only a backed-off retry is waiting, replace it so the new pushes are resolved immediately.
          */
+        /** Recover notifications persisted just before an Android process death. */
+        suspend fun reschedulePending(context: Context) {
+            val scopes = revengeDatabase.pushNotificationDao().getPendingPushScopes()
+            if (scopes.isNotEmpty()) log.d { "Recovering pending pushes in " + scopes.size + " rooms" }
+            scopes.forEach { schedule(context, it.sessionId, it.roomId) }
+        }
+
         suspend fun schedule(context: Context, sessionId: String, roomId: String) {
             val name = uniqueWorkName(sessionId, roomId)
             val workManager = WorkManager.getInstance(context)
@@ -79,6 +105,7 @@ class PushResolutionWorker(
                         .putString(KEY_ROOM_ID, roomId)
                         .build(),
                 )
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_DELAY_MILLIS, TimeUnit.MILLISECONDS)
                 .build()
             workManager.enqueueUniqueWork(name, policy, request)

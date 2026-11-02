@@ -21,10 +21,17 @@ interface PushNotificationDao {
         SELECT *
         FROM PushNotificationEvent
         WHERE sessionId = :sessionId AND roomId = :roomId
-          AND failureCount <= :maxFailures AND resolvedTimestamp IS NULL
-        ORDER BY timestamp
+          AND resolvedTimestamp IS NULL
+        ORDER BY timestamp DESC
+        LIMIT :maxEvents
     """)
-    suspend fun getPendingPushes(sessionId: String, roomId: String, maxFailures: Int = Int.MAX_VALUE): List<PushNotificationEventEntity>
+    suspend fun getPendingPushes(sessionId: String, roomId: String, maxEvents: Int = 32): List<PushNotificationEventEntity>
+
+    @Query("""
+        SELECT DISTINCT sessionId, roomId FROM PushNotificationEvent
+        WHERE resolvedTimestamp IS NULL
+    """)
+    suspend fun getPendingPushScopes(): List<PendingPushScope>
 
     @Query("""
         UPDATE PushNotificationEvent
@@ -86,3 +93,6 @@ interface PushNotificationDao {
     """)
     suspend fun getPushRegistration(instance: String): PushRegistrationEntity?
 }
+
+/** One recovery request per Matrix room. */
+data class PendingPushScope(val sessionId: String, val roomId: String)

@@ -45,7 +45,9 @@ class MatrixSessionCache(
     private val analyticsService: AnalyticsService,
 ) : MatrixClientProvider {
     private val sessionIdsToMatrixSession = ConcurrentHashMap<SessionId, InMemoryMatrixSession>()
-    private val restoreMutex = Mutex()
+    // One stalled session restore must not block notifications for other accounts.
+    private val restoreMutexes = ConcurrentHashMap<SessionId, Mutex>()
+    private val batchRestoreMutex = Mutex()
 
     init {
         authenticationService.listenToNewMatrixClients { matrixClient ->
@@ -66,7 +68,8 @@ class MatrixSessionCache(
     }
 
     override suspend fun getOrRestore(sessionId: SessionId): Result<MatrixClient> {
-        return restoreMutex.withLock {
+        getOrNull(sessionId)?.let { return Result.success(it) }
+        return restoreMutexes.getOrPut(sessionId) { Mutex() }.withLock {
             when (val cached = getOrNull(sessionId)) {
                 null -> restore(sessionId)
                 else -> Result.success(cached)
@@ -86,13 +89,10 @@ class MatrixSessionCache(
                         IllegalArgumentException("Tried to restore session $sessionId twice")
                     )
                 }
-                return when (val cached = getOrNull(sessionId)) {
-                    null -> restore(sessionId)
-                    else -> Result.success(cached)
-                }
+                return getOrRestore(sessionId)
             }
         }
-        return restoreMutex.withLock {
+        return batchRestoreMutex.withLock {
             restoreScope.block()
         }
     }
