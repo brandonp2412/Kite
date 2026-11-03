@@ -1972,3 +1972,10 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Session restoration now has per-account locks instead of a single global lock, so a stuck account cannot block other accounts' notifications.
 - Restored the historical Android version-code compatibility floor; `1.0.77` has code `101000078`, which advances past installed `101000076` without resetting Matrix data.
 - Glass buildq #3807 passed `:composeApp:desktopTest :composeApp:compileAndroidMain :androidApp:printKiteAndroidVersion` (92 tasks; 1m01s). Focused policy tests cover missing/unknown errors, temporary EventNotFound, and terminal redacted/filtered results. Initial `git diff --check` passed. Second post-cleanup Android/release build and Samsung live push E2E remain pending at this checkpoint.
+
+## 2026-11-03 — Find message time format using 12h or 24h
+
+- Settings search now recognizes `12h` and `24h` for the Time format preference only, while preserving existing title and summary searches. Regression tests cover both aliases and an unrelated preference.
+- Glass buildq #4204 passed `:composeApp:desktopTest --tests chat.schildi.revenge.TimeFormatTest`. Signed ARM64 release buildq #4223 passed; APK package `app.kite`, version `1.0.77`, versionCode `101000078`.
+- The release APK and installed APK have identical V2 signing certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`. Samsung `adb install -r --no-streaming` succeeded, advancing code `101000077 → 101000078`; UID `10847` and `firstInstallTime=2026-10-16 18:00:56` were preserved.
+- A cold MainActivity launch returned `Status: ok` in 284 ms and the process remained alive. Android's Alarms & Reminders settings was foreground afterward, so the settings-search interaction and visual parity were not verified on-device.
