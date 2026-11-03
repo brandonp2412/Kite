@@ -1,9 +1,11 @@
 package chat.schildi.revenge
 
 import chat.schildi.lib.preferences.ScPrefs
+import chat.schildi.revenge.model.settingsPreferenceMatchesSearch
 import java.time.LocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TimeFormatTest {
@@ -27,6 +29,17 @@ class TimeFormatTest {
         assertEquals("20:45:30", DateTimeFormat.formatTime(evening, ScPrefs.TimeFormat.TWENTY_FOUR_HOUR_SECONDS))
         assertEquals("00:05", DateTimeFormat.formatTime(midnight, ScPrefs.TimeFormat.TWENTY_FOUR_HOUR))
         assertTrue(DateTimeFormat.formatTime(morning, ScPrefs.TimeFormat.TWELVE_HOUR_SECONDS).startsWith("8:45:30"))
+    }
+
+    @Test
+    fun settingsSearchFindsClockFormatAliases() {
+        val title = "Time format"
+        val summary = "How message times and dates are displayed"
+        assertTrue(settingsPreferenceMatchesSearch(ScPrefs.TIME_FORMAT, title, summary, "12h"))
+        assertTrue(settingsPreferenceMatchesSearch(ScPrefs.TIME_FORMAT, title, summary, "24h"))
+        assertTrue(settingsPreferenceMatchesSearch(ScPrefs.TIME_FORMAT, title, summary, "TIME"))
+        assertFalse(settingsPreferenceMatchesSearch(ScPrefs.TIME_FORMAT, title, summary, "caption"))
+        assertFalse(settingsPreferenceMatchesSearch(ScPrefs.LOCALE, "Language", "", "12h"))
     }
 
     @Test

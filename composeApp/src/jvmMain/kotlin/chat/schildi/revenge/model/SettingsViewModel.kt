@@ -31,6 +31,18 @@ data class PrefScreenState(
     val searchQuery: String? = null,
 )
 
+internal fun settingsPreferenceMatchesSearch(
+    pref: AbstractScPref,
+    title: String,
+    summary: String,
+    query: String,
+): Boolean {
+    val normalizedQuery = query.lowercase()
+    return title.lowercase().contains(normalizedQuery) ||
+            summary.lowercase().contains(normalizedQuery) ||
+            (pref === ScPrefs.TIME_FORMAT && (normalizedQuery == "12h" || normalizedQuery == "24h"))
+}
+
 class SettingsViewModel(
     rootPreferenceCategory: String? = null
 ) : ViewModel(), SearchProvider, TitleProvider {
@@ -71,11 +83,10 @@ class SettingsViewModel(
         val pref = if (query.isNullOrBlank()) {
             rootPrefs
         } else {
-            val lowerQuery = query.lowercase()
             suspend fun prefLookupMatches(pref: AbstractScPref): Boolean {
-                val title = getString(pref.titleRes).lowercase()
-                val summary = pref.summaryRes?.let { getString(it) }?.lowercase() ?: ""
-                return title.contains(lowerQuery) || summary.contains(lowerQuery)
+                val title = getString(pref.titleRes)
+                val summary = pref.summaryRes?.let { getString(it) } ?: ""
+                return settingsPreferenceMatchesSearch(pref, title, summary, query)
             }
             val filter = ScPrefFilter(
                 // Include SC prefs that match
