@@ -28,6 +28,7 @@ fun MessageLayout(
     senderAvatar: @Composable () -> Unit,
     senderName: @Composable () -> Unit,
     messageContent: @Composable () -> Unit,
+    selectionIndicator: (@Composable () -> Unit)? = null,
 ) {
     when (LocalMessageRenderContext.current) {
         MessageRenderContext.NORMAL -> {
@@ -41,6 +42,7 @@ fun MessageLayout(
                 senderAvatar = senderAvatar,
                 senderName = senderName,
                 messageContent = messageContent,
+                selectionIndicator = selectionIndicator,
             )
         }
         MessageRenderContext.IN_REPLY_TO -> {
@@ -65,6 +67,7 @@ fun MessageLayoutNormal(
     senderAvatar: @Composable () -> Unit,
     senderName: @Composable () -> Unit,
     messageContent: @Composable () -> Unit,
+    selectionIndicator: (@Composable () -> Unit)? = null,
 ) {
     val mainLayoutDirection = LocalLayoutDirection.current
     val thisLayoutDirection = if (isOwn) {
@@ -90,14 +93,20 @@ fun MessageLayoutNormal(
             modifier.fillMaxWidth()
         ) {
             val messageStyle = LocalMessageStyle.current
-            if (!isOwn && showSenderDetails) {
+            if (!isOwn) {
+                // Reserve a stable leading slot, including in direct rooms without avatars.
+                // Selection replaces its content without moving the message bubble.
                 BoxWithDirection(
                     mainLayoutDirection,
                     Modifier
                         .padding(end = Dimens.Conversation.avatarItemPadding)
                         .width(messageStyle.avatarSize)
                 ) {
-                    senderAvatar()
+                    if (selectionIndicator != null) {
+                        selectionIndicator()
+                    } else if (showSenderDetails) {
+                        senderAvatar()
+                    }
                 }
             }
             Column(

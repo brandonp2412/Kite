@@ -95,6 +95,7 @@ fun EventContentLayout(
     messageContentModifier: Modifier = Modifier,
     formatInteractionState: MatrixFormatInteractionState? = null,
     timelineItemDebugInfoProvider: TimelineItemDebugInfoProvider? = null,
+    selectionIndicator: (@Composable () -> Unit)? = null,
 ) {
     @Composable
     fun EventMessageLayout(messageContent: @Composable () -> Unit) {
@@ -150,6 +151,7 @@ fun EventContentLayout(
                 }
             },
             messageContent = messageContent,
+            selectionIndicator = selectionIndicator,
         )
     }
     @Composable

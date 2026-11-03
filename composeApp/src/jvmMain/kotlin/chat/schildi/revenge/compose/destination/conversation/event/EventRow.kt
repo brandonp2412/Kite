@@ -7,7 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -44,6 +44,7 @@ import chat.schildi.revenge.compose.focus.rememberFocusId
 import chat.schildi.revenge.model.conversation.ConversationPermissions
 import chat.schildi.revenge.model.conversation.ConversationViewModel
 import chat.schildi.revenge.model.conversation.MessageMetadata
+import chat.schildi.theme.LocalMessageStyle
 import chat.schildi.revenge.plaintext.EventTextFormat
 import com.beeper.android.messageformat.MatrixFormatInteractionState
 import com.beeper.android.messageformat.rememberMatrixFormatInteractionState
@@ -178,15 +179,9 @@ fun EventRow(
                 .padding(horizontal = Dimens.Conversation.timelineHorizontalPadding)
         ) {
             val threadInfo = event.threadInfo()
-            // Draw selection affordances over the row instead of adding a leading
-            // column that narrows every message when multi-select opens.
+            // Incoming selection swaps the leading slot instead of moving the bubble.
             Box(Modifier.fillMaxWidth()) {
-                // Offset without remeasurement: selection circles must not cover incoming text.
-                Column(
-                    Modifier.fillMaxWidth().offset(
-                        x = if (selectionActive && selectable && !event.isOwn) 36.dp else 0.dp,
-                    )
-                ) {
+                Column(Modifier.fillMaxWidth()) {
                     EventSwipeable(
                         focusId = focusId,
                         isOwn = event.isOwn,
@@ -202,6 +197,15 @@ fun EventRow(
                             senderProfile = event.senderProfile,
                             isOwn = event.isOwn,
                             showSenderDetails = showSenderDetails,
+                            selectionIndicator = if (selectionActive && selectable && !event.isOwn) {
+                                {
+                                    MessageSelectionIndicator(
+                                        selected = isSelected,
+                                        onClick = toggleSelection,
+                                        modifier = Modifier.size(LocalMessageStyle.current.avatarSize),
+                                    )
+                                }
+                            } else null,
                             timestamp = timestamp,
                             isSameAsPreviousSender = isSameAsPreviousSender,
                             isSameAsNextSender = isSameAsNextSender,
@@ -253,9 +257,8 @@ fun EventRow(
                         )
                     }
                 }
-                if (selectionActive && selectable) {
-                    // matchParentSize children never participate in Box measurement:
-                    // even a one-line message keeps its pre-selection row height.
+                if (selectionActive && selectable && event.isOwn) {
+                    // Outgoing messages already have unused space on the left.
                     Box(Modifier.matchParentSize()) {
                         MessageSelectionIndicator(
                             selected = isSelected,
