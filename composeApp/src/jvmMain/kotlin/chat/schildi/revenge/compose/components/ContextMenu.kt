@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,6 +95,20 @@ private enum class ContextMenuOpenState {
     Closed,
     Open,
     ChildOpen,
+}
+
+/** Keep the last on-screen anchor during DropdownMenu's animated exit. */
+internal fun contextMenuOffset(
+    expanded: Boolean,
+    pointerPositionOnOpen: Offset?,
+    anchorBounds: Rect?,
+    density: Density,
+    previousOffset: DpOffset,
+): DpOffset {
+    if (!expanded) return previousOffset
+    if (anchorBounds == null || pointerPositionOnOpen == null) return DpOffset(0.dp, 0.dp)
+    val localX = (pointerPositionOnOpen.x - anchorBounds.left).coerceAtLeast(0f)
+    return with(density) { DpOffset(localX.toDp(), 0.dp) }
 }
 
 data class ContextMenuActionEntry(
@@ -207,17 +222,17 @@ fun WithContextMenu(
         else -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
 
-    val offset = remember(pointerPositionOnOpen, expanded) {
-        val anchor = anchorBounds[0]
-        val position = pointerPositionOnOpen
-        if (anchor == null || position == null) {
-            DpOffset(0.dp, 0.dp)
-        } else {
-            val localX = (position.x - anchor.left).coerceAtLeast(0f)
-            with(density) {
-                DpOffset(localX.toDp(), 0.dp)
-            }
-        }
+    // DropdownMenu remains composed during its exit animation. Resetting this to
+    // zero as soon as expanded becomes false makes the closing menu jump left.
+    val lastOpenOffset = remember(menuId) { arrayOf(DpOffset(0.dp, 0.dp)) }
+    val offset = remember(pointerPositionOnOpen, expanded, density) {
+        contextMenuOffset(
+            expanded = expanded,
+            pointerPositionOnOpen = pointerPositionOnOpen,
+            anchorBounds = anchorBounds[0],
+            density = density,
+            previousOffset = lastOpenOffset[0],
+        ).also { if (expanded) lastOpenOffset[0] = it }
     }
 
     if (expanded && presentation == ContextMenuPresentation.Message) {
