@@ -38,6 +38,14 @@ internal fun calculateVisibleTimelineNeighbors(rows: List<TimelineRowKind>): Tim
 }
 
 // Unread markers and day boundaries own their own vertical separation.
+/** Connect selected backgrounds only across a real message gap, never across an unread divider. */
+internal fun shouldHighlightMessageGap(
+    isSelected: Boolean,
+    olderMessageSelected: Boolean,
+    hasOlderVisibleMessage: Boolean,
+    hasUnreadSeparator: Boolean,
+): Boolean = isSelected && olderMessageSelected && hasOlderVisibleMessage && !hasUnreadSeparator
+
 internal fun messageGapBeforeEvent(
     hasOlderVisibleMessage: Boolean,
     hasUnreadSeparator: Boolean,

@@ -8,6 +8,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
@@ -30,6 +31,10 @@ fun EventTimelineItem.isKiteSelectableMessage(): Boolean =
                 is PollContent -> true
                 else -> false
             }
+
+/** A visible purple wash shared by selected rows and the gap joining them. */
+@Composable
+fun selectionHighlightColor(): Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
 
 @Composable
 fun MessageSelectionIndicator(

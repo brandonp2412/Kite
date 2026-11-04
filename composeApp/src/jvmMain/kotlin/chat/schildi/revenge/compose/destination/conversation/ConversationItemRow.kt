@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.destination.conversation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,7 @@ import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.Dimens
 import chat.schildi.revenge.compose.destination.conversation.event.EventHighlight
 import chat.schildi.revenge.compose.destination.conversation.event.EventRow
+import chat.schildi.revenge.compose.destination.conversation.event.selectionHighlightColor
 import chat.schildi.revenge.compose.destination.conversation.event.MessageSwipeConfig
 import chat.schildi.revenge.compose.destination.conversation.virtual.DayHeaderRow
 import chat.schildi.revenge.compose.destination.conversation.virtual.DebugLinePosition
@@ -71,6 +73,7 @@ fun ConversationItemRow(
     swipeConfig: MessageSwipeConfig,
     selectionActive: Boolean,
     isSelected: Boolean,
+    olderMessageSelected: Boolean,
     isPinned: Boolean,
     canPin: Boolean,
     showReadReceipts: Boolean,
@@ -143,10 +146,17 @@ fun ConversationItemRow(
                         directNextEvent.content is MessageContent &&
                         item.item.event.content is MessageContent &&
                         directNextEvent.content.perMessageProfile() == item.item.event.content.perMessageProfile()
-                Spacer(Modifier.height(messageGapBeforeEvent(
+                val joinsOlderSelection = shouldHighlightMessageGap(
+                    isSelected = isSelected,
+                    olderMessageSelected = olderMessageSelected,
                     hasOlderVisibleMessage = directPreviousEvent != null,
                     hasUnreadSeparator = showUnreadLine,
-                )))
+                )
+                val gapModifier = Modifier.fillMaxWidth().height(messageGapBeforeEvent(
+                    hasOlderVisibleMessage = directPreviousEvent != null,
+                    hasUnreadSeparator = showUnreadLine,
+                ))
+                Spacer(if (joinsOlderSelection) gapModifier.background(selectionHighlightColor()) else gapModifier)
                 EventRow(
                     viewModel,
                     item.item.event,

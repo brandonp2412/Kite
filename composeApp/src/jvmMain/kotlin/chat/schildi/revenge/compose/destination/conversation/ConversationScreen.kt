@@ -989,14 +989,15 @@ fun ConversationScreen(
                             val currentDebugLines = debugLines?.get(timelineItems.size - index - 1) ?: persistentListOf()
                             val rowEvent = (item.item as? MatrixTimelineItem.Event)?.event
                             val rowSelected = rowEvent?.kiteSelectionKey()?.let(selectedMessages::containsKey) == true
+                            val olderVisibleEvent = (renderedItems.getOrNull(
+                                visibleNeighborIndices.older[index]
+                            )?.item as? MatrixTimelineItem.Event)?.event
                             ConversationItemRow(
                                 viewModel = viewModel,
                                 item = item,
                                 next = next,
                                 previous = previous,
-                                previousVisibleEvent = (renderedItems.getOrNull(
-                                    visibleNeighborIndices.older[index]
-                                )?.item as? MatrixTimelineItem.Event)?.event,
+                                previousVisibleEvent = olderVisibleEvent,
                                 nextVisibleEvent = (renderedItems.getOrNull(
                                     visibleNeighborIndices.newer[index]
                                 )?.item as? MatrixTimelineItem.Event)?.event,
@@ -1018,6 +1019,8 @@ fun ConversationScreen(
                                 swipeConfig = messageSwipeConfig,
                                 selectionActive = selectionActive,
                                 isSelected = rowSelected,
+                                olderMessageSelected = olderVisibleEvent?.kiteSelectionKey()
+                                    ?.let(selectedMessages::containsKey) == true,
                                 isPinned = rowEvent?.eventId?.let { it in pinnedEventIds } == true,
                                 canPin = roomPermissions?.canPinUnpin == true,
                                 showReadReceipts = rowEvent?.kiteSelectionKey() == latestOwnMessageKey,

@@ -14,6 +14,15 @@ class TimelineVisibleNeighborsTest {
     }
 
     @Test
+    fun selectedMessagesShareTheirInterveningGapOnly() {
+        assertEquals(true, shouldHighlightMessageGap(true, true, true, false))
+        assertEquals(false, shouldHighlightMessageGap(true, false, true, false))
+        assertEquals(false, shouldHighlightMessageGap(false, true, true, false))
+        assertEquals(false, shouldHighlightMessageGap(true, true, false, false))
+        assertEquals(false, shouldHighlightMessageGap(true, true, true, true))
+    }
+
+    @Test
     fun invisibleServerEventsDoNotEraseSenderChangeGutters() {
         // A newer incoming bubble separated from an older outgoing bubble by
         // two invisible server events must still see the older visible sender.

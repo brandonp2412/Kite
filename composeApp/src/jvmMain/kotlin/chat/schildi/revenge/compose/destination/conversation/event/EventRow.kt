@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.DateTimeFormat
 import chat.schildi.revenge.LocalTimeDisplayFormat
@@ -94,6 +95,7 @@ fun EventRow(
     onShowInfo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val selectedHighlightColor = selectionHighlightColor()
     val backgroundHighlightColor = animateColorAsState(
         if (highlight == EventHighlight.ACTION_TARGET) {
             MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
@@ -169,12 +171,10 @@ fun EventRow(
                     addClickListener = !messageActionMenuOpen && !selectionActive,
                 )
                 .background(
-                    if (isSelected) {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
-                    } else {
-                        backgroundHighlightColor
-                    },
-                    Dimens.Conversation.messageBubbleShape,
+                    if (isSelected) selectedHighlightColor else backgroundHighlightColor,
+                    // Selected rows are full-width bands; round bubble corners must not
+                    // create slivers between two consecutive selected messages.
+                    if (isSelected) RectangleShape else Dimens.Conversation.messageBubbleShape,
                 )
                 .padding(horizontal = Dimens.Conversation.timelineHorizontalPadding)
         ) {
