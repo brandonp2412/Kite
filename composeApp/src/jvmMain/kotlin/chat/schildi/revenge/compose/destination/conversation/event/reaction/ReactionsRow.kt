@@ -9,6 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,7 +64,9 @@ fun ColumnScope.ReactionsRow(
         // reaction glyph while the chip is still taller than the animated height.
         enter = fadeIn(tween(160)) + expandVertically(tween(220), clip = false),
         exit = fadeOut(tween(180)) + shrinkVertically(tween(240)),
-        modifier = modifier.align(alignment),
+        // Restore the original chip position, tucked against the lower edge of
+        // the message, while retaining a measured reaction row for smooth scrolling.
+        modifier = modifier.align(alignment).offset(y = (-6).dp),
     ) {
     FlowRow(
         modifier = Modifier
