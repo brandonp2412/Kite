@@ -263,7 +263,9 @@ fun EventRow(
                         MessageSelectionIndicator(
                             selected = isSelected,
                             onClick = toggleSelection,
-                            modifier = Modifier.align(Alignment.CenterStart),
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .size(LocalMessageStyle.current.avatarSize),
                         )
                     }
                 }
