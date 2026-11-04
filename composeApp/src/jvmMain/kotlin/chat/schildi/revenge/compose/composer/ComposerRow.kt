@@ -349,17 +349,37 @@ fun ComposerRow(
                         textSync.recordExternalValue(incoming)
                     }
                 }
+                // InputTransformation runs inside the IME edit transaction. Updating
+                // DraftRepo there can trigger a recomposition before Gboard commits
+                // its character and composing range. Publish committed snapshots
+                // separately so the keyboard always owns the active edit.
+                LaunchedEffect(viewModel, textFieldState) {
+                    textFieldState.committedComposerEdits().collect { newValue ->
+                        if (textSync.shouldPublishCommittedValue(newValue)) {
+                            viewModel.onComposerTextUpdate(newValue)
+                        }
+                    }
+                }
+                // A tap on Send can overtake the asynchronous snapshot collector.
+                // Flush the latest committed editor buffer before claiming the send.
+                val sendCurrentDraft = {
+                    val current = viewModel.composerState.value as? DraftValue
+                    if (current != null && !viewModel.isSendInProgress.value) {
+                        val latestEditor = TextFieldValue(
+                            textFieldState.text.toString(), textFieldState.selection,
+                        )
+                        val candidate = current.copy(textFieldValue = latestEditor)
+                        if (candidate.canSend() && candidate.bodyValidationError() == null) {
+                            viewModel.onComposerTextUpdate(latestEditor)
+                            viewModel.sendMessage(actionContext)
+                        }
+                    }
+                }
                 val inputTransformation = remember(viewModel) {
                     InputTransformation {
-                        val current = viewModel.composerState.value as? DraftValue
-                            ?: return@InputTransformation
-                        val newValue = TextFieldValue(asCharSequence().toString(), selection)
-                        textSync.recordKeyboardEdit(newValue)
-                        if (current.textFieldValue.text != newValue.text ||
-                            current.textFieldValue.selection != newValue.selection
-                        ) {
-                            viewModel.onComposerUpdate(current.copy(textFieldValue = newValue))
-                        }
+                        textSync.recordKeyboardEdit(
+                            TextFieldValue(asCharSequence().toString(), selection)
+                        )
                     }
                 }
                 BasicTextField(
@@ -385,11 +405,7 @@ fun ComposerRow(
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Send,
                     ),
-                    onKeyboardAction = KeyboardActionHandler {
-                        if (draftState.canSend() && !isSendInProgress && bodyValidationError == null) {
-                            viewModel.sendMessage(actionContext)
-                        }
-                    },
+                    onKeyboardAction = KeyboardActionHandler { sendCurrentDraft() },
                     lineLimits = TextFieldLineLimits.MultiLine(
                         minHeightInLines = 1,
                         maxHeightInLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
@@ -478,7 +494,7 @@ fun ComposerRow(
                     ComposerSendButton(
                         enabled = canSendNow && !isSendInProgress,
                     ) {
-                        viewModel.sendMessage(actionContext)
+                        sendCurrentDraft()
                     }
                 } else if (draftState.type.needsClearButton() && draftState.isEmpty()) {
                     ClearButton { viewModel.onComposerUpdate(DraftValue()) }
