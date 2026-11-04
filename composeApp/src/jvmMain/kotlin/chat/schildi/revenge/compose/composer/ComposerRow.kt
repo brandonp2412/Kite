@@ -330,6 +330,11 @@ fun ComposerRow(
                         .weight(1f)
                         .padding(vertical = 12.dp)
                         .heightIn(min = 32.dp)
+                        .keyboardImageContentReceiver(
+                            viewModel,
+                            actionContext,
+                            enabled = draftState.canAddAttachment() && !isSendInProgress,
+                        )
                         .keyFocusable(role = FocusRole.MESSAGE_COMPOSER)
                         .onFocusChanged {
                             isFocused = it.isFocused

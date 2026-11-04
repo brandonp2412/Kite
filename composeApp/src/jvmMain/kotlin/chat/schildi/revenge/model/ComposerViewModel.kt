@@ -104,7 +104,12 @@ interface ComposerViewModel {
     fun onComposerUpdate(value: DraftValue)
     fun toggleStickerMode()
     fun sendMessage(context: ActionContext): ActionResult
-    fun attachFile(context: ActionContext, path: String): Boolean
+    fun attachFile(
+        context: ActionContext,
+        path: String,
+        mimeType: String? = null,
+        isFileAppOwned: Boolean = false,
+    ): Boolean
     fun launchAttachmentPicker(
         context: ActionContext,
         kind: AttachmentPickerKind = AttachmentPickerKind.FILE,

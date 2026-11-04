@@ -1350,7 +1350,12 @@ class ConversationViewModel(
         }
     }
 
-    override fun attachFile(context: ActionContext, path: String): Boolean {
+    override fun attachFile(
+        context: ActionContext,
+        path: String,
+        mimeType: String?,
+        isFileAppOwned: Boolean,
+    ): Boolean {
         val file = try {
             File(URI(path))
         } catch (e: Exception) {
@@ -1363,7 +1368,11 @@ class ConversationViewModel(
             Dispatchers.IO,
             "addAttachment",
         ) {
-            loadAttachmentFileIntoComposer(file)
+            val result = loadAttachmentFileIntoComposer(file, mimeType, isFileAppOwned)
+            if (result !is ActionResult.Success && isFileAppOwned) {
+                file.parentFile?.deleteRecursively()
+            }
+            result
         } is ActionResult.Success
     }
 
