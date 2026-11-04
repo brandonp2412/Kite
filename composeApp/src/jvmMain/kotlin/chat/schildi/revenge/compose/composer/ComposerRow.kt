@@ -330,18 +330,23 @@ fun ComposerRow(
                 val textFieldState = remember(viewModel) {
                     TextFieldState(draftState.textFieldValue.text, draftState.textFieldValue.selection)
                 }
-                // Commands, edits, replies and draft switching still update DraftRepo.
-                // Mirror those changes into the state-based editor without reissuing them
-                // as keyboard input (and without resetting an active IME composition).
+                // The editor owns in-flight keyboard input. A collected draft can lag
+                // behind a newer IME edit, so never mirror stale draft snapshots back
+                // into TextFieldState (that can erase recently typed characters).
+                val textSync = remember(viewModel) { ComposerTextSync(draftState.textFieldValue) }
                 SideEffect {
                     val incoming = draftState.textFieldValue
-                    if (textFieldState.text.toString() != incoming.text ||
-                        textFieldState.selection != incoming.selection
-                    ) {
+                    val live = (viewModel.composerState.value as? DraftValue)?.textFieldValue
+                    if (textSync.shouldApplyExternalValue(incoming, live)) {
                         textFieldState.edit {
-                            replace(0, length, incoming.text)
-                            selection = incoming.selection
+                            if (asCharSequence().toString() != incoming.text) {
+                                replace(0, length, incoming.text)
+                            }
+                            if (selection != incoming.selection) {
+                                selection = incoming.selection
+                            }
                         }
+                        textSync.recordExternalValue(incoming)
                     }
                 }
                 val inputTransformation = remember(viewModel) {
@@ -349,6 +354,7 @@ fun ComposerRow(
                         val current = viewModel.composerState.value as? DraftValue
                             ?: return@InputTransformation
                         val newValue = TextFieldValue(asCharSequence().toString(), selection)
+                        textSync.recordKeyboardEdit(newValue)
                         if (current.textFieldValue.text != newValue.text ||
                             current.textFieldValue.selection != newValue.selection
                         ) {
