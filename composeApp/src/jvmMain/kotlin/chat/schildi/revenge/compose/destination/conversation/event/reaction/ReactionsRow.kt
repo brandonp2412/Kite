@@ -59,7 +59,9 @@ fun ColumnScope.ReactionsRow(
     // message above it in the reverse-layout timeline.
     AnimatedVisibility(
         visible = retainedReactions.isNotEmpty(),
-        enter = fadeIn(tween(160)) + expandVertically(tween(220)),
+        // Preserve the row's expanding layout without cropping the top of the
+        // reaction glyph while the chip is still taller than the animated height.
+        enter = fadeIn(tween(160)) + expandVertically(tween(220), clip = false),
         exit = fadeOut(tween(180)) + shrinkVertically(tween(240)),
         modifier = modifier.align(alignment),
     ) {
