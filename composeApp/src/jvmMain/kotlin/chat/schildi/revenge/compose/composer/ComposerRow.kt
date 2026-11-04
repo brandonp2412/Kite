@@ -15,8 +15,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -31,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +49,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -321,11 +327,38 @@ fun ComposerRow(
                     DraftType.CUSTOM_EVENT,
                     DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
                 }
+                val textFieldState = remember(viewModel) {
+                    TextFieldState(draftState.textFieldValue.text, draftState.textFieldValue.selection)
+                }
+                // Commands, edits, replies and draft switching still update DraftRepo.
+                // Mirror those changes into the state-based editor without reissuing them
+                // as keyboard input (and without resetting an active IME composition).
+                SideEffect {
+                    val incoming = draftState.textFieldValue
+                    if (textFieldState.text.toString() != incoming.text ||
+                        textFieldState.selection != incoming.selection
+                    ) {
+                        textFieldState.edit {
+                            replace(0, length, incoming.text)
+                            selection = incoming.selection
+                        }
+                    }
+                }
+                val inputTransformation = remember(viewModel) {
+                    InputTransformation {
+                        val current = viewModel.composerState.value as? DraftValue
+                            ?: return@InputTransformation
+                        val newValue = TextFieldValue(asCharSequence().toString(), selection)
+                        if (current.textFieldValue.text != newValue.text ||
+                            current.textFieldValue.selection != newValue.selection
+                        ) {
+                            viewModel.onComposerUpdate(current.copy(textFieldValue = newValue))
+                        }
+                    }
+                }
                 BasicTextField(
-                    value = draftState.textFieldValue,
-                    onValueChange = {
-                        viewModel.onComposerUpdate(draftState.copy(textFieldValue = it))
-                    },
+                    state = textFieldState,
+                    inputTransformation = inputTransformation,
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 12.dp)
@@ -346,24 +379,31 @@ fun ComposerRow(
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Send,
                     ),
-                    keyboardActions = KeyboardActions(
-                        onSend = {
-                            if (draftState.canSend() && !isSendInProgress && bodyValidationError == null) {
-                                viewModel.sendMessage(actionContext)
-                            }
-                        },
+                    onKeyboardAction = KeyboardActionHandler {
+                        if (draftState.canSend() && !isSendInProgress && bodyValidationError == null) {
+                            viewModel.sendMessage(actionContext)
+                        }
+                    },
+                    lineLimits = TextFieldLineLimits.MultiLine(
+                        minHeightInLines = 1,
+                        maxHeightInLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
                     ),
-                    maxLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
-                    minLines = 1,
+                    outputTransformation = OutputTransformation {
+                        draftState.spans.forEach { span ->
+                            if (span.start >= 0 && span.end <= length && span.start < span.end) {
+                                addStyle(span.draftStyle(draftTheme), span.start, span.end)
+                            }
+                        }
+                    },
                     cursorBrush = SolidColor(MaterialTheme.scExposures.accentColor),
-                    decorationBox = { innerTextField ->
+                    decorator = { innerTextField ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = if (draftState.attachment != null) 16.dp else 2.dp, end = 4.dp),
                             contentAlignment = Alignment.CenterStart,
                         ) {
-                            if (draftState.textFieldValue.text.isEmpty()) {
+                            if (textFieldState.text.isEmpty()) {
                                 Text(
                                     composerHint,
                                     color = composerHintColor,
