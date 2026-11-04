@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NoEncryption
 import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -74,7 +75,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.matrix.rustcomponents.sdk.markdownToHtml
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_add_attachment
-import shire.res.generated.resources.action_attachment_gif
+import shire.res.generated.resources.action_attachment_gallery
 import shire.res.generated.resources.action_clear_reply
 import shire.res.generated.resources.action_reply
 import shire.res.generated.resources.action_send
@@ -402,20 +403,21 @@ fun ComposerRow(
                     draftState.type == DraftType.TEXT &&
                     draftState.attachment == null &&
                     draftState.isEmpty() &&
-                    AttachmentPickerKind.GIF in availableAttachmentPickerKinds
+                    AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
                 ) {
-                    WithTooltip(stringResource(Res.string.action_attachment_gif)) {
+                    WithTooltip(stringResource(Res.string.action_attachment_gallery)) {
                         ScIconButton(
-                            onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GIF) },
+                            onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
                             modifier = Modifier.padding(end = 4.dp),
                             enabled = true,
                             minWidth = Dimens.Conversation.Composer.buttonWidth,
                             minHeight = Dimens.Conversation.Composer.buttonHeight,
                         ) {
-                            Text(
-                                "GIF",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            Icon(
+                                Icons.Outlined.Image,
+                                stringResource(Res.string.action_attachment_gallery),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp),
                             )
                         }
                     }
