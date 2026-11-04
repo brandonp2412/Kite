@@ -1031,15 +1031,6 @@ class ConversationViewModel(
         DraftRepo.update(draftKey, value)
     }
 
-    override fun onComposerTextUpdate(value: TextFieldValue) {
-        draftKey ?: return
-        // Only replace the text of the latest stored draft. The view model's
-        // collected composerState may still lag behind an attachment or reply.
-        DraftRepo.update(draftKey) { draft ->
-            (draft ?: createDraftValue()).copy(textFieldValue = value)
-        }
-    }
-
     override fun toggleStickerMode() {
         draftKey ?: return
         DraftRepo.update(draftKey) {

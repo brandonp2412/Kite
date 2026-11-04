@@ -16,18 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.InputTransformation
-import androidx.compose.foundation.text.input.KeyboardActionHandler
-import androidx.compose.foundation.text.input.OutputTransformation
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NoEncryption
 import androidx.compose.material.icons.outlined.EmojiEmotions
-import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +30,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +43,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -81,7 +74,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.matrix.rustcomponents.sdk.markdownToHtml
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_add_attachment
-import shire.res.generated.resources.action_attachment_gallery
+import shire.res.generated.resources.action_attachment_gif
 import shire.res.generated.resources.action_clear_reply
 import shire.res.generated.resources.action_reply
 import shire.res.generated.resources.action_send
@@ -327,73 +320,15 @@ fun ComposerRow(
                     DraftType.CUSTOM_EVENT,
                     DraftType.CUSTOM_STATE_EVENT -> MaterialTheme.scExposures.customEventHint
                 }
-                val textFieldState = remember(viewModel) {
-                    TextFieldState(draftState.textFieldValue.text, draftState.textFieldValue.selection)
-                }
-                // The editor owns in-flight keyboard input. A collected draft can lag
-                // behind a newer IME edit, so never mirror stale draft snapshots back
-                // into TextFieldState (that can erase recently typed characters).
-                val textSync = remember(viewModel) { ComposerTextSync(draftState.textFieldValue) }
-                SideEffect {
-                    val incoming = draftState.textFieldValue
-                    val live = (viewModel.composerState.value as? DraftValue)?.textFieldValue
-                    if (textSync.shouldApplyExternalValue(incoming, live)) {
-                        textFieldState.edit {
-                            if (asCharSequence().toString() != incoming.text) {
-                                replace(0, length, incoming.text)
-                            }
-                            if (selection != incoming.selection) {
-                                selection = incoming.selection
-                            }
-                        }
-                        textSync.recordExternalValue(incoming)
-                    }
-                }
-                // InputTransformation runs inside the IME edit transaction. Updating
-                // DraftRepo there can trigger a recomposition before Gboard commits
-                // its character and composing range. Publish committed snapshots
-                // separately so the keyboard always owns the active edit.
-                LaunchedEffect(viewModel, textFieldState) {
-                    textFieldState.committedComposerEdits().collect { newValue ->
-                        if (textSync.shouldPublishCommittedValue(newValue)) {
-                            viewModel.onComposerTextUpdate(newValue)
-                        }
-                    }
-                }
-                // A tap on Send can overtake the asynchronous snapshot collector.
-                // Flush the latest committed editor buffer before claiming the send.
-                val sendCurrentDraft = {
-                    val current = viewModel.composerState.value as? DraftValue
-                    if (current != null && !viewModel.isSendInProgress.value) {
-                        val latestEditor = TextFieldValue(
-                            textFieldState.text.toString(), textFieldState.selection,
-                        )
-                        val candidate = current.copy(textFieldValue = latestEditor)
-                        if (candidate.canSend() && candidate.bodyValidationError() == null) {
-                            viewModel.onComposerTextUpdate(latestEditor)
-                            viewModel.sendMessage(actionContext)
-                        }
-                    }
-                }
-                val inputTransformation = remember(viewModel) {
-                    InputTransformation {
-                        textSync.recordKeyboardEdit(
-                            TextFieldValue(asCharSequence().toString(), selection)
-                        )
-                    }
-                }
                 BasicTextField(
-                    state = textFieldState,
-                    inputTransformation = inputTransformation,
+                    value = draftState.textFieldValue,
+                    onValueChange = {
+                        viewModel.onComposerUpdate(draftState.copy(textFieldValue = it))
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 12.dp)
                         .heightIn(min = 32.dp)
-                        .keyboardImageContentReceiver(
-                            viewModel,
-                            actionContext,
-                            enabled = draftState.canAddAttachment() && !isSendInProgress,
-                        )
                         .keyFocusable(role = FocusRole.MESSAGE_COMPOSER)
                         .onFocusChanged {
                             isFocused = it.isFocused
@@ -405,27 +340,24 @@ fun ComposerRow(
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Send,
                     ),
-                    onKeyboardAction = KeyboardActionHandler { sendCurrentDraft() },
-                    lineLimits = TextFieldLineLimits.MultiLine(
-                        minHeightInLines = 1,
-                        maxHeightInLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
-                    ),
-                    outputTransformation = OutputTransformation {
-                        draftState.spans.forEach { span ->
-                            if (span.start >= 0 && span.end <= length && span.start < span.end) {
-                                addStyle(span.draftStyle(draftTheme), span.start, span.end)
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            if (draftState.canSend() && !isSendInProgress && bodyValidationError == null) {
+                                viewModel.sendMessage(actionContext)
                             }
-                        }
-                    },
+                        },
+                    ),
+                    maxLines = if (isFocused) maxLinesFocused else min(maxLinesUnfocused, maxLinesFocused),
+                    minLines = 1,
                     cursorBrush = SolidColor(MaterialTheme.scExposures.accentColor),
-                    decorator = { innerTextField ->
+                    decorationBox = { innerTextField ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = if (draftState.attachment != null) 16.dp else 2.dp, end = 4.dp),
                             contentAlignment = Alignment.CenterStart,
                         ) {
-                            if (textFieldState.text.isEmpty()) {
+                            if (draftState.textFieldValue.text.isEmpty()) {
                                 Text(
                                     composerHint,
                                     color = composerHintColor,
@@ -470,21 +402,20 @@ fun ComposerRow(
                     draftState.type == DraftType.TEXT &&
                     draftState.attachment == null &&
                     draftState.isEmpty() &&
-                    AttachmentPickerKind.GALLERY in availableAttachmentPickerKinds
+                    AttachmentPickerKind.GIF in availableAttachmentPickerKinds
                 ) {
-                    WithTooltip(stringResource(Res.string.action_attachment_gallery)) {
+                    WithTooltip(stringResource(Res.string.action_attachment_gif)) {
                         ScIconButton(
-                            onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GALLERY) },
+                            onClick = { viewModel.launchAttachmentPicker(actionContext, AttachmentPickerKind.GIF) },
                             modifier = Modifier.padding(end = 4.dp),
                             enabled = true,
                             minWidth = Dimens.Conversation.Composer.buttonWidth,
                             minHeight = Dimens.Conversation.Composer.buttonHeight,
                         ) {
-                            Icon(
-                                Icons.Outlined.Image,
-                                stringResource(Res.string.action_attachment_gallery),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp),
+                            Text(
+                                "GIF",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -494,7 +425,7 @@ fun ComposerRow(
                     ComposerSendButton(
                         enabled = canSendNow && !isSendInProgress,
                     ) {
-                        sendCurrentDraft()
+                        viewModel.sendMessage(actionContext)
                     }
                 } else if (draftState.type.needsClearButton() && draftState.isEmpty()) {
                     ClearButton { viewModel.onComposerUpdate(DraftValue()) }

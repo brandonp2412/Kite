@@ -31,10 +31,10 @@ actual object FilePicker {
         kind: AttachmentPickerKind,
     ): Result<FilePickerResult?> {
         return try {
-            when (kind) {
-                AttachmentPickerKind.FILE -> requestDocument(windowId, arrayOf("*/*"))
-                AttachmentPickerKind.GALLERY -> requestDocument(windowId, arrayOf("image/*", "video/*"))
-                AttachmentPickerKind.CAMERA -> requestCamera(windowId)
+            if (kind == AttachmentPickerKind.CAMERA) {
+                requestCamera(windowId)
+            } else {
+                requestDocument(windowId, requireNotNull(kind.documentMimeTypes()))
             }
         } catch (exception: CancellationException) {
             throw exception

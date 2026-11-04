@@ -1,6 +1,5 @@
 package chat.schildi.revenge.model
 
-import androidx.compose.ui.text.input.TextFieldValue
 import chat.schildi.matrixsdk.ImagePackImageSource
 import chat.schildi.matrixsdk.ImagePackImageWithRawInfo
 import chat.schildi.revenge.actions.ActionContext
@@ -103,7 +102,6 @@ interface ComposerViewModel {
     val composerSuggestions: StateFlow<ComposerSuggestionsState>
     val composerRoomInfo: StateFlow<ComposerRoomInfo?>
     fun onComposerUpdate(value: DraftValue)
-    fun onComposerTextUpdate(value: TextFieldValue)
     fun toggleStickerMode()
     fun sendMessage(context: ActionContext): ActionResult
     fun attachFile(

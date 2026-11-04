@@ -116,6 +116,7 @@
     <string name="action_attachment_camera">Take a photo</string>
     <string name="action_attachment_file">Upload file</string>
     <string name="action_attachment_gallery">Open gallery</string>
+    <string name="action_attachment_gif">Choose GIF</string>
     <string name="action_clear_attachment">Remove attachment</string>
     <string name="action_join">Join</string>
     <string name="action_reject">Reject</string>

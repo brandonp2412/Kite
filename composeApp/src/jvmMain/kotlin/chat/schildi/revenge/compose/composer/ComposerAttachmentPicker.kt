@@ -30,11 +30,13 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_attachment_camera
 import shire.res.generated.resources.action_attachment_file
+import shire.res.generated.resources.action_attachment_gif
 import shire.res.generated.resources.action_attachment_gallery
 
 private val AttachmentActionShape = CircleShape
 private val AttachmentActionOrder = listOf(
     AttachmentPickerKind.GALLERY,
+    AttachmentPickerKind.GIF,
     AttachmentPickerKind.CAMERA,
     AttachmentPickerKind.FILE,
 )
@@ -63,11 +65,13 @@ internal fun ComposerAttachmentPicker(
                             AttachmentPickerKind.CAMERA -> stringResource(Res.string.action_attachment_camera)
                             AttachmentPickerKind.FILE -> stringResource(Res.string.action_attachment_file)
                             AttachmentPickerKind.GALLERY -> stringResource(Res.string.action_attachment_gallery)
+                            AttachmentPickerKind.GIF -> stringResource(Res.string.action_attachment_gif)
                         }
                         val icon = when (kind) {
                             AttachmentPickerKind.CAMERA -> Icons.Default.CameraAlt
                             AttachmentPickerKind.FILE -> Icons.Default.UploadFile
                             AttachmentPickerKind.GALLERY -> Icons.Default.PhotoLibrary
+                            AttachmentPickerKind.GIF -> Icons.Default.PhotoLibrary
                         }
                         Column(
                             modifier = Modifier.weight(1f),
@@ -84,12 +88,20 @@ internal fun ComposerAttachmentPicker(
                                     },
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = label,
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(26.dp),
-                                )
+                                if (kind == AttachmentPickerKind.GIF) {
+                                    Text(
+                                        "GIF",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = label,
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(26.dp),
+                                    )
+                                }
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(

@@ -7,6 +7,15 @@ enum class AttachmentPickerKind {
     CAMERA,
     FILE,
     GALLERY,
+    GIF,
+}
+
+/** MIME filters for the Android document picker (not the keyboard). */
+internal fun AttachmentPickerKind.documentMimeTypes(): Array<String>? = when (this) {
+    AttachmentPickerKind.FILE -> arrayOf("*/*")
+    AttachmentPickerKind.GALLERY -> arrayOf("image/*", "video/*")
+    AttachmentPickerKind.GIF -> arrayOf("image/gif")
+    AttachmentPickerKind.CAMERA -> null
 }
 
 data class FilePickerResult(
