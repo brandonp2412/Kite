@@ -10,11 +10,20 @@ import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.compose.destination.conversation.event.message.FittedImageShape
 import chat.schildi.revenge.compose.destination.conversation.event.message.fittedMediaRect
 import chat.schildi.revenge.compose.destination.conversation.event.message.captionMediaWidth
+import chat.schildi.revenge.compose.destination.conversation.event.message.MessageRenderContext
+import chat.schildi.revenge.compose.destination.conversation.event.message.timelineImageMaxHeight
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class FittedImageShapeTest {
+    @Test
+    fun photosStayBoundedInTimelineAndReplies() {
+        assertEquals(Dimens.Conversation.imageMaxHeight, timelineImageMaxHeight(MessageRenderContext.NORMAL))
+        assertEquals(500.dp, timelineImageMaxHeight(MessageRenderContext.NORMAL))
+        assertEquals(200.dp, timelineImageMaxHeight(MessageRenderContext.IN_REPLY_TO))
+    }
+
     @Test
     fun captionMatchesPortraitImageWidth() {
         assertEquals(220.dp, captionMediaWidth(0.5f))

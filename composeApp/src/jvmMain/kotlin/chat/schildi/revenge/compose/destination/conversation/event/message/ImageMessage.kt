@@ -138,10 +138,7 @@ fun ImageMessage(
             minWidth = Dimens.Conversation.imageMinWidth,
             minHeight = Dimens.Conversation.imageMinHeight,
             maxWidth = Dimens.Conversation.imageMaxWidth,
-            maxHeight = when (LocalMessageRenderContext.current) {
-                MessageRenderContext.NORMAL -> Dp.Infinity
-                MessageRenderContext.IN_REPLY_TO -> Dimens.Conversation.imageRepliedToMaxHeight
-            },
+            maxHeight = timelineImageMaxHeight(LocalMessageRenderContext.current),
             caption = messageMetadata?.preFormattedContent,
             shape = shape,
             displayAspectRatio = displayAspectRatio,
@@ -209,7 +206,9 @@ fun ColumnScope.ImageMessageContent(
                     if (caption != null && LocalMessageRenderContext.current == MessageRenderContext.NORMAL) {
                         // Text + image share one width; don't letterbox a narrow portrait
                         // inside a much wider caption bubble.
-                        Modifier.fillMaxWidth().aspectRatio(reservedAspectRatio)
+                        // Keep the caption width stable, but never let a very tall
+                        // photo stretch the timeline beyond the media height limit.
+                        Modifier.fillMaxWidth().sizeIn(maxHeight = maxHeight).aspectRatio(reservedAspectRatio)
                     } else {
                         Modifier.boundedMediaSize(minWidth, minHeight, maxWidth, maxHeight, reservedAspectRatio)
                     }
@@ -288,6 +287,11 @@ internal fun fittedMediaRect(viewport: Size, image: Size): Rect {
     val width = image.width * scale
     val height = image.height * scale
     return Rect(Offset((viewport.width - width) / 2f, (viewport.height - height) / 2f), Size(width, height))
+}
+
+internal fun timelineImageMaxHeight(context: MessageRenderContext): Dp = when (context) {
+    MessageRenderContext.NORMAL -> Dimens.Conversation.imageMaxHeight
+    MessageRenderContext.IN_REPLY_TO -> Dimens.Conversation.imageRepliedToMaxHeight
 }
 
 // Portrait images must not squeeze their captions into a narrow column.
