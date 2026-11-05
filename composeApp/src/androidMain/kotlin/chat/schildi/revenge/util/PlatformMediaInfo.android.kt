@@ -1,15 +1,52 @@
 package chat.schildi.revenge.util
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import io.element.android.libraries.matrix.api.timeline.InMemoryMediaThumbnail
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.roundToInt
 
 actual object MediaInfoUtil {
-    actual fun probeImage(file: File) = MediaMeasures(null, null, null)
-    actual fun probeImage(bytes: ByteArray) = MediaMeasures(null, null, null)
+    actual fun probeImage(file: File): MediaMeasures {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        return try {
+            // Bounds-only decode avoids allocating a full-size bitmap in the composer.
+            BitmapFactory.decodeFile(file.absolutePath, options)
+            val orientation = try {
+                ExifInterface(file.absolutePath).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_UNDEFINED,
+                )
+            } catch (_: Exception) {
+                ExifInterface.ORIENTATION_UNDEFINED
+            }
+            imageMeasuresFromBounds(options.outWidth, options.outHeight, isQuarterTurn(orientation))
+        } catch (_: Exception) {
+            MediaMeasures(null, null, null)
+        }
+    }
+
+    actual fun probeImage(bytes: ByteArray): MediaMeasures {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        return try {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            val orientation = try {
+                ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_UNDEFINED,
+                )
+            } catch (_: Exception) {
+                ExifInterface.ORIENTATION_UNDEFINED
+            }
+            imageMeasuresFromBounds(options.outWidth, options.outHeight, isQuarterTurn(orientation))
+        } catch (_: Exception) {
+            MediaMeasures(null, null, null)
+        }
+    }
     actual fun generateImageBlurHash(file: File): String? = null
     actual fun generateImageBlurHash(bytes: ByteArray): String? = null
 
@@ -74,4 +111,12 @@ actual object MediaInfoUtil {
     }
 
     actual fun probeAudio(file: File) = MediaMeasures(null, null, null)
+}
+
+private fun isQuarterTurn(orientation: Int): Boolean = when (orientation) {
+    ExifInterface.ORIENTATION_TRANSPOSE,
+    ExifInterface.ORIENTATION_ROTATE_90,
+    ExifInterface.ORIENTATION_TRANSVERSE,
+    ExifInterface.ORIENTATION_ROTATE_270 -> true
+    else -> false
 }

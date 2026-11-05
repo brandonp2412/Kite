@@ -9,6 +9,12 @@ data class MediaMeasures(
     val durationMs: Long?,
 )
 
+/** Normalizes decoded image bounds to their displayed orientation, rejecting invalid decodes. */
+internal fun imageMeasuresFromBounds(width: Int, height: Int, swapAxes: Boolean): MediaMeasures {
+    if (width <= 0 || height <= 0) return MediaMeasures(null, null, null)
+    return if (swapAxes) MediaMeasures(height, width, null) else MediaMeasures(width, height, null)
+}
+
 data class GeneratedVideoThumbnail(
     val thumbnail: InMemoryMediaThumbnail,
     val videoMeasures: MediaMeasures,
