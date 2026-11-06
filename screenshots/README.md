@@ -15,7 +15,7 @@ python3 scripts/screenshot_fixture.py --url "http://$HOST_BIND_IP:18887" --confi
 
 Seed a fresh server **once**; repeating the seeder would create duplicate rooms. `rsvg-convert` is needed to generate its fictional artwork. The login JSON contains dummy account credentials and must stay private.
 
-Build with `buildq --wait -- ./gradlew :androidApp:assemblePerfDebug -PandroidAbi=x86 --offline --no-daemon`, install the resulting APK onto the isolated emulator, and sign into the host URL as `taylor` using the password in that JSON. Set `ANDROID_SERIAL` to its ADB serial. Do not capture or sign into a production Matrix account.
+Build with `buildq --wait -- ./gradlew :androidApp:assemblePerfDebug -PandroidAbi=x86_64 --offline --no-daemon`, install the resulting APK onto the isolated emulator, and sign into the host URL as `taylor` using the password in that JSON. Set `ANDROID_SERIAL` to its ADB serial. If the UI filter names that emulator differently, also set `MOBILE_FILTER_DEVICE` to its UI-filter device ID. Do not capture or sign into a production Matrix account.
 
 ```sh
 python3 scripts/generate_screenshots.py --device "$ANDROID_SERIAL"
