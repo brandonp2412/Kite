@@ -263,7 +263,7 @@ def perform_shots(device, theme):
     def picker():
         media()
         device.tap(113, 2053)  # The left +, not the gallery shortcut at right.
-        device.wait("Open gallery", "label")
+        device.wait("Take a photo", "label")
     shot("chat-attachment-picker", picker)
 
     def search(value):
