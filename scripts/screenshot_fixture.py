@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -29,12 +30,19 @@ def request(base, route, token=None, payload=None, method=None, content_type="ap
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = Request(base + route, data=data, headers=headers, method=method)
-    try:
-        with urlopen(req, timeout=30) as response:
-            raw = response.read()
-            return json.loads(raw) if raw else {}
-    except HTTPError as error:
-        raise RuntimeError(f"{route}: HTTP {error.code} {error.read()[:300]!r}") from error
+    for attempt in range(12):
+        try:
+            with urlopen(req, timeout=30) as response:
+                raw = response.read()
+                return json.loads(raw) if raw else {}
+        except HTTPError as error:
+            details = error.read()
+            if error.code == 429 and attempt < 11:
+                retry_ms = json.loads(details).get("retry_after_ms", 1000)
+                time.sleep(max(0.5, min(float(retry_ms) / 1000, 10)))
+                continue
+            raise RuntimeError(f"{route}: HTTP {error.code} {details[:300]!r}") from error
+    raise RuntimeError(f"{route}: exceeded retry limit")
 
 
 def register(base, username, password, secret):

@@ -45,7 +45,8 @@ class Android:
         if not DEVICE_FILTER:
             raise RuntimeError("Set MOBILE_DEVICE_FILTER or install mobile-mcp-device-filter")
         result = subprocess.run(
-            [DEVICE_FILTER, "dump", "ui", "--device", self.serial],
+            [DEVICE_FILTER, "dump", "ui", "--device",
+             os.environ.get("MOBILE_FILTER_DEVICE", self.serial)],
             capture_output=True, text=True, check=True, timeout=30,
         )
         def flatten(values):
