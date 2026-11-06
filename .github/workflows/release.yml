@@ -52,7 +52,7 @@ jobs:
           major=$((10#${BASH_REMATCH[1]}))
           minor=$((10#${BASH_REMATCH[2]}))
           patch=$((10#${BASH_REMATCH[3]}))
-          (( major <= 2100 && minor < 1000 && patch < 1000 )) || exit 1
+          (( major <= 2100 && minor < 100 && patch < 1000 )) || exit 1
           # Gradle derives versionCode from androidVersionName; no CI offset.
 
       - name: Require signing secrets
