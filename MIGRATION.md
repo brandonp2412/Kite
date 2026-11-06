@@ -2082,3 +2082,33 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Glass buildq #5200 initially failed only because the isolated worktree's Rust SDK submodule was absent; #5202 failed because the existing source checkout was shallow; #5204 initialized the pinned SDK. Buildq #5206 focused desktop regression PASS (4m08s), #5212 Android compilation PASS (44s), #5213 signed ARM64 release PASS (280 tasks, 5m37s). `git diff --check` PASS and freshly fetched `origin/main` was an ancestor of release source.
 - APK `androidApp/build/outputs/apk/release/androidApp-release.apk`: SHA-256 `42c2e788e1ce336a8341cae278967c25f4c473b1877ac3a3b7e5aab9f7e06ecd`; `app.kite` 1.0.92 / versionCode `101000093`. `apksigner verify` PASS; signing certificate SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd` exactly matched the prior 1.0.91 APK pulled directly from Samsung.
 - Samsung Galaxy S25: `adb install -r` returned `Success` over 1.0.91 / `101000092`. Post-install `dumpsys package` confirmed 1.0.92 / `101000093`, app UID `10847` and original `firstInstallTime=2026-10-16 18:00:56` unchanged. The phone remained locked; no app launch, account reset, data clear, or Matrix message was performed. **Actual on-device photo-send visual acceptance is still unverified**.
+
+
+## 2026-11-06 — In-chat timestamps after 15-minute gaps (verification pending)
+
+- Added a muted, centered time label when at least 15 minutes elapsed since the preceding visible event, using the existing 12/24-hour setting. Same-sender bubbles now stop joining across that pause; day and unread dividers remain intact. Older-message indices are precomputed once per timeline update.
+- Added desktop regression cases for the exact threshold, shorter intervals, reversed clock order, missing older message, and hidden or divided timeline rows. `git diff --check` passed; Kotlin compilation and tests remain **unverified**.
+- Nox buildq #4835 failed due to the fresh worktree lacking the pinned Matrix Rust SDK submodule. After locally initializing pinned revision 128049fd, buildq #4836 compiled Rust for about 13 minutes but was deliberately killed due to critical host memory pressure (full avg10 above 90%).
+- Glass's connector returned 429; Nox lacks `KITE_RELEASE_*` signing configuration. No release APK, Samsung install, app data change or Matrix message was performed. Isolated branch awaits healthy build verification, integration and physical visual acceptance.
+
+
+## 2026-11-07 — Verified and installed gap timestamps in Kite 1.0.93
+
+- Source feature commit `b3a633cb8d4f493625676d001430e1e1467f3e98` on `feat/kite-gap-timestamps-20261106` adds a centered, muted time label after a 15-minute message gap, respects the 12/24-hour setting and breaks sender grouping at the pause. The previous 2026-11-06 entry describes the initial deferred test attempt; the following checks supersede that verification status.
+- Nox buildq #4843 PASS for `:composeApp:compileAndroidMain` (78 tasks, 10m38s), and buildq #4844 PASS for focused `TimelineVisibleNeighborsTest` (55 tasks, 27s). GitHub Checks workflow run 42279024982 PASS (format, desktop tests, Android lint and UI contract checks).
+- Manually dispatched GitHub Android release workflow 42279030090 on the exact source commit with version `1.0.93`, **without publishing a release**. All four ABI jobs passed. Downloaded ARM64 APK SHA-256 `2b87a60aa1c51452f43f913d26d664d7ee9bcc85c3fad2d0a61e9920fed136b7`, package `app.kite`, versionCode `101000094`, signer SHA-256 `011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd`. APK SHA file, apksigner verification and sole `lib/arm64-v8a/libmatrix_sdk_ffi.so` check all passed.
+- Physical Samsung Galaxy S25 `adb install -r --no-streaming` returned `Success` over Kite 1.0.92/code `101000093`. Post-install package query showed 1.0.93/code `101000094`, UID `10847` unchanged and original `firstInstallTime=2026-10-16 18:00:56` unchanged. No uninstall, app-data reset, account changes, foreground app launch or Matrix messages. In-chat visual acceptance remains for the user to check.
+- This source remains on a dedicated feature branch; it has not been merged into `main`. No public GitHub/F-Droid release was published.
+
+
+## 2026-11-07 — Screenshot gallery hosting and updated attachment sheet
+
+- Removed the duplicate Gallery action from the plus sheet; the composer right-aligned Gallery shortcut remains. Isolated Android 15 emulator visually showed only Take a photo and Upload file in the plus sheet. GitHub PR #4 merged as 897ec3b; hosted gallery https://brandonp2412.github.io/Kite/ returned HTTP 200 for HTML and tested PNGs, GitHub Pages deployment #42298478097 passed, and PR formatting and Kotlin/Android checks passed.
+- Genuine isolated Android emulator captures used fictional account @taylor:kite-screenshots.test (9 users, 6 rooms, 27 messages). Glass buildq #5261 compiled the x86_64 PerfDebug APK; #5263 captured 50 light/dark states without skips and promoted eight Fastlane/README PNGs. Screenshot generator --verify passed (50 captures, eight curated); git diff --check passed.
+- Fixture seeder retries Synapse HTTP 429; screenshot capture supports separate ADB serial and UI-filter IDs. No production Matrix account was involved. Signed release 1.0.94 and Samsung installation remain pending; the installed 1.0.93 versionCode 101000094 must not be downgraded or have its app data reset.
+
+## 2026-11-07 — Lower versionCode baseline for future distribution
+
+- User explicitly approved a pre-store versionCode reset. Replaced `101000000`-range codes with deterministic `major * 100000 + minor * 1000 + patch` (`1.0.94` = `100094`; allows 999 patches per minor). Gradle and release validation now restrict minor to 0–99 so every major/minor/patch tuple has a unique increasing code. No application ID, signing configuration, versionName, tag or release artifact changed.
+- **Upgrade limitation:** Published GitHub releases `1.0.0`–`1.0.2` have downloadable APKs, despite the assumption that no releases existed. Samsung `app.kite` 1.0.93 has code `101000094`. Both exceed the new baseline; Android refuses a normal in-place downgrade. Do not uninstall/reset the app or touch Matrix accounts to force this change; physical Samsung installation is intentionally deferred pending an explicit data-safe migration. An obsolete 1.0.94 workflow run `42299532234` was cancelled.
+- Verification: source-level checks and GitHub PR CI pending. No APK installed, accounts modified, or public release published by this change.

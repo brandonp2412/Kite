@@ -1001,6 +1001,9 @@ fun ConversationScreen(
                                 nextVisibleEvent = (renderedItems.getOrNull(
                                     visibleNeighborIndices.newer[index]
                                 )?.item as? MatrixTimelineItem.Event)?.event,
+                                olderMessageTimestamp = (renderedItems.getOrNull(
+                                    visibleNeighborIndices.olderAcrossDividers[index]
+                                )?.item as? MatrixTimelineItem.Event)?.event?.timestamp,
                                 previousEvent = getNextItem(
                                     index,
                                     renderedItems::getOrNull,

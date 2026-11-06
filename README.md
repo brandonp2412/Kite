@@ -10,7 +10,7 @@ Kite is a fork of [SchildiChat Revenge](https://github.com/SchildiChat/schildi-r
 | --- | --- | --- | --- |
 | ![Kite inbox](metadata/en-US/images/phoneScreenshots/1_en-US.png) | ![Direct chat](metadata/en-US/images/phoneScreenshots/2_en-US.png) | ![Quick reactions](metadata/en-US/images/phoneScreenshots/3_en-US.png) | ![Attachment picker](metadata/en-US/images/phoneScreenshots/8_en-US.png) |
 
-The [screenshot gallery](screenshots/index.html) contains genuine Android captures of Kite, using isolated fictional Matrix accounts. See [capture instructions](screenshots/README.md).
+The [screenshot gallery](https://brandonp2412.github.io/Kite/) contains genuine Android captures of Kite, using isolated fictional Matrix accounts. Exactly eight are selected for Fastlane/Play. See [capture instructions](screenshots/README.md).
 
 ## Features
 

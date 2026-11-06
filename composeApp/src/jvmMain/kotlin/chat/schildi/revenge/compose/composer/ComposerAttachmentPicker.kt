@@ -34,7 +34,6 @@ import shire.res.generated.resources.action_attachment_gallery
 
 private val AttachmentActionShape = CircleShape
 private val AttachmentActionOrder = listOf(
-    AttachmentPickerKind.GALLERY,
     AttachmentPickerKind.CAMERA,
     AttachmentPickerKind.FILE,
 )

@@ -61,13 +61,14 @@ val (majorText, minorText, patchText) = versionParts.destructured
 val major = majorText.toInt()
 val minor = minorText.toInt()
 val patch = patchText.toInt()
-require(major in 1..2100 && minor in 0..999 && patch in 0..999) {
-    "Kite Android version components out of range (major 1..2100, minor/patch 0..999)."
+require(major in 1..2100 && minor in 0..99 && patch in 0..999) {
+    "Kite Android version components out of range (major 1..2100, minor 0..99, patch 0..999)."
 }
-// Existing production installations use codes from 101000000 upward.
-// Preserve that floor so upgrades never require losing Matrix account data.
-// 1.0.77 -> 101000078; 1.1.0 -> 101001001; 2.0.0 -> 102000001.
-val androidVersionCode = 101_000_000 + (major - 1) * 1_000_000 + minor * 1_000 + patch + 1
+// Pre-store baseline: 1.0.94 -> 100094; 1.0.100 -> 100100;
+// 1.1.0 -> 101000; 2.0.0 -> 200000. Never reuse a code within this scheme.
+// This is lower than historical GitHub APKs and private Samsung installations:
+// updating those installs requires an explicit, data-safe migration plan.
+val androidVersionCode = major * 100_000 + minor * 1_000 + patch
 require(androidVersionCode in 1..2_100_000_000) {
     "Kite Android versionCode exceeds the Google Play limit."
 }

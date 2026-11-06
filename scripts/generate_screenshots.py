@@ -45,7 +45,8 @@ class Android:
         if not DEVICE_FILTER:
             raise RuntimeError("Set MOBILE_DEVICE_FILTER or install mobile-mcp-device-filter")
         result = subprocess.run(
-            [DEVICE_FILTER, "dump", "ui", "--device", self.serial],
+            [DEVICE_FILTER, "dump", "ui", "--device",
+             os.environ.get("MOBILE_FILTER_DEVICE", self.serial)],
             capture_output=True, text=True, check=True, timeout=30,
         )
         def flatten(values):
@@ -263,7 +264,7 @@ def perform_shots(device, theme):
     def picker():
         media()
         device.tap(113, 2053)  # The left +, not the gallery shortcut at right.
-        device.wait("Open gallery", "label")
+        device.wait("Take a photo", "label")
     shot("chat-attachment-picker", picker)
 
     def search(value):
