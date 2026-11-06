@@ -50,6 +50,33 @@ class TimelineVisibleNeighborsTest {
     }
 
     @Test
+    fun fifteenMinutePauseStartsNewVisibleTimeGroup() {
+        val base = 1_800_000_000_000L
+        assertEquals(false, shouldShowMessageTimeSeparator(base, null))
+        assertEquals(false, shouldShowMessageTimeSeparator(base, base))
+        assertEquals(false, shouldShowMessageTimeSeparator(base + 14 * 60_000L + 59_999L, base))
+        assertEquals(true, shouldShowMessageTimeSeparator(base + 15 * 60_000L, base))
+        assertEquals(true, shouldShowMessageTimeSeparator(base + 26 * 60_000L, base))
+        assertEquals(false, shouldShowMessageTimeSeparator(base - 60_000L, base))
+    }
+
+    @Test
+    fun timeGroupsFollowVisibleMessagesAcrossDateAndUnreadDividers() {
+        val neighbors = calculateVisibleTimelineNeighbors(listOf(
+            TimelineRowKind.Event,
+            TimelineRowKind.Hidden,
+            TimelineRowKind.Boundary,
+            TimelineRowKind.Event,
+            TimelineRowKind.Boundary,
+            TimelineRowKind.Event,
+        ))
+        assertEquals(3, neighbors.olderAcrossDividers[0])
+        assertEquals(5, neighbors.olderAcrossDividers[3])
+        assertEquals(-1, neighbors.olderAcrossDividers[5])
+        assertEquals(-1, neighbors.older[0]) // Bubble grouping still stops at dividers.
+    }
+
+    @Test
     fun adjacentVisibleMessagesPreserveNormalGrouping() {
         val neighbors = calculateVisibleTimelineNeighbors(listOf(
             TimelineRowKind.Event,

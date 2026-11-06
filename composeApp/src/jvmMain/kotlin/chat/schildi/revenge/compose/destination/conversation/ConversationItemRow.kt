@@ -22,6 +22,7 @@ import chat.schildi.revenge.compose.destination.conversation.event.EventRow
 import chat.schildi.revenge.compose.destination.conversation.event.selectionHighlightColor
 import chat.schildi.revenge.compose.destination.conversation.event.MessageSwipeConfig
 import chat.schildi.revenge.compose.destination.conversation.virtual.DayHeaderRow
+import chat.schildi.revenge.compose.destination.conversation.virtual.MessageTimeGapHeader
 import chat.schildi.revenge.compose.destination.conversation.virtual.DebugLinePosition
 import chat.schildi.revenge.compose.destination.conversation.virtual.TimelineItemDebugLine
 import chat.schildi.revenge.compose.destination.conversation.virtual.TimelineItemDebugLineInstance
@@ -61,6 +62,7 @@ fun ConversationItemRow(
     previous: ScTimelineItem?,
     previousVisibleEvent: EventTimelineItem?,
     nextVisibleEvent: EventTimelineItem?,
+    olderMessageTimestamp: Long?,
     previousEvent: MatrixTimelineItem.Event?,
     fullyReadEvent: FullyReadEventState?,
     currentThreadId: ThreadId?,
@@ -137,12 +139,19 @@ fun ConversationItemRow(
                 // must follow the adjacent *rendered* messages instead.
                 val directPreviousEvent = previousVisibleEvent
                 val directNextEvent = nextVisibleEvent
-                val previousSender = directPreviousEvent?.sender?.takeIf { !showUnreadLine }
+                val showTimeSeparator = shouldShowMessageTimeSeparator(
+                    item.item.event.timestamp, olderMessageTimestamp,
+                )
+                val previousSender = directPreviousEvent?.sender?.takeIf { !showUnreadLine && !showTimeSeparator }
                 val isSameAsPreviousSender = previousSender == item.item.event.sender &&
                         directPreviousEvent.content is MessageContent &&
                         item.item.event.content is MessageContent &&
                         directPreviousEvent.content.perMessageProfile() == item.item.event.content.perMessageProfile()
-                val isSameAsNextSender = directNextEvent?.sender == item.item.event.sender &&
+                val nextStartsTimeGroup = directNextEvent?.let {
+                    shouldShowMessageTimeSeparator(it.timestamp, item.item.event.timestamp)
+                } == true
+                val isSameAsNextSender = !nextStartsTimeGroup &&
+                        directNextEvent?.sender == item.item.event.sender &&
                         directNextEvent.content is MessageContent &&
                         item.item.event.content is MessageContent &&
                         directNextEvent.content.perMessageProfile() == item.item.event.content.perMessageProfile()
@@ -150,13 +159,16 @@ fun ConversationItemRow(
                     isSelected = isSelected,
                     olderMessageSelected = olderMessageSelected,
                     hasOlderVisibleMessage = directPreviousEvent != null,
-                    hasUnreadSeparator = showUnreadLine,
+                    hasUnreadSeparator = showUnreadLine || showTimeSeparator,
                 )
                 val gapModifier = Modifier.fillMaxWidth().height(messageGapBeforeEvent(
                     hasOlderVisibleMessage = directPreviousEvent != null,
                     hasUnreadSeparator = showUnreadLine,
                 ))
                 Spacer(if (joinsOlderSelection) gapModifier.background(selectionHighlightColor()) else gapModifier)
+                if (showTimeSeparator) {
+                    MessageTimeGapHeader(item.item.event.timestamp)
+                }
                 EventRow(
                     viewModel,
                     item.item.event,
