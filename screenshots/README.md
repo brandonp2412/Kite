@@ -22,6 +22,6 @@ python3 scripts/generate_screenshots.py --device "$ANDROID_SERIAL"
 python3 scripts/generate_screenshots.py --verify
 ```
 
-The first command captures all states in `screenshots/generated/native/`, writes [the gallery](index.html) and `native-manifest.json`, then updates eight ordered `metadata/en-US/images/phoneScreenshots/` PNGs. `--curate-only` reselects eight existing captures. `--verify` checks image hashes and Fastlane identity without needing Android (also used by release CI).
+The first command captures all states in `screenshots/generated/native/`, writes [the gallery](https://brandonp2412.github.io/Kite/) and `native-manifest.json`, then updates eight ordered `metadata/en-US/images/phoneScreenshots/` PNGs. `--curate-only` reselects eight existing captures. `--verify` checks image hashes and Fastlane identity without needing Android (also used by release CI).
 
 Coverage includes the inbox, account switcher, settings categories, direct and group chats, reaction popups and full emoji picker, message selection/actions/reply, media, attachments, search, member details and themes. Captures represent actual supported app states; unavailable features are not fabricated.

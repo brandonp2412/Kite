@@ -1,0 +1,44 @@
+name: Publish screenshot gallery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'screenshots/**'
+      - 'metadata/en-US/images/phoneScreenshots/**'
+      - 'scripts/generate_screenshots.py'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: kite-screenshot-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify real Android screenshots
+        run: python3 scripts/generate_screenshots.py --verify
+      - name: Prepare site
+        run: |
+          mkdir -p _site
+          cp -a screenshots/. _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deployment
