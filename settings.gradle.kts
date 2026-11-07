@@ -42,9 +42,13 @@ dependencyResolutionManagement {
             }
         }
 
-        mavenLocal {
-            mavenContent {
-                includeGroupAndSubgroups("com.beeper.android.messageformat")
+        // F-Droid builders must not resolve dependencies from the developer's
+        // private Maven cache; the pinned Beeper dependency is on JitPack.
+        if (!providers.gradleProperty("fdroidBuild").map { it.toBoolean() }.getOrElse(false)) {
+            mavenLocal {
+                mavenContent {
+                    includeGroupAndSubgroups("com.beeper.android.messageformat")
+                }
             }
         }
     }

@@ -88,10 +88,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: '1.99.1'
           targets: ${{ matrix.target }}
 
       - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
+        run: cargo install cargo-ndk@4.1.2 --locked
 
       - name: Restore signing certificate
         env:

@@ -16,7 +16,6 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.PosixFilePermission
-import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -349,11 +348,14 @@ val generateBuildInfo = tasks.register<GenerateBuildInfoTask>("generateBuildInfo
     rustProfileValue.set(rustProfile)
     packageName.set(pkg)
 
+    // Stable across machines and build dates, so the unsigned F-Droid APK can
+    // be compared against the upstream-signed release for the same commit.
     buildTimestamp.set(
         providers.gradleProperty("buildTimestamp").orElse(
-            providers.provider {
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-            },
+            providers.exec {
+                workingDir(rootProject.projectDir)
+                commandLine("git", "show", "-s", "--format=%cs", "HEAD")
+            }.standardOutput.asText.map(String::trim),
         ),
     )
 

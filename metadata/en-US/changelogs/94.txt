@@ -1,0 +1,1 @@
+Kite 1.0.94 adds clearer message timestamps, improved reactions and attachment handling, updated screenshots, and a streamlined native Matrix chat interface.

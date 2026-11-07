@@ -1,0 +1,51 @@
+Categories:
+  - Internet
+  - Messaging
+License: AGPL-3.0-only
+WebSite: https://github.com/brandonp2412/Kite
+SourceCode: https://github.com/brandonp2412/Kite
+IssueTracker: https://github.com/brandonp2412/Kite/issues
+
+AutoName: Kite
+Summary: A fast, native Matrix messenger
+Description: |-
+    Kite is a native Matrix messenger built with Kotlin, Compose and the Matrix
+    Rust SDK. It supports encrypted chats, multiple accounts, room search,
+    reactions, replies and media attachments.
+
+    Kite is a fork of SchildiChat Revenge and retains upstream attribution.
+
+RepoType: git
+Repo: https://github.com/brandonp2412/Kite.git
+
+Builds:
+  - versionName: 1.0.94
+    versionCode: 94
+    commit: 1.0.94
+    submodules: true
+    timeout: 7200
+    sudo:
+      - apt-get update
+      - apt-get install -y openjdk-25-jdk-headless clang cmake libclang-dev libssl-dev ninja-build pkg-config protobuf-compiler
+      - update-alternatives --auto java
+    srclibs:
+      - rustup@1.27.1
+    build:
+      - export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64
+      - export PATH="$JAVA_HOME/bin:$PATH"
+      - export CARGO_BUILD_JOBS=2
+      - export RUSTUP_HOME="$HOME/.rustup"
+      - export CARGO_HOME="$HOME/.cargo"
+      - $$rustup$$/rustup-init.sh -y --default-toolchain 1.99.1 --profile minimal --target aarch64-linux-android
+      - source "$CARGO_HOME/env"
+      - cargo install cargo-ndk@4.1.2 --locked
+      - ./gradlew :androidApp:assembleRelease -PfdroidBuild=true -PandroidAbi=arm64-v8a -PandroidVersionName=$$VERSION$$ --no-daemon
+    output: androidApp/build/outputs/apk/release/androidApp-release-unsigned.apk
+    binary: https://github.com/brandonp2412/Kite/releases/download/%v/Kite-%v-arm64-v8a.apk
+    ndk: 28.2.13676358
+
+AllowedAPKSigningKeys: 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.94
+CurrentVersionCode: 94
