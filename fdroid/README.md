@@ -11,9 +11,9 @@ existing upstream-signed APK **only if reproducible verification passes**.
 
 Prerequisites before submitting:
 
-1. Merge this source change into main and create the `1.0.94` source tag on that
+1. Merge this source change into main and create the `1.0.95` source tag on that
    exact commit. The GitHub release workflow must publish
-   `Kite-1.0.94-arm64-v8a.apk` using the existing certificate.
+   `Kite-1.0.95-arm64-v8a.apk` using the existing certificate.
 2. Validate the source-only build in an F-Droid buildserver environment with
    `fdroid readmeta`, `fdroid lint app.kite`, and `fdroid build app.kite`.
 3. Compare the unsigned build and GitHub signed APK via F-Droid's reproducible

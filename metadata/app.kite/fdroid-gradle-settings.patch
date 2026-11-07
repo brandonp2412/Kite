@@ -1,0 +1,27 @@
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -29,13 +29,6 @@
+         mavenCentral()
+ 
+         maven {
+-            url = URI("https://maven.spiritcroc.de")
+-            content {
+-                includeGroupAndSubgroups("chat.schildi")
+-            }
+-        }
+-
+-        maven {
+             url = URI("https://www.jitpack.io")
+             content {
+                 includeGroupAndSubgroups("com.github")
+@@ -54,10 +47,6 @@
+     }
+ }
+ 
+-plugins {
+-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+-}
+-
+ include(":composeApp")
+ include(":androidApp")
+ include(":config")
