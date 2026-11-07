@@ -65,4 +65,4 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends clang cmake libclang-dev libssl-dev ninja-build pkg-config protobuf-compiler
       - name: Unit tests, Android lint and UI contract checks
-        run: ./gradlew :composeApp:desktopTest :androidApp:lintDebug :androidApp:verifyKiteLongPressMenu --no-daemon --stacktrace
+        run: ./gradlew :composeApp:desktopTest :androidApp:lintDebug :androidApp:verifyKiteLongPressMenu :androidApp:verifyKiteVersionCodes --no-daemon --stacktrace

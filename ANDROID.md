@@ -12,11 +12,11 @@ Installing `app.kite` does not transfer Matrix sessions from `app.kite.revenge.d
 
 ## Versioning
 
-Kite Android `versionCode` is derived from `major.minor.patch` as `101_000_000 + (major - 1) * 1_000_000 + minor * 1_000 + patch + 1`. Thus `1.0.77` becomes `101000078`. This compatibility floor preserves in-place upgrades over already installed production builds; minor and patch must stay below 1000.
+Kite Android `versionCode` is derived as `(major - 1) * 10_000 + minor * 1_000 + patch` (major 1–2100, minor 0–9, patch 0–999). Thus `1.0.94` becomes **94**, `1.0.95` becomes 95, `1.1.0` becomes 1000, and `2.0.0` becomes 10000. The reserved `1.0.0` tuple yields zero and is not buildable under this pre-store scheme. CI runs `verifyKiteVersionCodes` to guard the mapping.
 
-Local builds default to `1.0.77`. Override with `-PandroidVersionName=1.0.78` when needed. GitHub Actions passes the release tag. Use `./gradlew :androidApp:printKiteAndroidVersion` to confirm the code before building.
+Local builds default to `1.0.94`. Override with `-PandroidVersionName=1.0.95` for a subsequent version. GitHub Actions passes the release tag. Use `./gradlew :androidApp:printKiteAndroidVersion` to confirm the exact code before building.
 
-**Compatibility:** Previous production `app.kite` builds have version codes such as `101000076`. The attempted lower version-code scheme would have prevented in-place updates and was never installed. The compatibility floor is restored. Never uninstall/reset Kite to resolve a version-code mismatch: that deletes Matrix accounts.
+**Compatibility:** Older private and GitHub APKs used much higher codes (including `101000094` and `100094`). Android cannot update those installations in place to code 94. An explicitly authorised clean reinstall erases local sessions/settings; recover Matrix accounts and encryption using verified credentials and recovery keys. Do not uninstall without the user's specific approval and a recovery plan.
 
 ## Tagged GitHub releases
 
