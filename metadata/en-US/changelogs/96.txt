@@ -1,0 +1,1 @@
+Make Rust builds reproducible between GitHub releases and F-Droid by fixing the embedded Git revision length.

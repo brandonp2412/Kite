@@ -18,9 +18,9 @@ RepoType: git
 Repo: https://github.com/brandonp2412/Kite.git
 
 Builds:
-  - versionName: 1.0.95
-    versionCode: 95
-    commit: 1.0.95
+  - versionName: 1.0.96
+    versionCode: 96
+    commit: 1.0.96
     timeout: 7200
     submodules: true
     sudo:
@@ -53,5 +53,5 @@ AllowedAPKSigningKeys: 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c41715
 AutoUpdateMode: Version
 UpdateCheckMode: Tags 1\.0\.[0-9]+$
 UpdateCheckData: '|1\.0\.(\d+)||((?:1\.0\.)\d+)'
-CurrentVersion: 1.0.95
-CurrentVersionCode: 95
+CurrentVersion: 1.0.96
+CurrentVersionCode: 96
