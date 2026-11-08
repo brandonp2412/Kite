@@ -14,9 +14,18 @@ val reproducibleRustFlags = listOf(
     inheritedRustFlags,
     "--remap-path-prefix=$cargoHomeForRust=/cargo",
 ).filter { it.isNotEmpty() }.joinToString(" ")
+// matrix-sdk-ffi's vergen-gitcl build script uses `git rev-parse --short HEAD`.
+// A shallow GitHub submodule clone resolves to 7 characters, whereas F-Droid's
+// full clone needs 9 to be unique. Force the full hash without editing the
+// upstream Rust submodule or any persistent Git configuration.
+val inheritedGitConfigCount = providers.environmentVariable("GIT_CONFIG_COUNT")
+    .orNull?.toIntOrNull() ?: 0
 
 tasks.withType<Exec>().configureEach {
     environment("RUSTFLAGS", reproducibleRustFlags)
+    environment("GIT_CONFIG_COUNT", (inheritedGitConfigCount + 1).toString())
+    environment("GIT_CONFIG_KEY_$inheritedGitConfigCount", "core.abbrev")
+    environment("GIT_CONFIG_VALUE_$inheritedGitConfigCount", "40")
 }
 
 val rustSdkDir = layout.projectDirectory.dir("../matrix-rust-sdk")

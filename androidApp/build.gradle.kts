@@ -50,7 +50,7 @@ val kiteKeyPassword = providers.environmentVariable("KITE_RELEASE_KEY_PASSWORD")
 
 // The local default tracks the latest development release; CI supplies its tag through
 // -PandroidVersionName. All build types use the same deterministic versionCode formula.
-val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.95")
+val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.96")
 require(!providers.gradleProperty("androidVersionCode").isPresent) {
     "Kite derives androidVersionCode from androidVersionName; remove -PandroidVersionCode."
 }
