@@ -8,6 +8,7 @@ import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
@@ -27,7 +30,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,6 +65,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -118,6 +124,7 @@ import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.plaintext.EventTextFormat
 import chat.schildi.revenge.publishTitle
 import chat.schildi.revenge.viewModelKey
+import chat.schildi.theme.LocalMessageStyle
 import chat.schildi.theme.scExposures
 import co.touchlab.kermit.Logger
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
@@ -142,6 +149,7 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.action_jump_to_bottom
 import shire.res.generated.resources.action_jump_to_unread
+import shire.res.generated.resources.hint_composer_text
 import kotlin.math.absoluteValue
 import kotlin.math.sign
 
@@ -155,7 +163,9 @@ private fun NotificationPreviewBubble(
     hasPreviousMessage: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxWidth()) {
+    // Match EventRow padding so the notification bubble stays in the same column
+    // when the real Matrix event replaces it.
+    Column(modifier.fillMaxWidth().padding(horizontal = Dimens.Conversation.timelineHorizontalPadding)) {
         if (hasPreviousMessage) {
             Spacer(Modifier.height(Dimens.Conversation.messageRowSpacing))
         }
@@ -181,12 +191,48 @@ private fun NotificationPreviewBubble(
                 MessageBubble(isOwn = false, timestamp = null) {
                     Text(
                         preview.text,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = LocalMessageStyle.current.textStyle,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             },
         )
+        // A newest real EventRow reserves this same trailing gap.
+        Spacer(Modifier.height(4.dp))
+    }
+}
+
+@Composable
+private fun PendingConversationComposer(bottomPadding: Dp) {
+    val iconColor = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = Dimens.windowPadding,
+                end = Dimens.windowPadding,
+                top = 8.dp,
+                bottom = bottomPadding,
+            )
+            .height(56.dp)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(Modifier.width(4.dp))
+        Box(Modifier.width(Dimens.Conversation.Composer.buttonWidth), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(Icons.Default.Add, null, Modifier.size(24.dp), tint = iconColor)
+        }
+        Text(
+            stringResource(Res.string.hint_composer_text),
+            modifier = Modifier.weight(1f).padding(start = 2.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = iconColor,
+            maxLines = 1,
+        )
+        Box(Modifier.width(Dimens.Conversation.Composer.buttonWidth), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(Icons.Outlined.Image, null, Modifier.size(24.dp), tint = iconColor)
+        }
+        Spacer(Modifier.width(4.dp))
     }
 }
 
@@ -373,11 +419,15 @@ fun ConversationScreen(
                 // its already-synced timeline. A blank 650 ms splash makes even warm
                 // room opens look stalled. No background room composables are retained.
                 Column(contentModifier.fillMaxSize()) {
-                    ConversationTopNavigation(
-                        viewModel,
-                        hasTimeline = false,
-                        compact = this@BoxWithConstraints.maxWidth < Dimens.compactActionBarThreshold,
-                    )
+                    // Render the final header actions in the initial frame, too.
+                    CompositionLocalProvider(LocalSearchProvider provides viewModel) {
+                        ConversationTopNavigation(
+                            viewModel,
+                            hasTimeline = true,
+                            compact = this@BoxWithConstraints.maxWidth < Dimens.compactActionBarThreshold,
+                            isSearchVisible = conversationSearchVisible,
+                        )
+                    }
                     Box(Modifier.fillMaxWidth().weight(1f)) {
                         if (visibleOpenPreview != null && roomInfo != null) {
                             NotificationPreviewBubble(
@@ -394,24 +444,10 @@ fun ConversationScreen(
                         }
                     }
                     if (viewModel.modeSupportsComposer) {
-                        // Reserve the composer's footprint before the timeline arrives.
-                        // Otherwise the first real conversation frame shrinks the
-                        // viewport and visibly jumps the newest message.
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    start = Dimens.windowPadding,
-                                    end = Dimens.windowPadding,
-                                    top = 8.dp,
-                                    bottom = composerBottomPadding,
-                                )
-                                .height(56.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    RoundedCornerShape(28.dp),
-                                ),
-                        )
+                        // Reserve the real 56dp row, including its controls and text.
+                        // Switching from an empty pill to the composer otherwise flashes
+                        // new content across the bottom of the cold-open frame.
+                        PendingConversationComposer(composerBottomPadding)
                     }
                 }
             }
