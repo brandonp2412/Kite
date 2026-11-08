@@ -5,6 +5,20 @@ plugins {
     alias(libs.plugins.androidKotlinMultiplatformLibrary)
 }
 
+// Rust source paths must not depend on the builder's home directory. Both our
+// signed GitHub release and F-Droid's independent build use this same prefix.
+val cargoHomeForRust = providers.environmentVariable("CARGO_HOME").orNull
+    ?: "${System.getProperty("user.home")}/.cargo"
+val inheritedRustFlags = providers.environmentVariable("RUSTFLAGS").orNull?.trim().orEmpty()
+val reproducibleRustFlags = listOf(
+    inheritedRustFlags,
+    "--remap-path-prefix=$cargoHomeForRust=/cargo",
+).filter { it.isNotEmpty() }.joinToString(" ")
+
+tasks.withType<Exec>().configureEach {
+    environment("RUSTFLAGS", reproducibleRustFlags)
+}
+
 val rustSdkDir = layout.projectDirectory.dir("../matrix-rust-sdk")
 val generatedBindingsDir = layout.buildDirectory.dir("generated/uniffi/kotlin")
 
