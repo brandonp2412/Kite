@@ -50,7 +50,7 @@ val kiteKeyPassword = providers.environmentVariable("KITE_RELEASE_KEY_PASSWORD")
 
 // The local default tracks the latest development release; CI supplies its tag through
 // -PandroidVersionName. All build types use the same deterministic versionCode formula.
-val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.96")
+val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.97")
 require(!providers.gradleProperty("androidVersionCode").isPresent) {
     "Kite derives androidVersionCode from androidVersionName; remove -PandroidVersionCode."
 }
@@ -88,6 +88,8 @@ tasks.register("verifyKiteVersionCodes") {
     val mappingChecksPass =
         kiteVersionCode(1, 0, 94) == 94 &&
         kiteVersionCode(1, 0, 95) == 95 &&
+        kiteVersionCode(1, 0, 96) == 96 &&
+        kiteVersionCode(1, 0, 97) == 97 &&
         kiteVersionCode(1, 0, 999) == 999 &&
         kiteVersionCode(1, 1, 0) == 1_000 &&
         kiteVersionCode(1, 9, 999) == 9_999 &&
@@ -105,6 +107,12 @@ android {
         targetSdk = 37
         versionCode = androidVersionCode
         versionName = androidVersionName
+    }
+    // F-Droid's binary scanner rejects optional AGP dependency metadata in the
+    // APK signing block. Leave app optimization and signing otherwise unchanged.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     signingConfigs {
         if (listOf(kiteKeystorePath, kiteKeystorePassword, kiteKeyAlias, kiteKeyPassword).all { it != null }) {
