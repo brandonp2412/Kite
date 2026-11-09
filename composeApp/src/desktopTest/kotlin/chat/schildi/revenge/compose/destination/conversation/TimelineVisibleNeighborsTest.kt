@@ -105,7 +105,7 @@ class TimelineVisibleNeighborsTest {
     }
 
     @Test
-    fun dayDividerWinsOverNearbyClockAndOlderDayDivider() {
+    fun everyDayDividerRemainsVisibleInShortExchange() {
         val rows = listOf(
             TimelineRowKind.Event,
             TimelineRowKind.DayDivider,
@@ -117,7 +117,7 @@ class TimelineVisibleNeighborsTest {
             1_800_000_000_000L + 2 * 86_400_000L, null, 1_800_000_000_000L)
         val neighbors = calculateVisibleTimelineNeighbors(rows)
         val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, 10)
-        assertEquals(listOf(1), markers.indices.filter { markers[it] })
+        assertEquals(listOf(1, 3), markers.indices.filter { markers[it] })
     }
 
     @Test

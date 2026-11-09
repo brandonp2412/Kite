@@ -48,7 +48,7 @@ internal fun calculateVisibleTimelineNeighbors(rows: List<TimelineRowKind>): Tim
 /**
  * Select time labels once per timeline update. A 60-minute pause is only a candidate;
  * nearby back-and-forth messages do not produce multiple labels on one screen.
- * Day dividers and clocks share the same spacing budget.
+ * Day dividers always remain visible; only clock labels use the screen spacing budget.
  */
 internal fun calculateSparseTimeMarkers(
     kinds: List<TimelineRowKind>,
@@ -59,15 +59,13 @@ internal fun calculateSparseTimeMarkers(
     require(kinds.size == timestamps.size && kinds.size == olderMessageIndices.size)
     val markers = BooleanArray(kinds.size)
     var messagesSinceMarker = 0
-    var hasDateMarker = false
     for (index in kinds.indices) { // Newest first, so current context wins.
         when (kinds[index]) {
             TimelineRowKind.DayDivider -> {
-                if (!hasDateMarker || messagesSinceMarker >= screenfulMessages) {
-                    markers[index] = true
-                    hasDateMarker = true
-                    messagesSinceMarker = 0
-                }
+                // Each calendar-day transition must remain identifiable, even if
+                // only one or two messages were exchanged on either day.
+                markers[index] = true
+                messagesSinceMarker = 0
             }
             TimelineRowKind.Event -> {
                 val timestamp = timestamps[index]
