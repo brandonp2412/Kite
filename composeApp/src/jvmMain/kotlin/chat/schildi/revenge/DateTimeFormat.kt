@@ -68,6 +68,18 @@ object DateTimeFormat {
         }
     }
 
+    /** Conversation gap labels preserve exact time while giving historical context. */
+    fun formatRelativeDateTime(
+        dateTime: LocalDateTime,
+        strings: DateTimeStrings,
+        now: LocalDateTime = LocalDateTime.now(),
+        format: String = ScPrefs.TimeFormat.TWELVE_HOUR,
+    ): String {
+        val time = formatTime(dateTime, format)
+        return if (dateTime.toLocalDate() == now.toLocalDate()) time
+        else "${formatRelativeDate(dateTime, strings, now)} · $time"
+    }
+
     private fun timePattern(format: String): String = when (format) {
         ScPrefs.TimeFormat.TWENTY_FOUR_HOUR -> "HH:mm"
         ScPrefs.TimeFormat.TWELVE_HOUR_SECONDS -> "h:mm:ss a"
@@ -145,6 +157,16 @@ object DateTimeFormat {
         val today = LocalDateTime.now().toLocalDate()
         return remember(timestamp, strings, today) {
             formatRelativeDate(timestampToDateTime(timestamp), strings)
+        }
+    }
+
+    @Composable
+    fun formatTimestampAsRelativeDateTime(timestamp: Long): String {
+        val strings = dateTimeStrings()
+        val format = LocalTimeDisplayFormat.current
+        val today = LocalDateTime.now().toLocalDate()
+        return remember(timestamp, format, strings, today) {
+            formatRelativeDateTime(timestampToDateTime(timestamp), strings, format = format)
         }
     }
 

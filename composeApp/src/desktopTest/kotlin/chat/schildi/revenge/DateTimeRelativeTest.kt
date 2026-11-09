@@ -26,6 +26,18 @@ class DateTimeRelativeTest {
     }
 
     @Test
+    fun conversationTimeMarkersIncludeAgeForHistoricalMessages() {
+        val nineFifteen = now.withHour(9).withMinute(15)
+
+        assertEquals("9:15 AM", DateTimeFormat.formatRelativeDateTime(nineFifteen, strings, now))
+        assertEquals("Yesterday · 9:15 AM", DateTimeFormat.formatRelativeDateTime(nineFifteen.minusDays(1), strings, now))
+        assertEquals("3 days ago · 09:15", DateTimeFormat.formatRelativeDateTime(
+            nineFifteen.minusDays(3), strings, now, chat.schildi.lib.preferences.ScPrefs.TimeFormat.TWENTY_FOUR_HOUR,
+        ))
+        assertEquals("a week ago · 9:15 AM", DateTimeFormat.formatRelativeDateTime(nineFifteen.minusDays(7), strings, now))
+    }
+
+    @Test
     fun futureMessageKeepsAbsoluteDate() {
         assertEquals(
             "Sat, Jan 3",
