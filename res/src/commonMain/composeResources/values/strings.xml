@@ -336,6 +336,13 @@
 
     <string name="datetime_today">Today</string>
     <string name="datetime_yesterday">Yesterday</string>
+    <string name="datetime_days_ago">%d days ago</string>
+    <string name="datetime_week_ago">a week ago</string>
+    <string name="datetime_weeks_ago">%d weeks ago</string>
+    <string name="datetime_month_ago">a month ago</string>
+    <string name="datetime_months_ago">%d months ago</string>
+    <string name="datetime_year_ago">a year ago</string>
+    <string name="datetime_years_ago">%d years ago</string>
 
     <string name="message_thread">Thread</string>
     <string name="message_edited_decoration">edited</string>

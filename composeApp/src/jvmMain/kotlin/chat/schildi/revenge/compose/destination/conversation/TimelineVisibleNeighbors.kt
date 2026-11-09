@@ -5,7 +5,7 @@ import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.Dimens
 
 /** Timeline rows in newest-first order. Hidden rows do not separate visible bubbles. */
-internal enum class TimelineRowKind { Event, Hidden, Boundary }
+internal enum class TimelineRowKind { Event, Hidden, Boundary, DayDivider }
 
 internal class TimelineVisibleNeighbors(
     val older: IntArray,
@@ -29,7 +29,7 @@ internal fun calculateVisibleTimelineNeighbors(rows: List<TimelineRowKind>): Tim
         older[index] = adjacent
         when (rows[index]) {
             TimelineRowKind.Event -> adjacent = index
-            TimelineRowKind.Boundary -> adjacent = -1
+            TimelineRowKind.Boundary, TimelineRowKind.DayDivider -> adjacent = -1
             TimelineRowKind.Hidden -> Unit
         }
     }
@@ -38,12 +38,63 @@ internal fun calculateVisibleTimelineNeighbors(rows: List<TimelineRowKind>): Tim
         newer[index] = adjacent
         when (rows[index]) {
             TimelineRowKind.Event -> adjacent = index
-            TimelineRowKind.Boundary -> adjacent = -1
+            TimelineRowKind.Boundary, TimelineRowKind.DayDivider -> adjacent = -1
             TimelineRowKind.Hidden -> Unit
         }
     }
     return TimelineVisibleNeighbors(older, newer, olderAcrossDividers)
 }
+
+/**
+ * Select time labels once per timeline update. A 60-minute pause is only a candidate;
+ * nearby back-and-forth messages do not produce multiple labels on one screen.
+ * Day dividers and clocks share the same spacing budget.
+ */
+internal fun calculateSparseTimeMarkers(
+    kinds: List<TimelineRowKind>,
+    timestamps: List<Long?>,
+    olderMessageIndices: IntArray,
+    screenfulMessages: Int,
+): BooleanArray {
+    require(kinds.size == timestamps.size && kinds.size == olderMessageIndices.size)
+    val markers = BooleanArray(kinds.size)
+    var messagesSinceMarker = 0
+    var hasDateMarker = false
+    for (index in kinds.indices) { // Newest first, so current context wins.
+        when (kinds[index]) {
+            TimelineRowKind.DayDivider -> {
+                if (!hasDateMarker || messagesSinceMarker >= screenfulMessages) {
+                    markers[index] = true
+                    hasDateMarker = true
+                    messagesSinceMarker = 0
+                }
+            }
+            TimelineRowKind.Event -> {
+                val timestamp = timestamps[index]
+                val olderIndex = olderMessageIndices[index]
+                val olderTimestamp = if (olderIndex >= 0) timestamps[olderIndex] else null
+                if (timestamp != null && olderTimestamp != null &&
+                    timestamp >= olderTimestamp &&
+                    timestamp - olderTimestamp >= 60L * 60L * 1000L &&
+                    messagesSinceMarker >= screenfulMessages &&
+                    // The day divider already communicates a date change.
+                    chat.schildi.revenge.DateTimeFormat.timestampToDateTime(timestamp).toLocalDate() ==
+                    chat.schildi.revenge.DateTimeFormat.timestampToDateTime(olderTimestamp).toLocalDate()
+                ) {
+                    markers[index] = true
+                    messagesSinceMarker = 0
+                }
+                messagesSinceMarker++
+            }
+            TimelineRowKind.Hidden, TimelineRowKind.Boundary -> Unit
+        }
+    }
+    return markers
+}
+
+/** Conservative, stable screenful proxy; avoids scroll-position-driven label jumps. */
+internal fun screenfulMessageBudget(windowHeightDp: Float): Int =
+    kotlin.math.ceil(windowHeightDp / 48f).toInt().coerceAtLeast(10)
 
 // Unread markers and day boundaries own their own vertical separation.
 /** Show an unobtrusive clock above a message after a 15-minute pause. */

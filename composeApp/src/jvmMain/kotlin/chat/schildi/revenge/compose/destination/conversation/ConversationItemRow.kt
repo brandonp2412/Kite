@@ -63,6 +63,8 @@ fun ConversationItemRow(
     previousVisibleEvent: EventTimelineItem?,
     nextVisibleEvent: EventTimelineItem?,
     olderMessageTimestamp: Long?,
+    showTimeMarker: Boolean,
+    showDayMarker: Boolean,
     previousEvent: MatrixTimelineItem.Event?,
     fullyReadEvent: FullyReadEventState?,
     currentThreadId: ThreadId?,
@@ -102,7 +104,7 @@ fun ConversationItemRow(
         when (item.item) {
             is MatrixTimelineItem.Virtual -> {
                 when (val virtualItem = item.item.virtual) {
-                    is VirtualTimelineItem.DayDivider -> DayHeaderRow(virtualItem)
+                    is VirtualTimelineItem.DayDivider -> if (showDayMarker) DayHeaderRow(virtualItem)
                     is VirtualTimelineItem.LoadingIndicator -> PagingIndicator(isLoading = isBackwardPaging || isForwardPaging)
                     VirtualTimelineItem.ReadMarker -> NewMessagesLine(
                         instance = NewMessageLineInstance.Sdk,
@@ -166,7 +168,7 @@ fun ConversationItemRow(
                     hasUnreadSeparator = showUnreadLine,
                 ))
                 Spacer(if (joinsOlderSelection) gapModifier.background(selectionHighlightColor()) else gapModifier)
-                if (showTimeSeparator) {
+                if (showTimeMarker) {
                     MessageTimeGapHeader(item.item.event.timestamp)
                 }
                 EventRow(

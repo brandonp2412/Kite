@@ -137,6 +137,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransa
 import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
+import io.element.android.libraries.matrix.api.timeline.item.virtual.VirtualTimelineItem
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.mutate
@@ -789,17 +790,39 @@ fun ConversationScreen(
                     val renderedItems = remember(timelineItems) {
                         timelineItems.reversed().toPersistentList()
                     }
-                    val visibleNeighborIndices = remember(renderedItems) {
-                        calculateVisibleTimelineNeighbors(renderedItems.map { timelineItem ->
+                    val rowKinds = remember(renderedItems) {
+                        renderedItems.map { timelineItem ->
                             when (val matrixItem = timelineItem.item) {
                                 is MatrixTimelineItem.Event -> if (matrixItem.event.isKiteServerEvent()) {
                                     TimelineRowKind.Hidden
                                 } else {
                                     TimelineRowKind.Event
                                 }
-                                else -> TimelineRowKind.Boundary
+                                is MatrixTimelineItem.Virtual ->
+                                    if (matrixItem.virtual is VirtualTimelineItem.DayDivider) {
+                                        TimelineRowKind.DayDivider
+                                    } else {
+                                        TimelineRowKind.Boundary
+                                    }
+                                MatrixTimelineItem.Other -> TimelineRowKind.Hidden
                             }
-                        })
+                        }
+                    }
+                    val visibleNeighborIndices = remember(rowKinds) {
+                        calculateVisibleTimelineNeighbors(rowKinds)
+                    }
+                    // Keep markers stable when the IME changes available height.
+                    // A width/orientation change can establish a new screenful budget.
+                    val screenfulMessages = remember(viewModel, this@BoxWithConstraints.maxWidth) {
+                        screenfulMessageBudget(this@BoxWithConstraints.maxHeight.value)
+                    }
+                    val timeMarkers = remember(renderedItems, rowKinds, visibleNeighborIndices, screenfulMessages) {
+                        calculateSparseTimeMarkers(
+                            kinds = rowKinds,
+                            timestamps = renderedItems.map { (it.item as? MatrixTimelineItem.Event)?.event?.timestamp },
+                            olderMessageIndices = visibleNeighborIndices.olderAcrossDividers,
+                            screenfulMessages = screenfulMessages,
+                        )
                     }
                     // Position the FIRST unread event using the measured timeline viewport and
                     // row height. The old half-of-the-window offset could leave it hidden
@@ -1040,6 +1063,8 @@ fun ConversationScreen(
                                 olderMessageTimestamp = (renderedItems.getOrNull(
                                     visibleNeighborIndices.olderAcrossDividers[index]
                                 )?.item as? MatrixTimelineItem.Event)?.event?.timestamp,
+                                showTimeMarker = timeMarkers[index] && rowKinds[index] == TimelineRowKind.Event,
+                                showDayMarker = timeMarkers[index] && rowKinds[index] == TimelineRowKind.DayDivider,
                                 previousEvent = getNextItem(
                                     index,
                                     renderedItems::getOrNull,

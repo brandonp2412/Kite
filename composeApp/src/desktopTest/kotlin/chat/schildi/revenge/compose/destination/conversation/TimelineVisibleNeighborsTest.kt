@@ -77,6 +77,50 @@ class TimelineVisibleNeighborsTest {
     }
 
     @Test
+    fun shortBackAndForthDoesNotAccumulateClockLabels() {
+        val rows = List(8) { TimelineRowKind.Event }
+        val timestamps = (7 downTo 0).map { 1_800_000_000_000L + it * 2 * 60 * 60_000L }
+        val neighbors = calculateVisibleTimelineNeighbors(rows)
+        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, 10)
+        assertEquals(0, markers.count { it })
+    }
+
+    @Test
+    fun longSeparatedConversationKeepsOnlyScreenSpacedLabels() {
+        val rows = List(32) { TimelineRowKind.Event }
+        val start = java.time.LocalDateTime.of(2026, 11, 9, 18, 0)
+            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        var elapsedMinutes = 0L
+        val timestamps = List(32) { index ->
+            val timestamp = start - elapsedMinutes * 60_000L
+            elapsedMinutes += if (index == 10 || index == 21) 61 else 1
+            timestamp
+        }
+        val neighbors = calculateVisibleTimelineNeighbors(rows)
+        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, 10)
+        val selected = markers.indices.filter { markers[it] }
+        assertEquals(listOf(10, 21), selected)
+        assertEquals(15, screenfulMessageBudget(720f))
+        assertEquals(10, screenfulMessageBudget(360f))
+    }
+
+    @Test
+    fun dayDividerWinsOverNearbyClockAndOlderDayDivider() {
+        val rows = listOf(
+            TimelineRowKind.Event,
+            TimelineRowKind.DayDivider,
+            TimelineRowKind.Event,
+            TimelineRowKind.DayDivider,
+            TimelineRowKind.Event,
+        )
+        val timestamps = listOf(1_800_000_000_000L + 3 * 86_400_000L, null,
+            1_800_000_000_000L + 2 * 86_400_000L, null, 1_800_000_000_000L)
+        val neighbors = calculateVisibleTimelineNeighbors(rows)
+        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, 10)
+        assertEquals(listOf(1), markers.indices.filter { markers[it] })
+    }
+
+    @Test
     fun adjacentVisibleMessagesPreserveNormalGrouping() {
         val neighbors = calculateVisibleTimelineNeighbors(listOf(
             TimelineRowKind.Event,

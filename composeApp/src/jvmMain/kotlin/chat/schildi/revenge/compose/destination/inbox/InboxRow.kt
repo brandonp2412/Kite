@@ -262,7 +262,7 @@ private fun RowScope.ScNameAndTimestampRow(
 
     room.latestEventTimestamp?.let { timestamp ->
         Text(
-            text = DateTimeFormat.formatTimestampAsDateOrTime(timestamp),
+            text = DateTimeFormat.formatTimestampAsRelativeDateOrTime(timestamp),
             style = MaterialTheme.typography.labelMedium,
             color = if (hasUnread) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,

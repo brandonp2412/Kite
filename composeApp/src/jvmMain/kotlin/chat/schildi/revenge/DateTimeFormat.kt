@@ -8,8 +8,16 @@ import org.jetbrains.compose.resources.stringResource
 import shire.res.generated.resources.Res
 import shire.res.generated.resources.datetime_today
 import shire.res.generated.resources.datetime_yesterday
+import shire.res.generated.resources.datetime_days_ago
+import shire.res.generated.resources.datetime_week_ago
+import shire.res.generated.resources.datetime_weeks_ago
+import shire.res.generated.resources.datetime_month_ago
+import shire.res.generated.resources.datetime_months_ago
+import shire.res.generated.resources.datetime_year_ago
+import shire.res.generated.resources.datetime_years_ago
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -37,6 +45,26 @@ object DateTimeFormat {
             }
         } else {
             DateTimeFormatter.ofPattern("EEE, MMM d, yyyy").format(dateTime)
+        }
+    }
+
+    fun formatRelativeDate(
+        dateTime: LocalDateTime,
+        strings: DateTimeStrings,
+        now: LocalDateTime = LocalDateTime.now(),
+    ): String {
+        val days = ChronoUnit.DAYS.between(dateTime.toLocalDate(), now.toLocalDate())
+        return when {
+            days < 0L -> formatDate(dateTime, strings, now)
+            days == 0L -> strings.today
+            days == 1L -> strings.yesterday
+            days < 7L -> strings.daysAgo.format(Locale.getDefault(), days)
+            days < 14L -> strings.weekAgo
+            days < 28L -> strings.weeksAgo.format(Locale.getDefault(), days / 7)
+            days < 60L -> strings.monthAgo
+            days < 365L -> strings.monthsAgo.format(Locale.getDefault(), days / 30)
+            days < 730L -> strings.yearAgo
+            else -> strings.yearsAgo.format(Locale.getDefault(), days / 365)
         }
     }
 
@@ -94,6 +122,13 @@ object DateTimeFormat {
     fun dateTimeStrings() = DateTimeStrings(
         today = stringResource(Res.string.datetime_today),
         yesterday = stringResource(Res.string.datetime_yesterday),
+        daysAgo = stringResource(Res.string.datetime_days_ago),
+        weekAgo = stringResource(Res.string.datetime_week_ago),
+        weeksAgo = stringResource(Res.string.datetime_weeks_ago),
+        monthAgo = stringResource(Res.string.datetime_month_ago),
+        monthsAgo = stringResource(Res.string.datetime_months_ago),
+        yearAgo = stringResource(Res.string.datetime_year_ago),
+        yearsAgo = stringResource(Res.string.datetime_years_ago),
     )
 
     @Composable
@@ -101,6 +136,27 @@ object DateTimeFormat {
         val strings = dateTimeStrings()
         return remember(timestamp) {
             formatDate(timestampToDateTime(timestamp), strings)
+        }
+    }
+
+    @Composable
+    fun formatTimestampAsRelativeDate(timestamp: Long): String {
+        val strings = dateTimeStrings()
+        val today = LocalDateTime.now().toLocalDate()
+        return remember(timestamp, strings, today) {
+            formatRelativeDate(timestampToDateTime(timestamp), strings)
+        }
+    }
+
+    @Composable
+    fun formatTimestampAsRelativeDateOrTime(timestamp: Long): String {
+        val strings = dateTimeStrings()
+        val format = LocalTimeDisplayFormat.current
+        val today = LocalDateTime.now().toLocalDate()
+        return remember(timestamp, format, strings, today) {
+            val dateTime = timestampToDateTime(timestamp)
+            if (dateTime.toLocalDate() == today) formatTime(dateTime, format)
+            else formatRelativeDate(dateTime, strings)
         }
     }
 
@@ -126,4 +182,11 @@ object DateTimeFormat {
 data class DateTimeStrings(
     val today: String,
     val yesterday: String,
+    val daysAgo: String = "%d days ago",
+    val weekAgo: String = "a week ago",
+    val weeksAgo: String = "%d weeks ago",
+    val monthAgo: String = "a month ago",
+    val monthsAgo: String = "%d months ago",
+    val yearAgo: String = "a year ago",
+    val yearsAgo: String = "%d years ago",
 )

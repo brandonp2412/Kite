@@ -32,7 +32,7 @@ fun DayHeader(
     modifier: Modifier = Modifier,
 ) {
     Text(
-        DateTimeFormat.formatTimestampAsDate(timestamp),
+        DateTimeFormat.formatTimestampAsRelativeDate(timestamp),
         modifier,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
