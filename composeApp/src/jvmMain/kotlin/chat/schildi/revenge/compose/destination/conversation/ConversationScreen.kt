@@ -137,6 +137,11 @@ import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransa
 import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageTypeWithAttachment
+import io.element.android.libraries.matrix.api.timeline.item.event.ImageLikeMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.VideoMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.GalleryMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.StickerContent
+import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
 import io.element.android.libraries.matrix.api.timeline.item.virtual.VirtualTimelineItem
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
@@ -811,17 +816,36 @@ fun ConversationScreen(
                     val visibleNeighborIndices = remember(rowKinds) {
                         calculateVisibleTimelineNeighbors(rowKinds)
                     }
-                    // Keep markers stable when the IME changes available height.
-                    // A width/orientation change can establish a new screenful budget.
-                    val screenfulMessages = remember(viewModel, this@BoxWithConstraints.maxWidth) {
-                        screenfulMessageBudget(this@BoxWithConstraints.maxHeight.value)
+                    // Keep markers stable through keyboard transitions and scrolling.
+                    val screenfulUnits = remember(viewModel, this@BoxWithConstraints.maxWidth) {
+                        screenfulVisualUnitBudget(this@BoxWithConstraints.maxHeight.value)
                     }
-                    val timeMarkers = remember(renderedItems, rowKinds, visibleNeighborIndices, screenfulMessages) {
+                    val visualUnits = remember(renderedItems, this@BoxWithConstraints.maxWidth) {
+                        val widthDp = this@BoxWithConstraints.maxWidth.value
+                        renderedItems.map { item ->
+                            val content = (item.item as? MatrixTimelineItem.Event)?.event?.content
+                            val bodyLength = when (content) {
+                                is MessageContent -> content.body.length
+                                is StickerContent -> content.bestDescription.length
+                                is PollContent -> content.question.length
+                                else -> 0
+                            }
+                            val tallMedia = when (content) {
+                                is MessageContent -> content.type is ImageLikeMessageType ||
+                                    content.type is VideoMessageType || content.type is GalleryMessageType
+                                is StickerContent -> true
+                                else -> false
+                            }
+                            approximateMessageVisualUnits(bodyLength, tallMedia, widthDp)
+                        }.toIntArray()
+                    }
+                    val timeMarkers = remember(renderedItems, rowKinds, visibleNeighborIndices, screenfulUnits, visualUnits) {
                         calculateSparseTimeMarkers(
                             kinds = rowKinds,
                             timestamps = renderedItems.map { (it.item as? MatrixTimelineItem.Event)?.event?.timestamp },
                             olderMessageIndices = visibleNeighborIndices.olderAcrossDividers,
-                            screenfulMessages = screenfulMessages,
+                            visualUnits = visualUnits,
+                            screenfulUnits = screenfulUnits,
                         )
                     }
                     // Position the FIRST unread event using the measured timeline viewport and

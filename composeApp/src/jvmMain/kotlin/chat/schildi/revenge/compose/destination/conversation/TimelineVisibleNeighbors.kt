@@ -46,7 +46,7 @@ internal fun calculateVisibleTimelineNeighbors(rows: List<TimelineRowKind>): Tim
 }
 
 /**
- * Select time labels once per timeline update. A 60-minute pause is only a candidate;
+ * Select time labels once per timeline update. A 30-minute pause is only a candidate;
  * nearby back-and-forth messages do not produce multiple labels on one screen.
  * Day dividers always remain visible; only clock labels use the screen spacing budget.
  */
@@ -54,9 +54,11 @@ internal fun calculateSparseTimeMarkers(
     kinds: List<TimelineRowKind>,
     timestamps: List<Long?>,
     olderMessageIndices: IntArray,
-    screenfulMessages: Int,
+    visualUnits: IntArray,
+    screenfulUnits: Int,
 ): BooleanArray {
-    require(kinds.size == timestamps.size && kinds.size == olderMessageIndices.size)
+    require(kinds.size == timestamps.size && kinds.size == olderMessageIndices.size &&
+        kinds.size == visualUnits.size)
     val markers = BooleanArray(kinds.size)
     var messagesSinceMarker = 0
     for (index in kinds.indices) { // Newest first, so current context wins.
@@ -73,8 +75,8 @@ internal fun calculateSparseTimeMarkers(
                 val olderTimestamp = if (olderIndex >= 0) timestamps[olderIndex] else null
                 if (timestamp != null && olderTimestamp != null &&
                     timestamp >= olderTimestamp &&
-                    timestamp - olderTimestamp >= 60L * 60L * 1000L &&
-                    messagesSinceMarker >= screenfulMessages &&
+                    timestamp - olderTimestamp >= 30L * 60L * 1000L &&
+                    messagesSinceMarker >= screenfulUnits &&
                     // The day divider already communicates a date change.
                     chat.schildi.revenge.DateTimeFormat.timestampToDateTime(timestamp).toLocalDate() ==
                     chat.schildi.revenge.DateTimeFormat.timestampToDateTime(olderTimestamp).toLocalDate()
@@ -82,7 +84,7 @@ internal fun calculateSparseTimeMarkers(
                     markers[index] = true
                     messagesSinceMarker = 0
                 }
-                messagesSinceMarker++
+                messagesSinceMarker += visualUnits[index].coerceAtLeast(1)
             }
             TimelineRowKind.Hidden, TimelineRowKind.Boundary -> Unit
         }
@@ -90,9 +92,20 @@ internal fun calculateSparseTimeMarkers(
     return markers
 }
 
-/** Conservative, stable screenful proxy; avoids scroll-position-driven label jumps. */
-internal fun screenfulMessageBudget(windowHeightDp: Float): Int =
-    kotlin.math.ceil(windowHeightDp / 48f).toInt().coerceAtLeast(10)
+/**
+ * Approximate the conversation viewport (excluding navigation/composer), not the
+ * entire screen. Values stay stable while scrolling or opening the keyboard.
+ */
+internal fun screenfulVisualUnitBudget(windowHeightDp: Float): Int =
+    kotlin.math.ceil((windowHeightDp - 160f).coerceAtLeast(320f) / 64f).toInt().coerceAtLeast(6)
+
+/** Weight long text and tall media more than a one-line bubble. Computed once per timeline update. */
+internal fun approximateMessageVisualUnits(bodyLength: Int, tallMedia: Boolean, windowWidthDp: Float): Int {
+    val charactersPerLine = ((windowWidthDp.coerceAtMost(620f) * 0.72f) / 8f).toInt().coerceAtLeast(20)
+    val textLines = (bodyLength.coerceAtLeast(1) + charactersPerLine - 1) / charactersPerLine
+    val estimatedHeightDp = 24f + textLines * 24f + if (tallMedia) 200f else 0f
+    return kotlin.math.ceil(estimatedHeightDp / 64f).toInt().coerceIn(1, 10)
+}
 
 // Unread markers and day boundaries own their own vertical separation.
 /** Show an unobtrusive clock above a message after a 15-minute pause. */

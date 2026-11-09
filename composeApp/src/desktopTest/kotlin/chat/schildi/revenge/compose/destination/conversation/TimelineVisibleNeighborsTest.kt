@@ -81,7 +81,7 @@ class TimelineVisibleNeighborsTest {
         val rows = List(8) { TimelineRowKind.Event }
         val timestamps = (7 downTo 0).map { 1_800_000_000_000L + it * 2 * 60 * 60_000L }
         val neighbors = calculateVisibleTimelineNeighbors(rows)
-        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, 10)
+        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, IntArray(rows.size) { 1 }, 10)
         assertEquals(0, markers.count { it })
     }
 
@@ -97,11 +97,33 @@ class TimelineVisibleNeighborsTest {
             timestamp
         }
         val neighbors = calculateVisibleTimelineNeighbors(rows)
-        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, 10)
+        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, IntArray(rows.size) { 1 }, 10)
         val selected = markers.indices.filter { markers[it] }
         assertEquals(listOf(10, 21), selected)
-        assertEquals(15, screenfulMessageBudget(720f))
-        assertEquals(10, screenfulMessageBudget(360f))
+        assertEquals(9, screenfulVisualUnitBudget(720f))
+        assertEquals(6, screenfulVisualUnitBudget(360f))
+    }
+
+    @Test
+    fun tallMessagesCanFillAViewportWithOnlyAFewEvents() {
+        assertEquals(1, approximateMessageVisualUnits(20, false, 360f))
+        assertEquals(3, approximateMessageVisualUnits(200, false, 360f))
+        assertEquals(4, approximateMessageVisualUnits(10, true, 360f))
+
+        val rows = List(6) { TimelineRowKind.Event }
+        val start = java.time.LocalDateTime.of(2026, 11, 9, 16, 0)
+            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val minutesAgo = listOf(0L, 1L, 2L, 40L, 70L, 71L)
+        val timestamps = minutesAgo.map { start - it * 60_000L }
+        val neighbors = calculateVisibleTimelineNeighbors(rows)
+        val units = intArrayOf(1, 4, 4, 1, 1, 1)
+        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, units, 8)
+        assertEquals(listOf(3), markers.indices.filter { markers[it] })
+
+        // A 29-minute pause is not a significant time group, even after a full screen.
+        val shorterPause = listOf(0L, 1L, 2L, 40L, 69L, 70L).map { start - it * 60_000L }
+        val noMarkers = calculateSparseTimeMarkers(rows, shorterPause, neighbors.olderAcrossDividers, units, 8)
+        assertEquals(0, noMarkers.count { it })
     }
 
     @Test
@@ -116,7 +138,7 @@ class TimelineVisibleNeighborsTest {
         val timestamps = listOf(1_800_000_000_000L + 3 * 86_400_000L, null,
             1_800_000_000_000L + 2 * 86_400_000L, null, 1_800_000_000_000L)
         val neighbors = calculateVisibleTimelineNeighbors(rows)
-        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, 10)
+        val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, IntArray(rows.size) { 1 }, 10)
         assertEquals(listOf(1, 3), markers.indices.filter { markers[it] })
     }
 
