@@ -46,7 +46,7 @@ internal fun calculateVisibleTimelineNeighbors(rows: List<TimelineRowKind>): Tim
 }
 
 /**
- * Select time labels once per timeline update. A 30-minute pause is only a candidate;
+ * Select time labels once per timeline update. A 20-minute pause is only a candidate;
  * nearby back-and-forth messages do not produce multiple labels on one screen.
  * Day dividers always remain visible; only clock labels use the screen spacing budget.
  */
@@ -75,7 +75,7 @@ internal fun calculateSparseTimeMarkers(
                 val olderTimestamp = if (olderIndex >= 0) timestamps[olderIndex] else null
                 if (timestamp != null && olderTimestamp != null &&
                     timestamp >= olderTimestamp &&
-                    timestamp - olderTimestamp >= 30L * 60L * 1000L &&
+                    timestamp - olderTimestamp >= 20L * 60L * 1000L &&
                     messagesSinceMarker >= screenfulUnits &&
                     // The day divider already communicates a date change.
                     chat.schildi.revenge.DateTimeFormat.timestampToDateTime(timestamp).toLocalDate() ==
@@ -97,7 +97,7 @@ internal fun calculateSparseTimeMarkers(
  * entire screen. Values stay stable while scrolling or opening the keyboard.
  */
 internal fun screenfulVisualUnitBudget(windowHeightDp: Float): Int =
-    kotlin.math.ceil((windowHeightDp - 160f).coerceAtLeast(320f) / 64f).toInt().coerceAtLeast(6)
+    kotlin.math.ceil((windowHeightDp - 160f).coerceAtLeast(320f) / 80f).toInt().coerceAtLeast(5)
 
 /** Weight long text and tall media more than a one-line bubble. Computed once per timeline update. */
 internal fun approximateMessageVisualUnits(bodyLength: Int, tallMedia: Boolean, windowWidthDp: Float): Int {

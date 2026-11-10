@@ -100,8 +100,8 @@ class TimelineVisibleNeighborsTest {
         val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, IntArray(rows.size) { 1 }, 10)
         val selected = markers.indices.filter { markers[it] }
         assertEquals(listOf(10, 21), selected)
-        assertEquals(9, screenfulVisualUnitBudget(720f))
-        assertEquals(6, screenfulVisualUnitBudget(360f))
+        assertEquals(7, screenfulVisualUnitBudget(720f))
+        assertEquals(5, screenfulVisualUnitBudget(360f))
     }
 
     @Test
@@ -120,9 +120,26 @@ class TimelineVisibleNeighborsTest {
         val markers = calculateSparseTimeMarkers(rows, timestamps, neighbors.olderAcrossDividers, units, 8)
         assertEquals(listOf(3), markers.indices.filter { markers[it] })
 
-        // A 29-minute pause is not a significant time group, even after a full screen.
-        val shorterPause = listOf(0L, 1L, 2L, 40L, 69L, 70L).map { start - it * 60_000L }
+        // Sub-20-minute pauses are not significant, even after a full screen.
+        val shorterPause = listOf(0L, 1L, 2L, 19L, 38L, 39L).map { start - it * 60_000L }
         val noMarkers = calculateSparseTimeMarkers(rows, shorterPause, neighbors.olderAcrossDividers, units, 8)
+        assertEquals(0, noMarkers.count { it })
+    }
+
+    @Test
+    fun twentyMinutePauseAppearsAfterMostOfAViewport() {
+        val rows = List(9) { TimelineRowKind.Event }
+        val start = java.time.LocalDateTime.of(2026, 11, 9, 18, 0)
+            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val neighbors = calculateVisibleTimelineNeighbors(rows)
+        val minutesAgo = listOf(0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 27L)
+        val markers = calculateSparseTimeMarkers(rows, minutesAgo.map { start - it * 60_000L },
+            neighbors.olderAcrossDividers, IntArray(rows.size) { 1 }, 7)
+        assertEquals(listOf(7), markers.indices.filter { markers[it] })
+
+        val shortPause = minutesAgo.toMutableList().also { it[8] = 26L }
+        val noMarkers = calculateSparseTimeMarkers(rows, shortPause.map { start - it * 60_000L },
+            neighbors.olderAcrossDividers, IntArray(rows.size) { 1 }, 7)
         assertEquals(0, noMarkers.count { it })
     }
 
