@@ -6,6 +6,7 @@ import chat.schildi.revenge.glue.AndroidSyncOrchestrationAppStateProvider
 import chat.schildi.revenge.notification.AndroidNotifier
 import chat.schildi.revenge.preferences.RevengePrefs
 import chat.schildi.revenge.push.AndroidPushRegistrationHandler
+import chat.schildi.revenge.push.PushRegistrationHealthWorker
 import chat.schildi.revenge.push.PushResolutionWorker
 import chat.schildi.revenge.util.ExternalViewCache
 import chat.schildi.revenge.util.filepicker.ComposerAttachmentCache
@@ -63,6 +64,7 @@ class RevengeApplication : Application() {
             AndroidNotifier.launchCreateNotificationChannelsLoop(initScope, this@RevengeApplication)
         }
         AndroidPushRegistrationHandler.launch()
+        PushRegistrationHealthWorker.schedule(this)
         initScope.launch {
             try {
                 PushResolutionWorker.reschedulePending(this@RevengeApplication)

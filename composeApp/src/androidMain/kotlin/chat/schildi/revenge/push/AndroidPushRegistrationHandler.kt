@@ -65,7 +65,36 @@ object AndroidPushRegistrationHandler {
     fun launch() {
         if (!isLaunched.exchange(true)) {
             loopRegisterUnifiedPush()
+            scope.launch {
+                runCatching { repairSavedRegistrations() }
+                    .onFailure { log.e("Could not repair saved push registrations on startup", it) }
+            }
         }
+    }
+
+    /**
+     * Refresh existing push endpoints independently of a visible Activity. Synapse can drop
+     * a pusher without changing the saved endpoint, so a foreground-only reconciliation
+     * leaves background notifications permanently disabled until the app is reopened.
+     */
+    suspend fun repairSavedRegistrations(): Boolean {
+        if (!RevengePrefs.getSetting(ScPrefs.PUSH_NOTIFICATIONS)) return true
+        val registrations = pushDao.getPushRegistrations()
+        if (registrations.isEmpty()) {
+            log.w { "No saved push registrations to repair; foreground registration is required" }
+            return true
+        }
+        var succeeded = true
+        registrations.forEach { registration ->
+            if (registration.endpoint == null) {
+                log.i { "Retrying UnifiedPush endpoint for ${registration.sessionId}" }
+                UnifiedPush.register(RevengeApplication.instance, instance = registration.clientSecret)
+                succeeded = false
+            } else if (!registerHomeserverPush(registration.clientSecret, force = true)) {
+                succeeded = false
+            }
+        }
+        return succeeded
     }
 
     private fun loopRegisterUnifiedPush() {
