@@ -110,6 +110,29 @@ class SyncOrchestrator(
                 }
             }
             .launchIn(this)
+        // The SDK persists unsent events, but their room workers can remain asleep
+        // after a network interruption until the whole client is recreated.
+        // Subscribing also makes the Rust SDK revive queues persisted on disk at
+        // startup, including rooms that have not been opened in this process.
+        matrixClient.sendQueueDisabledFlow()
+            .onEach { roomId ->
+                Timber.tag(tag).w("Send queue stopped for room $roomId; retry on connectivity/foreground change")
+            }
+            .launchIn(this)
+
+        // Keep sending available for background quick replies. Network loss
+        // suspends queues; restoration or another foreground transition wakes
+        // them and reloads pending requests without clearing drafts or data.
+        combine(
+            scSyncOrchestrationAppStateProvider.isNetworkAvailable,
+            scSyncOrchestrationAppStateProvider.isAppActive,
+        ) { networkAvailable, appActive -> networkAvailable to appActive }
+            .distinctUntilChanged()
+            .onEach { (networkAvailable, _) ->
+                matrixClient.setAllSendQueuesEnabled(networkAvailable)
+            }
+            .launchIn(this)
+
         /*
         val isAppActiveFlows = listOf(
             appForegroundStateService.isInForeground,
