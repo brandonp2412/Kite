@@ -30,6 +30,7 @@ import io.element.android.libraries.matrix.api.timeline.MsgType
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.TimelineException
+import io.element.android.libraries.matrix.api.timeline.item.SendTarget
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import io.element.android.libraries.matrix.api.timeline.item.event.InReplyTo
 import io.element.android.libraries.matrix.impl.media.GalleryMediaUploadHandlerImpl
@@ -839,6 +840,20 @@ class RustTimeline(
     override suspend fun getLatestEventId(): Result<EventId?> = withContext(dispatcher) {
         runCatchingExceptions {
             inner.latestEventId()?.let(::EventId)
+        }
+    }
+
+    override suspend fun retrySend(eventOrTransactionId: EventOrTransactionId, sendTarget: SendTarget): Result<Boolean> = withContext(dispatcher) {
+        runCatchingExceptions {
+            inner.retrySend(eventOrTransactionId.toRustEventOrTransactionId(), sendTarget.map())
+            // This SDK revision returns Unit for a successful retry request.
+            true
+        }
+    }
+
+    override suspend fun abortSend(eventOrTransactionId: EventOrTransactionId, sendTarget: SendTarget): Result<Boolean> = withContext(dispatcher) {
+        runCatchingExceptions {
+            inner.abortSend(eventOrTransactionId.toRustEventOrTransactionId(), sendTarget.map())
         }
     }
 

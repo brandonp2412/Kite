@@ -13,6 +13,7 @@ import io.element.android.libraries.matrix.api.core.SendHandle
 import io.element.android.libraries.matrix.api.core.TransactionId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
+import io.element.android.libraries.matrix.api.timeline.item.SendTarget
 import io.element.android.libraries.matrix.api.timeline.item.TimelineItemDebugInfo
 import kotlinx.collections.immutable.ImmutableList
 
@@ -41,7 +42,16 @@ data class EventTimelineItem(
     val forwarder: UserId?,
     /** If [forwarder] is set, the profile of the forwarding user, if it was cached at the time this `EventTimelineItem` was created. */
     val forwarderProfile: ProfileDetails?,
+    val editSendState: LocalEventSendState? = null,
+    val redactionSendState: LocalEventSendState? = null,
 ) {
+    /** Identify a pending operation, preferring errors over in-flight work. */
+    fun pendingSend(): Pair<SendTarget, LocalEventSendState>? = pendingSendForStates(
+        localSendState,
+        editSendState,
+        redactionSendState,
+    )
+
     fun inReplyTo(): InReplyTo? {
         return (content as? MessageContent)?.inReplyTo ?: /* SC */ (content as? StickerContent)?.inReplyTo
     }
@@ -87,4 +97,19 @@ fun interface MessageShieldProvider {
 fun interface SendHandleProvider {
     /** Returns the send handle of the item, or `null` when it is not a local echo waiting in the send queue. */
     operator fun invoke(): SendHandle?
+}
+
+/** The send state for an edit/redaction takes priority over a normal sent event. */
+fun pendingSendForStates(
+    eventState: LocalEventSendState?,
+    editState: LocalEventSendState?,
+    redactionState: LocalEventSendState?,
+): Pair<SendTarget, LocalEventSendState>? {
+    if (eventState is LocalEventSendState.Failed) return SendTarget.Event to eventState
+    if (editState is LocalEventSendState.Failed) return SendTarget.Edit to editState
+    if (redactionState is LocalEventSendState.Failed) return SendTarget.Redaction to redactionState
+    if (eventState is LocalEventSendState.Sending) return SendTarget.Event to eventState
+    if (editState is LocalEventSendState.Sending) return SendTarget.Edit to editState
+    if (redactionState is LocalEventSendState.Sending) return SendTarget.Redaction to redactionState
+    return null
 }

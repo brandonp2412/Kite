@@ -78,7 +78,7 @@ class ComposerSuggestionsProvider(
                         standardEmojiSuggestions
                     } else {
                         standardEmojiSuggestions.filter { suggestion ->
-                            suggestion.aliases.any { it.contains(shortcodePrefix) }
+                            suggestion.aliases.any { it.contains(shortcodePrefix, ignoreCase = true) }
                         }
                     }
                 } else {
@@ -89,8 +89,8 @@ class ComposerSuggestionsProvider(
                     if (query.allowsCustomEmote && pack.supportsCustomEmoji ||
                         query.type == DraftType.STICKER && pack.supportsSticker) {
                         pack.images.toList().filter { (shortcode, image) ->
-                            shortcode.contains(shortcodePrefix)
-                                    || image.body?.contains(shortcodePrefix) == true
+                            shortcode.contains(shortcodePrefix, ignoreCase = true)
+                                    || image.body?.contains(shortcodePrefix, ignoreCase = true) == true
                         }.map {
                             ComposerCustomEmoteSuggestion(
                                 ImagePackImageSource(source, pack.pack),
@@ -114,7 +114,7 @@ class ComposerSuggestionsProvider(
                             else -> emptyList()
                         }
                         keys.minOf {
-                            it.indexOf(shortcodePrefix).takeIf { it >= 0 } ?: Int.MAX_VALUE
+                            it.indexOf(shortcodePrefix, ignoreCase = true).takeIf { it >= 0 } ?: Int.MAX_VALUE
                         }
                     }
                 }

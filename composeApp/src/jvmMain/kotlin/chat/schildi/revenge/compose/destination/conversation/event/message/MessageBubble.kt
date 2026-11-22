@@ -69,11 +69,14 @@ data class TimestampOverlayContent(
     val sendError: LocalEventSendState.Failed?,
 )
 
-fun EventTimelineItem.timestampOverlayContent() = TimestampOverlayContent(
-    isEdited = (content as? EventCanBeEdited)?.isEdited == true,
-    isSending = localSendState is LocalEventSendState.Sending,
-    sendError = localSendState as? LocalEventSendState.Failed,
-)
+fun EventTimelineItem.timestampOverlayContent(): TimestampOverlayContent {
+    val sendState = pendingSend()?.second
+    return TimestampOverlayContent(
+        isEdited = (content as? EventCanBeEdited)?.isEdited == true,
+        isSending = sendState is LocalEventSendState.Sending,
+        sendError = sendState as? LocalEventSendState.Failed,
+    )
+}
 
 @Composable
 fun MessageBubble(

@@ -46,12 +46,22 @@ fun MessageInfoSheet(
         }
     }
     val senderName = event.senderProfile.getDisplayName()
-    val status = remember(event.eventId, event.localSendState) {
-        when (event.localSendState) {
+    val status = remember(event.eventId, event.localSendState, event.editSendState, event.redactionSendState) {
+        when (val operation = event.pendingSend()) {
             null -> if (event.eventId != null) "sent" else "pending"
-            is LocalEventSendState.Sending -> "sending"
-            is LocalEventSendState.Failed -> "failed"
-            is LocalEventSendState.Sent -> "sent"
+            else -> {
+                val action = when (operation.first) {
+                    io.element.android.libraries.matrix.api.timeline.item.SendTarget.Event -> "message"
+                    io.element.android.libraries.matrix.api.timeline.item.SendTarget.Edit -> "edit"
+                    io.element.android.libraries.matrix.api.timeline.item.SendTarget.Redaction -> "redaction"
+                    is io.element.android.libraries.matrix.api.timeline.item.SendTarget.Reaction -> "reaction"
+                }
+                when (operation.second) {
+                    is LocalEventSendState.Sending -> "sending $action"
+                    is LocalEventSendState.Failed -> "failed $action"
+                    is LocalEventSendState.Sent -> "sent"
+                }
+            }
         }
     }
 

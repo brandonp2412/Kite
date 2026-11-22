@@ -25,6 +25,8 @@ import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.TimelineProvider
+import io.element.android.libraries.matrix.api.timeline.item.SendTarget
+import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -150,6 +152,12 @@ class TimelineController(
                 }
             }
     }
+
+    suspend fun retrySend(eventOrTransactionId: EventOrTransactionId, sendTarget: SendTarget): Result<Boolean> =
+        currentTimelineFlow.value.retrySend(eventOrTransactionId, sendTarget)
+
+    suspend fun abortSend(eventOrTransactionId: EventOrTransactionId, sendTarget: SendTarget): Result<Boolean> =
+        currentTimelineFlow.value.abortSend(eventOrTransactionId, sendTarget)
 
     private val currentTimelineFlow = combine(liveTimelineFlow, detachedTimelineFlow) { live, detached ->
         when {

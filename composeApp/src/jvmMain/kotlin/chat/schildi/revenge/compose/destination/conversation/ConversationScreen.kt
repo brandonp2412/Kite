@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -48,9 +49,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
@@ -131,6 +134,7 @@ import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
+import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
@@ -147,6 +151,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.delay
@@ -579,32 +584,25 @@ fun ConversationScreen(
             )
         }
 
-        if (allowPaginateAfterInitialLoad) {
-            LaunchedEffect(listState, backwardPaginationStatus, timelineItems) {
-                snapshotFlow {
-                    listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                }
-                    .collect { lastVisibleIndex ->
-                        if (lastVisibleIndex != null && lastVisibleIndex >= timelineItems.size - 3 && backwardPaginationStatus?.canPaginate == true) {
-                            Logger.withTag("ConversationScreen")
-                                .d("Paginate backwards via $lastVisibleIndex/${timelineItems.size}, $backwardPaginationStatus")
-                            viewModel.paginateBackward()
-                        }
-                    }
-            }
-            LaunchedEffect(listState, forwardPaginationStatus, timelineItems) {
-                snapshotFlow {
-                    listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index
-                }
-                    .collect { firstVisibleIndex ->
-                        if (allowPaginateAfterInitialLoad && firstVisibleIndex != null && firstVisibleIndex <= 3 && forwardPaginationStatus?.canPaginate == true) {
-                            Logger.withTag("ConversationScreen")
-                                .d("Paginate forward via $firstVisibleIndex/${timelineItems.size}, $forwardPaginationStatus")
-                            viewModel.paginateForward()
-                        }
-                    }
-            }
-        }
+        val activeTimeline = viewModel.activeTimelineState.collectAsState().value?.preferredTimeline
+        TimelinePaginationEffect(
+            listState = listState,
+            timeline = activeTimeline,
+            itemCount = timelineItems.size,
+            enabled = allowPaginateAfterInitialLoad || timelineItems.isEmpty(),
+            direction = Timeline.PaginationDirection.BACKWARDS,
+            status = backwardPaginationStatus,
+            paginate = viewModel::paginateBackward,
+        )
+        TimelinePaginationEffect(
+            listState = listState,
+            timeline = activeTimeline,
+            itemCount = timelineItems.size,
+            enabled = allowPaginateAfterInitialLoad || timelineItems.isEmpty(),
+            direction = Timeline.PaginationDirection.FORWARDS,
+            status = forwardPaginationStatus,
+            paginate = viewModel::paginateForward,
+        )
 
         // Provider will be null if not allowed via settings
         val urlPreviewProvider = viewModel.urlPreviewStateProvider.collectAsState().value
@@ -682,7 +680,7 @@ fun ConversationScreen(
                     selectedCount = selectedMessages.size,
                     canReply = selectedSingleEvent?.eventId != null &&
                             (roomPermissions?.canSendMessages ?: false),
-                    canRetry = selectedSingleEvent?.localSendState is LocalEventSendState.Failed,
+                    canRetry = selectedSingleEvent?.pendingSend()?.second is LocalEventSendState.Failed,
                     canForward = canForwardSelection,
                     canDelete = canDeleteSelection,
                     onReply = {
@@ -1316,6 +1314,59 @@ fun ConversationScreen(
                     .onGloballyPositioned { heartBurst.updateViewport(it) }
                     .drawHeartBurst(heartBurst),
             )
+        }
+    }
+}
+
+@Composable
+private fun TimelinePaginationEffect(
+    listState: LazyListState,
+    timeline: Timeline?,
+    itemCount: Int,
+    enabled: Boolean,
+    direction: Timeline.PaginationDirection,
+    status: Timeline.PaginationStatus?,
+    paginate: suspend () -> Result<Boolean>?,
+) {
+    val currentItemCount by rememberUpdatedState(itemCount)
+    val currentEnabled by rememberUpdatedState(enabled)
+    val currentStatus by rememberUpdatedState(status)
+    val currentPaginate by rememberUpdatedState(paginate)
+
+    // Keep this coroutine alive while items/status update: otherwise a fresh
+    // LaunchedEffect cancels the in-flight pagination and can strand an empty chat.
+    LaunchedEffect(listState, timeline, direction) {
+        fun paginationDemand(): Triple<Int?, Int, Boolean> {
+            val visible = listState.layoutInfo.visibleItemsInfo
+            val index = when (direction) {
+                Timeline.PaginationDirection.BACKWARDS -> visible.lastOrNull()?.index
+                Timeline.PaginationDirection.FORWARDS -> visible.firstOrNull()?.index
+            }
+            return Triple(index, currentItemCount, currentEnabled)
+        }
+
+        snapshotFlow { paginationDemand() }.collect {
+            while (true) {
+                val demand = paginationDemand()
+                val (index, count, allowed) = demand
+                val nearEdge = count == 0 || index != null && when (direction) {
+                    Timeline.PaginationDirection.BACKWARDS -> index >= count - 3
+                    Timeline.PaginationDirection.FORWARDS -> index <= 3
+                }
+                if (!allowed || !nearEdge) return@collect
+
+                val paginationStatus = snapshotFlow { currentStatus }
+                    .first { it != null && !it.isPaginating }
+                if (paginationDemand() != demand) continue
+                if (paginationStatus?.canPaginate != true) return@collect
+
+                Logger.withTag("ConversationScreen")
+                    .d("Paginate $direction via $index/$count, $paginationStatus")
+                if (currentPaginate()?.isSuccess != true) return@collect
+
+                // Allow composition and layout to catch up with the loaded page.
+                withFrameNanos { }
+            }
         }
     }
 }

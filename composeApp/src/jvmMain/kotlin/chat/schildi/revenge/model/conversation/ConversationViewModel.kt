@@ -1558,23 +1558,19 @@ class ConversationViewModel(
         return destination is Destination.Conversation && destination.sessionId == sessionId && destination.roomId == roomId
     }
 
-    fun paginateForward() {
-        viewModelScope.launch(Dispatchers.IO) {
-            log.d("Request forward pagination")
-            timelineController.value?.paginate(Timeline.PaginationDirection.FORWARDS)
-                ?.onFailure { log.w("Cannot paginate forwards") }
-                ?.onSuccess { log.d("Paginated forwards") }
-        }
-    }
+    suspend fun paginateForward(): Result<Boolean>? = viewModelScope.async(Dispatchers.IO) {
+        log.d("Request forward pagination")
+        timelineController.value?.paginate(Timeline.PaginationDirection.FORWARDS)
+            ?.onFailure { log.w("Cannot paginate forwards") }
+            ?.onSuccess { log.d("Paginated forwards") }
+    }.await()
 
-    fun paginateBackward() {
-        viewModelScope.launch(Dispatchers.IO) {
-            log.d("Request backward pagination")
-            timelineController.value?.paginate(Timeline.PaginationDirection.BACKWARDS)
-                ?.onFailure { log.w("Cannot paginate backwards") }
-                ?.onSuccess { log.d("Paginated backwards") }
-        }
-    }
+    suspend fun paginateBackward(): Result<Boolean>? = viewModelScope.async(Dispatchers.IO) {
+        log.d("Request backward pagination")
+        timelineController.value?.paginate(Timeline.PaginationDirection.BACKWARDS)
+            ?.onFailure { log.w("Cannot paginate backwards") }
+            ?.onSuccess { log.d("Paginated backwards") }
+    }.await()
 
     override val roomActionProvider = RoomActionProvider(
         sessionId = sessionId,
@@ -2420,7 +2416,7 @@ class ConversationViewModel(
                     it
                 }
             }.let {
-                if (event.localSendState !is LocalEventSendState.Failed) {
+                if (event.pendingSend()?.second !is LocalEventSendState.Failed) {
                     it - setOf(Action.Event.RetrySend)
                 } else {
                     it
@@ -2834,7 +2830,11 @@ class ConversationViewModel(
                     }
 
                     Action.Event.RetrySend -> {
-                        val sendHandle = event.sendHandleProvider() ?: return@run ActionResult.Inapplicable
+                        val target = event.pendingSend()?.takeIf {
+                            it.second is LocalEventSendState.Failed
+                        }?.first ?: return@run ActionResult.Inapplicable
+                        val id = eventOrTransactionId ?: return@run ActionResult.Inapplicable
+                        val timeline = activeTimeline.value ?: return@run ActionResult.Failure("Timeline not ready")
                         launchActionAsync(
                             "sendRetry",
                             viewModelScope,
@@ -2842,7 +2842,10 @@ class ConversationViewModel(
                             "sendRetry",
                             notifyProcessing = true
                         ) {
-                            sendHandle.retry().toActionResult()
+                            timeline.retrySend(id, target).fold(
+                                onSuccess = { retried -> if (retried) ActionResult.Success() else ActionResult.Inapplicable },
+                                onFailure = { error -> ActionResult.Failure(error.message ?: error.toString()) },
+                            )
                         }
                     }
 
