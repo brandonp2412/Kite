@@ -330,9 +330,10 @@ fun ConversationScreen(
             (it.item as? MatrixTimelineItem.Event)?.eventId?.value == openPreview.eventId
         } == true
         LaunchedEffect(openPreview, previewInTimeline) {
-            if (openPreview != null && previewInTimeline) {
-                // Keep placement animations off until the SDK handoff has settled.
-                delay(300)
+            if (openPreview != null) {
+                // Edits, redactions and filtered events never appear as timeline rows.
+                // Don't leave their notification previews pinned at the bottom forever.
+                delay(if (previewInTimeline) 300 else 5_000)
                 NotificationOpenPreviews.clearIfCurrent(openPreview)
             }
         }

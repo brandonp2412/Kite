@@ -57,6 +57,7 @@ class NotificationMapper(
                     content = notificationContentMapper.map(item.event).getOrThrow(),
                     hasMention = item.hasMention.orFalse(),
                     roomJoinRule = item.roomInfo.joinRule?.map(),
+                    isReplacementEvent = isMatrixReplacementEvent(item.rawEvent),
                 )
             }
         }

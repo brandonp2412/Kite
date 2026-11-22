@@ -352,7 +352,7 @@ object AndroidNotifier {
             NotificationCompat.Builder(context, it)
         } ?: NotificationCompat.Builder(context, messageChannelId(id.sessionId))
         val openPreview = (data.content as? NotificationContent.MessageLike.RoomMessage)
-            ?.takeIf { it.messageType is TextMessageType }
+            ?.takeIf { !data.isReplacementEvent && it.messageType is TextMessageType }
             ?.let {
                 NotificationOpenPreview(
                     sessionId = id.sessionId.value,

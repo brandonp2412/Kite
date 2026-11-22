@@ -10,6 +10,7 @@ import chat.schildi.revenge.util.tryOrNull
 import co.touchlab.kermit.Logger
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.notification.NotificationData
+import io.element.android.libraries.matrix.impl.notification.isMatrixReplacementEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -132,5 +133,6 @@ fun SyncNotification.toNotificationData(timestamp: Long) = eventId?.let { eventI
         content = content,
         hasMention = hasMention,
         roomJoinRule = roomInfo.joinRule,
+        isReplacementEvent = isMatrixReplacementEvent(rawEvent),
     )
 }

@@ -39,6 +39,7 @@ data class NotificationData(
     val content: NotificationContent,
     val hasMention: Boolean,
     val roomJoinRule: JoinRule?,
+    val isReplacementEvent: Boolean = false,
 ) {
     fun getDisambiguatedDisplayName(userId: UserId): String = when {
         senderDisplayName.isNullOrBlank() -> userId.value
