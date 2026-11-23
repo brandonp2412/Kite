@@ -1205,6 +1205,17 @@ class ConversationViewModel(
                         }
 
                         DraftType.ATTACHMENT -> {
+                            // Matrix's send queue wedges oversized uploads and blocks every later
+                            // event in the room. Reject them before adding anything to that queue.
+                            val file = draft.attachment?.file
+                            val serverLimit = clientFlow.value?.getMaxFileUploadSize()?.getOrNull()
+                            if (file != null && serverLimit != null && serverLimit > 0 && file.length() > serverLimit) {
+                                val fileMiB = (file.length() + 1024 * 1024 - 1) / (1024 * 1024)
+                                val limitMiB = serverLimit / (1024 * 1024)
+                                return@result Result.failure(
+                                    IllegalArgumentException("File is ${fileMiB} MiB; Matrix server limit is ${limitMiB} MiB")
+                                )
+                            }
                             val caption = draft.body.takeIf { it.isNotBlank() }
                             val formattedCaption = draft.htmlBody
                             when (val attachment = draft.attachment) {
@@ -1303,7 +1314,9 @@ class ConversationViewModel(
                     ActionResult.Success()
                 } else {
                     log.w("Failed to send message in $roomId", result.exceptionOrNull())
-                    ActionResult.Failure("Failed to send message")
+                    ActionResult.Failure(
+                        (result.exceptionOrNull() as? IllegalArgumentException)?.message ?: "Failed to send message"
+                    )
                 }
             } finally {
                 if (sent) {
@@ -1337,9 +1350,14 @@ class ConversationViewModel(
         if (attachment.isFileAppOwned) {
             result.getOrNull()?.let { uploadHandler ->
                 GlobalActionsScope.launch(Dispatchers.IO) {
-                    uploadHandler.await()
-                        .onFailure { log.w("Failed to upload attachment in $roomId", it) }
-                    attachment.file.parentFile?.delete()
+                    uploadHandler.await().fold(
+                        onSuccess = { attachment.file.parentFile?.delete() },
+                        onFailure = {
+                            // Keep the original temporary media available for retry: a failed
+                            // upload is still in the persistent Matrix send queue.
+                            log.w("Failed to upload attachment in $roomId; retaining file for retry", it)
+                        },
+                    )
                 }
             }
         }

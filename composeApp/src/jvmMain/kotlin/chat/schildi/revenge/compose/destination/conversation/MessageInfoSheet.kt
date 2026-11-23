@@ -56,8 +56,9 @@ fun MessageInfoSheet(
                     io.element.android.libraries.matrix.api.timeline.item.SendTarget.Redaction -> "redaction"
                     is io.element.android.libraries.matrix.api.timeline.item.SendTarget.Reaction -> "reaction"
                 }
-                when (operation.second) {
+                when (val sendState = operation.second) {
                     is LocalEventSendState.Sending -> "sending $action"
+                    is LocalEventSendState.Failed.Unknown -> "failed $action: ${sendState.error.ifBlank { "Unknown error" }}"
                     is LocalEventSendState.Failed -> "failed $action"
                     is LocalEventSendState.Sent -> "sent"
                 }

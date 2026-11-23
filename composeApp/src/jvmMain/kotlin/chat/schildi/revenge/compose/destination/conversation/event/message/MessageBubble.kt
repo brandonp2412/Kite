@@ -344,11 +344,13 @@ private fun TimestampContent(
         if (reserveSendingSpace || showSending || content.sendError != null) {
             Box(Modifier.size(Dimens.Conversation.timestampDecorationIcon)) {
                 if (content.sendError != null) {
-                    val errorText: String = when (content.sendError) {
+                    val errorText: String = when (val failure = content.sendError) {
                         is LocalEventSendState.Failed.InvalidMimeType -> stringResource(Res.string.send_error_invalid_mime_type)
                         LocalEventSendState.Failed.MissingMediaContent -> stringResource(Res.string.send_error_missing_media_content)
                         LocalEventSendState.Failed.SendingFromUnverifiedDevice -> stringResource(Res.string.send_error_sending_from_unverified_device)
-                        is LocalEventSendState.Failed.Unknown -> stringResource(Res.string.send_error_unknown)
+                        is LocalEventSendState.Failed.Unknown -> failure.error.ifBlank {
+                            stringResource(Res.string.send_error_unknown)
+                        }.take(240)
                         is LocalEventSendState.Failed.VerifiedUserChangedIdentity -> stringResource(Res.string.send_error_verified_user_changed_identity)
                         is LocalEventSendState.Failed.VerifiedUserHasUnsignedDevice -> stringResource(Res.string.send_error_verified_user_has_unsigned_device)
                     }
@@ -363,7 +365,7 @@ private fun TimestampContent(
                 } else {
                     Icon(
                         Icons.Default.AccessTime,
-                        stringResource(Res.string.hint_sending),
+                        if (showSending) stringResource(Res.string.hint_sending) else null,
                         tint = textColor,
                         modifier = Modifier.size(Dimens.Conversation.timestampDecorationIcon)
                             .alpha(if (showSending) 1f else 0f),
