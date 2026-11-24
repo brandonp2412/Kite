@@ -51,6 +51,12 @@ actual fun platformAutoDismissNotification(
     latestRead = latestRead.map(EventId::value),
 )
 
+actual suspend fun platformAutoDismissNotificationByOrder(
+    sessionId: SessionId,
+    roomId: RoomId,
+    latestRead: List<EventId>,
+): Boolean = maybeDismissNotificationByReadOrder(sessionId, roomId, latestRead)
+
 actual fun platformDismissNotification(sessionId: SessionId, roomId: RoomId) =
     AndroidNotifier.dismiss(
         sessionId = sessionId.value,

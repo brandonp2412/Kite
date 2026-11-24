@@ -473,6 +473,17 @@ object AndroidNotifier {
         }.getOrDefault(emptyList())
     }
 
+    fun latestPostedEventId(sessionId: String, roomId: String): String? {
+        val notificationId = NotificationId.Room(SessionId(sessionId), RoomId(roomId)).androidNotificationId()
+        return NotificationManagerCompat.from(RevengeApplication.instance).activeNotifications
+            .firstOrNull {
+                it.id == notificationId &&
+                    it.notification.extras.getString(EXTRA_SESSION_ID) == sessionId &&
+                    it.notification.extras.getString(EXTRA_ROOM_ID) == roomId
+            }
+            ?.notification?.extras?.getStringArrayList(EXTRA_EVENT_IDS)?.lastOrNull()
+    }
+
     fun maybeAutoDismiss(sessionId: String, roomId: String, latestRead: List<String>): Boolean {
         val notificationManager = NotificationManagerCompat.from(RevengeApplication.instance)
         val notificationId = NotificationId.Room(SessionId(sessionId), RoomId(roomId)).androidNotificationId()

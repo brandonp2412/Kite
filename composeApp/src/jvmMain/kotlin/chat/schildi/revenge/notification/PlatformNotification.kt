@@ -37,6 +37,13 @@ expect fun platformActiveNotificationRooms(): List<ScopedRawRoomId>
  */
 expect fun platformAutoDismissNotification(sessionId: SessionId, roomId: RoomId, latestRead: List<EventId>): Boolean
 
+/** Verify a newer read receipt by Matrix timeline order before clearing an older notification. */
+expect suspend fun platformAutoDismissNotificationByOrder(
+    sessionId: SessionId,
+    roomId: RoomId,
+    latestRead: List<EventId>,
+): Boolean
+
 /** Treat this room as read *now*, unconditionally. */
 expect fun platformDismissNotification(sessionId: SessionId, roomId: RoomId): Boolean
 

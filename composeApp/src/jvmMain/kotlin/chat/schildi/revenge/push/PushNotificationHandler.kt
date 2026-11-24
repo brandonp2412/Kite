@@ -10,6 +10,7 @@ import chat.schildi.revenge.database.revengeDatabase
 import chat.schildi.revenge.notification.NotificationId
 import chat.schildi.revenge.notification.platformActiveNotificationRooms
 import chat.schildi.revenge.notification.platformAutoDismissNotification
+import chat.schildi.revenge.notification.platformAutoDismissNotificationByOrder
 import chat.schildi.revenge.notification.platformRedactNotificationMessage
 import chat.schildi.revenge.notification.platformNotify
 import chat.schildi.revenge.notification.platformNotifyMessage
@@ -241,7 +242,8 @@ object PushNotificationHandler {
 
                     log.d { "Checking for auto-dismiss on $sessionId, $roomId, [${receipts.joinToString()}]" }
                     if (receipts.isNotEmpty()) {
-                        platformAutoDismissNotification(sessionId, roomId, receipts)
+                        platformAutoDismissNotification(sessionId, roomId, receipts) ||
+                            platformAutoDismissNotificationByOrder(sessionId, roomId, receipts)
                     } else {
                         false
                     }
@@ -256,7 +258,9 @@ object PushNotificationHandler {
                         }?.let { readMarker ->
                             log.d { "Checking for auto-dismiss on $sessionId, $roomId, $readMarker via re-fetched read marker" }
                             if (readMarker !in receipts) {
-                                platformAutoDismissNotification(sessionId, roomId, listOf(readMarker))
+                                if (!platformAutoDismissNotification(sessionId, roomId, listOf(readMarker))) {
+                                    platformAutoDismissNotificationByOrder(sessionId, roomId, listOf(readMarker))
+                                }
                             }
                         }
                 }

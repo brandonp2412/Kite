@@ -53,7 +53,10 @@ internal object AndroidReadNotificationSync {
                         }
                     }
                     if (readEvents.isNotEmpty()) {
-                        AndroidNotifier.maybeAutoDismiss(key.sessionId, key.roomId, readEvents.distinct().map(EventId::value))
+                        val distinctReads = readEvents.distinct()
+                        if (!AndroidNotifier.maybeAutoDismiss(key.sessionId, key.roomId, distinctReads.map(EventId::value))) {
+                            maybeDismissNotificationByReadOrder(room.sessionId, room.summary.roomId, distinctReads)
+                        }
                     }
                 }
             }
