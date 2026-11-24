@@ -9,7 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,7 +66,14 @@ fun ColumnScope.ReactionsRow(
         exit = fadeOut(tween(180)) + shrinkVertically(tween(240)),
         // Restore the original chip position, tucked against the lower edge of
         // the message, while retaining a measured reaction row for smooth scrolling.
-        modifier = modifier.align(alignment).offset(y = (-6).dp),
+        modifier = modifier.align(alignment).layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val overlap = minOf(6.dp.roundToPx(), placeable.height)
+            // Reserve only the visible portion of the reaction, not the overlap.
+            layout(placeable.width, placeable.height - overlap) {
+                placeable.placeRelative(0, -overlap)
+            }
+        },
     ) {
     FlowRow(
         modifier = Modifier

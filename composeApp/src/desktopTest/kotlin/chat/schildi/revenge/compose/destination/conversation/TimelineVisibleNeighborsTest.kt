@@ -1,10 +1,26 @@
 package chat.schildi.revenge.compose.destination.conversation
 
 import kotlin.test.Test
+import io.element.android.libraries.matrix.api.timeline.item.virtual.VirtualTimelineItem
 import kotlin.test.assertEquals
 import androidx.compose.ui.unit.dp
 
 class TimelineVisibleNeighborsTest {
+    @Test
+    fun invisibleVirtualMarkersDoNotRemoveMessageGap() {
+        val invisible = listOf(VirtualTimelineItem.LastForwardIndicator, VirtualTimelineItem.RoomBeginning,
+            VirtualTimelineItem.ReadMarker, VirtualTimelineItem.TypingNotification)
+        for (marker in invisible) {
+            val kind = virtualTimelineRowKind(marker, showSdkReadMarker = false)
+            assertEquals(TimelineRowKind.Hidden, kind)
+            val neighbors = calculateVisibleTimelineNeighbors(listOf(TimelineRowKind.Event, kind, TimelineRowKind.Event))
+            assertEquals(2, neighbors.older[0])
+            assertEquals(0, neighbors.newer[2])
+            assertEquals(8.dp, messageGapBeforeEvent(neighbors.older[0] >= 0, false))
+        }
+        assertEquals(TimelineRowKind.Boundary, virtualTimelineRowKind(VirtualTimelineItem.ReadMarker, true))
+    }
+
     @Test
     fun messageGapDoesNotDependOnSenderGrouping() {
         // All adjacent rendered messages use the same 8 dp rhythm.

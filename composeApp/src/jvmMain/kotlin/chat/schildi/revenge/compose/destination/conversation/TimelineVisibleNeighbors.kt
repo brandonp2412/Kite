@@ -3,9 +3,23 @@ package chat.schildi.revenge.compose.destination.conversation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.Dimens
+import io.element.android.libraries.matrix.api.timeline.item.virtual.VirtualTimelineItem
 
 /** Timeline rows in newest-first order. Hidden rows do not separate visible bubbles. */
 internal enum class TimelineRowKind { Event, Hidden, Boundary, DayDivider }
+
+internal fun virtualTimelineRowKind(
+    item: VirtualTimelineItem,
+    showSdkReadMarker: Boolean,
+): TimelineRowKind = when (item) {
+    is VirtualTimelineItem.DayDivider -> TimelineRowKind.DayDivider
+    VirtualTimelineItem.ReadMarker -> if (showSdkReadMarker) TimelineRowKind.Boundary else TimelineRowKind.Hidden
+    VirtualTimelineItem.RoomBeginning,
+    VirtualTimelineItem.LastForwardIndicator,
+    // Typing is appended at the live edge, not between messages.
+    VirtualTimelineItem.TypingNotification -> TimelineRowKind.Hidden
+    is VirtualTimelineItem.LoadingIndicator -> TimelineRowKind.Boundary
+}
 
 internal class TimelineVisibleNeighbors(
     val older: IntArray,

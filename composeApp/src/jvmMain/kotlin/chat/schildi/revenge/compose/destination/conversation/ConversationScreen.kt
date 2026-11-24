@@ -794,7 +794,9 @@ fun ConversationScreen(
                     val renderedItems = remember(timelineItems) {
                         timelineItems.reversed().toPersistentList()
                     }
-                    val rowKinds = remember(renderedItems) {
+                    val currentThreadId = viewModel.threadId.collectAsState().value
+                    val showSdkReadMarker = currentThreadId != null || ScPrefs.ALWAYS_SHOW_SDK_UNREAD_LINE.value()
+                    val rowKinds = remember(renderedItems, showSdkReadMarker) {
                         renderedItems.map { timelineItem ->
                             when (val matrixItem = timelineItem.item) {
                                 is MatrixTimelineItem.Event -> if (matrixItem.event.isKiteServerEvent()) {
@@ -803,11 +805,7 @@ fun ConversationScreen(
                                     TimelineRowKind.Event
                                 }
                                 is MatrixTimelineItem.Virtual ->
-                                    if (matrixItem.virtual is VirtualTimelineItem.DayDivider) {
-                                        TimelineRowKind.DayDivider
-                                    } else {
-                                        TimelineRowKind.Boundary
-                                    }
+                                    virtualTimelineRowKind(matrixItem.virtual, showSdkReadMarker)
                                 MatrixTimelineItem.Other -> TimelineRowKind.Hidden
                             }
                         }
@@ -945,7 +943,6 @@ fun ConversationScreen(
                     }
 
                     // Track whether we see bottom or latest read message for jump-to-message FABs
-                    val currentThreadId = viewModel.threadId.collectAsState().value
                     LaunchedEffect(listState, fullyReadEvent, renderedItems) {
                         snapshotFlow {
                             val visible = listState.layoutInfo.visibleItemsInfo
@@ -1026,7 +1023,8 @@ fun ConversationScreen(
                         // by the SDK event then keeps the older messages at the same offsets.
                         visibleOpenPreview?.let { preview ->
                             item(key = notificationTimelineKey(preview.eventId)) {
-                                val previousEvent = (renderedItems.firstOrNull()?.item as? MatrixTimelineItem.Event)?.event
+                                val previousIndex = rowKinds.indexOfFirst { it != TimelineRowKind.Hidden }
+                                val previousEvent = (renderedItems.getOrNull(previousIndex)?.item as? MatrixTimelineItem.Event)?.event
                                 val joinsPrevious = previousEvent != null &&
                                     previousEvent.sender.value == preview.senderId &&
                                     previousEvent.content is MessageContent

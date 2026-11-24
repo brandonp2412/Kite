@@ -123,7 +123,8 @@ fun ConversationItemRow(
             is MatrixTimelineItem.Event -> {
                 if (item.item.event.isKiteServerEvent()) return@Column
                 val isFirstUnreadEvent = fullyReadEvent?.has(previousEvent?.eventId) == true
-                val showUnreadLine = isFirstUnreadEvent && (!item.item.event.isOwn || fullyReadEvent.usedAsJumpTarget)
+                val showUnreadLine = isFirstUnreadEvent && (!item.item.event.isOwn || fullyReadEvent.usedAsJumpTarget) &&
+                    (currentThreadId == null || ScPrefs.ALWAYS_SHOW_SDK_UNREAD_LINE.value())
                 if (isFirstUnreadEvent || fullyReadEvent?.has(item.item.eventId) == true) {
                     // Changed target event clears the seen marker, so need to re-set if it changes
                     SideEffect(item.item.eventId, targetEvent) {
