@@ -47,6 +47,7 @@ import timber.log.Timber
 import uniffi.matrix_sdk_base.EncryptionState
 import uniffi.matrix_sdk_ui.TimelineReadReceiptTracking
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.seconds
 import org.matrix.rustcomponents.sdk.RoomListService as InnerRoomListService
 
 class RustRoomFactory(
@@ -80,16 +81,10 @@ class RustRoomFactory(
         }
     }
 
-    suspend fun getBaseRoom(roomId: RoomId): RustBaseRoom? = withContext(dispatcher) {
-        mutex.withLock {
-            if (isDestroyed.get()) {
-                Timber.d("Room factory is destroyed, returning null for $roomId")
-                return@withContext null
-            }
-            val room = awaitRoomInRoomList(roomId) ?: return@withContext null
+    suspend fun getBaseRoom(roomId: RoomId): RustBaseRoom? =
+        withRoom(roomId) { room ->
             getBaseRoom(sdkRoom = room, roomInfo = room.roomInfo())
         }
-    }
 
     private fun getBaseRoom(sdkRoom: Room, roomInfo: RoomInfo) = RustBaseRoom(
         sessionId = sessionId,
@@ -103,14 +98,8 @@ class RustRoomFactory(
         sessionCoroutineScope = sessionCoroutineScope,
     )
 
-    suspend fun getJoinedRoomOrPreview(roomId: RoomId, serverNames: List<String>, /* SC */ scTimelineFilterSettings: ScTimelineFilterSettings): GetRoomResult? = withContext(dispatcher) {
-        mutex.withLock {
-            if (isDestroyed.get()) {
-                Timber.d("Room factory is destroyed, returning null for $roomId")
-                return@withContext null
-            }
-
-            val sdkRoom = awaitRoomInRoomList(roomId) ?: return@withLock null
+    suspend fun getJoinedRoomOrPreview(roomId: RoomId, serverNames: List<String>, /* SC */ scTimelineFilterSettings: ScTimelineFilterSettings): GetRoomResult? =
+        withRoom(roomId) { sdkRoom ->
             val roomInfo = sdkRoom.roomInfo()
 
             val parentTransaction = analyticsService.getLongRunningTransaction(AnalyticsLongRunningTransaction.OpenRoom)
@@ -187,26 +176,26 @@ class RustRoomFactory(
                 }
             }
         }
-    }
-
     /**
-     * Get the Rust room for a room, retrying after the room list is loaded if necessary.
+     * Serialize SDK room access with factory destruction. Sync can suspend while the
+     * room list loads, so wait outside the mutex to let other rooms open meanwhile.
      */
-    private suspend fun awaitRoomInRoomList(roomId: RoomId): Room? {
-        var sdkRoom = innerRoomListService.roomOrNull(roomId.value)
-        if (sdkRoom == null) {
-            // ... otherwise, lets wait for the SS to load all rooms and check again.
-            roomListService.allRooms.awaitLoaded()
-            sdkRoom = innerRoomListService.roomOrNull(roomId.value)
+    private suspend fun <T> withRoom(roomId: RoomId, block: suspend (Room) -> T?): T? =
+        withContext(dispatcher) {
+            for (attempt in 0..1) {
+                mutex.withLock {
+                    if (isDestroyed.get()) {
+                        Timber.d("Room factory is destroyed, returning null for $roomId")
+                        return@withContext null
+                    }
+                    val room = innerRoomListService.roomOrNull(roomId.value)
+                    if (room != null) return@withContext block(room)
+                }
+                if (attempt == 0) roomListService.allRooms.awaitLoaded(timeout = 5.seconds)
+            }
+            Timber.d("Room not found for $roomId after checking the room list")
+            null
         }
-
-        if (sdkRoom == null) {
-            Timber.d("Room not found for $roomId")
-            return null
-        }
-
-        return sdkRoom
-    }
 }
 
 sealed interface GetRoomResult {
