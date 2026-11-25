@@ -26,3 +26,4 @@ vcs.xml
 .flatpak-builder
 flatpak
 __pycache__/
+graphify-out
