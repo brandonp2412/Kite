@@ -3,6 +3,7 @@ package chat.schildi.revenge.notification
 import chat.schildi.revenge.actions.AppMessage
 import chat.schildi.revenge.model.ScopedRawRoomId
 import chat.schildi.revenge.plaintext.NotificationEventTextFormat
+import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
@@ -51,6 +52,7 @@ actual fun platformActiveNotificationRooms(): List<ScopedRawRoomId> = emptyList(
 actual fun platformAutoDismissNotification(sessionId: SessionId, roomId: RoomId, latestRead: List<EventId>) = false
 
 actual suspend fun platformAutoDismissNotificationByOrder(
+    client: MatrixClient,
     sessionId: SessionId,
     roomId: RoomId,
     latestRead: List<EventId>,

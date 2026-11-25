@@ -2,6 +2,7 @@ package chat.schildi.revenge.notification
 
 import chat.schildi.revenge.actions.AppMessage
 import chat.schildi.revenge.model.ScopedRawRoomId
+import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
@@ -39,6 +40,7 @@ expect fun platformAutoDismissNotification(sessionId: SessionId, roomId: RoomId,
 
 /** Verify a newer read receipt by Matrix timeline order before clearing an older notification. */
 expect suspend fun platformAutoDismissNotificationByOrder(
+    client: MatrixClient,
     sessionId: SessionId,
     roomId: RoomId,
     latestRead: List<EventId>,

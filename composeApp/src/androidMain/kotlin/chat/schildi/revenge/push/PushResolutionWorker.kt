@@ -32,7 +32,11 @@ class PushResolutionWorker(
         log.d { "Resolving pushes for $sessionId/$roomId (attempt $runAttemptCount)" }
         return try {
             when (withTimeout(WORK_TIMEOUT_MILLIS) {
-                PushNotificationHandler.resolvePendingPushes(SessionId(sessionId), RoomId(roomId))
+                PushNotificationHandler.resolvePendingPushes(
+                    SessionId(sessionId),
+                    RoomId(roomId),
+                    retryReadCheck = runAttemptCount < MAX_READ_CHECK_RETRIES,
+                )
             }) {
                 PushResolutionOutcome.TransientFailure -> Result.retry()
                 PushResolutionOutcome.PermanentFailure -> Result.failure()
@@ -53,6 +57,7 @@ class PushResolutionWorker(
         private const val KEY_SESSION_ID = "session_id"
         private const val KEY_ROOM_ID = "room_id"
         private const val UNIQUE_NAME_PREFIX = "push-resolution"
+        private const val MAX_READ_CHECK_RETRIES = 2
         private const val BACKOFF_DELAY_MILLIS = 30_000L
         private const val WORK_TIMEOUT_MILLIS = 65_000L
 

@@ -106,7 +106,11 @@ object PushNotificationHandler {
         }
     }
 
-    suspend fun resolvePendingPushes(sessionId: SessionId, roomId: RoomId): PushResolutionOutcome {
+    suspend fun resolvePendingPushes(
+        sessionId: SessionId,
+        roomId: RoomId,
+        retryReadCheck: Boolean = false,
+    ): PushResolutionOutcome {
         // Transient failures must not permanently exclude old persisted events.
         val pushes = pushDao.getPendingPushes(sessionId.value, roomId.value, maxEvents = MAX_BATCH_SIZE)
         var needsRetry = pushes.size == MAX_BATCH_SIZE
@@ -232,37 +236,22 @@ object PushNotificationHandler {
                 // so we try a best-effort live request for the fully read marker as fallback.
                 // Read receipts would be preferred over the fully read marker for that, but it's not possible to fetch
                 // those without sync, and we don't want to kick a full sync on each push.
-                var receipts: List<EventId> = emptyList()
-                val dismissedFromCachedReceipt = client.getRoom(roomId)?.use { room ->
-                    receipts = listOf(ReceiptType.READ, ReceiptType.READ_PRIVATE).mapNotNull { receiptType ->
+                val receipts = client.getRoom(roomId)?.use { room ->
+                    listOf(ReceiptType.READ, ReceiptType.READ_PRIVATE).mapNotNull { receiptType ->
                         room.getOwnReadReceipt(receiptType)
                             .onFailure { log.w("Failed to load local read receipt for $sessionId/$roomId, $receiptType", it) }
                             .getOrNull()
-                    }.distinct()
-
-                    log.d { "Checking for auto-dismiss on $sessionId, $roomId, [${receipts.joinToString()}]" }
-                    if (receipts.isNotEmpty()) {
-                        platformAutoDismissNotification(sessionId, roomId, receipts) ||
-                            platformAutoDismissNotificationByOrder(sessionId, roomId, receipts)
-                    } else {
-                        false
                     }
-                } ?: false
-                if (!dismissedFromCachedReceipt) {
-                    // Read marker fetched from server (bypassing SDK cache from sync)
-                    client.fetchRoomAccountData(roomId, FULLY_READ_ACCOUNT_DATA_TYPE)
+                }.orEmpty()
+                if (!platformAutoDismissNotification(sessionId, roomId, receipts)) {
+                    val readMarker = client.fetchRoomAccountData(roomId, FULLY_READ_ACCOUNT_DATA_TYPE)
                         .onFailure { log.w("Failed to fetch read marker for $sessionId/$roomId", it) }
                         .getOrNull()
-                        ?.let {
-                            json.decodeFromString<FullyReadContent>(it).eventId?.let(::EventId)
-                        }?.let { readMarker ->
-                            log.d { "Checking for auto-dismiss on $sessionId, $roomId, $readMarker via re-fetched read marker" }
-                            if (readMarker !in receipts) {
-                                if (!platformAutoDismissNotification(sessionId, roomId, listOf(readMarker))) {
-                                    platformAutoDismissNotificationByOrder(sessionId, roomId, listOf(readMarker))
-                                }
-                            }
-                        }
+                        ?.let { json.decodeFromString<FullyReadContent>(it).eventId?.let(::EventId) }
+                    val readEvents = (listOfNotNull(readMarker) + receipts).distinct()
+                    if (readEvents.isNotEmpty() && !platformAutoDismissNotification(sessionId, roomId, readEvents)) {
+                        platformAutoDismissNotificationByOrder(client, sessionId, roomId, readEvents)
+                    }
                 }
             }
 
@@ -270,6 +259,12 @@ object PushNotificationHandler {
         if (dismissResult == null) {
             log.w { "Auto-dismiss timed out for $sessionId/$roomId" }
         }
-        return if (needsRetry) PushResolutionOutcome.TransientFailure else PushResolutionOutcome.Done
+        // Synapse sends a count-only push when the badge count changes. A later
+        // receipt can advance further without changing that count or sending a push.
+        val awaitingReadMarker = retryReadCheck && pushes.isEmpty() &&
+            platformActiveNotificationRooms().any {
+                it.sessionId == sessionId.value && it.roomId == roomId.value
+            }
+        return if (needsRetry || awaitingReadMarker) PushResolutionOutcome.TransientFailure else PushResolutionOutcome.Done
     }
 }
