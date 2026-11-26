@@ -13,6 +13,7 @@ import chat.schildi.lib.preferences.ScPrefs
 import chat.schildi.revenge.preferences.value
 import chat.schildi.revenge.Destination
 import chat.schildi.revenge.DestinationStateHolder
+import chat.schildi.revenge.UiState
 import chat.schildi.revenge.LocalDestinationState
 import chat.schildi.revenge.platformWindowManager
 import chat.schildi.revenge.compose.components.AdaptiveSplitLayoutModifierPair
@@ -57,7 +58,11 @@ fun DestinationContent(
         LocalDestinationState provides destinationHolder,
         LocalDestinationDepth provides LocalDestinationDepth.current + 1,
     ) {
-        val destination = destinationHolder.state.collectAsState().value.destination
+        val requestedDestination = destinationHolder.state.collectAsState().value.destination
+        val failures = UiState.failedSessions.collectAsState().value
+        val clients = UiState.matrixClients.collectAsState().value
+        val restored = UiState.initialClientRestoreComplete.collectAsState().value
+        val destination = sessionRecoveryDestination(requestedDestination, restored, clients.keys, failures.keys)
         if (platformWindowManager.appOwnsWindows) {
             DestinationFrame(destination, modifier)
         } else {
@@ -74,6 +79,19 @@ fun DestinationContent(
             }
         }
     }
+}
+
+internal fun sessionRecoveryDestination(
+    requested: Destination,
+    restored: Boolean,
+    active: Set<io.element.android.libraries.matrix.api.core.SessionId>,
+    failed: Set<io.element.android.libraries.matrix.api.core.SessionId>,
+): Destination {
+    if (!restored || failed.isEmpty() || requested is Destination.AccountManagement) return requested
+    if (active.isEmpty() || (requested is Destination.WithSession && requested.sessionId in failed)) {
+        return Destination.AccountManagement(isInitialSetup = false)
+    }
+    return requested
 }
 
 @Composable

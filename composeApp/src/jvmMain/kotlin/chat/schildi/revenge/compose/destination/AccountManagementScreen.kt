@@ -189,7 +189,7 @@ fun AccountManagementScreen(
                             )
                         }
                         item(key = "new") {
-                            NewLogin(viewModel)
+                            NewLogin(viewModel, accounts.firstOrNull { !it.session.isTokenValid })
                         }
                     }
                 }
@@ -429,11 +429,11 @@ private fun AccountStatusIcon(
 }
 
 @Composable
-private fun NewLogin(viewModel: AccountManagementViewModel) {
+private fun NewLogin(viewModel: AccountManagementViewModel, recoveryAccount: AccountManagementData?) {
     val setHomeserverInProgress = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val actionContext = currentActionContext()
-    var homeserver by remember { mutableStateOf(TextFieldValue()) }
+    var homeserver by remember(recoveryAccount?.sessionId) { mutableStateOf(TextFieldValue(recoveryAccount?.session?.homeserverUrl.orEmpty())) }
     var hsDetails by remember(homeserver.text) { mutableStateOf<Result<MatrixHomeServerDetails>?>(null) }
     var loginVariant by remember(homeserver.text) { mutableStateOf<LoginVariant?>(null) }
     val loginError = remember(homeserver.text) { mutableStateOf<String?>(null) }
@@ -586,7 +586,7 @@ private fun NewLogin(viewModel: AccountManagementViewModel) {
             }
 
             LoginVariant.PASSWORD -> {
-                PasswordLogin(viewModel, loginError) {
+                PasswordLogin(viewModel, loginError, recoveryAccount?.session?.userId.orEmpty()) {
                     homeserver = TextFieldValue()
                 }
             }
@@ -611,10 +611,11 @@ private fun NewLogin(viewModel: AccountManagementViewModel) {
 private fun ColumnScope.PasswordLogin(
     viewModel: AccountManagementViewModel,
     loginError: MutableState<String?>,
+    initialUsername: String,
     onSuccess: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var username by remember { mutableStateOf(TextFieldValue()) }
+    var username by remember(initialUsername) { mutableStateOf(TextFieldValue(initialUsername)) }
     var password by remember { mutableStateOf(TextFieldValue()) }
     val loginInProgress = remember { mutableStateOf(false) }
     OutlinedTextField(

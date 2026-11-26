@@ -64,14 +64,18 @@ class MatrixSessionCache(
     }
 
     override fun getOrNull(sessionId: SessionId): MatrixClient? {
-        return sessionIdsToMatrixSession[sessionId]?.matrixClient
+        return sessionIdsToMatrixSession[sessionId]?.matrixClient?.takeUnless { it.isShuttingDown }
     }
 
     override suspend fun getOrRestore(sessionId: SessionId): Result<MatrixClient> {
         getOrNull(sessionId)?.let { return Result.success(it) }
         return restoreMutexes.getOrPut(sessionId) { Mutex() }.withLock {
-            when (val cached = getOrNull(sessionId)) {
-                null -> restore(sessionId)
+            // Keep the shutting-down entry until it is replaced or explicitly removed.
+            // Restoring while its native database is closing can create two owners.
+            val cached = sessionIdsToMatrixSession[sessionId]?.matrixClient
+            when {
+                cached == null -> restore(sessionId)
+                cached.isShuttingDown -> Result.failure(IllegalStateException("Matrix session is shutting down"))
                 else -> Result.success(cached)
             }
         }
@@ -143,6 +147,7 @@ class MatrixSessionCache(
     }
 
     private fun onNewMatrixClient(matrixClient: MatrixClient) {
+        if (sessionIdsToMatrixSession[matrixClient.sessionId]?.matrixClient === matrixClient) return
         val syncOrchestrator = syncOrchestratorFactory.create(
             matrixClient = matrixClient,
             sessionCoroutineScope = matrixClient.sessionCoroutineScope,

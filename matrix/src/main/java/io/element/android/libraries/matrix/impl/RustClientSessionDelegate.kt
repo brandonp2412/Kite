@@ -116,6 +116,11 @@ class RustClientSessionDelegate(
                     "Removing session data with access token '$anonymizedAccessToken' " +
                         "and refresh token '$anonymizedRefreshToken'."
                 )
+                // Ignore a delayed callback from a superseded device.
+                if (existingData != null && existingData.deviceId != currentClient.deviceId.value) {
+                    return
+                }
+                currentClient.markShuttingDown()
                 if (existingData != null) {
                     // Set isTokenValid to false
                     val newData = existingData.copy(isTokenValid = false)

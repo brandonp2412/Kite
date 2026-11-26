@@ -708,7 +708,10 @@ class RustMatrixClient(
         }.mapFailure { it.mapClientException() }
     }
 
+    internal fun markShuttingDown() { _isShuttingDown.set(true) }
+
     internal suspend fun destroy() {
+        markShuttingDown()
         innerNotificationClient.close()
 
         roomFactory.destroy()
@@ -773,8 +776,9 @@ class RustMatrixClient(
             }
             destroy()
 
-            deleteSessionDirectory()
+            // A server-side revocation is not consent to erase local encryption data.
             if (userInitiated) {
+                deleteSessionDirectory()
                 sessionStore.removeSession(sessionId.value)
             }
         }

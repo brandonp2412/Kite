@@ -22,6 +22,7 @@ import chat.schildi.revenge.util.throttleLatest
 import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import dev.zacsweers.metro.createGraphFactory
+import io.element.android.libraries.matrix.api.auth.SessionRestorationException
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.x.di.AppGraph
 import kotlinx.collections.immutable.persistentHashMapOf
@@ -183,6 +184,8 @@ object UiState {
         globalLoadState.addExpected(
             *persistedSessions.map { LoadCheckPoint.Client(SessionId(it.userId)) }.toTypedArray()
         )
+        val persistedIds = persistedSessions.map { SessionId(it.userId) }.toSet()
+        _failedSessions.update { failures -> failures.filterKeys { it in persistedIds } }
         val startTs = System.currentTimeMillis()
         log.i("Restoring ${persistedSessions.size} sessions; per-account SDK DB max pool size: $initialDbPoolSize")
         val sessions = appGraph.sessionCache.runBatchRestore {
@@ -190,7 +193,11 @@ object UiState {
                 scope.async {
                     val sessionId = SessionId(sessionData.userId)
                     log.i("Restoring session for $sessionId")
-                    getOrRestoreInBatch(sessionId)
+                    (if (!sessionData.isTokenValid) {
+                        Result.failure(SessionRestorationException.InvalidToken())
+                    } else {
+                        getOrRestoreInBatch(sessionId)
+                    })
                         .onFailure { e ->
                             log.e("Failed to restore session for $sessionId", e)
                             _failedSessions.update { it + (sessionId to e) }
@@ -367,7 +374,7 @@ object UiState {
         client
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    fun currentClientFor(sessionId: SessionId) = matrixClients.value[sessionId]
+    fun currentClientFor(sessionId: SessionId) = matrixClients.value[sessionId]?.takeUnless { it.isShuttingDown }
 
     private fun clearSplashScreen(destination: Destination) {
         platformWindowManager.windows.value.forEach { window ->

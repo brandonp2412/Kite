@@ -325,7 +325,7 @@ class RustMatrixAuthenticationService(
     private suspend fun ensureNotAlreadyLoggedIn(client: Client) {
         val newUserId = client.userId()
         val accountAlreadyLoggedIn = sessionStore.getAllSessions().any {
-            it.userId == newUserId
+            it.userId == newUserId && it.isTokenValid
         }
         if (accountAlreadyLoggedIn) {
             // Sign out the client, ignoring any error

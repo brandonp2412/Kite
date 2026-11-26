@@ -114,8 +114,8 @@ object RevengeSessionStore : SessionStore {
             sessions.update {
                 val oldSessions = it ?: loadFromFile().sessions
                 val oldSession = oldSessions.find { it.userId == sessionData.userId }
-                if (oldSession == null) {
-                    // Cannot update
+                if (oldSession == null || oldSession.deviceId != sessionData.deviceId) {
+                    // A superseded client must not invalidate a replacement login.
                     new = null
                     oldSessions
                 } else {
