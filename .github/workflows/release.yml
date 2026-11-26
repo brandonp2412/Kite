@@ -55,6 +55,12 @@ jobs:
           (( major <= 2100 && minor < 10 && patch < 1000 )) || exit 1
           # Gradle derives versionCode from androidVersionName; no CI offset.
 
+      - name: Validate handwritten release notes
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python3 scripts/release_notes.py "release-notes/$TAG.txt"
+
       - name: Require signing secrets
         env:
           STORE: ${{ secrets.KITE_RELEASE_KEYSTORE_BASE64 }}
@@ -175,6 +181,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           pattern: kite-*
@@ -203,7 +212,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: Kite ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: release-notes/${{ github.ref_name }}.txt
           make_latest: true
           fail_on_unmatched_files: true
           files: |

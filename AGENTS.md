@@ -5,3 +5,9 @@ This repository is Kite, a native Matrix client forked from SchildiChat Revenge.
 Example Linux build environment: set `JAVA_HOME=/usr/lib/jvm/java-25-openjdk`, `PATH=$JAVA_HOME/bin:$PATH`, and `ANDROID_HOME=/opt/android-sdk` for Gradle. `cargo-ndk` and the Rust Android targets are installed. Do not run multiple overlapping Android builds; native Rust SDK FFI compile is expensive.
 
 - Do not install package-rename builds onto a physical device until migration and signing are verified. Build `:androidApp:assembleRelease -PandroidAbi=arm64-v8a`, verify the APK package is `app.kite` and its signer matches any previously installed `app.kite`. Never uninstall or reset the app to resolve a signing/version mismatch.
+
+# Release notes
+- Before publishing, inspect changes since the last published release, including the diff, not just commit titles. Write concise plain-English notes about actual user-visible changes.
+- Commit the notes as release-notes/<version>.txt (without a v prefix), using at most 500 characters. Never use raw commit subjects, unverified claims, or generic placeholder text. Prepare notes before triggering the release workflow.
+- The release workflow uses the same notes for supported release destinations. Do not publish an extra release solely because release automation changed. Do not rewrite historical releases.
+- Commit the notes before pushing the version tag. Signing-only workflow dispatch does not publish a release.
