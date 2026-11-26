@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.Encryption
 import org.matrix.rustcomponents.sdk.RecoveryState
@@ -194,32 +194,22 @@ class RustSessionVerificationService(
 
     override fun didFinish() {
         sessionCoroutineScope.launch {
-            // Ideally this should be `verificationController?.isVerified().orFalse()` but for some reason it returns false if run immediately
-            // It also sometimes unexpectedly fails to report the session as verified, so we have to handle that possibility and fail if needed
-            runCatchingExceptions {
-                withTimeout(20.seconds) {
-                    // Wait until the SDK reports the state as verified
-                    sessionVerifiedStatus.first { it == SessionVerifiedStatus.Verified }
+            // A protocol-level done does not prove the local cross-signing identity
+            // is trusted. Wait for the actual SDK state, never report false success.
+            if (!awaitVerifiedSession(sessionVerifiedStatus)) {
+                Timber.e("Verification finished, but the Rust SDK still reports the session as unverified.")
+                didFail()
+                return@launch
+            }
+            if (currentVerificationRequest is VerificationRequest.Outgoing.CurrentSession) {
+                // Recovery is optional after verification, and its timeout is not
+                // cancellation of this session coroutine.
+                withTimeoutOrNull(10.seconds) {
+                    recoveryState.first { it == RecoveryState.ENABLED || it == RecoveryState.DISABLED }
                 }
             }
-                .onSuccess {
-                    if (currentVerificationRequest is VerificationRequest.Outgoing.CurrentSession) {
-                        // Try waiting for the final recovery state for better UX, but don't block the verification state on it
-                        tryOrNull {
-                            withTimeout(10.seconds) {
-                                // Wait until the recovery state is either fully loaded or we check it's explicitly disabled
-                                recoveryState.first { it == RecoveryState.ENABLED || it == RecoveryState.DISABLED }
-                            }
-                        }
-                    }
-
-                    _verificationFlowState.value = VerificationFlowState.DidFinish
-                    updateVerificationStatus()
-                }
-                .onFailure {
-                    Timber.e(it, "Verification finished, but the Rust SDK still reports the session as unverified.")
-                    didFail()
-                }
+            _verificationFlowState.value = VerificationFlowState.DidFinish
+            updateVerificationStatus()
         }
     }
 
@@ -235,7 +225,7 @@ class RustSessionVerificationService(
     // end-region
 
     override suspend fun reset(cancelAnyPendingVerificationAttempt: Boolean) {
-        currentVerificationRequest = null
+        if (cancelAnyPendingVerificationAttempt) currentVerificationRequest = null
         if (canVerify.value && cancelAnyPendingVerificationAttempt) {
             // Cancel any pending verification attempt
             tryOrNull { verificationController.cancelVerification() }
@@ -307,3 +297,12 @@ private fun RustSessionVerificationData.map(): SessionVerificationData {
         }
     }
 }
+
+
+internal suspend fun awaitVerifiedSession(
+    status: StateFlow<SessionVerifiedStatus>,
+    timeout: kotlin.time.Duration = 20.seconds,
+): Boolean = withTimeoutOrNull(timeout) {
+    status.first { it == SessionVerifiedStatus.Verified }
+    true
+} ?: false
