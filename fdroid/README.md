@@ -24,6 +24,4 @@ Do not accept an F-Droid-signed replacement silently: it would use a different
 signer and not update existing Kite installations in place. The F-Droid
 buildserver must never use the private Kite release signing key.
 
-For testing on Glass, the developer's Gradle init scripts may inject the local
-release signer even without `KITE_RELEASE_*` environment variables. A build on
-Glass is therefore **not** independent proof of an unsigned F-Droid build.
+For local F-Droid checks, always pass `-PfdroidBuild=true`. This disables both local and CI signing in Kite and excludes Maven Local. Verify the resulting APK is unsigned; local builds are not independent proof of F-Droid reproducibility.

@@ -46,19 +46,20 @@ require(unknownAndroidAbis.isEmpty()) {
 
 // Prefer explicit CI signing; on development machines reuse Flex's local
 // Android signing configuration. F-Droid must continue to produce unsigned APKs.
+val fdroidBuild = providers.gradleProperty("fdroidBuild").map { it.toBoolean() }.getOrElse(false) ||
+    providers.environmentVariable("fdroidserver").isPresent ||
+    providers.environmentVariable("home_vagrant").isPresent
 val signingEnvironment = listOf(
     "KITE_RELEASE_KEYSTORE", "KITE_RELEASE_STORE_PASSWORD",
     "KITE_RELEASE_KEY_ALIAS", "KITE_RELEASE_KEY_PASSWORD",
-).map { providers.environmentVariable(it).orNull }
+).map { if (fdroidBuild) null else providers.environmentVariable(it).orNull }
 require(signingEnvironment.all { it == null } || signingEnvironment.all { !it.isNullOrBlank() }) {
     "Configure all four KITE_RELEASE_* variables or leave them unset."
 }
 val signingPropertiesFile = file(providers.gradleProperty("kiteSigningProperties").getOrElse(
     "${System.getProperty("user.home")}/.config/android-signing/flexify-release.properties"
 ))
-val localSigningAllowed = signingEnvironment.all { it == null } &&
-    !providers.environmentVariable("fdroidserver").isPresent &&
-    !providers.environmentVariable("home_vagrant").isPresent &&
+val localSigningAllowed = !fdroidBuild && signingEnvironment.all { it == null } &&
     providers.environmentVariable("CI").orNull != "true"
 val localSigning = Properties().apply {
     if (localSigningAllowed && signingPropertiesFile.isFile) {

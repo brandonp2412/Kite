@@ -1,0 +1,1 @@
+Smoother image uploads and more consistent message spacing. Improved chat timestamps and notification previews. Fixed stuck message sends, stale read notifications, push registration, and room loading. Revoked accounts can be signed in again without first removing them. Device verification now reports a timeout instead of spinning indefinitely.
