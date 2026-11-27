@@ -27,6 +27,12 @@ class ConversationScreenLayoutTest {
     }
 
     @Test
+    fun attachmentHandoffDoesNotTweenTimelineItems() {
+        assertFalse(shouldAnimateTimelinePlacement(false, false, attachmentTransitioning = true))
+        assertTrue(shouldAnimateTimelinePlacement(false, false, attachmentTransitioning = false))
+    }
+
+    @Test
     fun keyboardInsetTransitionDoesNotTweenTimelineItems() {
         assertFalse(shouldAnimateTimelinePlacement(hasNotificationPreview = false, imeTransitioning = true))
         assertFalse(shouldAnimateTimelinePlacement(hasNotificationPreview = true, imeTransitioning = false))

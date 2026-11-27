@@ -2254,3 +2254,8 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 - Await the real SDK verified status with withTimeoutOrNull and publish failure on deadline; optional recovery wait cannot cancel completion. Preserve the request type across a non-cancelling reset. Never claim a device verified solely from a completed SAS exchange.
 - Matrix JVM tests (12) and Compose desktop tests (120) passed; release lint and signed ARM64 assembly passed. Installed app.kite 1.0.114 over 113 on Samsung with matching signer SHA-256 011ee1a6e4e5ecd675f67fbf3d78ad82614a7a7a3f24ed71cc9c417154a0f0fd, UID 10880 and original firstInstallTime 2026-11-07 15:01:31 preserved. Original spinner visually reproduced on 113; post-update live verification not yet witnessed.
 - Weft's recovery/setup now populates its SDK encrypted store; isolated Synapse integration verified a trusted device requesting and receiving a backup secret. Existing empty production store still requires explicit recovery to populate it. No production secrets extracted or trust checks bypassed.
+
+
+### 2026-11-27: Outgoing image handoff
+- Keep the decoded composer preview visible until a matching own timeline image arrives; retain decoded pixels during local-to-remote media reconciliation and suppress conflicting placement tweens.
+- Android compilation and desktop tests ConversationScreenLayoutTest and OutgoingImagePreviewTest passed. Samsung 1.0.116 video still showed a blank frame; the revised 1.0.117 patch has not yet been installed or visually verified.

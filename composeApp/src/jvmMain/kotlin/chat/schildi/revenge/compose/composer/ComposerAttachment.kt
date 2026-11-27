@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.dp
 import chat.schildi.revenge.compose.destination.conversation.event.message.FileMessageContent
 import chat.schildi.revenge.compose.destination.conversation.event.message.FileMessageRenderType
@@ -30,6 +31,7 @@ fun ComposerAttachment(
     attachment: Attachment,
     onRemoveClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onImageReady: (Attachment.Image, Painter) -> Unit = { _, _ -> },
 ) {
     val isVisual = attachment is Attachment.VisualAttachment
     Row(
@@ -47,6 +49,7 @@ fun ComposerAttachment(
     ) {
         ComposerAttachmentContent(
             attachment = attachment,
+            onImageReady = onImageReady,
             modifier = if (isVisual) Modifier else Modifier.weight(1f),
         )
         IconButton(
@@ -66,6 +69,7 @@ fun ComposerAttachment(
 fun ComposerAttachmentContent(
     attachment: Attachment,
     modifier: Modifier = Modifier,
+    onImageReady: (Attachment.Image, Painter) -> Unit = { _, _ -> },
 ) {
     Column(modifier) {
         when (attachment) {
@@ -79,6 +83,7 @@ fun ComposerAttachmentContent(
                     maxWidth = 256.dp,
                     maxHeight = 196.dp,
                     shape = RoundedCornerShape(16.dp),
+                    onImageReady = { onImageReady(attachment, it) },
                 )
             }
 

@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -103,9 +104,17 @@ import kotlin.math.min
 private val MessagesComposerShape = RoundedCornerShape(28.dp)
 
 @Composable
-fun ComposerRow(viewModel: ComposerViewModel, modifier: Modifier = Modifier) {
-    when (val draftState = viewModel.composerState.collectAsState().value) {
-        is DraftValue -> ComposerRow(draftState, viewModel, modifier)
+fun ComposerRow(
+    viewModel: ComposerViewModel,
+    modifier: Modifier = Modifier,
+    onImageReady: (Attachment.Image, Painter) -> Unit = { _, _ -> },
+    onImageSend: (Attachment.Image) -> Unit = {},
+    retainedDraft: DraftValue? = null,
+) {
+    val composerState = viewModel.composerState.collectAsState().value
+    val useRetained = retainedDraft != null && (composerState as? DraftValue)?.attachment == null
+    when (val draftState = if (useRetained) retainedDraft else composerState) {
+        is DraftValue -> ComposerRow(draftState, viewModel, modifier, onImageReady, onImageSend, useRetained)
         is ComposerState.ComposerLessTimeline -> {}
         is ComposerState.NoSendPermission -> BlockedComposer(
             stringResource(Res.string.hint_composer_missing_send_permission),
@@ -118,11 +127,14 @@ fun ComposerRow(viewModel: ComposerViewModel, modifier: Modifier = Modifier) {
 fun ComposerRow(
     draftState: DraftValue,
     viewModel: ComposerViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onImageReady: (Attachment.Image, Painter) -> Unit = { _, _ -> },
+    onImageSend: (Attachment.Image) -> Unit = {},
+    retained: Boolean = false,
 ) {
     val suggestionsState = viewModel.composerSuggestions.collectAsState().value
     val composerInfo = viewModel.composerRoomInfo.collectAsState().value
-    val isSendInProgress = viewModel.isSendInProgress.collectAsState().value
+    val isSendInProgress = viewModel.isSendInProgress.collectAsState().value || retained
     var showAttachmentPicker by remember { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
     val draftTheme = MaterialTheme.scExposures.draftTheme
@@ -232,7 +244,8 @@ fun ComposerRow(
                 if (draftState.attachment != null) {
                     ComposerAttachment(
                         attachment = draftState.attachment,
-                        onRemoveClick = viewModel::clearAttachment,
+                        onRemoveClick = { if (!retained) viewModel.clearAttachment() },
+                        onImageReady = onImageReady,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -324,7 +337,7 @@ fun ComposerRow(
                 BasicTextField(
                     value = draftState.textFieldValue,
                     onValueChange = {
-                        viewModel.onComposerUpdate(draftState.copy(textFieldValue = it))
+                        if (!retained) viewModel.onComposerUpdate(draftState.copy(textFieldValue = it))
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -344,6 +357,7 @@ fun ComposerRow(
                     keyboardActions = KeyboardActions(
                         onSend = {
                             if (draftState.canSend() && !isSendInProgress && bodyValidationError == null) {
+                                (draftState.attachment as? Attachment.Image)?.let(onImageSend)
                                 viewModel.sendMessage(actionContext)
                             }
                         },
@@ -427,6 +441,7 @@ fun ComposerRow(
                     ComposerSendButton(
                         enabled = canSendNow && !isSendInProgress,
                     ) {
+                        (draftState.attachment as? Attachment.Image)?.let(onImageSend)
                         viewModel.sendMessage(actionContext)
                     }
                 } else if (draftState.type.needsClearButton() && draftState.isEmpty()) {

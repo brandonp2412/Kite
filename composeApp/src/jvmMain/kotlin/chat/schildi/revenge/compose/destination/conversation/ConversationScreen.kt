@@ -56,6 +56,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.geometry.Offset
@@ -117,6 +118,10 @@ import chat.schildi.revenge.config.keybindings.Action
 import chat.schildi.revenge.config.keybindings.DestinationEnum
 import chat.schildi.revenge.matrixBodyDrawStyle
 import chat.schildi.revenge.matrixBodyFormatter
+import chat.schildi.revenge.model.DraftValue
+import chat.schildi.revenge.model.Attachment
+import chat.schildi.revenge.compose.destination.conversation.event.message.LocalOutgoingImagePreview
+import chat.schildi.revenge.compose.destination.conversation.event.message.OutgoingImagePreview
 import chat.schildi.revenge.model.CheckpointLoadState
 import chat.schildi.revenge.model.MessageForward
 import chat.schildi.revenge.model.LoadCheckPoint
@@ -154,6 +159,8 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -324,8 +331,42 @@ fun ConversationScreen(
         // independent item-placement tween to the same viewport resize: it makes
         // bubbles lag behind the composer as the keyboard slides in or out.
         val imeTransitioning = isImeTransitionInProgress()
+        val attachmentDraftActive = remember(viewModel) {
+            viewModel.composerState.map { (it as? DraftValue)?.attachment != null }.distinctUntilChanged()
+        }.collectAsState(initial = false).value
+        val sending = viewModel.isSendInProgress.collectAsState().value
+        var preparedImage by remember(viewModel) { mutableStateOf<Pair<Attachment.Image, Painter>?>(null) }
+        var outgoingImage by remember(viewModel) { mutableStateOf<OutgoingImagePreview?>(null) }
 
         val timelineItems = viewModel.timelineItems.collectAsState().value
+        val newestTimelineEvent = remember(timelineItems) {
+            timelineItems?.asReversed()?.firstNotNullOfOrNull { it.item as? MatrixTimelineItem.Event }
+        }
+        val pendingImage = outgoingImage
+        val boundImagePresent = pendingImage?.eventKey != null && timelineItems?.any {
+            (it.item as? MatrixTimelineItem.Event)?.uniqueId == pendingImage.eventKey
+        } == true
+        val matchedImageKey = when {
+            boundImagePresent -> pendingImage.eventKey
+            pendingImage?.matchesCandidate(newestTimelineEvent) == true -> newestTimelineEvent?.uniqueId
+            else -> null
+        }
+        if (pendingImage != null && matchedImageKey != null && matchedImageKey != pendingImage.eventKey) {
+            SideEffect { outgoingImage = pendingImage.copy(eventKey = matchedImageKey) }
+        }
+        // The SDK can return its send handle before publishing the local echo. Keep
+        // the draft visible until that echo can replace it in the very same layout.
+        val retainedComposer = pendingImage?.draft?.takeIf {
+            pendingImage.eventKey == null && matchedImageKey == null
+        }
+        LaunchedEffect(pendingImage?.startedAt) {
+            if (pendingImage != null) {
+                delay(2_000)
+                if (outgoingImage?.startedAt == pendingImage.startedAt && outgoingImage?.eventKey == null) {
+                    outgoingImage = null
+                }
+            }
+        }
         val openPreview = NotificationOpenPreviews.current.collectAsState().value?.takeIf {
             destination.timelineParams == null &&
                 it.sessionId == destination.sessionId.value && it.roomId == destination.roomId.value &&
@@ -919,6 +960,15 @@ fun ConversationScreen(
                         renderedItems.firstNotNullOfOrNull { it.item as? MatrixTimelineItem.Event }
                     }
                     val newestEventKey = newestEvent?.uniqueId
+                    val newestOwnAttachment = newestEvent?.event?.let {
+                        it.isOwn && (it.content as? MessageContent)?.type is MessageTypeWithAttachment
+                    } == true
+                    val attachmentHandoff = attachmentDraftActive || retainedComposer != null ||
+                        (newestOwnAttachment && (sending || !newestEvent.event.isRemote))
+                    val attachmentComposerVisible = attachmentDraftActive || retainedComposer != null
+                    var previousAttachmentDraft by remember(listState) { mutableStateOf(attachmentComposerVisible) }
+                    val attachmentViewportChanging = previousAttachmentDraft != attachmentComposerVisible
+                    SideEffect { previousAttachmentDraft = attachmentComposerVisible }
                     if (viewModel.timelineParams == null &&
                         (isOpeningUnread || targetEvent is EventJumpTarget.Index && targetEvent.index == 0)
                     ) {
@@ -928,7 +978,7 @@ fun ConversationScreen(
                             SideEffect {
                                 // Local echoes already enter at index 0. Re-anchoring them
                                 // defeats item placement animations and creates a hard jump.
-                                if (followLatest.value && !isOwnMessage) listState.requestScrollToItem(0)
+                                if (followLatest.value && (!isOwnMessage || newestOwnAttachment)) listState.requestScrollToItem(0)
                                 lastAnchoredEventKey = newestEventKey
                             }
                         }
@@ -1072,6 +1122,11 @@ fun ConversationScreen(
                             val olderVisibleEvent = (renderedItems.getOrNull(
                                 visibleNeighborIndices.older[index]
                             )?.item as? MatrixTimelineItem.Event)?.event
+                            val imagePreview = outgoingImage?.takeIf {
+                                matchedImageKey != null &&
+                                    (item.item as? MatrixTimelineItem.Event)?.uniqueId == matchedImageKey
+                            }
+                            CompositionLocalProvider(LocalOutgoingImagePreview provides imagePreview) {
                             ConversationItemRow(
                                 viewModel = viewModel,
                                 item = item,
@@ -1119,17 +1174,19 @@ fun ConversationScreen(
                                 modifier = Modifier.animateItem(
                                     // Only the newest real message enters; paginated history
                                     // and notification handoff never fade or delay.
-                                    fadeInSpec = if (openPreview == null && index == 0) messageArrivalSpec else null,
+                                    fadeInSpec = if (openPreview == null && index == 0 && !newestOwnAttachment && !attachmentHandoff) messageArrivalSpec else null,
                                     fadeOutSpec = null,
                                     // The notified event must replace its preview in place,
                                     // without animating previously visible messages.
                                     placementSpec = if (shouldAnimateTimelinePlacement(
                                             hasNotificationPreview = openPreview != null,
                                             imeTransitioning = imeTransitioning,
+                                            attachmentTransitioning = attachmentHandoff || attachmentViewportChanging,
                                         )) messagePlacementSpec else null,
                                 ),
                                 debugSeparatorLines = currentDebugLines.toPersistentList(),
                             )
+                            }
                         }
                         if (renderedItems.isEmpty() && showBackwardPagingIndicator) {
                             item {
@@ -1295,6 +1352,21 @@ fun ConversationScreen(
                             ComposerRow(
                                 viewModel,
                                 modifier = Modifier.padding(bottom = composerBottomPadding),
+                                retainedDraft = retainedComposer,
+                                onImageReady = { attachment, painter ->
+                                    preparedImage = attachment to painter
+                                },
+                                onImageSend = { attachment ->
+                                    preparedImage?.takeIf { it.first == attachment }?.let { (_, painter) ->
+                                        (viewModel.composerState.value as? DraftValue)?.let { draft ->
+                                            outgoingImage = OutgoingImagePreview(
+                                                attachment, painter, draft,
+                                                newestTimelineEvent?.uniqueId,
+                                                System.currentTimeMillis(),
+                                            )
+                                        }
+                                    }
+                                },
                             )
                         }
                     }
@@ -1373,8 +1445,11 @@ internal fun shouldShowTimelineSenderDetails(joinedMembersCount: Long?): Boolean
     (joinedMembersCount ?: 0L) > 2L
 
 /** Placement tweens are for new/reordered events, not Android's animated IME resize. */
-internal fun shouldAnimateTimelinePlacement(hasNotificationPreview: Boolean, imeTransitioning: Boolean): Boolean =
-    !hasNotificationPreview && !imeTransitioning
+internal fun shouldAnimateTimelinePlacement(
+    hasNotificationPreview: Boolean,
+    imeTransitioning: Boolean,
+    attachmentTransitioning: Boolean = false,
+): Boolean = !hasNotificationPreview && !imeTransitioning && !attachmentTransitioning
 
 private inline fun <T>getNextItem(
     currentIndex: Int,

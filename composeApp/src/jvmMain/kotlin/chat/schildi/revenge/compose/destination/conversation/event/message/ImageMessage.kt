@@ -1,5 +1,6 @@
 package chat.schildi.revenge.compose.destination.conversation.event.message
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
@@ -45,7 +47,6 @@ import chat.schildi.revenge.compose.media.onAsyncImageState
 import coil3.compose.AsyncImagePainter
 import chat.schildi.revenge.model.conversation.MessageMetadata
 import coil3.compose.SubcomposeAsyncImage
-import coil3.compose.SubcomposeAsyncImageContent
 import com.beeper.android.messageformat.MatrixBodyParseResult
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.timeline.item.EventThreadInfo
@@ -64,8 +65,13 @@ fun ImageMessage(
     threadInfo: EventThreadInfo?,
     modifier: Modifier = Modifier,
 ) {
+    val preview = LocalOutgoingImagePreview.current?.takeIf {
+        isOwn && LocalMessageRenderContext.current == MessageRenderContext.NORMAL &&
+            it.matchesImage(image)
+    }?.painter
     ImageMessage(
         source = image.source,
+        fallbackPainter = preview,
         blurhash = image.info?.blurhash,
         width = image.info?.width,
         height = image.info?.height,
@@ -90,13 +96,14 @@ fun ImageMessage(
     inReplyTo: InReplyTo?,
     threadInfo: EventThreadInfo?,
     modifier: Modifier = Modifier,
+    fallbackPainter: Painter? = null,
 ) {
     val hasCaption = messageMetadata?.preFormattedContent != null
-    var decodedAspectRatio by remember(source) { mutableStateOf<Float?>(null) }
+    var decodedAspectRatio by remember { mutableStateOf<Float?>(null) }
     val imageAspectRatio = decodedAspectRatio ?: aspectRatioOrNull(width, height) ?: 1f
     val isTransparent = !hasCaption && inReplyTo == null
     val captionedTimelineImage = hasCaption && LocalMessageRenderContext.current == MessageRenderContext.NORMAL
-    var displayAspectRatio by remember(source, width, height) {
+    var displayAspectRatio by remember(width, height) {
         mutableFloatStateOf(aspectRatioOrNull(width, height) ?: 1f)
     }
     MessageBubble(
@@ -143,6 +150,8 @@ fun ImageMessage(
             shape = shape,
             displayAspectRatio = displayAspectRatio,
             onDecodedAspectRatio = { ratio -> displayAspectRatio = ratio },
+            fallbackPainter = fallbackPainter,
+            retainDecoded = isOwn,
             onCaptionTextLayout = {}
         )
     }
@@ -165,10 +174,14 @@ fun ColumnScope.ImageMessageContent(
     displayAspectRatio: Float? = null,
     onDecodedAspectRatio: ((Float) -> Unit)? = null,
     onCaptionTextLayout: (TextLayoutResult?) -> Unit = {},
+    fallbackPainter: Painter? = null,
+    retainDecoded: Boolean = false,
+    onImageReady: (Painter) -> Unit = {},
     overlay: @Composable () -> Unit = {},
 ) {
     // Bridged media can omit or misreport dimensions. Once decoded, use the
     // real aspect ratio even without a caption to avoid invisible letterboxing.
+    var lastDecoded by remember(if (retainDecoded) null else model) { mutableStateOf<Painter?>(null) }
     val reservedAspectRatio = displayAspectRatio ?: aspectRatioOrNull(width, height) ?: 1f
     if (caption != null) {
         TextLikeMessageContent(
@@ -192,6 +205,8 @@ fun ColumnScope.ImageMessageContent(
             onState = { state ->
                 onAsyncImageState(state)
                 if (state is AsyncImagePainter.State.Success) {
+                    lastDecoded = state.painter
+                    onImageReady(state.painter)
                     val decoded = state.painter.intrinsicSize
                     if (decoded.width.isFinite() && decoded.height.isFinite() && decoded.width > 0f && decoded.height > 0f) {
                         onImageAspectRatio(decoded.width / decoded.height)
@@ -223,29 +238,44 @@ fun ColumnScope.ImageMessageContent(
                 )
                 return@SubcomposeAsyncImage
             }
-            when (painter.state.collectAsState().value) {
+            when (val imageState = painter.state.collectAsState().value) {
                 is AsyncImagePainter.State.Success -> {
                     if (onDecodedAspectRatio != null) {
-                        val size = painter.intrinsicSize
+                        val size = imageState.painter.intrinsicSize
                         LaunchedEffect(size) {
                             if (size.width.isFinite() && size.height.isFinite() &&
                                 size.width > 0f && size.height > 0f
                             ) onDecodedAspectRatio(size.width / size.height)
                         }
                     }
-                    SubcomposeAsyncImageContent(
-                        modifier = Modifier.fillMaxSize().clip(FittedImageShape(painter.intrinsicSize, shape)),
+                    // Draw the success state's decoded painter, not the mutable async
+                    // painter which may have reset to Empty for the server MXC already.
+                    Image(
+                        painter = imageState.painter,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().clip(FittedImageShape(imageState.painter.intrinsicSize, shape)),
                     )
                 }
                 AsyncImagePainter.State.Empty,
                 is AsyncImagePainter.State.Loading,
                 is AsyncImagePainter.State.Error -> {
-                    BlurHashPlaceholder(
-                        blurHash = blurhash,
-                        width = width,
-                        height = height,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    val retained = lastDecoded ?: fallbackPainter
+                    if (retained != null) {
+                        Image(
+                            painter = retained,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize().clip(FittedImageShape(retained.intrinsicSize, shape)),
+                        )
+                    } else {
+                        BlurHashPlaceholder(
+                            blurHash = blurhash,
+                            width = width,
+                            height = height,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
             }
         }

@@ -34,7 +34,7 @@ import java.security.MessageDigest
 /**
  * Revenge's alternative to upstream CoilMediaFetcher:
  * - Replaces MediaRequestData.Kind.Content with a file-based fetcher and bypasses SDK to read existing downloads.
- * - Disables Rust-SDK-based file cache for these requests
+ * - Retains the SDK cache for image content so uploaded local echoes can resolve without a network round trip
  */
 internal class RevengeCoilMediaFetcher(
     private val mediaLoader: MatrixMediaLoader,
@@ -50,7 +50,7 @@ internal class RevengeCoilMediaFetcher(
             return null
         }
         return when (val kind = mediaData.kind) {
-            is MediaRequestData.Kind.Content -> fetchFile(mediaSource, buildFileForContentCache(mediaSource.safeUrl))
+            is MediaRequestData.Kind.Content -> fetchFile(mediaSource, buildFileForContentCache(mediaSource.safeUrl), useSdkCache = true)
             is MediaRequestData.Kind.Thumbnail -> fetchThumbnail(mediaSource, kind)
             is MediaRequestData.Kind.VideoThumbnail -> fetchVideoThumbnail(mediaSource, kind)
             is MediaRequestData.Kind.File -> fetchFile(mediaSource, kind)
@@ -64,7 +64,7 @@ internal class RevengeCoilMediaFetcher(
         )
     }
 
-    private suspend fun fetchFile(mediaSource: MediaSource, kind: MediaRequestData.Kind.File): FetchResult? {
+    private suspend fun fetchFile(mediaSource: MediaSource, kind: MediaRequestData.Kind.File, useSdkCache: Boolean = false): FetchResult? {
         val expectFile = File(mediaLoader.baseCacheDirectory, kind.fileName)
         if (expectFile.exists() && expectFile.isFile && expectFile.length() > 0) {
             return SourceFetchResult(
@@ -77,7 +77,7 @@ internal class RevengeCoilMediaFetcher(
                 dataSource = DataSource.DISK,
             )
         }
-        return mediaLoader.downloadMediaFile(mediaSource, kind.mimeType, kind.fileName, useCache = false)
+        return mediaLoader.downloadMediaFile(mediaSource, kind.mimeType, kind.fileName, useCache = useSdkCache)
             .map { mediaFile ->
                 expectFile.parentFile.mkdirs()
                 mediaFile.use {
