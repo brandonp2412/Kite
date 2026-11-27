@@ -5,6 +5,7 @@ import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import javax.inject.Inject
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -43,14 +44,42 @@ require(unknownAndroidAbis.isEmpty()) {
     "Unsupported Android ABI(s): ${unknownAndroidAbis.joinToString()}. Supported ABIs: ${supportedAndroidAbis.joinToString()}"
 }
 
-val kiteKeystorePath = providers.environmentVariable("KITE_RELEASE_KEYSTORE").orNull
-val kiteKeystorePassword = providers.environmentVariable("KITE_RELEASE_STORE_PASSWORD").orNull
-val kiteKeyAlias = providers.environmentVariable("KITE_RELEASE_KEY_ALIAS").orNull
-val kiteKeyPassword = providers.environmentVariable("KITE_RELEASE_KEY_PASSWORD").orNull
+// Prefer explicit CI signing; on development machines reuse Flex's local
+// Android signing configuration. F-Droid must continue to produce unsigned APKs.
+val signingEnvironment = listOf(
+    "KITE_RELEASE_KEYSTORE", "KITE_RELEASE_STORE_PASSWORD",
+    "KITE_RELEASE_KEY_ALIAS", "KITE_RELEASE_KEY_PASSWORD",
+).map { providers.environmentVariable(it).orNull }
+require(signingEnvironment.all { it == null } || signingEnvironment.all { !it.isNullOrBlank() }) {
+    "Configure all four KITE_RELEASE_* variables or leave them unset."
+}
+val signingPropertiesFile = file(providers.gradleProperty("kiteSigningProperties").getOrElse(
+    "${System.getProperty("user.home")}/.config/android-signing/flexify-release.properties"
+))
+val localSigningAllowed = signingEnvironment.all { it == null } &&
+    !providers.environmentVariable("fdroidserver").isPresent &&
+    !providers.environmentVariable("home_vagrant").isPresent &&
+    providers.environmentVariable("CI").orNull != "true"
+val localSigning = Properties().apply {
+    if (localSigningAllowed && signingPropertiesFile.isFile) {
+        signingPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val kiteKeystorePath = signingEnvironment[0] ?: localSigning.getProperty("storeFile")?.let {
+    signingPropertiesFile.parentFile.resolve(it).path
+}
+val kiteKeystorePassword = signingEnvironment[1] ?: localSigning.getProperty("storePassword")
+val kiteKeyAlias = signingEnvironment[2] ?: localSigning.getProperty("keyAlias")
+val kiteKeyPassword = signingEnvironment[3] ?: localSigning.getProperty("keyPassword")
+require(localSigning.isEmpty || listOf(
+    kiteKeystorePath, kiteKeystorePassword, kiteKeyAlias, kiteKeyPassword
+).all { !it.isNullOrBlank() }) {
+    "Local Android signing properties are incomplete."
+}
 
 // The local default tracks the latest development release; CI supplies its tag through
 // -PandroidVersionName. All build types use the same deterministic versionCode formula.
-val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.110")
+val androidVersionName = providers.gradleProperty("androidVersionName").getOrElse("1.0.117")
 require(!providers.gradleProperty("androidVersionCode").isPresent) {
     "Kite derives androidVersionCode from androidVersionName; remove -PandroidVersionCode."
 }

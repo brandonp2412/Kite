@@ -23,3 +23,8 @@ Local builds default to `1.0.94`. Override with `-PandroidVersionName=1.0.95` fo
 Push a version tag (`git tag 1.0.0 && git push origin 1.0.0`) to trigger `.github/workflows/release.yml`. It builds separately for `arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`, checks APK signatures and bundled native ABI libraries, and publishes signed APKs plus SHA-256 checksums to the matching GitHub Release. Version names match tags; Android version codes increase with semantic versions.
 
 Configure GitHub Actions repository secrets `KITE_RELEASE_KEYSTORE_BASE64` (base64-encoded JKS), `KITE_RELEASE_STORE_PASSWORD`, `KITE_RELEASE_KEY_ALIAS`, and `KITE_RELEASE_KEY_PASSWORD` before pushing future tags. Use the same signing certificate as earlier `app.kite` builds or Android will reject updates. Never commit a keystore or passwords.
+
+
+### Local signed Android builds
+
+The local release build reuses Flex’s existing Android signing properties at `~/.config/android-signing/flexify-release.properties`. Run `./gradlew :androidApp:assembleRelease -PandroidAbi=arm64-v8a`. An alternate properties file may be selected using `-PkiteSigningProperties=/path/to/file.properties`. Keep signing material outside the repository. CI uses the four KITE_RELEASE_* environment variables; F-Droid remains unsigned.

@@ -2259,3 +2259,5 @@ After the b7fd251b visual slice was committed, concurrent adjacent work advanced
 ### 2026-11-27: Outgoing image handoff
 - Keep the decoded composer preview visible until a matching own timeline image arrives; retain decoded pixels during local-to-remote media reconciliation and suppress conflicting placement tweens.
 - Android compilation and desktop tests ConversationScreenLayoutTest and OutgoingImagePreviewTest passed. Samsung 1.0.116 video still showed a blank frame; the revised 1.0.117 patch has not yet been installed or visually verified.
+
+- Local signing now uses the existing Flex properties when CI signing variables are absent. Ordinary ARM64 Gradle release build passed; APK certificate matched both installed Flex and Kite. Samsung updated in place from 1.0.116 to 1.0.117, preserving app ID and firstInstallTime. Visual upload retest blocked by device media playback.
